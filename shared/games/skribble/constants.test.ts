@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import {
-  MAX_ACTIONS_PER_TURN,
-  MAX_CANVAS_RESYNC_BYTES,
-  MAX_POINTS_PER_STROKE,
-  MAX_POINTS_PER_TURN,
-  MAX_WS_MESSAGE_BYTES,
-} from './constants.js';
+import { MAX_WS_MESSAGE_BYTES } from '../../platform/constants.js';
+import { MAX_ACTIONS_PER_TURN, MAX_CANVAS_RESYNC_BYTES, MAX_POINTS_PER_STROKE, MAX_POINTS_PER_TURN } from './constants.js';
 
 describe('canvas caps', () => {
   it('bound the whole canvas, not just one stroke', () => {

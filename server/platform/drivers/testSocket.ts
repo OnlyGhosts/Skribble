@@ -1,17 +1,22 @@
 /** An in-memory `SocketLike` for driver and connection tests: records what the server sent. */
 import { EventEmitter } from 'node:events';
-import type { ServerMessage, ServerMessageOf } from '../../shared/protocol.js';
+import type { SkribbleServerMessage, SkribbleSettings, SkribbleView } from '../../../shared/games/skribble/protocol.js';
+import type { PlatformServerMessage } from '../../../shared/platform/protocol.js';
 import type { SocketLike } from './types.js';
+
+/** Every message a test may see: platform messages with Skribble's view, and Skribble's own stream. */
+export type AnyServerMessage = PlatformServerMessage<SkribbleView, SkribbleSettings> | SkribbleServerMessage;
+export type AnyServerMessageOf<T extends AnyServerMessage['t']> = Extract<AnyServerMessage, { t: T }>;
 
 export class FakeSocket extends EventEmitter implements SocketLike {
   readyState = 1;
-  readonly sent: ServerMessage[] = [];
+  readonly sent: AnyServerMessage[] = [];
   readonly closes: Array<{ code?: number; reason?: string }> = [];
   terminated = false;
   pings = 0;
 
   send(data: string): void {
-    this.sent.push(JSON.parse(data) as ServerMessage);
+    this.sent.push(JSON.parse(data) as AnyServerMessage);
   }
 
   close(code?: number, reason?: string): void {
@@ -38,11 +43,11 @@ export class FakeSocket extends EventEmitter implements SocketLike {
     this.emit('message', Buffer.from(text), false);
   }
 
-  ofType<T extends ServerMessage['t']>(t: T): ServerMessageOf<T>[] {
-    return this.sent.filter((m): m is ServerMessageOf<T> => m.t === t);
+  ofType<T extends AnyServerMessage['t']>(t: T): AnyServerMessageOf<T>[] {
+    return this.sent.filter((m): m is AnyServerMessageOf<T> => m.t === t);
   }
 
-  last<T extends ServerMessage['t']>(t: T): ServerMessageOf<T> {
+  last<T extends AnyServerMessage['t']>(t: T): AnyServerMessageOf<T> {
     const list = this.ofType(t);
     const msg = list[list.length - 1];
     if (!msg) throw new Error(`no '${t}' message`);

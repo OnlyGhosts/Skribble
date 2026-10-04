@@ -1,6 +1,6 @@
-import { CLOSE_REPLACED, type ServerMessage } from '../../shared/protocol.js';
+import { CLOSE_REPLACED } from '../../../shared/platform/protocol.js';
 import type { Transport } from '../transport.js';
-import { sendTo, type SocketLike } from './types.js';
+import { sendTo, type OutboundMessage, type SocketLike } from './types.js';
 
 /** Maps player seats to live sockets in one process. The in-memory driver's `Transport`. */
 export class SocketHub implements Transport {
@@ -38,7 +38,7 @@ export class SocketHub implements Transport {
     this.byPlayer.set(playerId, connectionId);
   }
 
-  send(playerId: string, msg: ServerMessage): void {
+  send(playerId: string, msg: OutboundMessage): void {
     const connectionId = this.byPlayer.get(playerId);
     const entry = connectionId !== undefined ? this.sockets.get(connectionId) : undefined;
     if (entry) sendTo(entry.ws, msg);

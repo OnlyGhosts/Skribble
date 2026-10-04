@@ -1,5 +1,5 @@
 import { EN_WORDS } from './en.js';
-import type { Language } from '../settings.js';
+import type { Language } from '../protocol.js';
 
 function dedupe(list: string[]): string[] {
   const seen = new Set<string>();

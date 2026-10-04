@@ -1,29 +1,17 @@
 /**
- * Shared constants used by both the server and the client.
- * The logical canvas is a fixed size; clients scale it to fit their viewport
- * and always send/receive coordinates in this logical space.
+ * Skribble constants shared by the server and the client. The logical canvas is a fixed size;
+ * clients scale it to fit their viewport and always send/receive coordinates in this space.
  */
 export const CANVAS_WIDTH = 800;
 export const CANVAS_HEIGHT = 600;
-
-export const MIN_PLAYERS_TO_START = 2;
-
-export const NAME_MIN_LENGTH = 1;
-export const NAME_MAX_LENGTH = 16;
-export const CHAT_MAX_LENGTH = 120;
-export const CHAT_HISTORY_LENGTH = 60;
 
 /** Seconds the drawer has to pick a word before one is auto-picked. */
 export const CHOOSE_TIME_SECONDS = 15;
 /** Seconds the "turn over" summary is shown before the next turn starts. */
 export const TURN_END_SECONDS = 6;
 
-/** How long a disconnected player keeps their seat (and score) before being removed. */
-export const RECONNECT_GRACE_MS = 60_000;
-/** How long we wait for a disconnected drawer to come back before ending the turn. */
+/** How long we wait for a disconnected drawer (or the last unsolved guesser) to come back before the turn moves on. */
 export const DRAWER_DISCONNECT_GRACE_MS = 10_000;
-/** How long an empty room is kept alive before it is deleted. */
-export const EMPTY_ROOM_TTL_MS = 60_000;
 
 /**
  * Caps that bound memory per room. The whole canvas is re-sent to every joiner/rejoiner in
@@ -36,11 +24,6 @@ export const MAX_POINTS_PER_STROKE = 4000;
 export const MAX_POINTS_PER_TURN = 80_000;
 /** Rough upper bound on the serialized canvas (coordinates are rounded to 2 decimals, so ~8 bytes each). */
 export const MAX_CANVAS_RESYNC_BYTES = MAX_POINTS_PER_TURN * 8 + MAX_ACTIONS_PER_TURN * 128;
-export const MAX_WS_MESSAGE_BYTES = 64 * 1024;
-
-/** Chat rate limit: at most CHAT_RATE_LIMIT_COUNT messages per CHAT_RATE_LIMIT_WINDOW_MS. */
-export const CHAT_RATE_LIMIT_COUNT = 6;
-export const CHAT_RATE_LIMIT_WINDOW_MS = 4000;
 
 export const BRUSH_SIZES = [3, 6, 12, 20, 32] as const;
 

@@ -1,6 +1,6 @@
-import type { Avatar } from '../../shared/avatar.js';
-import type { ErrorCode, RoomPreview, ServerMessage } from '../../shared/protocol.js';
-import type { RoomMessage } from '../room.js';
+import type { Avatar } from '../../../shared/platform/avatar.js';
+import type { GameId } from '../../../shared/platform/games.js';
+import type { ErrorCode, PlatformClientMessage, PlatformServerMessage, RoomPreview, WireMessage } from '../../../shared/platform/protocol.js';
 
 /**
  * Drivers may answer synchronously (in-memory) or asynchronously (Redis). The connection layer
@@ -12,6 +12,15 @@ export type MaybePromise<T> = T | Promise<T>;
 export function after<T, R>(value: MaybePromise<T>, fn: (v: T) => MaybePromise<R>): MaybePromise<R> {
   return value instanceof Promise ? value.then(fn) : fn(value);
 }
+
+/** Anything the server sends: a platform message or a game's own message. */
+export type OutboundMessage = PlatformServerMessage | WireMessage;
+
+/** Platform messages handled inside a room (session-level ones are handled by the connection layer). */
+export type PlatformRoomMessage = Exclude<PlatformClientMessage, { t: 'create' | 'join' | 'rejoin' | 'leave' | 'ping' }>;
+
+/** What the connection layer hands to a room: a validated platform message, or a raw game message the room's game validates. */
+export type RoomInbound = { kind: 'platform'; msg: PlatformRoomMessage } | { kind: 'game'; msg: WireMessage };
 
 /** The subset of the ws API drivers need; keeps tests free of real sockets. */
 export interface SocketLike {
@@ -29,7 +38,7 @@ export interface SocketLike {
 export const SOCKET_OPEN = 1;
 
 /** Serialises a message onto a socket, ignoring sockets that are going away. */
-export function sendTo(ws: SocketLike, msg: ServerMessage): void {
+export function sendTo(ws: SocketLike, msg: OutboundMessage): void {
   if (ws.readyState !== SOCKET_OPEN) return;
   try {
     ws.send(JSON.stringify(msg));
@@ -69,13 +78,13 @@ export interface GameDriver {
   unregister(connectionId: string): void;
   /** Resolves user input (any case, with noise) to an existing room's code. */
   lookup(code: string): MaybePromise<LookupResult>;
-  create(name: string, avatar: Avatar, connectionId: string): MaybePromise<SeatResult>;
+  create(gameId: GameId, name: string, avatar: Avatar, connectionId: string): MaybePromise<SeatResult>;
   join(code: string, name: string, avatar: Avatar, connectionId: string): MaybePromise<SeatResult>;
   rejoin(code: string, token: string, connectionId: string): MaybePromise<SeatResult>;
   leave(seat: Seat): MaybePromise<void>;
   /** The seat's socket went away; ignored when `connectionId` no longer holds the seat. */
   disconnected(seat: Seat, connectionId: string): MaybePromise<void>;
-  handle(seat: Seat, msg: RoomMessage): MaybePromise<void>;
+  handle(seat: Seat, msg: RoomInbound): MaybePromise<void>;
   /** True while `connectionId` is the connection bound to the seat (a rejoin elsewhere unbinds it). */
   holds(seat: Seat, connectionId: string): boolean;
   /** The connection proved alive (client ping or socket pong). */
