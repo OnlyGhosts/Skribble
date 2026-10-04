@@ -1,80 +1,79 @@
-import { randomBytes, randomUUID } from 'node:crypto';
 import type { Avatar } from '../shared/avatar';
-import type { PlayerPublic } from '../shared/protocol';
+import type { PlayerData, Rating } from './engine/state';
 
-export type Rating = 'like' | 'dislike';
-
-export interface PlayerInit {
-  name: string;
-  avatar: Avatar;
-  joinOrder: number;
-  connectionId: string;
-  now: number;
-}
-
+/**
+ * A stable handle on one seat. The game state lives in the room's RoomData and changes with
+ * every action, so the handle reads through to the current record instead of copying it. Once
+ * the player has left, it keeps answering with the last record it saw, minus the secrets.
+ */
 export class Player {
-  readonly id: string = randomUUID();
-  /** Secret used by `rejoin`; cleared when the player is removed so it can never be reused. */
-  token: string = randomBytes(16).toString('hex');
-  name: string;
-  avatar: Avatar;
-  score = 0;
-  connected = true;
-  readonly joinOrder: number;
-  guessedThisTurn = false;
-  turnPoints = 0;
-  rating: Rating | null = null;
-  lastSeen: number;
-  /** When the current connection was established; used to pick the longest-connected player as host. */
-  connectedAt: number;
-  /** Id of the connection bound to this seat; null while disconnected. */
-  connectionId: string | null;
+  private last: PlayerData;
 
-  constructor(init: PlayerInit) {
-    this.name = init.name;
-    this.avatar = init.avatar;
-    this.joinOrder = init.joinOrder;
-    this.connectionId = init.connectionId;
-    this.lastSeen = init.now;
-    this.connectedAt = init.now;
+  constructor(
+    private readonly lookup: (id: string) => PlayerData | undefined,
+    initial: PlayerData,
+  ) {
+    this.last = initial;
   }
 
-  markConnected(connectionId: string, now: number): void {
-    const wasConnected = this.connected;
-    this.connected = true;
-    this.connectionId = connectionId;
-    this.lastSeen = now;
-    if (!wasConnected) this.connectedAt = now;
+  get id(): string {
+    return this.last.id;
   }
 
-  markDisconnected(now: number): void {
-    this.connected = false;
-    this.connectionId = null;
-    this.lastSeen = now;
+  /** True while the seat exists (connected or within its reconnect grace). */
+  get seated(): boolean {
+    return this.live() !== undefined;
   }
 
-  resetForTurn(): void {
-    this.guessedThisTurn = false;
-    this.turnPoints = 0;
-    this.rating = null;
+  /** Secret used by `rejoin`; empty once the player was removed so it can never be reused. */
+  get token(): string {
+    return this.live()?.token ?? '';
   }
 
-  resetForGame(): void {
-    this.score = 0;
-    this.resetForTurn();
+  get name(): string {
+    return this.current().name;
   }
 
-  toPublic(hostId: string): PlayerPublic {
-    return {
-      id: this.id,
-      name: this.name,
-      avatar: { ...this.avatar },
-      score: this.score,
-      isHost: this.id === hostId,
-      connected: this.connected,
-      guessedThisTurn: this.guessedThisTurn,
-      turnPoints: this.turnPoints,
-      joinOrder: this.joinOrder,
-    };
+  get avatar(): Avatar {
+    return { ...this.current().avatar };
+  }
+
+  get score(): number {
+    return this.current().score;
+  }
+
+  get joinOrder(): number {
+    return this.current().joinOrder;
+  }
+
+  get connected(): boolean {
+    return this.live()?.connected ?? false;
+  }
+
+  /** Id of the connection bound to this seat; null while disconnected or after removal. */
+  get connectionId(): string | null {
+    return this.live()?.connectionId ?? null;
+  }
+
+  get guessedThisTurn(): boolean {
+    return this.current().guessedThisTurn;
+  }
+
+  get turnPoints(): number {
+    return this.current().turnPoints;
+  }
+
+  get rating(): Rating | null {
+    return this.current().rating;
+  }
+
+  private live(): PlayerData | undefined {
+    const data = this.lookup(this.last.id);
+    if (data) this.last = data;
+    return data;
+  }
+
+  private current(): PlayerData {
+    return this.live() ?? this.last;
   }
 }

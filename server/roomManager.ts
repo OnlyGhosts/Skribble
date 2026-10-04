@@ -1,5 +1,4 @@
 import type { Avatar } from '../shared/avatar';
-import { EMPTY_ROOM_TTL_MS } from '../shared/constants';
 import type { ErrorCode } from '../shared/protocol';
 import { generateRoomCode, isValidRoomCode, normalizeRoomCode, roomCodeHint } from '../shared/roomCode';
 import type { Player } from './player';
@@ -10,8 +9,6 @@ export interface RoomManagerDeps {
   transport: Transport;
   clock?: Clock;
   rng?: Rng;
-  /** How long an empty room survives before deletion (defaults to EMPTY_ROOM_TTL_MS). */
-  emptyRoomTtlMs?: number;
   /** Rooms alive at once, empty ones awaiting deletion included (defaults to MAX_ROOMS). */
   maxRooms?: number;
 }
@@ -31,25 +28,22 @@ export interface RoomStats {
 
 const MAX_CODE_ATTEMPTS = 1000;
 /**
- * Global cap on rooms. Each room holds a canvas, chat log and timers and an abandoned one lives
+ * Global cap on rooms. Each room holds a canvas, chat log and a timer and an abandoned one lives
  * EMPTY_ROOM_TTL_MS, so without a ceiling one client could exhaust memory (or the code space).
  */
 export const MAX_ROOMS = 5000;
 
 export class RoomManager {
   private readonly rooms = new Map<string, Room>();
-  private readonly deleteTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private readonly transport: Transport;
   private readonly clock: Clock;
   private readonly rng: Rng;
-  private readonly ttlMs: number;
   private readonly maxRooms: number;
 
   constructor(deps: RoomManagerDeps) {
     this.transport = deps.transport;
     this.clock = deps.clock ?? systemClock;
     this.rng = deps.rng ?? Math.random;
-    this.ttlMs = deps.emptyRoomTtlMs ?? EMPTY_ROOM_TTL_MS;
     this.maxRooms = deps.maxRooms ?? MAX_ROOMS;
   }
 
@@ -67,11 +61,13 @@ export class RoomManager {
       transport: this.transport,
       clock: this.clock,
       rng: this.rng,
-      onEmpty: (r) => this.scheduleDeletion(r),
-      onOccupied: (r) => this.cancelDeletion(r),
+      // Rooms delete themselves once they have been empty for EMPTY_ROOM_TTL_MS.
+      onDestroy: (r) => {
+        if (this.rooms.get(r.code) === r) this.rooms.delete(r.code);
+      },
     });
     this.rooms.set(code, room);
-    const joined = room.join(name, avatar, connectionId);
+    const joined = room.create(name, avatar, connectionId);
     if (!joined.ok) {
       // Cannot happen for a brand-new room, but never leave an orphan behind.
       this.rooms.delete(code);
@@ -106,8 +102,6 @@ export class RoomManager {
 
   /** Tears down every room and timer (server shutdown). */
   destroy(): void {
-    for (const timer of this.deleteTimers.values()) clearTimeout(timer);
-    this.deleteTimers.clear();
     for (const room of this.rooms.values()) room.destroy();
     this.rooms.clear();
   }
@@ -118,24 +112,5 @@ export class RoomManager {
       if (!this.rooms.has(code)) return code;
     }
     throw new Error('unable to allocate a unique room code');
-  }
-
-  private scheduleDeletion(room: Room): void {
-    this.cancelDeletion(room);
-    this.deleteTimers.set(
-      room.code,
-      setTimeout(() => {
-        this.deleteTimers.delete(room.code);
-        if (this.rooms.get(room.code) !== room || !room.isEmpty) return;
-        this.rooms.delete(room.code);
-        room.destroy();
-      }, this.ttlMs),
-    );
-  }
-
-  private cancelDeletion(room: Room): void {
-    const timer = this.deleteTimers.get(room.code);
-    if (timer) clearTimeout(timer);
-    this.deleteTimers.delete(room.code);
   }
 }

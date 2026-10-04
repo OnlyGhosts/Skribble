@@ -1,7 +1,5 @@
-import { EventEmitter } from 'node:events';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CHAT_RATE_LIMIT_COUNT, CHAT_RATE_LIMIT_WINDOW_MS } from '../shared/constants';
-import type { ServerMessage, ServerMessageOf } from '../shared/protocol';
 import {
   CLOSE_REMOVED,
   CLOSE_REPLACED,
@@ -11,61 +9,11 @@ import {
   ROOM_RATE_LIMIT_WINDOW_MS,
   SocketHub,
   handleConnection,
-  type SocketLike,
 } from './connection';
-import { RoomManager } from './roomManager';
+import { MemoryDriver } from './drivers/memory';
+import { FakeSocket } from './drivers/testSocket';
+import type { RoomManager } from './roomManager';
 import { AVATAR } from './testUtils';
-
-class FakeSocket extends EventEmitter implements SocketLike {
-  readyState = 1;
-  readonly sent: ServerMessage[] = [];
-  readonly closes: Array<{ code?: number; reason?: string }> = [];
-  terminated = false;
-  pings = 0;
-
-  send(data: string): void {
-    this.sent.push(JSON.parse(data) as ServerMessage);
-  }
-
-  close(code?: number, reason?: string): void {
-    if (this.readyState === 3) return;
-    this.closes.push({ code, reason });
-    this.readyState = 3;
-    this.emit('close');
-  }
-
-  terminate(): void {
-    if (this.readyState === 3) return;
-    this.terminated = true;
-    this.readyState = 3;
-    this.emit('close');
-  }
-
-  ping(): void {
-    this.pings++;
-  }
-
-  /** Simulates an inbound frame. */
-  receive(payload: unknown, raw = false): void {
-    const text = raw ? String(payload) : JSON.stringify(payload);
-    this.emit('message', Buffer.from(text), false);
-  }
-
-  ofType<T extends ServerMessage['t']>(t: T): ServerMessageOf<T>[] {
-    return this.sent.filter((m): m is ServerMessageOf<T> => m.t === t);
-  }
-
-  last<T extends ServerMessage['t']>(t: T): ServerMessageOf<T> {
-    const list = this.ofType(t);
-    const msg = list[list.length - 1];
-    if (!msg) throw new Error(`no '${t}' message`);
-    return msg;
-  }
-
-  errors(): string[] {
-    return this.ofType('error').map((m) => m.code);
-  }
-}
 
 interface World {
   hub: SocketHub;
@@ -74,17 +22,16 @@ interface World {
 }
 
 function world(): World {
-  const hub = new SocketHub();
   // Deterministic rng that still yields a different code per room: AAAA, DDDD, GGGG, ...
   let calls = 0;
   const rng = (): number => (Math.floor(calls++ / 4) * 0.1) % 1;
-  const rooms = new RoomManager({ transport: hub, clock: { now: () => Date.now() }, rng });
+  const driver = new MemoryDriver({ clock: { now: () => Date.now() }, rng });
   const connect = (): FakeSocket => {
     const ws = new FakeSocket();
-    handleConnection(ws, { hub, rooms, clock: { now: () => Date.now() } });
+    handleConnection(ws, { driver, clock: { now: () => Date.now() } });
     return ws;
   };
-  return { hub, rooms, connect };
+  return { hub: driver.hub, rooms: driver.rooms, connect };
 }
 
 /** Creates a room on `host` and joins `guest`; returns the code. */
@@ -199,12 +146,12 @@ describe('handleConnection', () => {
     expect(joiner.last('welcome').room.players.map((p) => p.name)).toEqual(['Mallory', 'Late']);
 
     // The global room cap refuses further creates with a message, without seating anyone.
-    const hub = new SocketHub();
-    const capped = new RoomManager({ transport: hub, clock: { now: () => Date.now() }, maxRooms: 1 });
+    const cappedDriver = new MemoryDriver({ clock: { now: () => Date.now() }, maxRooms: 1 });
+    const capped = cappedDriver.rooms;
     const a = new FakeSocket();
     const b = new FakeSocket();
-    handleConnection(a, { hub, rooms: capped, clock: { now: () => Date.now() } });
-    handleConnection(b, { hub, rooms: capped, clock: { now: () => Date.now() } });
+    handleConnection(a, { driver: cappedDriver, clock: { now: () => Date.now() } });
+    handleConnection(b, { driver: cappedDriver, clock: { now: () => Date.now() } });
     a.receive({ t: 'create', name: 'Alice', avatar: AVATAR });
     b.receive({ t: 'create', name: 'Bob', avatar: AVATAR });
     expect(a.ofType('welcome')).toHaveLength(1);
@@ -317,7 +264,7 @@ describe('SocketHub', () => {
     expect(a.sent).toHaveLength(1);
     hub.unregister('c1');
     expect(hub.size).toBe(0);
-    hub.close('p1');
+    hub.close('p1', CLOSE_REMOVED, 'Removed from room');
     hub.attach('p1', 'missing');
   });
 });

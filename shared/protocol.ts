@@ -247,6 +247,10 @@ export function isServerMessage(x: unknown): x is ServerMessage {
 
 export const WS_PATH = '/ws';
 
+/** Close codes the server uses; 4xxx is the application range. */
+export const CLOSE_REPLACED = 4001;
+export const CLOSE_REMOVED = 4002;
+
 /** GET /api/rooms/:code — lets the home screen preview a code before joining. Always HTTP 200. */
 export const ROOM_PREVIEW_PATH = '/api/rooms';
 

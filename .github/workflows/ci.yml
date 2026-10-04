@@ -15,6 +15,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # The Redis driver tests and the multi-instance e2e spec spawn their own redis-server.
+      - run: sudo apt-get update && sudo apt-get install -y redis-server
       - run: npm run typecheck
       - run: npm test
       - run: npm run build

@@ -5,7 +5,7 @@
   "description": "A better skribbl.io: real-time multiplayer drawing & guessing with 4-character friend codes.",
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": "22.x"
   },
   "scripts": {
     "dev": "concurrently -k -n server,client -c blue,magenta \"npm:dev:server\" \"npm:dev:client\"",
@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "express": "^5.2.1",
+    "ioredis": "^6.0.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "ws": "^8.22.0",

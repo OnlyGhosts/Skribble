@@ -10,7 +10,7 @@ export interface Transport {
   attach(playerId: string, connectionId: string): void;
   send(playerId: string, msg: ServerMessage): void;
   /** Closes the connection currently bound to the player, if any. */
-  close(playerId: string): void;
+  close(playerId: string, code: number, reason: string): void;
 }
 
 export interface Clock {
