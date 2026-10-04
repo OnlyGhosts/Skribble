@@ -1,5 +1,5 @@
 import { letterCounts } from '../lib/format';
-import { hintMatches, layoutGuess, type GuessSlot } from '../lib/mask';
+import { describeMask, hintMatches, layoutGuess, type GuessSlot } from '../lib/mask';
 import { useGameStore } from '../store/useGameStore';
 
 interface Props {
@@ -34,7 +34,7 @@ export function WordDisplay({ word, mask, isDrawer }: Props) {
   if (!mask) return null;
   const { groups } = layoutGuess(mask, draft);
   return (
-    <div className="word word--mask" data-testid="word-mask" aria-label={`Word with ${letterCounts(mask)} letters`}>
+    <div className="word word--mask" data-testid="word-mask" role="img" aria-label={describeMask(mask)}>
       <span className="word__label">Guess the word</span>
       <span className="word__tiles" aria-hidden="true">
         {groups.map((slots, w) => (

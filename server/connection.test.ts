@@ -7,6 +7,8 @@ import {
   CLOSE_REPLACED,
   DRAW_RATE_LIMIT_PER_SECOND,
   HEARTBEAT_INTERVAL_MS,
+  ROOM_RATE_LIMIT_COUNT,
+  ROOM_RATE_LIMIT_WINDOW_MS,
   SocketHub,
   handleConnection,
   type SocketLike,
@@ -175,6 +177,42 @@ describe('handleConnection', () => {
     vi.advanceTimersByTime(1000);
     host.receive({ t: 'draw', ops: [{ k: 'fill', x: 0, y: 0, color: '#000000' }] });
     expect(guest.ofType('draw')).toHaveLength(DRAW_RATE_LIMIT_PER_SECOND + 1);
+  });
+
+  it('rate-limits room creation and joining per socket and refuses creates at the room cap', () => {
+    const w = world();
+    const flooder = w.connect();
+    for (let i = 0; i < ROOM_RATE_LIMIT_COUNT * 4; i++) flooder.receive({ t: 'create', name: 'Mallory', avatar: AVATAR });
+    expect(flooder.ofType('welcome')).toHaveLength(ROOM_RATE_LIMIT_COUNT);
+    expect(flooder.errors()).toEqual(new Array<string>(ROOM_RATE_LIMIT_COUNT * 3).fill('RATE_LIMITED'));
+    // Only the latest room is occupied; the abandoned ones wait for their TTL but count against the cap.
+    expect(w.rooms.stats()).toEqual({ rooms: ROOM_RATE_LIMIT_COUNT, players: 1 });
+    const code = flooder.last('welcome').room.code;
+
+    // Joins share the budget with creates.
+    const joiner = w.connect();
+    for (let i = 0; i < ROOM_RATE_LIMIT_COUNT + 1; i++) joiner.receive({ t: 'join', code, name: `J${i}`, avatar: AVATAR });
+    expect(joiner.errors()).toEqual(['RATE_LIMITED']);
+    vi.advanceTimersByTime(ROOM_RATE_LIMIT_WINDOW_MS);
+    joiner.receive({ t: 'join', code, name: 'Late', avatar: AVATAR });
+    expect(joiner.errors()).toEqual(['RATE_LIMITED']);
+    expect(joiner.last('welcome').room.players.map((p) => p.name)).toEqual(['Mallory', 'Late']);
+
+    // The global room cap refuses further creates with a message, without seating anyone.
+    const hub = new SocketHub();
+    const capped = new RoomManager({ transport: hub, clock: { now: () => Date.now() }, maxRooms: 1 });
+    const a = new FakeSocket();
+    const b = new FakeSocket();
+    handleConnection(a, { hub, rooms: capped, clock: { now: () => Date.now() } });
+    handleConnection(b, { hub, rooms: capped, clock: { now: () => Date.now() } });
+    a.receive({ t: 'create', name: 'Alice', avatar: AVATAR });
+    b.receive({ t: 'create', name: 'Bob', avatar: AVATAR });
+    expect(a.ofType('welcome')).toHaveLength(1);
+    expect(b.ofType('welcome')).toHaveLength(0);
+    expect(b.last('error')).toMatchObject({ code: 'RATE_LIMITED', message: expect.stringMatching(/too many rooms/) });
+    expect(capped.stats()).toEqual({ rooms: 1, players: 1 });
+    b.receive({ t: 'chat', text: 'hi' });
+    expect(b.errors()).toEqual(['RATE_LIMITED', 'NOT_ALLOWED']);
   });
 
   it('terminates sockets that miss a heartbeat pong', () => {

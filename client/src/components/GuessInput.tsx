@@ -1,6 +1,6 @@
-import { useLayoutEffect, useRef, useState, type FormEvent, type RefObject } from 'react';
+import { useLayoutEffect, useRef, useState, type CSSProperties, type FormEvent, type RefObject } from 'react';
 import { CHAT_MAX_LENGTH } from '@shared/constants';
-import { hintMatches, layoutGuess, type GuessSlot } from '../lib/mask';
+import { describeMask, groupMetrics, hintMatches, layoutGuess, type GuessSlot } from '../lib/mask';
 import { FINE_POINTER_QUERY, matchesMedia } from '../lib/media';
 import { sendChat } from '../net/actions';
 import { useGameStore } from '../store/useGameStore';
@@ -19,6 +19,11 @@ interface Props {
 }
 
 type LetterSlot = Extract<GuessSlot, { kind: 'letter' }>;
+
+function groupStyle(slots: GuessSlot[]): CSSProperties {
+  const { letters, seps } = groupMetrics(slots);
+  return { '--letters': letters, '--seps': seps } as CSSProperties;
+}
 
 function tileClass(slot: LetterSlot): string {
   const classes = ['gtile', 'gtile--letter'];
@@ -56,6 +61,7 @@ export function GuessInput({ mask, focusMemory }: Props) {
 
   const { groups, overflow } = layoutGuess(mask, draft);
   const canSend = connected && draft.trim().length > 0;
+  const descriptionId = 'guess-word-description';
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -72,7 +78,8 @@ export function GuessInput({ mask, focusMemory }: Props) {
       <label className={`guess-tiles${focused ? ' is-focused' : ''}`} data-testid="guess-tiles">
         <span className="guess-tiles__groups" aria-hidden="true">
           {groups.map((slots, g) => (
-            <span key={g} className="guess-tiles__group">
+            // The letter and separator counts let the tiles shrink so a word never breaks mid-word.
+            <span key={g} className="guess-tiles__group" style={groupStyle(slots)}>
               {slots.map((slot, i) =>
                 slot.kind === 'sep' ? (
                   <span key={i} className="gtile gtile--sep">
@@ -118,12 +125,16 @@ export function GuessInput({ mask, focusMemory }: Props) {
           spellCheck={false}
           enterKeyHint="send"
           inputMode="text"
-          disabled={!connected}
+          aria-describedby={descriptionId}
           onChange={(e) => setDraft(e.target.value)}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
         />
       </label>
+      {/* The tiles are decorative for assistive tech; this is where a screen reader learns the word's shape and hints. */}
+      <span id={descriptionId} className="sr-only" aria-live="polite" data-testid="guess-description">
+        {describeMask(mask)}
+      </span>
       <button type="submit" className="btn btn--primary guess-form__send" disabled={!canSend} aria-label="Send guess" data-testid="chat-send">
         <SendIcon size={18} />
       </button>

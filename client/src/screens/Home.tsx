@@ -4,6 +4,7 @@ import { MIN_PLAYERS_TO_START, NAME_MAX_LENGTH } from '@shared/constants';
 import { isValidRoomCode, roomCodeHint, ROOM_CODE_LENGTH } from '@shared/roomCode';
 import { createRoom, joinRoom } from '../net/actions';
 import { loadAvatar, loadName, saveAvatar, saveName } from '../lib/storage';
+import { enteredLength } from '../lib/codeInput';
 import { codeFromLocation } from '../lib/url';
 import { useGameStore } from '../store/useGameStore';
 import { AvatarPicker } from '../components/AvatarPicker';
@@ -68,7 +69,7 @@ export function Home() {
     const clean = requireName();
     if (!clean) return;
     if (!isValidRoomCode(code)) {
-      setCodeHint(code.length < ROOM_CODE_LENGTH ? `Enter the ${ROOM_CODE_LENGTH}-character code from your friend.` : roomCodeHint());
+      setCodeHint(enteredLength(code) < ROOM_CODE_LENGTH ? `Enter the ${ROOM_CODE_LENGTH}-character code from your friend.` : roomCodeHint());
       return;
     }
     setCodeHint(null);

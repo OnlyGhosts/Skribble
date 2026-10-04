@@ -138,8 +138,8 @@
 
 .btn--secondary {
   background: var(--color-secondary);
-  color: #fff;
-  box-shadow: 0 6px 16px rgb(255 123 84 / 0.3);
+  color: var(--color-secondary-contrast);
+  box-shadow: 0 6px 16px rgb(201 71 26 / 0.3);
 }
 
 .btn--secondary:hover:not(:disabled) {
@@ -255,7 +255,7 @@
 }
 
 .field__ok {
-  color: var(--color-success);
+  color: var(--color-success-text);
   font-size: 0.875rem;
   font-weight: 600;
 }
@@ -592,7 +592,7 @@
 }
 
 .conn-pill--reconnecting {
-  color: var(--color-warning);
+  color: var(--color-warning-text);
 }
 
 @keyframes pulse {
@@ -851,7 +851,7 @@
 
 .tile--revealed {
   background: var(--color-primary-soft);
-  color: var(--color-primary);
+  color: var(--color-primary-text);
 }
 
 .tile--punct {
@@ -870,13 +870,13 @@
 }
 
 .tile--match {
-  color: var(--color-success);
-  background: var(--color-success-soft);
+  color: var(--chat-correct-fg);
+  background: var(--chat-correct-bg);
 }
 
 .tile--mismatch {
-  color: var(--color-warning);
-  background: var(--color-warning-soft);
+  color: var(--chat-close-fg);
+  background: var(--chat-close-bg);
 }
 
 .tile--active {
@@ -1005,13 +1005,13 @@
 }
 
 .player__turn-points {
-  color: var(--color-success);
+  color: var(--color-success-text);
   font-weight: 800;
   animation: pop 0.3s ease;
 }
 
 .player__status--offline {
-  color: var(--color-warning);
+  color: var(--color-warning-text);
   font-weight: 600;
 }
 
@@ -1115,7 +1115,7 @@
 .chat-msg--hint {
   font-weight: 800;
   background: var(--color-primary-soft);
-  color: var(--color-primary);
+  color: var(--color-primary-text);
 }
 
 .chat__jump {
@@ -1193,9 +1193,24 @@
 }
 
 .guess-tiles__group {
+  --gtile-gap: 3px;
+  --gtile-max: 24px;
+  --gsep-w: 12px;
+  /* Set inline per group (GuessInput): how many letter tiles and separators it holds. */
+  --letters: 1;
+  --seps: 0;
+  /*
+   * A word always fits on one row: its tiles shrink (down to 16px) before anything wraps, so a
+   * ten-letter word on a 375px phone never leaves one orphan tile on a second line.
+   */
+  --gtile-w: clamp(
+    16px,
+    calc((100cqw - var(--seps) * var(--gsep-w) - (var(--letters) + var(--seps) - 1) * var(--gtile-gap)) / var(--letters)),
+    var(--gtile-max)
+  );
   display: inline-flex;
   flex-wrap: wrap; /* only a word longer than the whole bar ever breaks mid-word */
-  gap: 3px;
+  gap: var(--gtile-gap);
 }
 
 .gtile {
@@ -1214,8 +1229,13 @@
   line-height: 1;
 }
 
+.gtile--letter {
+  width: var(--gtile-w);
+  font-size: clamp(0.78rem, calc(var(--gtile-w) * 0.7), 1.05rem);
+}
+
 .gtile--hint {
-  color: var(--color-text-faint);
+  color: var(--color-primary-text);
   background: var(--color-primary-soft);
   border-bottom-color: var(--color-primary);
 }
@@ -1228,14 +1248,14 @@
 }
 
 .gtile--match {
-  color: var(--color-success);
-  background: var(--color-success-soft);
+  color: var(--chat-correct-fg);
+  background: var(--chat-correct-bg);
   border-bottom-color: var(--color-success);
 }
 
 .gtile--mismatch {
-  color: var(--color-warning);
-  background: var(--color-warning-soft);
+  color: var(--chat-close-fg);
+  background: var(--chat-close-bg);
   border-bottom-color: var(--color-warning);
 }
 
@@ -1254,7 +1274,7 @@
 }
 
 .gtile--sep {
-  width: 12px;
+  width: var(--gsep-w);
   background: transparent;
   border-bottom: 0;
   color: var(--color-text-faint);
@@ -1298,18 +1318,14 @@
  */
 @container (max-width: 260px) {
   .gtile {
-    width: 20px;
     height: 28px;
-    font-size: 0.92rem;
     border-radius: 5px;
   }
 
-  .gtile--sep {
-    width: 10px;
-  }
-
   .guess-tiles__group {
-    gap: 2px;
+    --gtile-gap: 2px;
+    --gtile-max: 20px;
+    --gsep-w: 10px;
   }
 
   .guess-tiles__groups {
@@ -1703,7 +1719,7 @@
 }
 
 .overlay__word {
-  color: var(--color-secondary);
+  color: var(--color-secondary-text);
 }
 
 .overlay__hint {
@@ -1767,7 +1783,7 @@
 
 .points-list__pts {
   font-weight: 800;
-  color: var(--color-success);
+  color: var(--color-success-text);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1886,8 +1902,8 @@
   }
 
   .icon-btn--sm {
-    width: 40px;
-    height: 40px;
+    width: 44px;
+    height: 44px;
   }
 
   .emoji-choice {
@@ -1895,14 +1911,18 @@
     height: 44px;
   }
 
+  .avatar-picker__group {
+    gap: 8px;
+  }
+
   .avatar-picker__group .swatch {
-    width: 34px;
-    height: 34px;
+    width: 40px;
+    height: 40px;
   }
 
   .toast__close {
-    width: 40px;
-    height: 40px;
+    width: 44px;
+    height: 44px;
   }
 }
 

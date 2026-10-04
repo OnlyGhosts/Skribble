@@ -9,11 +9,11 @@ import { ChevronIcon } from './Icons';
 /** How close to the bottom (px) still counts as "following" new messages. */
 const FOLLOW_THRESHOLD = 48;
 
-function placeholderFor(phaseKind: string | undefined, isDrawer: boolean, hasGuessed: boolean): string {
-  if (phaseKind === 'drawing' && !isDrawer) {
-    return hasGuessed ? 'You guessed it! Chat with others who know...' : 'Type your guess...';
-  }
-  return 'Chat...';
+export function placeholderFor(phaseKind: string | undefined, isDrawer: boolean, hasGuessed: boolean): string {
+  if (phaseKind !== 'drawing') return 'Chat...';
+  // The server delivers the drawer's lines to players who already know the word only.
+  if (isDrawer) return 'Chat with players who guessed...';
+  return hasGuessed ? 'You guessed it! Chat with others who know...' : 'Type your guess...';
 }
 
 function MessageRow({ message }: { message: ChatMessage }) {
@@ -30,14 +30,13 @@ function MessageRow({ message }: { message: ChatMessage }) {
 interface PlainInputProps {
   value: string;
   placeholder: string;
-  disabled: boolean;
   onChange(value: string): void;
   focusMemory: RefObject<boolean>;
   inputRef: RefObject<HTMLInputElement | null>;
 }
 
 /** The ordinary chat field; hands focus back and forth with the guess tiles across turns. */
-function PlainChatInput({ value, placeholder, disabled, onChange, focusMemory, inputRef }: PlainInputProps) {
+function PlainChatInput({ value, placeholder, onChange, focusMemory, inputRef }: PlainInputProps) {
   useLayoutEffect(() => {
     const input = inputRef.current;
     if (focusMemory.current) {
@@ -60,7 +59,6 @@ function PlainChatInput({ value, placeholder, disabled, onChange, focusMemory, i
       aria-label="Chat message"
       autoComplete="off"
       enterKeyHint="send"
-      disabled={disabled}
       onChange={(e) => onChange(e.target.value)}
     />
   );
@@ -146,10 +144,10 @@ export function Chat() {
         <GuessInput mask={mask} focusMemory={focusMemory} />
       ) : (
         <form className="chat__form" onSubmit={submit}>
+          {/* The field itself stays enabled while reconnecting: disabling it would blur it and close the phone keyboard. */}
           <PlainChatInput
             value={text}
             placeholder={placeholderFor(phaseKind, isDrawer, hasGuessed)}
-            disabled={!connected}
             onChange={setText}
             focusMemory={focusMemory}
             inputRef={plainInputRef}

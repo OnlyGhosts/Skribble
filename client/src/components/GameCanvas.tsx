@@ -59,7 +59,8 @@ export function GameCanvas({ canDraw, settings, turnKey, children, footer }: Pro
     const renderer = new CanvasRenderer(canvas);
     rendererRef.current = renderer;
     renderer.replayAll(useGameStore.getState().canvas);
-    const unsubscribe = canvasBus.subscribe((ops) => renderer.applyOps(ops));
+    // The store folded the ops into its list before publishing them; the list lets fills be cached.
+    const unsubscribe = canvasBus.subscribe((ops) => renderer.applyOps(ops, useGameStore.getState().canvas));
     return () => {
       unsubscribe();
       rendererRef.current = null;

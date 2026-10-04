@@ -14,7 +14,15 @@ test.describe.configure({ mode: 'serial' });
 const PORTRAIT = { width: 390, height: 844 };
 /** Roughly what is left of a 390x844 phone once the keyboard is open. */
 const KEYBOARD = { width: 390, height: 540 };
+/** Smaller phones with the keyboard open: the layout viewport is wider than it is tall. */
+const SMALL_KEYBOARDS = [
+  { width: 375, height: 375 }, // iPhone SE 2/3
+  { width: 360, height: 304 }, // small Android
+  { width: 320, height: 310 }, // iPhone SE 1
+];
 const LANDSCAPE = { width: 844, height: 390 };
+const LANDSCAPE_KEYBOARD = { width: 844, height: 230 };
+const SMALL_PORTRAIT = { width: 320, height: 568 };
 const MIN_TARGET = 44;
 
 interface Player {
@@ -171,10 +179,15 @@ async function phoneDrawsOneTurn(): Promise<void> {
   const buttonHeights = await toolbar.locator('button').evaluateAll((els) =>
     els
       .filter((el) => (el as HTMLElement).offsetParent !== null)
-      .map((el) => ({ id: el.getAttribute('data-testid') ?? el.getAttribute('aria-label'), height: el.getBoundingClientRect().height })),
+      .map((el) => ({
+        id: el.getAttribute('data-testid') ?? el.getAttribute('aria-label'),
+        height: el.getBoundingClientRect().height,
+        width: el.getBoundingClientRect().width,
+      })),
   );
   expect(buttonHeights.length).toBeGreaterThan(10);
   expect(buttonHeights.filter((b) => b.height < MIN_TARGET), 'toolbar buttons shorter than 44px').toEqual([]);
+  expect(buttonHeights.filter((b) => b.width < MIN_TARGET), 'toolbar buttons narrower than 44px').toEqual([]);
   await expectInsideViewport(phone.page.getByTestId('canvas'), PORTRAIT, 'drawer canvas');
   await expectNoHorizontalOverflow(phone.page, PORTRAIT.width);
   await expect(phone.page.getByTestId('word-plain')).toContainText(word);
@@ -213,6 +226,12 @@ test('the phone home screen fits the viewport and its primary buttons are 44px t
   }
   const nameFontSize = await phone.page.getByTestId('home-name').evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
   expect(nameFontSize, 'inputs are at least 16px so iOS does not zoom on focus').toBeGreaterThanOrEqual(16);
+
+  // The narrowest phones: the header bar must not push the theme toggle off screen.
+  await phone.page.setViewportSize(SMALL_PORTRAIT);
+  await expectNoHorizontalOverflow(phone.page, SMALL_PORTRAIT.width);
+  await expectInsideViewport(phone.page.locator('.home__bar-actions button').last(), SMALL_PORTRAIT, 'theme toggle at 320px');
+  await phone.page.setViewportSize(PORTRAIT);
 });
 
 test('the host creates a room and the phone joins by typing the code', async () => {
@@ -347,6 +366,28 @@ test('the phone layout never scrolls: portrait, with the keyboard open, and in l
   await expectInsideViewport(log, KEYBOARD, 'chat log with keyboard');
   await expect(phone.page.getByTestId('chat-input')).toBeFocused();
 
+  // Smaller phones with the keyboard open: still the portrait layout (never mistaken for landscape),
+  // the canvas stays readable above the guess bar and the chat log gives way first.
+  for (const size of SMALL_KEYBOARDS) {
+    await phone.page.setViewportSize(size);
+    await expect
+      .poll(async () => {
+        const box = await guessBar.boundingBox();
+        return box ? box.y + box.height : Number.POSITIVE_INFINITY;
+      }, { message: `guess bar bottom at ${size.width}x${size.height}` })
+      .toBeLessThanOrEqual(size.height + 0.5);
+    await expectNoHorizontalOverflow(phone.page, size.width);
+    const label = `${size.width}x${size.height} with keyboard`;
+    const smallCanvas = await expectInsideViewport(canvas, size, `canvas at ${label}`);
+    const smallBar = await expectInsideViewport(guessBar, size, `guess bar at ${label}`);
+    const smallHeader = await expectInsideViewport(phone.page.getByTestId('game-header'), size, `header at ${label}`);
+    expect(smallCanvas.height, `the canvas is still readable at ${label}`).toBeGreaterThan(120);
+    expect(smallHeader.height, `the header keeps to one row at ${label}`).toBeLessThan(70);
+    expect(smallBar.y, `the guess bar is below the canvas at ${label} (portrait layout)`).toBeGreaterThanOrEqual(smallCanvas.y + smallCanvas.height - 1);
+    await expectInsideViewport(phone.page.getByTestId('chat-send'), size, `send button at ${label}`);
+    await expect(phone.page.getByTestId('chat-input')).toBeFocused();
+  }
+
   // Landscape phone: canvas and guess bar side by side, still no scrolling.
   await phone.page.setViewportSize(LANDSCAPE);
   await expect
@@ -362,6 +403,18 @@ test('the phone layout never scrolls: portrait, with the keyboard open, and in l
   expect(landscapeCanvas.height).toBeGreaterThan(150);
   expect(landscapeBar.x, 'the guess bar sits beside the canvas in landscape').toBeGreaterThanOrEqual(landscapeCanvas.x + landscapeCanvas.width - 1);
   await expect(phone.page.getByTestId('guess-tile').first()).toBeVisible();
+
+  // Landscape with the keyboard open: the tiles and the Send button stay on screen.
+  await phone.page.setViewportSize(LANDSCAPE_KEYBOARD);
+  await expect
+    .poll(async () => {
+      const box = await guessBar.boundingBox();
+      return box ? box.y + box.height : Number.POSITIVE_INFINITY;
+    }, { message: 'guess bar bottom in landscape with the keyboard open' })
+    .toBeLessThanOrEqual(LANDSCAPE_KEYBOARD.height + 0.5);
+  await expectInsideViewport(guessBar, LANDSCAPE_KEYBOARD, 'landscape keyboard guess bar');
+  await expectInsideViewport(phone.page.getByTestId('chat-send'), LANDSCAPE_KEYBOARD, 'landscape keyboard send button');
+  await expectInsideViewport(canvas, LANDSCAPE_KEYBOARD, 'landscape keyboard canvas');
 
   // Back to portrait for the rest of the run.
   await phone.page.setViewportSize(PORTRAIT);
@@ -381,6 +434,20 @@ test('the players button opens a sheet with both players and the backdrop closes
   await expect(toggle).toContainText('2');
   await toggle.click();
   const sheet = phone.page.getByTestId('players-sheet');
+  await expect(sheet).toBeVisible();
+
+  // A modal dialog: it takes the focus, keeps Tab inside and hands the focus back on Escape.
+  const focusInSheet = () => phone.page.evaluate(() => document.activeElement?.closest('.sheet__panel') !== null);
+  await expect.poll(focusInSheet, { message: 'focus moves into the sheet' }).toBe(true);
+  await phone.page.keyboard.press('Tab');
+  expect(await focusInSheet(), 'Tab stays inside the sheet').toBe(true);
+  await phone.page.keyboard.press('Shift+Tab');
+  expect(await focusInSheet(), 'Shift+Tab stays inside the sheet').toBe(true);
+  await phone.page.keyboard.press('Escape');
+  await expect(sheet).toHaveCount(0);
+  await expect(toggle).toBeFocused();
+
+  await toggle.click();
   await expect(sheet).toBeVisible();
   await expect(sheet.getByTestId('player-item')).toHaveCount(2);
   await expect(sheet).toContainText(host.name);

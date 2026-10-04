@@ -32,21 +32,32 @@
   --color-border-strong: #c9c6e3;
   --color-text: #1b1a2e;
   --color-text-muted: #5f5d7a;
-  --color-text-faint: #8b89a6;
+  /* Small text (system chat lines, hints, counters): 4.9:1 on white, 4.6:1 on surface-2 (WCAG AA). */
+  --color-text-faint: #6f6d8c;
 
   --color-primary: #6c5ce7;
   --color-primary-hover: #5b4bd6;
   --color-primary-soft: #ebe8ff;
   --color-primary-contrast: #ffffff;
-  --color-secondary: #ff7b54;
-  --color-secondary-hover: #f26a42;
+  /* Primary as small text on the soft tint (hint letters): 5.4:1. */
+  --color-primary-text: #5646d6;
+  /* The secondary (orange) fill carries white text, so it is dark enough for 4.7:1. */
+  --color-secondary: #c9471a;
+  --color-secondary-hover: #b63f14;
   --color-secondary-soft: #ffe9e1;
+  --color-secondary-contrast: #ffffff;
+  /* Secondary as text on a surface (the revealed word): 5.2:1 on white. */
+  --color-secondary-text: #c2410c;
   --color-success: #16a34a;
   --color-success-soft: #dcfce7;
+  /* Bright status colours stay for icons and borders; text uses these darker ones (5:1 on white). */
+  --color-success-text: #15803d;
   --color-warning: #d97706;
   --color-warning-soft: #fef3c7;
+  --color-warning-text: #b45309;
   --color-danger: #dc2626;
   --color-danger-soft: #fee2e2;
+  --color-danger-text: #b91c1c;
   --color-info-soft: #e0f2fe;
   --color-focus: #6c5ce7;
 
@@ -77,21 +88,27 @@
   --color-border-strong: #4a4680;
   --color-text: #f1f0ff;
   --color-text-muted: #b4b1d6;
-  --color-text-faint: #8582ad;
+  --color-text-faint: #9593bd;
 
   --color-primary: #8b7dff;
   --color-primary-hover: #9d91ff;
   --color-primary-soft: #2d2860;
   --color-primary-contrast: #0f0e22;
+  --color-primary-text: #a99dff;
   --color-secondary: #ff8f6b;
   --color-secondary-hover: #ffa387;
   --color-secondary-soft: #4a2a22;
+  --color-secondary-contrast: #0f0e22;
+  --color-secondary-text: #ff8f6b;
   --color-success: #4ade80;
   --color-success-soft: #14341f;
+  --color-success-text: #4ade80;
   --color-warning: #fbbf24;
   --color-warning-soft: #3d2e0b;
+  --color-warning-text: #fbbf24;
   --color-danger: #f87171;
   --color-danger-soft: #431b1b;
+  --color-danger-text: #f87171;
   --color-info-soft: #122a3d;
   --color-focus: #a99dff;
 

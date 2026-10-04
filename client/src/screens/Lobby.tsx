@@ -141,7 +141,7 @@ export function Lobby({ room }: { room: RoomState }) {
             </h2>
             {isHost && <span className="pill pill--accent">You're the host</span>}
           </div>
-          <SettingsPanel settings={room.settings} isHost={isHost} />
+          <SettingsPanel settings={room.settings} isHost={isHost} playerCount={room.players.length} />
         </section>
 
         <section className="card lobby__chat" aria-label="Lobby chat">

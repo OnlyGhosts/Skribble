@@ -5,6 +5,7 @@ import {
   DRAWER_DISCONNECT_GRACE_MS,
   MAX_ACTIONS_PER_TURN,
   MAX_POINTS_PER_STROKE,
+  MAX_POINTS_PER_TURN,
   MIN_PLAYERS_TO_START,
   RECONNECT_GRACE_MS,
   TURN_END_SECONDS,
@@ -57,7 +58,14 @@ interface TurnState {
   endsAt: number;
   revealOrder: number[];
   revealed: number[];
+  /** Correct guesses this turn; tallied as they happen so leavers still count for the drawer. */
+  correct: number;
+  /** Everyone who was a connected non-drawer at some point while the word was being drawn. */
+  guesserIds: Set<string>;
 }
+
+/** How long truncated draw ops are batched before the drawer gets a full canvas resync. */
+const CANVAS_RESYNC_DEBOUNCE_MS = 1000;
 
 type InternalPhase =
   | { kind: 'lobby' }
@@ -67,6 +75,12 @@ type InternalPhase =
   | { kind: 'gameEnd'; podium: Podium };
 
 const GAME_PHASES: ReadonlySet<InternalPhase['kind']> = new Set(['choosing', 'drawing', 'turnEnd']);
+
+/** "Alice", "Alice and Bob", "Alice, Bob and Carol". */
+function listNames(names: string[]): string {
+  if (names.length <= 1) return names[0] ?? '';
+  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+}
 const PUBLIC_CHAT_KINDS: ReadonlySet<ChatKind> = new Set(['chat', 'correct', 'system', 'hint']);
 
 /**
@@ -88,6 +102,8 @@ export class Room {
   private readonly players = new Map<string, Player>();
   private readonly byToken = new Map<string, Player>();
   private hostId = '';
+  /** Host whose socket dropped: a connected stand-in holds the role until they rejoin or are removed. */
+  private returningHostId: string | null = null;
   private nextJoinOrder = 0;
 
   private phase: InternalPhase = { kind: 'lobby' };
@@ -99,6 +115,8 @@ export class Room {
 
   private canvas: CanvasAction[] = [];
   private strokes = new Map<number, StrokeAction>();
+  /** Flat coordinate numbers across every stroke in `canvas`; bounded by MAX_POINTS_PER_TURN. */
+  private canvasPoints = 0;
 
   private chatLog: ChatMessage[] = [];
   private nextChatId = 1;
@@ -106,8 +124,17 @@ export class Room {
   /** targetId -> voter ids */
   private readonly votes = new Map<string, Set<string>>();
 
-  private timers: { choose: Timer | null; draw: Timer | null; hints: Timer[]; turnEnd: Timer | null; drawerGone: Timer | null } =
-    { choose: null, draw: null, hints: [], turnEnd: null, drawerGone: null };
+  private timers: {
+    choose: Timer | null;
+    draw: Timer | null;
+    hints: Timer[];
+    turnEnd: Timer | null;
+    drawerGone: Timer | null;
+    /** Pending "everyone (still connected) guessed" check after a guesser's socket dropped. */
+    allGuessed: Timer | null;
+    /** Pending canvas resync for a drawer whose ops the caps truncated. */
+    resync: Timer | null;
+  } = { choose: null, draw: null, hints: [], turnEnd: null, drawerGone: null, allGuessed: null, resync: null };
   private readonly graceTimers = new Map<string, Timer>();
   /** Pending "back to the lobby" check after a disconnect left too few players connected. */
   private lowPlayersTimer: Timer | null = null;
@@ -211,12 +238,15 @@ export class Room {
     this.byToken.set(player.token, player);
     if (!this.hostId) this.hostId = player.id;
     if (GAME_PHASES.has(this.phase.kind)) this.turnQueue.push(player.id);
+    if (this.phase.kind === 'drawing') this.turn?.guesserIds.add(player.id);
     this.transport.attach(player.id, connectionId);
     if (wasEmpty) this.onOccupied?.(this);
+    this.standInForAbsentHost();
 
     this.systemMessage(`${player.name} joined`, { except: player });
     this.sendWelcome(player);
     this.broadcastSnapshot({ except: player });
+    this.resumeHeldTurn();
     return { ok: true, player };
   }
 
@@ -233,14 +263,22 @@ export class Room {
       clearTimeout(this.timers.drawerGone);
       this.timers.drawerGone = null;
     }
+    if (this.phase.kind === 'drawing' && this.turn && this.turn.drawerId !== player.id) this.turn.guesserIds.add(player.id);
     if (this.connectedCount >= MIN_PLAYERS_TO_START) this.clearLowPlayersTimer();
-    this.votes.delete(player.id);
+    if (this.returningHostId === player.id) {
+      this.returningHostId = null;
+      if (this.hostId !== player.id) {
+        this.hostId = player.id;
+        this.systemMessage(`${player.name} is the host again`, { except: player });
+      }
+    }
 
     this.sendWelcome(player);
     if (!wasConnected) {
       this.systemMessage(`${player.name} reconnected`, { except: player });
       this.broadcastSnapshot({ except: player });
     }
+    this.resumeHeldTurn();
     return { ok: true, player };
   }
 
@@ -261,14 +299,24 @@ export class Room {
     if (!current.connected) return;
 
     current.markDisconnected(this.clock.now());
-    this.votes.delete(current.id);
+    // Votes the leaver cast no longer count (only connected players make up the majority); votes
+    // against them stay so a reconnect cannot wipe the tally.
+    this.withdrawVotes(current.id);
     this.graceTimers.set(
       current.id,
       setTimeout(() => this.removePlayer(current, 'left'), RECONNECT_GRACE_MS),
     );
 
+    // The room must stay operable while the host is away: a connected player stands in and the
+    // role is handed back when the host rejoins.
+    if (current.id === this.hostId) this.standInForAbsentHost();
+
     if (this.turn?.drawerId === current.id && (this.phase.kind === 'choosing' || this.phase.kind === 'drawing')) {
-      this.timers.drawerGone = setTimeout(() => this.endTurn('drawerLeft'), DRAWER_DISCONNECT_GRACE_MS);
+      this.timers.drawerGone = setTimeout(() => {
+        this.timers.drawerGone = null;
+        this.systemMessage(`${current.name} lost connection — skipping their turn.`);
+        this.endTurn('drawerLeft');
+      }, DRAWER_DISCONNECT_GRACE_MS);
     }
 
     // A dropped socket is usually a reload or a flaky network: give the player a moment to come
@@ -276,13 +324,17 @@ export class Room {
     if (GAME_PHASES.has(this.phase.kind) && this.connectedCount < MIN_PLAYERS_TO_START && !this.lowPlayersTimer) {
       this.lowPlayersTimer = setTimeout(() => {
         this.lowPlayersTimer = null;
-        this.ensureEnoughPlayers();
+        if (!this.ensureEnoughPlayers()) this.resumeHeldTurn();
       }, DRAWER_DISCONNECT_GRACE_MS);
     }
-    if (this.phase.kind === 'drawing' && this.everyoneGuessed()) {
-      this.endTurn('allGuessed');
-      return;
+    // Likewise the last unsolved guesser gets the same grace before "everyone guessed" ends the turn.
+    if (this.phase.kind === 'drawing' && this.everyoneGuessed() && !this.timers.allGuessed) {
+      this.timers.allGuessed = setTimeout(() => {
+        this.timers.allGuessed = null;
+        if (this.phase.kind === 'drawing' && this.everyoneGuessed()) this.endTurn('allGuessed');
+      }, DRAWER_DISCONNECT_GRACE_MS);
     }
+    if (this.resolveVotes()) return;
     this.broadcastSnapshot();
   }
 
@@ -370,6 +422,13 @@ export class Room {
   private beginNextTurn(): void {
     this.clearTurnTimers();
     if (this.connectedCount < MIN_PLAYERS_TO_START) {
+      if (this.phase.kind === 'turnEnd' && this.lowPlayersTimer) {
+        // Someone is in their reconnect grace: hold at the summary. rejoin() resumes the game,
+        // the pending low-player check sends everyone back to the lobby otherwise.
+        const away = this.listPlayers().filter((p) => !p.connected).map((p) => p.name);
+        this.systemMessage(`Waiting for ${away.join(', ')} to reconnect…`);
+        return;
+      }
       this.systemMessage('Not enough players — back to the lobby.');
       this.resetToLobby();
       return;
@@ -403,7 +462,7 @@ export class Room {
 
     const pool = buildWordPool(this.settings.language, this.settings.customWords, this.settings.customWordsOnly);
     const choices = pickWords(pool, this.settings.wordChoices, this.usedWords, this.rng);
-    this.turn = { drawerId: drawer.id, choices, word: '', startedAt: 0, endsAt: 0, revealOrder: [], revealed: [] };
+    this.turn = { drawerId: drawer.id, choices, word: '', startedAt: 0, endsAt: 0, revealOrder: [], revealed: [], correct: 0, guesserIds: new Set() };
     if (choices.length === 0) {
       this.phase = { kind: 'choosing', endsAt: now };
       return this.endTurn('noWordChosen');
@@ -439,6 +498,9 @@ export class Room {
     this.turn.endsAt = now + drawTimeMs;
     this.turn.revealOrder = hintRevealOrder(word, hintCount, this.rng);
     this.turn.revealed = [];
+    this.turn.correct = 0;
+    this.turn.guesserIds = new Set();
+    for (const p of this.players.values()) if (p.connected && p.id !== this.turn.drawerId) this.turn.guesserIds.add(p.id);
     this.phase = { kind: 'drawing' };
 
     this.timers.hints = hintSchedule(drawTimeMs, hintCount).map((offset, i) =>
@@ -464,14 +526,9 @@ export class Room {
 
     const drawer = this.players.get(turn.drawerId);
     if (drawer && reason !== 'drawerLeft' && reason !== 'noWordChosen') {
-      let correct = 0;
-      let connectedGuessers = 0;
-      for (const p of this.players.values()) {
-        if (p.id === drawer.id) continue;
-        if (p.guessedThisTurn) correct++;
-        if (p.connected) connectedGuessers++;
-      }
-      const pts = drawerPoints(correct, Math.max(correct, connectedGuessers));
+      // Per-turn tallies, not the current player map: a guesser who dropped or left after
+      // solving still counts, and one who dropped without solving still dilutes the share.
+      const pts = drawerPoints(turn.correct, turn.guesserIds.size);
       drawer.score += pts;
       drawer.turnPoints += pts;
     }
@@ -496,8 +553,10 @@ export class Room {
       rank: 1 + ranked.filter((o) => o.score > p.score).length,
     }));
     this.phase = { kind: 'gameEnd', podium };
-    const winner = ranked[0];
-    this.systemMessage(winner ? `Game over! ${winner.name} wins with ${winner.score} points.` : 'Game over!');
+    const winners = ranked.filter((p) => p.score === ranked[0]?.score);
+    if (winners.length === 0) this.systemMessage('Game over!');
+    else if (winners.length === 1) this.systemMessage(`Game over! ${winners[0].name} wins with ${winners[0].score} points.`);
+    else this.systemMessage(`Game over! ${listNames(winners.map((p) => p.name))} tie with ${winners[0].score} points.`);
     this.broadcastSnapshot();
   }
 
@@ -515,6 +574,11 @@ export class Room {
     this.resetCanvas();
     this.broadcast({ t: 'clear' });
     this.broadcastSnapshot();
+  }
+
+  /** Continues a turn boundary that beginNextTurn held while a player was in reconnect grace. */
+  private resumeHeldTurn(): void {
+    if (this.phase.kind === 'turnEnd' && !this.timers.turnEnd) this.beginNextTurn();
   }
 
   /** Returns true when the game had to be abandoned for lack of players. */
@@ -544,15 +608,21 @@ export class Room {
 
   private chat(player: Player, text: string): void {
     const turn = this.turn;
-    if (this.phase.kind !== 'drawing' || !turn) {
+    if (!turn || (this.phase.kind !== 'drawing' && this.phase.kind !== 'choosing')) {
       this.pushChat('chat', text, player);
       return;
     }
     if (player.id === turn.drawerId) {
-      if (containsWord(text, turn.word)) {
+      // While choosing, the drawer already knows every candidate: none of them may reach the guessers.
+      const secrets = this.phase.kind === 'choosing' ? turn.choices : [turn.word];
+      if (secrets.some((w) => containsWord(text, w))) {
         return this.sendPrivate(player, 'system', "You can't give away the word!");
       }
       return this.pushChat('guessed', text, player, this.guessedRecipients());
+    }
+    if (this.phase.kind === 'choosing') {
+      this.pushChat('chat', text, player);
+      return;
     }
     if (player.guessedThisTurn) {
       return this.pushChat('guessed', text, player, this.guessedRecipients());
@@ -563,6 +633,8 @@ export class Room {
       player.guessedThisTurn = true;
       player.score += pts;
       player.turnPoints += pts;
+      turn.correct += 1;
+      turn.guesserIds.add(player.id);
       this.pushChat('correct', `${player.name} guessed the word!`, player);
       if (this.everyoneGuessed()) return this.endTurn('allGuessed');
       this.broadcastSnapshot();
@@ -590,11 +662,24 @@ export class Room {
   private draw(player: Player, ops: DrawOp[]): void {
     if (!this.requireDrawer(player)) return;
     const accepted: DrawOp[] = [];
+    let truncated = false;
     for (const op of ops) {
       const kept = this.applyDrawOp(op);
       if (kept) accepted.push(kept);
+      if (kept !== op && op.k !== 'end') truncated = true;
     }
     if (accepted.length > 0) this.broadcast({ t: 'draw', ops: accepted }, { except: player });
+    // The drawer applied the full ops locally; bring their canvas back to what everyone else has.
+    if (truncated) this.scheduleCanvasResync(player);
+  }
+
+  private scheduleCanvasResync(drawer: Player): void {
+    if (this.timers.resync) return;
+    this.timers.resync = setTimeout(() => {
+      this.timers.resync = null;
+      if (this.phase.kind !== 'drawing' || this.turn?.drawerId !== drawer.id) return;
+      this.send(drawer, { t: 'canvas', actions: this.canvasSnapshot() });
+    }, CANVAS_RESYNC_DEBOUNCE_MS);
   }
 
   /** Applies one op to the history; returns the (possibly truncated) op to forward, or null to drop it. */
@@ -602,18 +687,21 @@ export class Room {
     switch (op.k) {
       case 'start': {
         if (this.canvas.length >= MAX_ACTIONS_PER_TURN || this.strokes.has(op.id)) return null;
+        if (this.canvasPoints + 2 > MAX_POINTS_PER_TURN) return null;
         const stroke: StrokeAction = { kind: 'stroke', id: op.id, tool: op.tool, color: op.color, size: op.size, points: [op.x, op.y] };
         this.canvas.push(stroke);
         this.strokes.set(op.id, stroke);
+        this.canvasPoints += 2;
         return op;
       }
       case 'move': {
         const stroke = this.strokes.get(op.id);
         if (!stroke) return null;
-        const room = MAX_POINTS_PER_STROKE - stroke.points.length;
+        const room = Math.min(MAX_POINTS_PER_STROKE - stroke.points.length, MAX_POINTS_PER_TURN - this.canvasPoints);
         if (room < 2) return null;
         const pts = op.pts.length > room ? op.pts.slice(0, room - (room % 2)) : op.pts;
         stroke.points.push(...pts);
+        this.canvasPoints += pts.length;
         return pts === op.pts ? op : { ...op, pts };
       }
       case 'end': {
@@ -634,7 +722,10 @@ export class Room {
     if (!this.requireDrawer(player)) return;
     const last = this.canvas.pop();
     if (!last) return;
-    if (last.kind === 'stroke') this.strokes.delete(last.id);
+    if (last.kind === 'stroke') {
+      this.strokes.delete(last.id);
+      this.canvasPoints -= last.points.length;
+    }
     this.broadcast({ t: 'undo' });
   }
 
@@ -647,6 +738,7 @@ export class Room {
   private resetCanvas(): void {
     this.canvas = [];
     this.strokes = new Map();
+    this.canvasPoints = 0;
   }
 
   // ---------------------------------------------------------------------------
@@ -672,6 +764,10 @@ export class Room {
     const target = this.players.get(targetId);
     if (!target) return this.fail(player, 'NOT_ALLOWED', 'That player is not in the room.');
     if (target.id === player.id) return this.fail(player, 'NOT_ALLOWED', "You can't vote to kick yourself.");
+    // With one other player a "vote" would be a unilateral kick (of the host, even).
+    if (this.othersConnected(target) < 2) {
+      return this.fail(player, 'NOT_ALLOWED', 'A vote needs at least two other connected players.');
+    }
     let voters = this.votes.get(target.id);
     if (!voters) {
       voters = new Set();
@@ -679,14 +775,46 @@ export class Room {
     }
     if (voters.has(player.id)) return;
     voters.add(player.id);
-    const others = [...this.players.values()].filter((p) => p.connected && p.id !== target.id).length;
-    const needed = Math.floor(others / 2) + 1;
-    if (voters.size >= needed) {
-      this.votes.delete(target.id);
-      this.removePlayer(target, 'kicked', 'You were kicked by a vote.');
-      return;
+    if (this.resolveVotes()) return;
+    this.systemMessage(`${player.name} voted to kick ${target.name} (${voters.size}/${this.votesNeeded(target)})`);
+  }
+
+  private othersConnected(target: Player): number {
+    let n = 0;
+    for (const p of this.players.values()) if (p.connected && p.id !== target.id) n++;
+    return n;
+  }
+
+  /** A majority of the other connected players, and never a single voter. */
+  private votesNeeded(target: Player): number {
+    return Math.max(2, Math.floor(this.othersConnected(target) / 2) + 1);
+  }
+
+  private withdrawVotes(voterId: string): void {
+    for (const [targetId, voters] of this.votes) {
+      voters.delete(voterId);
+      if (voters.size === 0) this.votes.delete(targetId);
     }
-    this.systemMessage(`${player.name} voted to kick ${target.name} (${voters.size}/${needed})`);
+  }
+
+  /**
+   * Kicks the first target whose tally meets the threshold, which can also happen when the
+   * threshold drops because a voter's peer left. Returns true when someone was removed.
+   */
+  private resolveVotes(): boolean {
+    for (const [targetId, voters] of this.votes) {
+      const target = this.players.get(targetId);
+      if (!target) {
+        this.votes.delete(targetId);
+        continue;
+      }
+      if (voters.size >= this.votesNeeded(target)) {
+        this.votes.delete(targetId);
+        this.removePlayer(target, 'kicked', 'You were kicked by a vote.');
+        return true;
+      }
+    }
+    return false;
   }
 
   private removePlayer(player: Player, how: 'left' | 'kicked', kickReason?: string): void {
@@ -705,10 +833,8 @@ export class Room {
     const queued = this.turnQueue.indexOf(player.id);
     if (queued > this.turnIndex) this.turnQueue.splice(queued, 1);
     this.votes.delete(player.id);
-    for (const [targetId, voters] of this.votes) {
-      voters.delete(player.id);
-      if (voters.size === 0) this.votes.delete(targetId);
-    }
+    this.withdrawVotes(player.id);
+    if (this.returningHostId === player.id) this.returningHostId = null;
 
     this.systemMessage(how === 'kicked' ? `${player.name} was kicked` : `${player.name} left`);
     if (player.id === this.hostId) this.transferHost();
@@ -721,15 +847,31 @@ export class Room {
       this.round = 0;
       this.turnIndex = -1;
       this.turnQueue = [];
+      // The next group to pick up this code must not inherit the last drawing.
+      this.resetCanvas();
       this.onEmpty?.(this);
       return;
     }
+    // One player fewer can lower a pending vote's threshold to what is already tallied.
+    this.resolveVotes();
     if (this.ensureEnoughPlayers()) return;
     if (this.turn?.drawerId === player.id && (this.phase.kind === 'choosing' || this.phase.kind === 'drawing')) {
       return this.endTurn('drawerLeft');
     }
     if (this.phase.kind === 'drawing' && this.everyoneGuessed()) return this.endTurn('allGuessed');
     this.broadcastSnapshot();
+  }
+
+  /**
+   * While the host's socket is down, a connected player holds the role (rejoin() hands it back).
+   * Called after a disconnect and after a join: a lone host who dropped must not lock the room for
+   * whoever arrives during their grace.
+   */
+  private standInForAbsentHost(): void {
+    const host = this.players.get(this.hostId);
+    if (!host || host.connected || this.connectedCount === 0) return;
+    if (this.returningHostId === null) this.returningHostId = host.id;
+    this.transferHost();
   }
 
   private transferHost(): void {
@@ -752,9 +894,13 @@ export class Room {
       playerId: player.id,
       token: player.token,
       room: this.getState(player),
-      canvas: this.canvas.map((a) => (a.kind === 'stroke' ? { ...a, points: [...a.points] } : { ...a })),
+      canvas: this.canvasSnapshot(),
       chat: [...this.chatLog],
     });
+  }
+
+  private canvasSnapshot(): CanvasAction[] {
+    return this.canvas.map((a) => (a.kind === 'stroke' ? { ...a, points: [...a.points] } : { ...a }));
   }
 
   private publicPhase(recipient: Player | null): Phase {
@@ -874,8 +1020,10 @@ export class Room {
     if (t.draw) clearTimeout(t.draw);
     if (t.turnEnd) clearTimeout(t.turnEnd);
     if (t.drawerGone) clearTimeout(t.drawerGone);
+    if (t.allGuessed) clearTimeout(t.allGuessed);
+    if (t.resync) clearTimeout(t.resync);
     for (const h of t.hints) clearTimeout(h);
-    this.timers = { choose: null, draw: null, hints: [], turnEnd: null, drawerGone: null };
+    this.timers = { choose: null, draw: null, hints: [], turnEnd: null, drawerGone: null, allGuessed: null, resync: null };
   }
 
   private clearLowPlayersTimer(): void {

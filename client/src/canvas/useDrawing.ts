@@ -64,8 +64,9 @@ export function useDrawing({ canvasRef, rendererRef, enabled, settings, turnKey 
     let lastY = 0;
 
     const emit = (ops: DrawOp[]): void => {
-      rendererRef.current?.applyOps(ops);
-      useGameStore.getState().appendLocalOps(ops);
+      const store = useGameStore.getState();
+      store.appendLocalOps(ops);
+      rendererRef.current?.applyOps(ops, useGameStore.getState().canvas);
       socket.queueDraw(ops);
     };
 

@@ -1,11 +1,13 @@
 import { CANVAS_HEIGHT, CANVAS_WIDTH } from '@shared/constants';
 import type { CanvasAction, DrawOp, Tool } from '@shared/protocol';
-import { floodFill } from './floodFill';
+import { FILL_TOLERANCE, floodFillImage, paintSpans, type FillSpans } from './floodFill';
 
 export const ERASER_COLOR = '#ffffff';
-export const FILL_TOLERANCE = 32;
-/** Upper bound keeps flood fills fast on 3x phones (1600x1200 backing store at most). */
+export { FILL_TOLERANCE };
+/** Upper bound keeps the backing store small on 3x phones (1600x1200 at most). */
 const MAX_DPR = 2;
+
+type FillAction = Extract<CanvasAction, { kind: 'fill' }>;
 
 interface StrokeStyle {
   tool: Tool;
@@ -22,6 +24,20 @@ interface StrokeStyle {
 interface LiveStroke extends StrokeStyle {
   points: number[];
   nextPiece: number;
+}
+
+/** What the renderer needs from a canvas; tests substitute a fake for the offscreen bitmap. */
+export interface CanvasSource {
+  width: number;
+  height: number;
+  getContext(contextId: '2d', options?: CanvasRenderingContext2DSettings): CanvasRenderingContext2D | null;
+}
+
+export interface RendererOptions {
+  /** Backing canvas for the fixed-resolution fill bitmap; a fresh <canvas> by default. */
+  logical?: CanvasSource;
+  /** Initial device pixel ratio; `window.devicePixelRatio` by default. */
+  dpr?: number;
 }
 
 export function clampDpr(dpr: number): number {
@@ -47,15 +63,18 @@ function drawDot(ctx: CanvasRenderingContext2D, x: number, y: number, size: numb
 const midX = (pts: readonly number[], i: number): number => (pts[2 * i] + pts[2 * i + 2]) / 2;
 const midY = (pts: readonly number[], i: number): number => (pts[2 * i + 1] + pts[2 * i + 3]) / 2;
 
-/** Renders a complete stroke: a dot for one point, a line for two, midpoint-smoothed quadratics otherwise. */
-export function drawStroke(ctx: CanvasRenderingContext2D, style: StrokeStyle, pts: readonly number[]): void {
+/**
+ * Renders a stroke: a dot for one point, a line for two, midpoint-smoothed quadratics otherwise.
+ * A stroke that is not `done` is drawn exactly as the incremental path would have drawn it so far
+ * (the start dot and the pieces up to mid(p[n-1], p[n]), no straight tail to the newest point):
+ * when further points arrive the picture must end up identical to everyone else's.
+ */
+export function drawStroke(ctx: CanvasRenderingContext2D, style: StrokeStyle, pts: readonly number[], done = true): void {
   const n = Math.floor(pts.length / 2) - 1; // index of the last point
   if (n < 0) return;
   applyStyle(ctx, style);
-  if (n === 0) {
-    drawDot(ctx, pts[0], pts[1], style.size);
-    return;
-  }
+  if (n === 0 || !done) drawDot(ctx, pts[0], pts[1], style.size);
+  if (n === 0 || (!done && n < 2)) return;
   ctx.beginPath();
   ctx.moveTo(pts[0], pts[1]);
   if (n === 1) {
@@ -64,21 +83,39 @@ export function drawStroke(ctx: CanvasRenderingContext2D, style: StrokeStyle, pt
     for (let i = 1; i <= n - 1; i++) {
       ctx.quadraticCurveTo(pts[2 * i], pts[2 * i + 1], midX(pts, i), midY(pts, i));
     }
-    ctx.lineTo(pts[2 * n], pts[2 * n + 1]);
+    if (done) ctx.lineTo(pts[2 * n], pts[2 * n + 1]);
   }
   ctx.stroke();
 }
 
 export class CanvasRenderer {
   private readonly ctx: CanvasRenderingContext2D;
+  /**
+   * A 1x mirror of the picture at the logical size. Flood fills are computed here, never on the
+   * display bitmap: anti-aliasing differs between device pixel ratios, so a near-closed outline
+   * would leak on a 2x phone and hold on a 1x laptop. Every client fills the same region this way.
+   */
+  private readonly logical: CanvasRenderingContext2D;
+  private readonly fillScratch = new Uint8Array(CANVAS_WIDTH * CANVAS_HEIGHT);
+  /** Spans each fill action painted. A replay repaints them instead of flooding the bitmap again. */
+  private readonly fillCache = new WeakMap<FillAction, FillSpans>();
   private dpr = 0;
   private readonly live = new Map<number, LiveStroke>();
 
-  constructor(private readonly canvas: HTMLCanvasElement) {
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  constructor(
+    private readonly canvas: HTMLCanvasElement,
+    opts: RendererOptions = {},
+  ) {
+    const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('2D canvas context unavailable');
     this.ctx = ctx;
-    this.resize(window.devicePixelRatio);
+    const source = opts.logical ?? document.createElement('canvas');
+    source.width = CANVAS_WIDTH;
+    source.height = CANVAS_HEIGHT;
+    const logical = source.getContext('2d', { willReadFrequently: true });
+    if (!logical) throw new Error('2D canvas context unavailable');
+    this.logical = logical;
+    this.resize(opts.dpr ?? window.devicePixelRatio);
   }
 
   /** (Re)allocates the backing store for a device pixel ratio. Returns true when the bitmap was reset. */
@@ -95,23 +132,30 @@ export class CanvasRenderer {
 
   clear(): void {
     this.live.clear();
-    const c = this.ctx;
-    c.save();
-    c.setTransform(1, 0, 0, 1, 0, 0);
-    c.fillStyle = '#ffffff';
-    c.fillRect(0, 0, this.canvas.width, this.canvas.height);
-    c.restore();
+    for (const c of this.targets()) {
+      c.save();
+      c.setTransform(1, 0, 0, 1, 0, 0);
+      c.fillStyle = '#ffffff';
+      c.fillRect(0, 0, c.canvas.width, c.canvas.height);
+      c.restore();
+    }
   }
 
   /** Redraws everything from a white background. Used for undo, clear, canvas resync and rejoin. */
   replayAll(actions: readonly CanvasAction[]): void {
     this.clear();
-    for (const action of actions) {
-      if (action.kind === 'stroke') drawStroke(this.ctx, action, action.points);
-      else this.fill(action.x, action.y, action.color);
-    }
-    // Only the newest action can still be streaming; keep it live so further 'move' ops extend it.
-    const last = actions[actions.length - 1];
+    const lastIndex = actions.length - 1;
+    actions.forEach((action, i) => {
+      if (action.kind === 'fill') {
+        this.fill(action.x, action.y, action.color, action);
+        return;
+      }
+      // Only the newest action can still be streaming: it gets no tail yet, and stays live so
+      // further 'move' ops extend it exactly as they would have without the replay.
+      const done = i !== lastIndex || action.done === true;
+      for (const c of this.targets()) drawStroke(c, action, action.points, done);
+    });
+    const last = actions[lastIndex];
     if (last && last.kind === 'stroke') {
       const n = Math.floor(last.points.length / 2) - 1;
       this.live.set(last.id, {
@@ -124,8 +168,27 @@ export class CanvasRenderer {
     }
   }
 
-  applyOps(ops: readonly DrawOp[]): void {
-    for (const op of ops) this.applyOp(op);
+  /**
+   * Applies streamed ops. `actions` is the action list the ops were already folded into: it lets
+   * each fill op find its action so the fill's result is remembered for later replays.
+   */
+  applyOps(ops: readonly DrawOp[], actions?: readonly CanvasAction[]): void {
+    const fills = actions ? this.lastFills(actions, ops.filter((op) => op.k === 'fill').length) : [];
+    let nextFill = 0;
+    for (const op of ops) {
+      if (op.k === 'fill') this.fill(op.x, op.y, op.color, fills[nextFill++] ?? null);
+      else this.applyOp(op);
+    }
+  }
+
+  /** The newest `count` fill actions in order; `[]` when the list does not hold that many. */
+  private lastFills(actions: readonly CanvasAction[], count: number): FillAction[] {
+    const fills: FillAction[] = [];
+    for (let i = actions.length - 1; i >= 0 && fills.length < count; i--) {
+      const action = actions[i];
+      if (action.kind === 'fill') fills.unshift(action);
+    }
+    return fills.length === count ? fills : [];
   }
 
   applyOp(op: DrawOp): void {
@@ -139,8 +202,10 @@ export class CanvasRenderer {
           nextPiece: 1,
         };
         this.live.set(op.id, stroke);
-        applyStyle(this.ctx, stroke);
-        drawDot(this.ctx, op.x, op.y, op.size);
+        for (const c of this.targets()) {
+          applyStyle(c, stroke);
+          drawDot(c, op.x, op.y, op.size);
+        }
         break;
       }
       case 'move': {
@@ -159,9 +224,13 @@ export class CanvasRenderer {
         break;
       }
       case 'fill':
-        this.fill(op.x, op.y, op.color);
+        this.fill(op.x, op.y, op.color, null);
         break;
     }
+  }
+
+  private targets(): readonly CanvasRenderingContext2D[] {
+    return [this.ctx, this.logical];
   }
 
   private drawPendingPieces(stroke: LiveStroke): void {
@@ -169,15 +238,16 @@ export class CanvasRenderer {
     const n = Math.floor(pts.length / 2) - 1;
     const first = stroke.nextPiece;
     if (first > n - 1) return;
-    const c = this.ctx;
-    applyStyle(c, stroke);
-    c.beginPath();
-    if (first === 1) c.moveTo(pts[0], pts[1]);
-    else c.moveTo(midX(pts, first - 1), midY(pts, first - 1));
-    for (let i = first; i <= n - 1; i++) {
-      c.quadraticCurveTo(pts[2 * i], pts[2 * i + 1], midX(pts, i), midY(pts, i));
+    for (const c of this.targets()) {
+      applyStyle(c, stroke);
+      c.beginPath();
+      if (first === 1) c.moveTo(pts[0], pts[1]);
+      else c.moveTo(midX(pts, first - 1), midY(pts, first - 1));
+      for (let i = first; i <= n - 1; i++) {
+        c.quadraticCurveTo(pts[2 * i], pts[2 * i + 1], midX(pts, i), midY(pts, i));
+      }
+      c.stroke();
     }
-    c.stroke();
     stroke.nextPiece = n;
   }
 
@@ -185,16 +255,30 @@ export class CanvasRenderer {
     const pts = stroke.points;
     const n = Math.floor(pts.length / 2) - 1;
     if (n < 1) return; // a lone point is already a dot
-    const c = this.ctx;
-    applyStyle(c, stroke);
-    c.beginPath();
-    if (n === 1) c.moveTo(pts[0], pts[1]);
-    else c.moveTo(midX(pts, n - 1), midY(pts, n - 1));
-    c.lineTo(pts[2 * n], pts[2 * n + 1]);
-    c.stroke();
+    for (const c of this.targets()) {
+      applyStyle(c, stroke);
+      c.beginPath();
+      if (n === 1) c.moveTo(pts[0], pts[1]);
+      else c.moveTo(midX(pts, n - 1), midY(pts, n - 1));
+      c.lineTo(pts[2 * n], pts[2 * n + 1]);
+      c.stroke();
+    }
   }
 
-  private fill(x: number, y: number, color: string): void {
-    floodFill(this.ctx, x * this.dpr, y * this.dpr, color, FILL_TOLERANCE);
+  /**
+   * Floods the 1x bitmap and paints the resulting spans on both canvases. With `action` the spans
+   * are cached (or reused), so a replay of a bucket-heavy turn never re-floods the whole picture.
+   */
+  private fill(x: number, y: number, color: string, action: FillAction | null): void {
+    let spans = action ? this.fillCache.get(action) : undefined;
+    if (spans) {
+      paintSpans(this.logical, spans, color);
+    } else {
+      const image = this.logical.getImageData(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+      spans = floodFillImage(image, x, y, color, FILL_TOLERANCE, this.fillScratch);
+      if (spans.length > 0) this.logical.putImageData(image, 0, 0);
+      if (action) this.fillCache.set(action, spans);
+    }
+    paintSpans(this.ctx, spans, color);
   }
 }

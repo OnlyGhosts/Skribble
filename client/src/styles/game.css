@@ -87,13 +87,13 @@
 .rating__btn.is-active {
   background: var(--color-success-soft);
   border-color: var(--color-success);
-  color: var(--color-success);
+  color: var(--color-success-text);
 }
 
 .rating__btn--down.is-active {
   background: var(--color-danger-soft);
   border-color: var(--color-danger);
-  color: var(--color-danger);
+  color: var(--color-danger-text);
 }
 
 .rating__btn:disabled {
@@ -140,8 +140,12 @@
   }
 }
 
-/* ---------- Phone app layout: nothing scrolls but the chat log ---------- */
-@media (max-width: 760px), (orientation: landscape) and (max-height: 520px) {
+/*
+ * ---------- Phone app layout: nothing scrolls but the chat log ----------
+ * The landscape branch is an aspect-ratio test, not `orientation`: a portrait phone whose layout
+ * viewport shrinks for the keyboard (320x310) is wider than tall, yet still a portrait phone.
+ */
+@media (max-width: 760px), (min-aspect-ratio: 3/2) and (max-height: 520px) {
   .game {
     display: flex;
     flex-direction: column;
@@ -165,15 +169,24 @@
     min-height: 56px;
   }
 
+  /* The turn counter is the one header item that may give way: it never forces a second row. */
   .game__round--compact {
-    flex: 1 1 auto;
+    flex: 1 1 0;
     min-width: 0;
+    overflow: hidden;
     line-height: 1.15;
+  }
+
+  .game__round--compact strong,
+  .game__round--compact small {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .game__round--compact strong {
     font-size: 0.85rem;
-    white-space: nowrap;
   }
 
   .game__round--compact small {
@@ -256,8 +269,14 @@
     gap: var(--space-2);
   }
 
+  /* The drawer's toolbar takes three 44px rows under the canvas; the log may shrink to nothing meanwhile. */
   .game--drawer .game__center {
-    max-height: calc(75vw + 110px);
+    flex-grow: 5;
+    max-height: calc(75vw + 164px);
+  }
+
+  .game--drawer .game__chat .chat__log-wrap {
+    min-height: 0;
   }
 
   .canvas-stage {
@@ -357,7 +376,11 @@
     min-height: 44px;
   }
 
-  /* Drawer toolbar: two 44px rows, the palette scrolls sideways. */
+  /*
+   * Drawer toolbar: 44px-wide targets in rows of 44px. Tools and undo/clear share the first row,
+   * the brush sizes wrap onto the second one (landscape is wide enough for all of them in one row)
+   * and the palette, scrolling sideways, always takes a row of its own (the pseudo-element breaks).
+   */
   .toolbar {
     flex-wrap: wrap;
     gap: 6px 8px;
@@ -409,17 +432,13 @@
   }
 
   .toolbar__actions {
-    order: 7;
+    order: 0;
     margin-left: auto;
   }
 
-  .tool-btn {
-    width: 40px;
-    height: 44px;
-  }
-
+  .tool-btn,
   .size-btn {
-    width: 32px;
+    width: 44px;
     height: 44px;
   }
 
@@ -443,8 +462,36 @@
   }
 }
 
+/*
+ * Small phones (iPhone SE/8 class): the header must stay one row, so the rating buttons show their
+ * thumbs only and the players/menu buttons lose a little padding.
+ */
+@media (max-width: 375px) {
+  .rating--compact .rating__btn {
+    padding: 0 7px;
+  }
+
+  .rating--compact .rating__btn span {
+    display: none;
+  }
+
+  .players-btn {
+    padding: 0 8px;
+  }
+}
+
+/*
+ * Short viewports (a portrait phone with the keyboard open): the chat log gives way before the
+ * canvas, so what is being drawn stays visible above the guess bar.
+ */
+@media (max-height: 520px) {
+  .game--phone .game__chat .chat__log-wrap {
+    min-height: 0;
+  }
+}
+
 /* ---------- Landscape phones: canvas left, header + chat right ---------- */
-@media (orientation: landscape) and (max-height: 520px) {
+@media (min-aspect-ratio: 3/2) and (max-height: 520px) {
   .game {
     display: grid;
     grid-template-columns: minmax(0, 1fr) clamp(240px, 38%, 360px);
@@ -498,5 +545,16 @@
 
   .overlay__card {
     max-height: 100%;
+  }
+}
+
+/* Landscape with the keyboard open (~230px tall): the side column keeps the guess bar on screen. */
+@media (min-aspect-ratio: 3/2) and (max-height: 300px) {
+  .game__top .rating--compact {
+    display: none;
+  }
+
+  .game__chat .chat__log-wrap {
+    min-height: 0;
   }
 }

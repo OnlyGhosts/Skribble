@@ -44,7 +44,7 @@ export function turnEndReasonText(reason: TurnEndReason, drawerName: string): st
     case 'timeUp':
       return "Time's up!";
     case 'drawerLeft':
-      return `${drawerName} left the game.`;
+      return `${drawerName} left or lost connection, so the turn was skipped.`;
     case 'noWordChosen':
       return `${drawerName} didn't pick a word in time.`;
   }

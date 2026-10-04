@@ -126,3 +126,27 @@ describe('layoutGuess', () => {
     expect(letterSlots(groups).map((s) => s.typed)).toEqual(['a', 'b', 'c', 'd']);
   });
 });
+
+import { describeMask, groupMetrics } from './mask';
+
+describe('groupMetrics', () => {
+  it('counts the letter tiles and separators of a group', () => {
+    const { groups } = layoutGuess("___-__ __'_", '');
+    expect(groupMetrics(groups[0])).toEqual({ letters: 5, seps: 1 });
+    expect(groupMetrics(groups[1])).toEqual({ letters: 3, seps: 1 });
+    expect(groupMetrics(layoutGuess('__________', '').groups[0])).toEqual({ letters: 10, seps: 0 });
+  });
+});
+
+describe('describeMask', () => {
+  it('describes the word shape when nothing is revealed', () => {
+    expect(describeMask('_____')).toBe('5 letters.');
+    expect(describeMask('___ _____')).toBe('8 letters in 2 words.');
+    expect(describeMask('_')).toBe('1 letter.');
+  });
+
+  it('spells out revealed hint letters in place', () => {
+    expect(describeMask(maskWord('apple', [0, 3]))).toBe('5 letters. Revealed: A blank blank L blank.');
+    expect(describeMask('i__ __e__')).toBe('8 letters in 2 words. Revealed: I blank blank, blank blank E blank blank.');
+  });
+});

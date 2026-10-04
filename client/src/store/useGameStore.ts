@@ -60,6 +60,11 @@ interface GameState {
   joinError: JoinError | null;
   /** serverTime - Date.now(); add it to local time to get server time. */
   clockOffset: number;
+  /**
+   * True once a pong gave a latency-corrected offset. Until then snapshots seed the offset (they
+   * are biased by the one-way latency, so they never override a pong-based value).
+   */
+  clockSynced: boolean;
   /** What the guesser has typed into the word tiles but not sent yet; reset every turn. */
   guessDraft: string;
 }
@@ -71,6 +76,9 @@ interface GameActions {
   handleServerMessage(msg: ServerMessage): void;
   /** Ops produced by the local drawer; the server does not echo them. */
   appendLocalOps(ops: readonly DrawOp[]): void;
+  /** The drawer's own undo/clear, applied at send time; the server's echo is then ignored. */
+  undoLocal(): void;
+  clearLocal(): void;
   beginJoin(request: JoinRequest): void;
   setPendingJoin(request: JoinRequest | null): void;
   failJoin(error: JoinError): void;
@@ -106,6 +114,26 @@ function appendChat(chat: ChatMessage[], message: ChatMessage): ChatMessage[] {
   return next;
 }
 
+/**
+ * Whether `next` is `prev` plus one appended message (as `appendChat` produces), as opposed to a
+ * wholesale replacement by a welcome's history. Cues such as the 'correct' chime only make sense
+ * for the former: nobody should hear a guess that happened before they arrived.
+ */
+export function isChatAppend(prev: readonly ChatMessage[], next: readonly ChatMessage[]): boolean {
+  if (next === prev || next.length === 0) return false;
+  const prevLast = prev[prev.length - 1];
+  if (!prevLast) return next.length === 1;
+  return next[next.length - 2] === prevLast && next[next.length - 1] !== prevLast;
+}
+
+/** Messages that only mean something while we hold a seat; after a leave they belong to a room we are no longer in. */
+const ROOM_SCOPED: ReadonlySet<ServerMessage['t']> = new Set<ServerMessage['t']>(['room', 'draw', 'undo', 'clear', 'canvas', 'chat']);
+
+/** The current drawer applies undo/clear when sending them, so their echoes carry nothing new. */
+function isOwnCanvasEcho(s: GameStore): boolean {
+  return s.room?.phase.kind === 'drawing' && selectIsDrawer(s);
+}
+
 export const useGameStore = create<GameStore>()((set, get) => ({
   connection: 'connecting',
   playerId: null,
@@ -120,13 +148,17 @@ export const useGameStore = create<GameStore>()((set, get) => ({
   pendingJoin: null,
   joinError: null,
   clockOffset: 0,
+  clockSynced: false,
   guessDraft: '',
 
   setConnection: (connection) => set({ connection }),
   setRejoining: (rejoining) => set({ rejoining }),
-  setClockOffset: (clockOffset) => set({ clockOffset }),
+  setClockOffset: (clockOffset) => set({ clockOffset, clockSynced: true }),
 
   handleServerMessage: (msg) => {
+    // Only 'welcome' (re)enters a room: a snapshot or chat line still in flight when we left must
+    // not resurrect a ghost room the server no longer knows us in.
+    if (get().room === null && ROOM_SCOPED.has(msg.t)) return;
     switch (msg.t) {
       case 'welcome':
         set((s) => ({
@@ -139,8 +171,9 @@ export const useGameStore = create<GameStore>()((set, get) => ({
           pendingJoin: null,
           joinError: null,
           rejoining: false,
-          clockOffset: msg.room.serverTime - Date.now(),
-          guessDraft: '',
+          ...(s.clockSynced ? {} : { clockOffset: msg.room.serverTime - Date.now() }),
+          // A rejoin into the same turn keeps the half-typed guess; only a new turn (or seat) clears it.
+          guessDraft: isNewTurn(s.room, msg.room) || s.playerId !== msg.playerId ? '' : s.guessDraft,
         }));
         break;
       case 'room':
@@ -152,7 +185,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
           const freshDraft = isNewTurn(s.room, msg.room) || next === 'lobby';
           return {
             room: msg.room,
-            clockOffset: msg.room.serverTime - Date.now(),
+            ...(s.clockSynced ? {} : { clockOffset: msg.room.serverTime - Date.now() }),
             ...(freshCanvas ? { canvas: [], canvasEpoch: s.canvasEpoch + 1 } : {}),
             ...(freshDraft ? { guessDraft: '' } : {}),
           };
@@ -163,10 +196,12 @@ export const useGameStore = create<GameStore>()((set, get) => ({
         canvasBus.emit(msg.ops);
         break;
       case 'undo':
-        set((s) => ({ canvas: s.canvas.slice(0, -1), canvasEpoch: s.canvasEpoch + 1 }));
+        if (isOwnCanvasEcho(get())) break;
+        get().undoLocal();
         break;
       case 'clear':
-        set((s) => ({ canvas: [], canvasEpoch: s.canvasEpoch + 1 }));
+        if (isOwnCanvasEcho(get())) break;
+        get().clearLocal();
         break;
       case 'canvas':
         set((s) => ({ canvas: msg.actions, canvasEpoch: s.canvasEpoch + 1 }));
@@ -197,6 +232,8 @@ export const useGameStore = create<GameStore>()((set, get) => ({
   },
 
   appendLocalOps: (ops) => set((s) => ({ canvas: applyOpsToActions(s.canvas, ops) })),
+  undoLocal: () => set((s) => ({ canvas: s.canvas.slice(0, -1), canvasEpoch: s.canvasEpoch + 1 })),
+  clearLocal: () => set((s) => ({ canvas: [], canvasEpoch: s.canvasEpoch + 1 })),
 
   beginJoin: (request) => set({ joinPending: true, pendingJoin: request, joinError: null }),
   setPendingJoin: (pendingJoin) => set({ pendingJoin }),

@@ -11,6 +11,12 @@ import { systemClock, type Clock, type Transport } from './transport';
 export const HEARTBEAT_INTERVAL_MS = 30_000;
 /** Draw batches above this rate (per socket, per second) are dropped silently. */
 export const DRAW_RATE_LIMIT_PER_SECOND = 60;
+/**
+ * Room create/join attempts per socket: each one can allocate a room (kept alive for a minute
+ * after it is abandoned) or a seat, so a flood from one connection must be refused early.
+ */
+export const ROOM_RATE_LIMIT_COUNT = 5;
+export const ROOM_RATE_LIMIT_WINDOW_MS = 10_000;
 
 /** Close codes the server uses; 4xxx is the application range. */
 export const CLOSE_REPLACED = 4001;
@@ -119,6 +125,7 @@ export function handleConnection(ws: SocketLike, deps: ConnectionDeps): string {
   const connectionId = randomUUID();
   const chatLimiter = new RateLimiter(CHAT_RATE_LIMIT_COUNT, CHAT_RATE_LIMIT_WINDOW_MS);
   const drawLimiter = new RateLimiter(DRAW_RATE_LIMIT_PER_SECOND, 1000);
+  const roomLimiter = new RateLimiter(ROOM_RATE_LIMIT_COUNT, ROOM_RATE_LIMIT_WINDOW_MS);
   let session: Session | null = null;
   let alive = true;
 
@@ -167,12 +174,15 @@ export function handleConnection(ws: SocketLike, deps: ConnectionDeps): string {
       case 'leave':
         return leaveCurrentRoom();
       case 'create': {
+        if (!roomLimiter.tryAcquire(clock.now())) return fail('RATE_LIMITED', 'You are creating or joining rooms too quickly.');
         leaveCurrentRoom();
-        const { room, player } = deps.rooms.createRoom(msg.name, msg.avatar, connectionId);
-        session = { room, player };
+        const created = deps.rooms.createRoom(msg.name, msg.avatar, connectionId);
+        if (!created.ok) return reply({ t: 'error', code: created.code, message: created.message });
+        session = { room: created.room, player: created.player };
         return;
       }
       case 'join': {
+        if (!roomLimiter.tryAcquire(clock.now())) return fail('RATE_LIMITED', 'You are creating or joining rooms too quickly.');
         const found = deps.rooms.lookup(msg.code);
         if (!found.ok) return reply({ t: 'error', code: found.code, message: found.message });
         leaveCurrentRoom();

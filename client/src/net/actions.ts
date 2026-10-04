@@ -1,7 +1,6 @@
 import type { Avatar } from '@shared/avatar';
 import type { RoomSettingsPatch } from '@shared/settings';
 import { friendlyError } from '../lib/format';
-import { clearSession } from '../lib/storage';
 import { useGameStore, type JoinRequest } from '../store/useGameStore';
 import { socket } from './socket';
 
@@ -47,9 +46,7 @@ export function cancelJoin(): void {
 }
 
 export function leaveRoom(): void {
-  socket.flushDraw();
-  socket.send({ t: 'leave' });
-  clearSession();
+  socket.leave();
   useGameStore.getState().resetRoom();
 }
 
@@ -75,15 +72,20 @@ export function chooseWord(index: number): void {
   socket.send({ t: 'chooseWord', index });
 }
 
-/** Undo/clear flush any buffered ops first so the server removes what the drawer sees as last. */
+/**
+ * Undo/clear flush any buffered ops first so the server removes what the drawer sees as last, and
+ * take effect locally at once: by the time the server's echo arrives the drawer may already have
+ * started a new stroke, so applying the echo against the current list would remove the wrong one
+ * (the store ignores the drawer's own echoes for that reason).
+ */
 export function undoStroke(): void {
   socket.flushDraw();
-  socket.send({ t: 'undo' });
+  if (socket.send({ t: 'undo' })) useGameStore.getState().undoLocal();
 }
 
 export function clearCanvas(): void {
   socket.flushDraw();
-  socket.send({ t: 'clear' });
+  if (socket.send({ t: 'clear' })) useGameStore.getState().clearLocal();
 }
 
 export function kickPlayer(playerId: string): void {

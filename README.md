@@ -81,7 +81,7 @@ client/     React 19 + zustand. One WebSocket with auto-reconnect; the server
 e2e/        Playwright specs. One browser, several contexts, real server.
 ```
 
-Drawing coordinates live in a fixed 800×600 logical space, so every device sees the same picture regardless of screen size. The drawer renders locally and the server forwards ops to everyone else; undo and clear are broadcast to all, including the drawer, so the shared history stays authoritative.
+Drawing coordinates live in a fixed 800×600 logical space, so every device sees the same picture regardless of screen size. The drawer renders locally and the server forwards ops to everyone else; undo and clear are applied by the drawer as they are sent and broadcast to everyone else, so the shared history stays authoritative. A drawer whose ops the server had to cap gets a canvas resync.
 
 ## Default settings
 

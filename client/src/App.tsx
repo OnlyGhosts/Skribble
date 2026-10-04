@@ -1,11 +1,11 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { leaveRoom } from './net/actions';
 import { socket } from './net/socket';
 import { vibrate } from './lib/haptics';
 import { playCue, setSoundEnabled, unlockAudio } from './lib/sound';
-import { codeFromLocation, pushRoomUrl, resetUrl } from './lib/url';
+import { codeFromLocation, pushRoomUrl } from './lib/url';
 import { useViewport } from './lib/useViewport';
-import { selectIsDrawer, selectMe, useGameStore } from './store/useGameStore';
+import { isChatAppend, selectIsDrawer, selectMe, useGameStore } from './store/useGameStore';
 import { Toasts } from './components/Toasts';
 import { Game } from './screens/Game';
 import { Home } from './screens/Home';
@@ -29,19 +29,20 @@ function useTheme(): void {
   }, [theme]);
 }
 
-/** Mirrors the room into the address bar and leaves the room when the user navigates away from it. */
+/**
+ * Mirrors the room into the address bar and leaves the room when the user navigates away from it.
+ * Leaving the URL behind is `resetRoom`'s job alone: it knows whether the code should survive
+ * (a seat that expired while the room may still exist is re-joined with one click).
+ */
 function useUrlSync(): void {
   const code = useGameStore((s) => s.room?.code ?? null);
-  const previous = useRef<string | null>(null);
   useEffect(() => {
     if (code) {
       pushRoomUrl(code);
       document.title = `Skribble — room ${code}`;
     } else {
-      if (previous.current !== null) resetUrl();
       document.title = BASE_TITLE;
     }
-    previous.current = code;
   }, [code]);
 
   useEffect(() => {
@@ -78,10 +79,10 @@ function useSoundEffects(): void {
           if (!wasMyChoosing) playCue('yourTurn');
         }
         if (phase?.kind === 'turnEnd' && prevPhase?.kind !== 'turnEnd') playCue('turnEnd');
-        if (state.chat !== prev.chat) {
+        // Only a freshly appended line is news; a welcome replaces the whole log with history.
+        if (state.chat !== prev.chat && isChatAppend(prev.chat, state.chat)) {
           const last = state.chat[state.chat.length - 1];
-          const prevLast = prev.chat[prev.chat.length - 1];
-          if (last && last.kind === 'correct' && last.id !== prevLast?.id) playCue('correct');
+          if (last.kind === 'correct') playCue('correct');
         }
         // A little buzz when this player cracks the word (the drawer is marked as guessed too; skip them).
         if (

@@ -12,7 +12,13 @@ export interface RoomManagerDeps {
   rng?: Rng;
   /** How long an empty room survives before deletion (defaults to EMPTY_ROOM_TTL_MS). */
   emptyRoomTtlMs?: number;
+  /** Rooms alive at once, empty ones awaiting deletion included (defaults to MAX_ROOMS). */
+  maxRooms?: number;
 }
+
+export type CreateResult =
+  | { ok: true; room: Room; player: Player }
+  | { ok: false; code: Extract<ErrorCode, 'RATE_LIMITED'>; message: string };
 
 export type LookupResult =
   | { ok: true; room: Room }
@@ -24,6 +30,11 @@ export interface RoomStats {
 }
 
 const MAX_CODE_ATTEMPTS = 1000;
+/**
+ * Global cap on rooms. Each room holds a canvas, chat log and timers and an abandoned one lives
+ * EMPTY_ROOM_TTL_MS, so without a ceiling one client could exhaust memory (or the code space).
+ */
+export const MAX_ROOMS = 5000;
 
 export class RoomManager {
   private readonly rooms = new Map<string, Room>();
@@ -32,16 +43,25 @@ export class RoomManager {
   private readonly clock: Clock;
   private readonly rng: Rng;
   private readonly ttlMs: number;
+  private readonly maxRooms: number;
 
   constructor(deps: RoomManagerDeps) {
     this.transport = deps.transport;
     this.clock = deps.clock ?? systemClock;
     this.rng = deps.rng ?? Math.random;
     this.ttlMs = deps.emptyRoomTtlMs ?? EMPTY_ROOM_TTL_MS;
+    this.maxRooms = deps.maxRooms ?? MAX_ROOMS;
   }
 
-  /** Creates a room with a fresh code and seats its host. */
-  createRoom(name: string, avatar: Avatar, connectionId: string): { room: Room; player: Player } {
+  get isAtCapacity(): boolean {
+    return this.rooms.size >= this.maxRooms;
+  }
+
+  /** Creates a room with a fresh code and seats its host, unless the server is at its room cap. */
+  createRoom(name: string, avatar: Avatar, connectionId: string): CreateResult {
+    if (this.isAtCapacity) {
+      return { ok: false, code: 'RATE_LIMITED', message: 'The server is hosting too many rooms right now. Please try again in a minute.' };
+    }
     const code = this.uniqueCode();
     const room = new Room(code, {
       transport: this.transport,
@@ -58,7 +78,7 @@ export class RoomManager {
       room.destroy();
       throw new Error(`failed to seat host in new room: ${joined.code}`);
     }
-    return { room, player: joined.player };
+    return { ok: true, room, player: joined.player };
   }
 
   /** Resolves user input (any case, with noise) to a room. */

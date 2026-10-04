@@ -25,9 +25,17 @@ export const DRAWER_DISCONNECT_GRACE_MS = 10_000;
 /** How long an empty room is kept alive before it is deleted. */
 export const EMPTY_ROOM_TTL_MS = 60_000;
 
-/** Caps that bound memory per room. */
-export const MAX_ACTIONS_PER_TURN = 3000;
-export const MAX_POINTS_PER_STROKE = 6000;
+/**
+ * Caps that bound memory per room. The whole canvas is re-sent to every joiner/rejoiner in
+ * `welcome`, so these also bound that message: see MAX_CANVAS_RESYNC_BYTES.
+ */
+export const MAX_ACTIONS_PER_TURN = 500;
+/** Flat coordinate numbers ([x, y, x, y, ...]) a single stroke may hold. */
+export const MAX_POINTS_PER_STROKE = 4000;
+/** Flat coordinate numbers across *all* strokes on the canvas; bounds the turn, not just one stroke. */
+export const MAX_POINTS_PER_TURN = 80_000;
+/** Rough upper bound on the serialized canvas (coordinates are rounded to 2 decimals, so ~8 bytes each). */
+export const MAX_CANVAS_RESYNC_BYTES = MAX_POINTS_PER_TURN * 8 + MAX_ACTIONS_PER_TURN * 128;
 export const MAX_WS_MESSAGE_BYTES = 64 * 1024;
 
 /** Chat rate limit: at most CHAT_RATE_LIMIT_COUNT messages per CHAT_RATE_LIMIT_WINDOW_MS. */

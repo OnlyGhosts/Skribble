@@ -1,5 +1,6 @@
 import { useEffect, useRef, type ChangeEvent, type ClipboardEvent, type KeyboardEvent } from 'react';
 import { ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH, extractRoomCode } from '@shared/roomCode';
+import { clearChar, padCode, writeChars } from '../lib/codeInput';
 
 interface Props {
   value: string;
@@ -10,12 +11,6 @@ interface Props {
   disabled?: boolean;
   invalid?: boolean;
   autoFocus?: boolean;
-}
-
-function padCode(code: string): string[] {
-  const chars = code.toUpperCase().slice(0, ROOM_CODE_LENGTH).split('');
-  while (chars.length < ROOM_CODE_LENGTH) chars.push('');
-  return chars;
 }
 
 /** Splits raw typed/pasted text into accepted characters, reporting whether anything was rejected. */
@@ -46,22 +41,15 @@ export function CodeInput({ value, onChange, onSubmit, onInvalidChar, disabled, 
   };
 
   const writeFrom = (start: number, text: string) => {
-    const next = padCode(value);
-    let i = start;
-    for (const ch of text) {
-      if (i >= ROOM_CODE_LENGTH) break;
-      next[i++] = ch;
-    }
-    onChange(next.join(''));
-    focusBox(Math.min(i, ROOM_CODE_LENGTH - 1));
+    const next = writeChars(value, start, text);
+    onChange(next.code);
+    focusBox(next.focus);
   };
 
   const handleChange = (i: number) => (e: ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value;
     if (raw === '') {
-      const next = padCode(value);
-      next[i] = '';
-      onChange(next.join(''));
+      onChange(clearChar(value, i));
       return;
     }
     // A full box receiving another key keeps the newest character (replace-and-advance).
@@ -76,9 +64,7 @@ export function CodeInput({ value, onChange, onSubmit, onInvalidChar, disabled, 
       case 'Backspace':
         if (!chars[i] && i > 0) {
           e.preventDefault();
-          const next = padCode(value);
-          next[i - 1] = '';
-          onChange(next.join(''));
+          onChange(clearChar(value, i - 1));
           focusBox(i - 1);
         }
         break;

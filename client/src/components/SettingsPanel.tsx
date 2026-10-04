@@ -5,12 +5,19 @@ import { updateSettings } from '../net/actions';
 interface Props {
   settings: RoomSettings;
   isHost: boolean;
+  /** Seated players: the server never lets `maxPlayers` drop below this. */
+  playerCount: number;
 }
 
 const CUSTOM_WORDS_DEBOUNCE_MS = 500;
 const RANGE_DEBOUNCE_MS = 150;
 /** How long a local custom-words edit outranks the server copy while its echo is in flight. */
 const PENDING_EDIT_GRACE_MS = 3000;
+
+/** The slider cannot ask for fewer seats than are taken: the server would clamp the patch and the thumb would lie. */
+export function maxPlayersMin(playerCount: number): number {
+  return Math.min(SETTINGS_LIMITS.maxPlayers.max, Math.max(SETTINGS_LIMITS.maxPlayers.min, playerCount));
+}
 
 function Row({ label, hint, control, testId, value }: { label: string; hint?: string; control?: ReactNode; testId: string; value: string }) {
   return (
@@ -35,13 +42,19 @@ interface RangeProps {
   step?: number;
   onCommit(v: number): void;
   label: string;
+  /** Changes with every server snapshot; a snapshot that echoes an unchanged value still resyncs the thumb. */
+  revision: unknown;
 }
 
 /** Range input that tracks the drag immediately but sends at most one patch per short pause. */
-function RangeControl({ id, value, min, max, step = 1, onCommit, label }: RangeProps) {
+function RangeControl({ id, value, min, max, step = 1, onCommit, label, revision }: RangeProps) {
   const [local, setLocal] = useState(value);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => setLocal(value), [value]);
+  // The server may refuse a patch and echo the old value: with no pending drag, follow it.
+  useEffect(() => {
+    if (timer.current === null) setLocal(value);
+  }, [value, revision]);
   useEffect(
     () => () => {
       if (timer.current !== null) clearTimeout(timer.current);
@@ -73,7 +86,7 @@ function RangeControl({ id, value, min, max, step = 1, onCommit, label }: RangeP
   );
 }
 
-export function SettingsPanel({ settings, isHost }: Props) {
+export function SettingsPanel({ settings, isHost, playerCount }: Props) {
   const [customText, setCustomText] = useState(() => settings.customWords.join('\n'));
   const [customFocused, setCustomFocused] = useState(false);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -122,6 +135,7 @@ export function SettingsPanel({ settings, isHost }: Props) {
   const effectiveCount = isHost ? parsedCount : settings.customWords.length;
   const canUseOnly = effectiveCount >= SETTINGS_LIMITS.customWords.minForOnly;
   const L = SETTINGS_LIMITS;
+  const range = { revision: settings };
 
   return (
     <div className={`settings${isHost ? '' : ' settings--readonly'}`} data-testid="settings-panel">
@@ -131,7 +145,7 @@ export function SettingsPanel({ settings, isHost }: Props) {
         label="Rounds"
         testId="rounds"
         value={String(settings.rounds)}
-        control={isHost && <RangeControl id="rounds" label="Rounds" value={settings.rounds} min={L.rounds.min} max={L.rounds.max} onCommit={(v) => send({ rounds: v })} />}
+        control={isHost && <RangeControl id="rounds" label="Rounds" value={settings.rounds} min={L.rounds.min} max={L.rounds.max} onCommit={(v) => send({ rounds: v })} {...range} />}
         hint="Everyone draws once per round."
       />
       <Row
@@ -140,7 +154,7 @@ export function SettingsPanel({ settings, isHost }: Props) {
         value={`${settings.drawTime}s`}
         control={
           isHost && (
-            <RangeControl id="drawTime" label="Draw time in seconds" value={settings.drawTime} min={L.drawTime.min} max={L.drawTime.max} step={L.drawTime.step} onCommit={(v) => send({ drawTime: v })} />
+            <RangeControl id="drawTime" label="Draw time in seconds" value={settings.drawTime} min={L.drawTime.min} max={L.drawTime.max} step={L.drawTime.step} onCommit={(v) => send({ drawTime: v })} {...range} />
           )
         }
       />
@@ -148,20 +162,24 @@ export function SettingsPanel({ settings, isHost }: Props) {
         label="Max players"
         testId="maxPlayers"
         value={String(settings.maxPlayers)}
-        control={isHost && <RangeControl id="maxPlayers" label="Maximum players" value={settings.maxPlayers} min={L.maxPlayers.min} max={L.maxPlayers.max} onCommit={(v) => send({ maxPlayers: v })} />}
+        control={
+          isHost && (
+            <RangeControl id="maxPlayers" label="Maximum players" value={settings.maxPlayers} min={maxPlayersMin(playerCount)} max={L.maxPlayers.max} onCommit={(v) => send({ maxPlayers: v })} {...range} />
+          )
+        }
       />
       <Row
         label="Hints"
         testId="hints"
         value={settings.hints === 0 ? 'none' : String(settings.hints)}
-        control={isHost && <RangeControl id="hints" label="Letter hints per word" value={settings.hints} min={L.hints.min} max={L.hints.max} onCommit={(v) => send({ hints: v })} />}
+        control={isHost && <RangeControl id="hints" label="Letter hints per word" value={settings.hints} min={L.hints.min} max={L.hints.max} onCommit={(v) => send({ hints: v })} {...range} />}
         hint="Letters revealed over the turn (never more than half the word)."
       />
       <Row
         label="Word choices"
         testId="wordChoices"
         value={String(settings.wordChoices)}
-        control={isHost && <RangeControl id="wordChoices" label="Words to choose from" value={settings.wordChoices} min={L.wordChoices.min} max={L.wordChoices.max} onCommit={(v) => send({ wordChoices: v })} />}
+        control={isHost && <RangeControl id="wordChoices" label="Words to choose from" value={settings.wordChoices} min={L.wordChoices.min} max={L.wordChoices.max} onCommit={(v) => send({ wordChoices: v })} {...range} />}
       />
 
       <div className="setting" data-testid="settings-row-customWords">

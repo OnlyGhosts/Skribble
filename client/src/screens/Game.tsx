@@ -57,7 +57,8 @@ export function Game({ room }: { room: RoomState }) {
   const isDrawer = useGameStore(selectIsDrawer);
   const hasGuessed = useGameStore(selectHasGuessed);
   const drawer = useGameStore(selectDrawer);
-  const canUndo = useGameStore((s) => s.canvas.length > 0);
+  // Undo/clear apply locally the moment they are sent, so they are only offered while they can be sent.
+  const canUndo = useGameStore((s) => s.canvas.length > 0 && s.connection === 'connected');
   const [tools, setTools] = useState<DrawingSettings>(DEFAULT_TOOLS);
   const [playersOpen, setPlayersOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);

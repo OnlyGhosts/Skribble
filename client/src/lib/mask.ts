@@ -75,3 +75,34 @@ export function hintMatches(typed: string, hint: string): boolean {
       .toLowerCase();
   return fold(typed) === fold(hint);
 }
+
+/** Letter and separator counts of one tile group; the tiles size themselves from these. */
+export function groupMetrics(slots: readonly GuessSlot[]): { letters: number; seps: number } {
+  let letters = 0;
+  let seps = 0;
+  for (const slot of slots) {
+    if (slot.kind === 'letter') letters++;
+    else seps++;
+  }
+  return { letters, seps };
+}
+
+/**
+ * The word's shape for assistive tech, e.g. "8 letters in 2 words. Revealed: blank blank E blank".
+ * On phones the tiles are the only place the mask is shown, and they are hidden from screen readers.
+ */
+export function describeMask(mask: string): string {
+  const words = mask.split(' ').filter((part) => part.length > 0);
+  const total = letterCountFor(mask);
+  const shape = `${total} ${total === 1 ? 'letter' : 'letters'}${words.length > 1 ? ` in ${words.length} words` : ''}`;
+  if (!Array.from(mask).some((ch) => ch !== '_' && LETTER_OR_DIGIT.test(ch))) return `${shape}.`;
+  const revealed = words
+    .map((word) =>
+      Array.from(word)
+        .filter(isLetterSlot)
+        .map((ch) => (ch === '_' ? 'blank' : ch.toUpperCase()))
+        .join(' '),
+    )
+    .join(', ');
+  return `${shape}. Revealed: ${revealed}.`;
+}

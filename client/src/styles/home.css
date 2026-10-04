@@ -10,6 +10,7 @@
 
 .home__bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
@@ -182,5 +183,16 @@
 
   .card {
     padding: var(--space-4);
+  }
+}
+
+/* The narrowest phones: the connection pill keeps its dot only, so the theme toggle stays on screen. */
+@media (max-width: 360px) {
+  .home__bar .conn-pill {
+    padding: 4px 8px;
+  }
+
+  .home__bar .conn-pill__label {
+    display: none;
   }
 }

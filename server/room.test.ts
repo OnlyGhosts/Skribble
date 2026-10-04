@@ -4,7 +4,9 @@ import {
   CHOOSE_TIME_SECONDS,
   DRAWER_DISCONNECT_GRACE_MS,
   MAX_ACTIONS_PER_TURN,
+  MAX_CANVAS_RESYNC_BYTES,
   MAX_POINTS_PER_STROKE,
+  MAX_POINTS_PER_TURN,
   RECONNECT_GRACE_MS,
   TURN_END_SECONDS,
 } from '../shared/constants';
@@ -99,17 +101,64 @@ describe('Room: seats', () => {
     expect(alice.token).toBe('');
   });
 
-  it('passes host after the grace period and prefers connected players', () => {
+  it('hands the host role to a connected player while the host is disconnected and back on rejoin', () => {
     const h = createHarness();
     const alice = h.join('Alice');
     const bob = h.join('Bob');
     const carol = h.join('Carol');
     h.room.handleDisconnect(bob);
+    h.transport.clear();
     h.room.handleDisconnect(alice);
+    // Nobody should be locked out of start / settings / kick for the 60 s grace.
+    expect(h.room.hostPlayerId).toBe(carol.id);
+    expect(h.transport.chats(carol).map((c) => c.text)).toEqual(['Carol is now the host']);
+    expect(h.transport.last(carol, 'room').room.hostId).toBe(carol.id);
+    h.room.handleMessage(carol, { t: 'updateSettings', settings: { rounds: 5 } });
+    expect(h.room.settings.rounds).toBe(5);
+
+    // The original host gets the role back when they come back...
+    h.transport.clear();
+    expect(h.room.rejoin(alice.token, 'conn-Alice-2').ok).toBe(true);
     expect(h.room.hostPlayerId).toBe(alice.id);
+    expect(h.transport.last(alice, 'welcome').room.hostId).toBe(alice.id);
+    expect(h.transport.chats(carol).map((c) => c.text)).toEqual(['Alice is the host again', 'Alice reconnected']);
+    expect(h.transport.last(carol, 'room').room.hostId).toBe(alice.id);
+
+    // ...but not when their seat expired: the stand-in keeps it.
+    h.room.handleDisconnect(alice);
+    expect(h.room.hostPlayerId).toBe(carol.id);
     vi.advanceTimersByTime(RECONNECT_GRACE_MS);
     expect(h.room.playerCount).toBe(1);
     expect(h.room.hostPlayerId).toBe(carol.id);
+  });
+
+  it('keeps the host when nobody else is connected and lets guests start after the host drops', () => {
+    const h = createHarness();
+    const alice = h.join('Alice');
+    const bob = h.join('Bob');
+    h.join('Carol');
+    h.room.handleDisconnect(alice);
+    expect(h.room.hostPlayerId).toBe(bob.id);
+    h.room.handleMessage(bob, { t: 'start' });
+    expect(h.room.phaseKind).toBe('choosing');
+    expect(h.transport.errors(bob)).toEqual([]);
+
+    const solo = createHarness();
+    const dana = solo.join('Dana');
+    solo.room.handleDisconnect(dana);
+    expect(solo.room.hostPlayerId).toBe(dana.id);
+
+    // Players arriving during the lone host's grace are not locked out: the first one stands in...
+    const eve = solo.join('Eve');
+    expect(solo.room.hostPlayerId).toBe(eve.id);
+    solo.join('Frank');
+    solo.room.handleMessage(eve, { t: 'start' });
+    expect(solo.room.phaseKind).toBe('choosing');
+    expect(solo.transport.errors(eve)).toEqual([]);
+    // ...and the host takes the role back when they return.
+    const back = solo.room.rejoin(dana.token, 'dana-2');
+    expect(back.ok).toBe(true);
+    expect(solo.room.hostPlayerId).toBe(dana.id);
   });
 
   it('fires onEmpty when the last seat is released', () => {
@@ -236,7 +285,7 @@ describe('Room: turn lifecycle', () => {
       { playerId: carol.id, score: guessPts, rank: 1 },
       { playerId: alice.id, score: alicePts, rank: 3 },
     ]);
-    expect(h.transport.chats(alice).at(-1)).toEqual({ kind: 'system', text: `Game over! Bob wins with ${guessPts} points.` });
+    expect(h.transport.chats(alice).at(-1)).toEqual({ kind: 'system', text: `Game over! Bob and Carol tie with ${guessPts} points.` });
 
     // gameEnd persists until the host returns to the lobby.
     vi.advanceTimersByTime(600_000);
@@ -249,6 +298,22 @@ describe('Room: turn lifecycle', () => {
     expect(lobby.round).toBe(0);
     expect(lobby.turn).toBe(0);
     expect(lobby.players.every((p) => p.score === 0 && p.turnPoints === 0 && !p.guessedThisTurn)).toBe(true);
+  });
+
+  it('announces a tie instead of a single winner when the top scores are equal', () => {
+    const h = createHarness();
+    const players = startGame(h, ['Alice', 'Bob']);
+    const [alice, bob] = players;
+    let { word } = pick(h, players);
+    h.room.handleMessage(bob, { t: 'chat', text: word });
+    vi.advanceTimersByTime(TURN_END_SECONDS * 1000);
+    ({ word } = pick(h, players));
+    h.room.handleMessage(alice, { t: 'chat', text: word });
+    vi.advanceTimersByTime(TURN_END_SECONDS * 1000);
+    const end = expectPhase(h.room, 'gameEnd');
+    expect(alice.score).toBe(bob.score);
+    expect(end.podium.map((e) => e.rank)).toEqual([1, 1]);
+    expect(h.transport.chats(alice).at(-1)).toEqual({ kind: 'system', text: `Game over! Alice and Bob tie with ${alice.score} points.` });
   });
 
   it('ends the turn as soon as every connected non-drawer has guessed', () => {
@@ -446,6 +511,78 @@ describe('Room: guessing and chat', () => {
     expect(h.transport.last(eve, 'welcome').chat.every((c) => c.kind !== 'guessed' && c.kind !== 'close')).toBe(true);
   });
 
+  it('scores the drawer against everyone who guessed during the turn, even if they dropped or left since', () => {
+    // (a) Bob guesses, then his socket drops; Carol never guesses: 1 of 2, not 1 of 1.
+    const h = createHarness();
+    const players = startGame(h, ['Alice', 'Bob', 'Carol']);
+    const [alice, bob] = players;
+    const { word } = pick(h, players);
+    h.room.handleMessage(bob, { t: 'chat', text: word });
+    h.room.handleDisconnect(bob);
+    vi.advanceTimersByTime(60_000);
+    expect(expectPhase(h.room, 'turnEnd').reason).toBe('timeUp');
+    expect(alice.turnPoints).toBe(drawerPoints(1, 2));
+    expect(alice.turnPoints).toBe(150);
+
+    // (b) Bob guesses, then leaves the room: his correct guess still counts for the drawer.
+    const g = createHarness();
+    const ps = startGame(g, ['Alice', 'Bob', 'Carol']);
+    const [a2, b2] = ps;
+    const second = pick(g, ps);
+    g.room.handleMessage(b2, { t: 'chat', text: second.word });
+    g.room.leave(b2);
+    vi.advanceTimersByTime(60_000);
+    expect(expectPhase(g.room, 'turnEnd').reason).toBe('timeUp');
+    expect(a2.turnPoints).toBe(drawerPoints(1, 2));
+    expect(expectPhase(g.room, 'turnEnd').points).toEqual({ [a2.id]: 150 });
+
+    // A player disconnected for the whole turn is not a guesser; one who joins mid-turn is.
+    const k = createHarness();
+    const qs = startGame(k, ['Alice', 'Bob', 'Carol']);
+    const [a3, b3, c3] = qs;
+    k.room.handleDisconnect(c3);
+    const third = pick(k, qs);
+    const dave = k.join('Dave');
+    k.room.handleMessage(b3, { t: 'chat', text: third.word });
+    expect(k.room.phaseKind).toBe('drawing');
+    vi.advanceTimersByTime(60_000);
+    // Guessers: Bob and Dave (Carol was away the whole turn) -> 1 of 2.
+    expect(a3.turnPoints).toBe(drawerPoints(1, 2));
+    expect(dave.turnPoints).toBe(0);
+  });
+
+  it('never lets the drawer leak a word choice while choosing', () => {
+    const h = createHarness();
+    const players = startGame(h, ['Alice', 'Bob', 'Carol']);
+    const [alice, bob, carol] = players;
+    const choosing = expectPhase(h.room, 'choosing', alice);
+    expect(choosing.choices).toEqual(['apple', 'banana', 'cherry']);
+    h.transport.clear();
+
+    for (const leak of ['I will draw apple', 'BANANA it is', 'c-h-e-r-r-y']) {
+      h.room.handleMessage(alice, { t: 'chat', text: leak });
+      expect(h.transport.chats(alice).at(-1)).toEqual({ kind: 'system', text: "You can't give away the word!" });
+    }
+    expect(h.transport.chats(bob)).toEqual([]);
+    expect(h.transport.chats(carol)).toEqual([]);
+
+    // Innocent drawer chat is not public either (it would be trivial to hint at the choices).
+    h.room.handleMessage(alice, { t: 'chat', text: 'give me a second' });
+    expect(h.transport.chats(bob)).toEqual([]);
+    expect(h.transport.chats(alice).at(-1)).toEqual({ kind: 'guessed', text: 'give me a second' });
+    // Guessers keep chatting openly while the drawer picks.
+    h.room.handleMessage(bob, { t: 'chat', text: 'hurry up' });
+    expect(h.transport.chats(carol)).toEqual([{ kind: 'chat', text: 'hurry up' }]);
+    expect(h.transport.chats(alice).at(-1)).toEqual({ kind: 'chat', text: 'hurry up' });
+
+    // Nothing in the public history can tip off a late joiner either.
+    const dave = h.join('Dave');
+    expect(h.transport.last(dave, 'welcome').chat.some((c) => /apple|banana|cherry|second/.test(c.text))).toBe(false);
+    h.room.handleMessage(alice, { t: 'chooseWord', index: 0 });
+    h.room.handleMessage(bob, { t: 'chat', text: 'apple' });
+    expect(bob.score).toBe(guesserPoints(60_000, 60_000));
+  });
+
   it('lets everyone chat normally outside the drawing phase and caps the history', () => {
     const h = createHarness();
     const alice = h.join('Alice');
@@ -605,6 +742,117 @@ describe('Room: canvas', () => {
     expect(stroke.kind === 'stroke' && stroke.points.length).toBe(MAX_POINTS_PER_STROKE);
   });
 
+  it('caps points across the whole canvas so a maxed-out turn still yields a small welcome', () => {
+    const h = createHarness();
+    const players = startGame(h, ['Alice', 'Bob']);
+    const [alice, bob] = players;
+    pick(h, players);
+    h.transport.clear();
+
+    const chunk = new Array<number>(2000).fill(1.25);
+    const totalPoints = (): number =>
+      h.room.canvasHistory.reduce((n, a) => n + (a.kind === 'stroke' ? a.points.length : 0), 0);
+    // Fill every stroke to its own cap until the canvas-wide cap stops us.
+    let id = 0;
+    while (totalPoints() < MAX_POINTS_PER_TURN && id < MAX_ACTIONS_PER_TURN) {
+      h.room.handleMessage(alice, { t: 'draw', ops: [start(id)] });
+      for (let n = 2; n < MAX_POINTS_PER_STROKE; n += chunk.length) {
+        h.room.handleMessage(alice, { t: 'draw', ops: [{ k: 'move', id, pts: chunk }] });
+      }
+      id++;
+    }
+    expect(totalPoints()).toBe(MAX_POINTS_PER_TURN);
+    expect(h.room.canvasHistory.length).toBeLessThan(MAX_ACTIONS_PER_TURN);
+
+    // Nothing more fits: new strokes and further points on any stroke are dropped and not forwarded.
+    h.transport.clear();
+    h.room.handleMessage(alice, { t: 'draw', ops: [start(id), { k: 'move', id, pts: [1, 1] }, { k: 'move', id: 0, pts: [1, 1] }] });
+    expect(totalPoints()).toBe(MAX_POINTS_PER_TURN);
+    expect(h.transport.ofType(bob, 'draw')).toHaveLength(0);
+
+    // The forwarded stream equals the stored history, so every joiner gets a bounded welcome.
+    const carol = h.join('Carol');
+    const welcome = h.transport.last(carol, 'welcome');
+    expect(welcome.canvas).toEqual(h.room.canvasHistory);
+    expect(JSON.stringify(welcome).length).toBeLessThan(MAX_CANVAS_RESYNC_BYTES);
+
+    // Undo returns the budget of the removed stroke; clear returns all of it.
+    const lastStroke = h.room.canvasHistory[h.room.canvasHistory.length - 1];
+    const freed = lastStroke.kind === 'stroke' ? lastStroke.points.length : 0;
+    h.room.handleMessage(alice, { t: 'undo' });
+    expect(totalPoints()).toBe(MAX_POINTS_PER_TURN - freed);
+    h.transport.clear();
+    h.room.handleMessage(alice, { t: 'draw', ops: [start(id), { k: 'move', id, pts: [1, 1, 2, 2] }] });
+    expect(totalPoints()).toBe(MAX_POINTS_PER_TURN - freed + 6);
+    expect(h.transport.ofType(bob, 'draw')).toHaveLength(1);
+    h.room.handleMessage(alice, { t: 'clear' });
+    expect(totalPoints()).toBe(0);
+    h.room.handleMessage(alice, { t: 'draw', ops: [start(id + 1), { k: 'move', id: id + 1, pts: chunk }] });
+    expect(totalPoints()).toBe(2 + chunk.length);
+  });
+
+  it('resyncs the drawer once their ops were truncated, so their canvas matches everyone else’s', () => {
+    const h = createHarness();
+    const players = startGame(h, ['Alice', 'Bob']);
+    const [alice, bob] = players;
+    pick(h, players);
+    h.room.handleMessage(alice, { t: 'draw', ops: [start(1)] });
+    const fill = new Array<number>(MAX_POINTS_PER_STROKE - 2).fill(2);
+    h.room.handleMessage(alice, { t: 'draw', ops: [{ k: 'move', id: 1, pts: fill }] });
+    h.transport.clear();
+    // Accepted in full: no resync.
+    vi.advanceTimersByTime(5000);
+    expect(h.transport.ofType(alice, 'canvas')).toHaveLength(0);
+
+    // Points past the cap are dropped for viewers; the drawer still has them locally.
+    for (let i = 0; i < 5; i++) h.room.handleMessage(alice, { t: 'draw', ops: [{ k: 'move', id: 1, pts: [9, 9] }] });
+    expect(h.transport.ofType(bob, 'draw')).toHaveLength(0);
+    expect(h.transport.ofType(alice, 'canvas')).toHaveLength(0);
+    vi.advanceTimersByTime(1000);
+    const resync = h.transport.ofType(alice, 'canvas');
+    expect(resync).toHaveLength(1);
+    expect(resync[0].actions).toEqual(h.room.canvasHistory);
+    expect(h.transport.ofType(bob, 'canvas')).toHaveLength(0);
+
+    // 'end' for a stroke the server never had is not a truncation; a dropped 'start' is.
+    h.transport.clear();
+    h.room.handleMessage(alice, { t: 'draw', ops: [{ k: 'end', id: 77 }] });
+    vi.advanceTimersByTime(1000);
+    expect(h.transport.ofType(alice, 'canvas')).toHaveLength(0);
+    for (let i = 2; i < MAX_ACTIONS_PER_TURN + 2; i++) h.room.handleMessage(alice, { t: 'draw', ops: [start(i)] });
+    vi.advanceTimersByTime(1000);
+    expect(h.transport.ofType(alice, 'canvas')).toHaveLength(1);
+    expect(h.transport.last(alice, 'canvas').actions).toHaveLength(MAX_ACTIONS_PER_TURN);
+
+    // A pending resync dies with the turn.
+    h.transport.clear();
+    h.room.handleMessage(alice, { t: 'draw', ops: [start(9999)] });
+    h.room.handleMessage(bob, { t: 'chat', text: 'apple' });
+    expect(h.room.phaseKind).toBe('turnEnd');
+    vi.advanceTimersByTime(1000);
+    expect(h.transport.ofType(alice, 'canvas')).toHaveLength(0);
+  });
+
+  it('does not hand the previous group\'s drawing to whoever re-uses an emptied room', () => {
+    const h = createHarness();
+    const players = startGame(h, ['Alice', 'Bob']);
+    const [alice, bob] = players;
+    pick(h, players);
+    h.room.handleMessage(alice, { t: 'draw', ops: [start(1)] });
+    vi.advanceTimersByTime(60_000 + TURN_END_SECONDS * 1000);
+    h.room.handleMessage(bob, { t: 'chooseWord', index: 0 });
+    h.room.handleMessage(bob, { t: 'draw', ops: [{ k: 'fill', x: 1, y: 1, color: '#000000' }] });
+    vi.advanceTimersByTime(60_000 + TURN_END_SECONDS * 1000);
+    expect(h.room.phaseKind).toBe('gameEnd');
+    expect(h.room.canvasHistory).toHaveLength(1);
+    h.room.leave(alice);
+    h.room.leave(bob);
+    expect(h.room.isEmpty).toBe(true);
+    const carol = h.join('Carol');
+    expect(h.transport.last(carol, 'welcome').canvas).toEqual([]);
+    expect(h.transport.last(carol, 'welcome').room.phase).toEqual({ kind: 'lobby' });
+  });
+
   it('gives late joiners and rejoiners the full history in welcome', () => {
     const h = createHarness();
     const players = startGame(h, ['Alice', 'Bob']);
@@ -761,9 +1009,9 @@ describe('Room: reconnection', () => {
     expect(h.room.phaseKind).toBe('turnEnd');
   });
 
-  it('abandons the game at the next turn boundary when a turn ends with too few players', () => {
+  it('holds the turn boundary for a player in reconnect grace and abandons the game only when it expires', () => {
     const h = createHarness();
-    const players = startGame(h, ['Alice', 'Bob']);
+    const players = startGame(h, ['Alice', 'Bob'], { rounds: 3 });
     const [alice, bob] = players;
     const { word } = pick(h, players);
     h.room.handleMessage(bob, { t: 'chat', text: word });
@@ -771,25 +1019,104 @@ describe('Room: reconnection', () => {
     h.transport.clear();
     h.room.handleDisconnect(bob);
     expect(h.room.phaseKind).toBe('turnEnd');
+    // The summary timer fires while Bob is still in grace: nothing is reset yet.
     vi.advanceTimersByTime(TURN_END_SECONDS * 1000);
+    expect(h.room.phaseKind).toBe('turnEnd');
+    expect(h.transport.chats(alice)).toEqual([{ kind: 'system', text: 'Waiting for Bob to reconnect…' }]);
+    expect(alice.score).toBeGreaterThan(0);
+    // The same 10 s grace a mid-turn drop gets, then back to the lobby.
+    vi.advanceTimersByTime(DRAWER_DISCONNECT_GRACE_MS - TURN_END_SECONDS * 1000);
     expect(h.room.phaseKind).toBe('lobby');
-    expect(h.transport.chats(alice)).toEqual([{ kind: 'system', text: 'Not enough players — back to the lobby.' }]);
+    expect(h.transport.chats(alice).at(-1)).toEqual({ kind: 'system', text: 'Not enough players — back to the lobby.' });
+    expect(alice.score).toBe(0);
     // The pending low-player check was cancelled by the reset; only Bob's seat expiring follows.
     vi.advanceTimersByTime(600_000);
-    expect(h.transport.chats(alice)).toEqual([
-      { kind: 'system', text: 'Not enough players — back to the lobby.' },
-      { kind: 'system', text: 'Bob left' },
-    ]);
+    expect(h.transport.chats(alice).at(-1)).toEqual({ kind: 'system', text: 'Bob left' });
   });
 
-  it('ends the turn when the only remaining non-drawer has already guessed and the other disconnects', () => {
+  it('resumes the held turn boundary with scores intact when the player rejoins in time', () => {
+    const h = createHarness();
+    const players = startGame(h, ['Alice', 'Bob'], { rounds: 3 });
+    const [alice, bob] = players;
+    const { word } = pick(h, players);
+    h.room.handleMessage(bob, { t: 'chat', text: word });
+    const scores = [alice.score, bob.score];
+    h.room.handleDisconnect(bob);
+    vi.advanceTimersByTime(TURN_END_SECONDS * 1000 + 1000);
+    expect(h.room.phaseKind).toBe('turnEnd');
+    h.transport.clear();
+    expect(h.room.rejoin(bob.token, 'conn-Bob-2').ok).toBe(true);
+    // Bob draws next; the welcome shows the summary, the snapshot right after it the new turn.
+    expect(drawerOf(h.room, players)).toBe(bob);
+    expect(h.transport.last(bob, 'welcome').room.phase.kind).toBe('turnEnd');
+    expect(h.transport.last(bob, 'room').room.phase.kind).toBe('choosing');
+    expect(h.transport.last(alice, 'room').room.phase.kind).toBe('choosing');
+    expect([alice.score, bob.score]).toEqual(scores);
+    expect(h.room.getState(null)).toMatchObject({ round: 1, turn: 2 });
+    // The grace timer that would have abandoned the game is gone.
+    vi.advanceTimersByTime(DRAWER_DISCONNECT_GRACE_MS);
+    expect(h.room.phaseKind).toBe('choosing');
+  });
+
+  it('resumes a held turn boundary when a new player joins instead', () => {
+    const h = createHarness();
+    const players = startGame(h, ['Alice', 'Bob'], { rounds: 3 });
+    const [, bob] = players;
+    const { word } = pick(h, players);
+    h.room.handleMessage(bob, { t: 'chat', text: word });
+    h.room.handleDisconnect(bob);
+    vi.advanceTimersByTime(TURN_END_SECONDS * 1000);
+    expect(h.room.phaseKind).toBe('turnEnd');
+    const carol = h.join('Carol');
+    expect(h.room.phaseKind).toBe('choosing');
+    // Bob is skipped while away; Carol is the only connected candidate.
+    expect(drawerOf(h.room, [...players, carol])).toBe(carol);
+    vi.advanceTimersByTime(DRAWER_DISCONNECT_GRACE_MS);
+    expect(h.room.phaseKind).toBe('choosing');
+  });
+
+  it('gives the last unsolved guesser a grace before "everyone guessed" ends the turn', () => {
     const h = createHarness();
     const players = startGame(h, ['Alice', 'Bob', 'Carol']);
-    const [, bob, carol] = players;
+    const [alice, bob, carol] = players;
     const { word } = pick(h, players);
     h.room.handleMessage(bob, { t: 'chat', text: word });
     h.room.handleDisconnect(carol);
+    // A reload must not forfeit Carol's turn.
+    expect(h.room.phaseKind).toBe('drawing');
+    vi.advanceTimersByTime(DRAWER_DISCONNECT_GRACE_MS - 1);
+    expect(h.room.phaseKind).toBe('drawing');
+    expect(h.room.rejoin(carol.token, 'conn-Carol-2').ok).toBe(true);
+    vi.advanceTimersByTime(1);
+    expect(h.room.phaseKind).toBe('drawing');
+    h.room.handleMessage(carol, { t: 'chat', text: word });
+    expect(carol.score).toBeGreaterThan(0);
     expect(expectPhase(h.room, 'turnEnd').reason).toBe('allGuessed');
+    expect(alice.turnPoints).toBe(drawerPoints(2, 2));
+
+    // Without a rejoin the turn ends after the grace, and Carol still dilutes the drawer's share.
+    const g = createHarness();
+    const ps = startGame(g, ['Alice', 'Bob', 'Carol']);
+    const [a2, b2, c2] = ps;
+    const second = pick(g, ps);
+    g.room.handleMessage(b2, { t: 'chat', text: second.word });
+    g.room.handleDisconnect(c2);
+    vi.advanceTimersByTime(DRAWER_DISCONNECT_GRACE_MS);
+    expect(expectPhase(g.room, 'turnEnd').reason).toBe('allGuessed');
+    expect(a2.turnPoints).toBe(drawerPoints(1, 2));
+  });
+
+  it('tells players the drawer lost connection when their grace runs out', () => {
+    const h = createHarness();
+    const players = startGame(h, ['Alice', 'Bob', 'Carol']);
+    const [alice, bob] = players;
+    pick(h, players);
+    h.transport.clear();
+    h.room.handleDisconnect(alice);
+    vi.advanceTimersByTime(DRAWER_DISCONNECT_GRACE_MS);
+    expect(expectPhase(h.room, 'turnEnd').reason).toBe('drawerLeft');
+    expect(h.transport.chats(bob).map((c) => c.text)).toContain('Alice lost connection — skipping their turn.');
+    expect(h.room.getPlayer(alice.id)).toBeDefined();
   });
 });
 
@@ -850,9 +1177,12 @@ describe('Room: kicks and host powers', () => {
     expect(h.transport.chats(bob)).toHaveLength(1);
     expect(h.room.playerCount).toBe(4);
 
-    // Target state change clears the votes.
+    // The target cannot erase the tally by reconnecting...
     h.room.handleDisconnect(dave);
     h.room.rejoin(dave.token, 'conn-Dave-2');
+    // ...but a voter dropping withdraws their vote.
+    h.room.handleDisconnect(alice);
+    h.room.rejoin(alice.token, 'conn-Alice-2');
     h.transport.clear();
     h.room.handleMessage(bob, { t: 'voteKick', playerId: dave.id });
     expect(h.transport.chats(carol)).toEqual([{ kind: 'system', text: 'Bob voted to kick Dave (1/2)' }]);
@@ -861,6 +1191,85 @@ describe('Room: kicks and host powers', () => {
     expect(h.transport.last(dave, 'kicked').reason).toMatch(/vote/);
     expect(h.transport.closed).toEqual([dave.id]);
     expect(h.transport.chats(alice).at(-1)).toEqual({ kind: 'system', text: 'Dave was kicked' });
+  });
+
+  it('keeps votes against a target across their reconnect', () => {
+    const h = createHarness();
+    const alice = h.join('Alice');
+    const bob = h.join('Bob');
+    const carol = h.join('Carol');
+    const dave = h.join('Dave');
+    h.join('Eve');
+    h.room.handleMessage(alice, { t: 'voteKick', playerId: dave.id });
+    h.room.handleMessage(bob, { t: 'voteKick', playerId: dave.id });
+    h.room.handleDisconnect(dave);
+    h.room.rejoin(dave.token, 'conn-Dave-2');
+    h.transport.clear();
+    h.room.handleMessage(carol, { t: 'voteKick', playerId: dave.id });
+    expect(h.room.playerCount).toBe(4);
+    expect(h.transport.last(dave, 'kicked').reason).toMatch(/vote/);
+  });
+
+  it('does not count votes cast by players who have since disconnected', () => {
+    const h = createHarness();
+    const alice = h.join('Alice');
+    const bob = h.join('Bob');
+    h.join('Carol');
+    const dave = h.join('Dave');
+    h.room.handleMessage(alice, { t: 'voteKick', playerId: dave.id });
+    h.room.handleDisconnect(alice);
+    h.transport.clear();
+    // Connected others: Bob, Carol -> 2 needed, and Alice's vote is gone.
+    h.room.handleMessage(bob, { t: 'voteKick', playerId: dave.id });
+    expect(h.room.playerCount).toBe(4);
+    expect(h.transport.chats(bob)).toEqual([{ kind: 'system', text: 'Bob voted to kick Dave (1/2)' }]);
+    expect(h.transport.ofType(dave, 'kicked')).toHaveLength(0);
+  });
+
+  it('re-evaluates pending votes when the threshold drops because someone left', () => {
+    const h = createHarness();
+    const alice = h.join('Alice');
+    const bob = h.join('Bob');
+    const carol = h.join('Carol');
+    const dave = h.join('Dave');
+    const eve = h.join('Eve');
+    // Others = 4 -> 3 needed.
+    h.room.handleMessage(alice, { t: 'voteKick', playerId: eve.id });
+    h.room.handleMessage(bob, { t: 'voteKick', playerId: eve.id });
+    expect(h.transport.chats(carol).at(-1)).toEqual({ kind: 'system', text: 'Bob voted to kick Eve (2/3)' });
+    expect(h.room.playerCount).toBe(5);
+    h.room.leave(dave);
+    // Others = 3 -> 2 needed: the two standing votes now carry.
+    expect(h.room.playerCount).toBe(3);
+    expect(h.transport.last(eve, 'kicked').reason).toMatch(/vote/);
+    expect(h.room.listPlayers().map((p) => p.name)).toEqual(['Alice', 'Bob', 'Carol']);
+  });
+
+  it('refuses vote-kicks with fewer than two other connected players and never kicks on a single vote', () => {
+    const h = createHarness();
+    const alice = h.join('Alice');
+    const bob = h.join('Bob');
+    h.transport.clear();
+    h.room.handleMessage(bob, { t: 'voteKick', playerId: alice.id });
+    expect(h.transport.errors(bob)).toEqual(['NOT_ALLOWED']);
+    expect(h.room.playerCount).toBe(2);
+    expect(h.room.hostPlayerId).toBe(alice.id);
+    expect(h.transport.chats(alice)).toEqual([]);
+
+    // Three players, one disconnected: still only one other connected player.
+    const carol = h.join('Carol');
+    h.room.handleDisconnect(carol);
+    h.room.handleMessage(bob, { t: 'voteKick', playerId: alice.id });
+    expect(h.transport.errors(bob)).toEqual(['NOT_ALLOWED', 'NOT_ALLOWED']);
+    expect(h.room.playerCount).toBe(3);
+
+    // A vote in progress whose electorate shrinks to one other player is not decided by that one vote.
+    h.room.rejoin(carol.token, 'conn-Carol-2');
+    h.room.handleMessage(bob, { t: 'voteKick', playerId: alice.id });
+    expect(h.transport.chats(alice).at(-1)).toEqual({ kind: 'system', text: 'Bob voted to kick Alice (1/2)' });
+    h.room.handleDisconnect(carol);
+    expect(h.room.playerCount).toBe(3);
+    expect(h.room.hostPlayerId).toBe(alice.id);
   });
 
   it('counts the majority only over connected players', () => {

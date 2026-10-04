@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EMPTY_ROOM_TTL_MS, RECONNECT_GRACE_MS } from '../shared/constants';
 import { ROOM_CODE_LENGTH, isValidRoomCode } from '../shared/roomCode';
-import { RoomManager } from './roomManager';
+import { MAX_ROOMS, RoomManager } from './roomManager';
+import type { Player } from './player';
+import type { Room } from './room';
 import { AVATAR, FakeTransport } from './testUtils';
 
 beforeEach(() => {
@@ -12,10 +14,16 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-function manager(rng?: () => number): { rooms: RoomManager; transport: FakeTransport } {
+function manager(rng?: () => number, maxRooms?: number): { rooms: RoomManager; transport: FakeTransport } {
   const transport = new FakeTransport();
-  const rooms = new RoomManager({ transport, clock: { now: () => Date.now() }, rng });
+  const rooms = new RoomManager({ transport, clock: { now: () => Date.now() }, rng, maxRooms });
   return { rooms, transport };
+}
+
+function create(rooms: RoomManager, name: string, connectionId: string): { room: Room; player: Player } {
+  const result = rooms.createRoom(name, AVATAR, connectionId);
+  if (!result.ok) throw new Error(`createRoom failed: ${result.code}`);
+  return result;
 }
 
 describe('RoomManager', () => {
@@ -23,7 +31,7 @@ describe('RoomManager', () => {
     const { rooms, transport } = manager();
     const codes = new Set<string>();
     for (let i = 0; i < 200; i++) {
-      const { room, player } = rooms.createRoom(`P${i}`, AVATAR, `c${i}`);
+      const { room, player } = create(rooms, `P${i}`, `c${i}`);
       expect(room.code).toHaveLength(ROOM_CODE_LENGTH);
       expect(isValidRoomCode(room.code)).toBe(true);
       expect(room.hostPlayerId).toBe(player.id);
@@ -39,15 +47,15 @@ describe('RoomManager', () => {
     const values = [0, 0, 0, 0, 0, 0, 0, 0, 0.5, 0.5, 0.5, 0.5];
     const rng = vi.fn(() => values.shift() ?? 0.9);
     const { rooms } = manager(rng);
-    expect(rooms.createRoom('A', AVATAR, 'a').room.code).toBe('AAAA');
-    expect(rooms.createRoom('B', AVATAR, 'b').room.code).toBe('SSSS');
+    expect(create(rooms, 'A', 'a').room.code).toBe('AAAA');
+    expect(create(rooms, 'B', 'b').room.code).toBe('SSSS');
     expect(rng).toHaveBeenCalledTimes(12);
     expect(rooms.listCodes().sort()).toEqual(['AAAA', 'SSSS']);
   });
 
   it('normalizes lookups and distinguishes invalid from unknown codes', () => {
     const { rooms } = manager(() => 0);
-    rooms.createRoom('A', AVATAR, 'a'); // AAAA
+    create(rooms, 'A', 'a'); // AAAA
     expect(rooms.lookup(' aa-aa ')).toMatchObject({ ok: true });
     expect(rooms.lookup('aaaa').ok).toBe(true);
     expect(rooms.lookup('https://host/aaaa').ok).toBe(false); // too much noise -> not a code
@@ -60,7 +68,7 @@ describe('RoomManager', () => {
 
   it('deletes rooms that stay empty for EMPTY_ROOM_TTL_MS and keeps ones that refill', () => {
     const { rooms } = manager();
-    const { room, player } = rooms.createRoom('A', AVATAR, 'a');
+    const { room, player } = create(rooms, 'A', 'a');
     room.leave(player);
     expect(room.isEmpty).toBe(true);
     vi.advanceTimersByTime(EMPTY_ROOM_TTL_MS - 1);
@@ -84,7 +92,7 @@ describe('RoomManager', () => {
 
   it('counts players in their grace period as occupying the room', () => {
     const { rooms } = manager();
-    const { room, player } = rooms.createRoom('A', AVATAR, 'a');
+    const { room, player } = create(rooms, 'A', 'a');
     room.handleDisconnect(player);
     vi.advanceTimersByTime(RECONNECT_GRACE_MS - 1);
     expect(rooms.get(room.code)).toBe(room);
@@ -94,10 +102,29 @@ describe('RoomManager', () => {
     expect(rooms.get(room.code)).toBeUndefined();
   });
 
+  it('refuses new rooms at the cap, counting abandoned rooms until their TTL frees them', () => {
+    expect(MAX_ROOMS).toBeGreaterThan(0);
+    const { rooms } = manager(undefined, 3);
+    const first = create(rooms, 'A', 'a');
+    create(rooms, 'B', 'b');
+    create(rooms, 'C', 'c');
+    expect(rooms.isAtCapacity).toBe(true);
+    const refused = rooms.createRoom('D', AVATAR, 'd');
+    expect(refused).toMatchObject({ ok: false, code: 'RATE_LIMITED' });
+    expect(rooms.stats()).toEqual({ rooms: 3, players: 3 });
+
+    // An abandoned room still occupies a slot until it is deleted.
+    first.room.leave(first.player);
+    expect(rooms.createRoom('D', AVATAR, 'd').ok).toBe(false);
+    vi.advanceTimersByTime(EMPTY_ROOM_TTL_MS);
+    expect(rooms.isAtCapacity).toBe(false);
+    expect(create(rooms, 'D', 'd').room.code).toHaveLength(ROOM_CODE_LENGTH);
+  });
+
   it('destroy tears everything down', () => {
     const { rooms } = manager();
-    const { room, player } = rooms.createRoom('A', AVATAR, 'a');
-    rooms.createRoom('B', AVATAR, 'b');
+    const { room, player } = create(rooms, 'A', 'a');
+    create(rooms, 'B', 'b');
     room.leave(player);
     rooms.destroy();
     expect(rooms.stats()).toEqual({ rooms: 0, players: 0 });
