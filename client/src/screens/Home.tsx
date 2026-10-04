@@ -140,6 +140,8 @@ export function Home() {
               maxLength={NAME_MAX_LENGTH}
               placeholder="What should we call you?"
               autoComplete="nickname"
+              autoCorrect="off"
+              enterKeyHint="done"
               aria-invalid={nameError ? true : undefined}
               aria-describedby={nameError ? 'home-name-error' : 'home-name-hint'}
               onChange={(e) => {

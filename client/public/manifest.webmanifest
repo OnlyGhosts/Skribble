@@ -1,0 +1,16 @@
+{
+  "name": "Skribble",
+  "short_name": "Skribble",
+  "description": "Draw and guess with friends. Share a 4-character code and play instantly.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f4f3ff",
+  "theme_color": "#6c5ce7",
+  "icons": [
+    { "src": "/icons/icon.svg", "type": "image/svg+xml", "sizes": "any" },
+    { "src": "/icons/icon-192.png", "type": "image/png", "sizes": "192x192", "purpose": "any maskable" },
+    { "src": "/icons/icon-512.png", "type": "image/png", "sizes": "512x512", "purpose": "any maskable" }
+  ]
+}

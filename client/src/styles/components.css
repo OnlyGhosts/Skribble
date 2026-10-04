@@ -833,6 +833,9 @@
 .tile {
   display: inline-grid;
   place-items: center;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
   width: 24px;
   height: 30px;
   border-radius: 6px;
@@ -854,6 +857,30 @@
 .tile--punct {
   background: transparent;
   width: 14px;
+}
+
+.tile--typed {
+  color: var(--color-text);
+  background: var(--color-surface-2);
+  border-bottom-color: var(--color-primary);
+}
+
+.tile--revealed.tile--typed {
+  background: var(--color-primary-soft);
+}
+
+.tile--match {
+  color: var(--color-success);
+  background: var(--color-success-soft);
+}
+
+.tile--mismatch {
+  color: var(--color-warning);
+  background: var(--color-warning-soft);
+}
+
+.tile--active {
+  border-bottom-color: var(--color-primary);
 }
 
 .word__count {
@@ -1124,6 +1151,303 @@
   min-height: 44px;
 }
 
+/* ---------- Guess bar: type into the blanks ---------- */
+.guess-form {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  margin-top: var(--space-3);
+}
+
+.guess-tiles {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  container-type: inline-size;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: var(--radius-md);
+  border: 2px solid var(--color-border);
+  background: var(--color-surface-2);
+  cursor: text;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  transition: border-color 0.15s ease;
+}
+
+.guess-tiles.is-focused {
+  border-color: var(--color-primary);
+  background: var(--color-surface);
+}
+
+.guess-tiles__groups {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  width: 100%;
+  min-width: 0;
+}
+
+.guess-tiles__group {
+  display: inline-flex;
+  flex-wrap: wrap; /* only a word longer than the whole bar ever breaks mid-word */
+  gap: 3px;
+}
+
+.gtile {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 32px;
+  border-radius: 6px;
+  font-weight: 800;
+  font-size: 1.05rem;
+  text-transform: uppercase;
+  color: var(--color-text);
+  background: var(--color-surface-3);
+  border-bottom: 3px solid var(--color-border-strong);
+  line-height: 1;
+}
+
+.gtile--hint {
+  color: var(--color-text-faint);
+  background: var(--color-primary-soft);
+  border-bottom-color: var(--color-primary);
+}
+
+.gtile--filled {
+  color: var(--color-text);
+  background: var(--color-surface);
+  border-bottom-color: var(--color-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.gtile--match {
+  color: var(--color-success);
+  background: var(--color-success-soft);
+  border-bottom-color: var(--color-success);
+}
+
+.gtile--mismatch {
+  color: var(--color-warning);
+  background: var(--color-warning-soft);
+  border-bottom-color: var(--color-warning);
+}
+
+.gtile--active {
+  border-bottom-color: var(--color-primary);
+}
+
+.guess-tiles.is-focused .gtile--active::after {
+  content: '';
+  position: absolute;
+  width: 2px;
+  height: 60%;
+  border-radius: 1px;
+  background: var(--color-primary);
+  animation: caret-blink 1s steps(2, start) infinite;
+}
+
+.gtile--sep {
+  width: 12px;
+  background: transparent;
+  border-bottom: 0;
+  color: var(--color-text-faint);
+}
+
+.guess-tiles__overflow {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding-left: 6px;
+  border-left: 2px dashed var(--color-border-strong);
+}
+
+.gtile--overflow {
+  width: 16px;
+  height: 22px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-text-faint);
+  background: transparent;
+  border-bottom: 2px solid var(--color-border);
+  text-transform: none;
+}
+
+.gtile--more {
+  width: auto;
+  height: 22px;
+  padding: 0 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: none;
+  color: var(--color-text-muted);
+  background: var(--color-surface-3);
+  border-bottom: 0;
+  border-radius: var(--radius-pill);
+}
+
+/*
+ * Narrow bars (landscape phones): smaller tiles before anything has to wrap. Declared after the
+ * base tile rules on purpose: equal specificity, so source order decides.
+ */
+@container (max-width: 260px) {
+  .gtile {
+    width: 20px;
+    height: 28px;
+    font-size: 0.92rem;
+    border-radius: 5px;
+  }
+
+  .gtile--sep {
+    width: 10px;
+  }
+
+  .guess-tiles__group {
+    gap: 2px;
+  }
+
+  .guess-tiles__groups {
+    gap: 4px 8px;
+  }
+}
+
+/* The real field. Transparent, never hidden: the native keyboard must open from it. */
+.guess-tiles__input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: transparent;
+  opacity: 0;
+  caret-color: transparent;
+  font-size: 16px;
+  outline: none;
+  cursor: text;
+}
+
+.guess-tiles__input::selection {
+  background: transparent;
+}
+
+.guess-form__send {
+  flex: none;
+  width: 48px;
+  min-height: 48px;
+  padding: 0;
+  border-radius: var(--radius-md);
+}
+
+@keyframes caret-blink {
+  to {
+    visibility: hidden;
+  }
+}
+
+/* ---------- Bottom sheet (phones) ---------- */
+.sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.sheet__backdrop {
+  position: absolute;
+  inset: 0;
+  background: var(--overlay-bg);
+  animation: fade-in 0.15s ease;
+  cursor: default;
+  border-radius: 0;
+}
+
+.sheet__panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  max-height: min(80%, calc(var(--app-height, 100dvh) - 48px));
+  background: var(--color-surface);
+  color: var(--color-text);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  box-shadow: var(--shadow-lg);
+  padding: 6px var(--space-4) calc(var(--space-4) + env(safe-area-inset-bottom));
+  animation: sheet-in 0.2s ease;
+}
+
+.sheet__handle {
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--color-border-strong);
+  margin: 0 auto var(--space-2);
+}
+
+.sheet__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.sheet__title {
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.sheet__body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.menu-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.menu-sheet__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: 48px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.menu-sheet__label {
+  font-weight: 700;
+}
+
+.menu-sheet__leave {
+  margin-top: var(--space-2);
+  min-height: 48px;
+}
+
+@keyframes sheet-in {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
 /* ---------- Settings ---------- */
 .settings {
   display: flex;
@@ -1176,6 +1500,9 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
   gap: 10px 16px;
   padding: 10px 14px;
   border-radius: var(--radius-lg);
@@ -1262,6 +1589,7 @@
 
 /* ---------- Canvas ---------- */
 .canvas-stage {
+  --canvas-fit: both;
   flex: 1;
   min-height: 0;
   min-width: 0;
@@ -1543,5 +1871,55 @@
   }
   to {
     opacity: 1;
+  }
+}
+
+/* ---------- Touch devices: 44px targets ---------- */
+@media (pointer: coarse) {
+  .btn--sm {
+    min-height: 44px;
+  }
+
+  .icon-btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  .icon-btn--sm {
+    width: 40px;
+    height: 40px;
+  }
+
+  .emoji-choice {
+    width: 44px;
+    height: 44px;
+  }
+
+  .avatar-picker__group .swatch {
+    width: 34px;
+    height: 34px;
+  }
+
+  .toast__close {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+@media (max-width: 760px) {
+  .code-input {
+    gap: 8px;
+  }
+
+  .code-input__box {
+    width: 56px;
+    height: 64px;
+    min-width: 48px;
+    min-height: 48px;
+    font-size: 1.8rem;
+  }
+
+  .toolbar__actions .confirm {
+    gap: 4px;
   }
 }

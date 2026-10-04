@@ -152,6 +152,7 @@ export function CodeInput({ value, onChange, onSubmit, onInvalidChar, disabled, 
           autoComplete="off"
           autoCorrect="off"
           spellCheck={false}
+          enterKeyHint="go"
           aria-label={`Code character ${i + 1} of ${ROOM_CODE_LENGTH}`}
           aria-invalid={invalid || undefined}
           value={ch}

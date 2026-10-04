@@ -180,6 +180,9 @@ export function SettingsPanel({ settings, isHost }: Props) {
             data-testid="settings-customWords"
             rows={3}
             placeholder="cat, dog, hot dog — comma or newline separated"
+            autoCapitalize="off"
+            autoCorrect="off"
+            autoComplete="off"
             value={customText}
             maxLength={L.customWords.maxCount * (L.customWords.maxLength + 1)}
             onChange={(e) => onCustomChange(e.target.value)}

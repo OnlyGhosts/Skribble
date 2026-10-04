@@ -1,7 +1,8 @@
 .lobby {
   width: min(1240px, 100%);
   margin: 0 auto;
-  padding: var(--space-4) var(--gutter) var(--space-6);
+  padding: calc(var(--space-4) + env(safe-area-inset-top)) max(var(--gutter), env(safe-area-inset-right)) calc(var(--space-6) + env(safe-area-inset-bottom))
+    max(var(--gutter), env(safe-area-inset-left));
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
@@ -126,6 +127,10 @@
     width: 54px;
     height: 66px;
     font-size: 2rem;
+  }
+
+  .code-card__actions .btn {
+    min-height: 44px;
   }
 
   .lobby__grid {

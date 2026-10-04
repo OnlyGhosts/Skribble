@@ -60,6 +60,8 @@ interface GameState {
   joinError: JoinError | null;
   /** serverTime - Date.now(); add it to local time to get server time. */
   clockOffset: number;
+  /** What the guesser has typed into the word tiles but not sent yet; reset every turn. */
+  guessDraft: string;
 }
 
 interface GameActions {
@@ -83,11 +85,20 @@ interface GameActions {
   dismissToast(id: number): void;
   setTheme(theme: Theme | null): void;
   setSound(on: boolean): void;
+  setGuessDraft(draft: string): void;
 }
 
 export type GameStore = GameState & GameActions;
 
 let toastSeq = 0;
+
+/** A new turn starts whenever the round/turn counters move or a choosing/drawing phase begins. */
+function isNewTurn(prev: RoomState | null, next: RoomState): boolean {
+  if (!prev) return true;
+  if (prev.round !== next.round || prev.turn !== next.turn) return true;
+  const kind = next.phase.kind;
+  return (kind === 'choosing' || kind === 'drawing') && prev.phase.kind !== kind;
+}
 
 function appendChat(chat: ChatMessage[], message: ChatMessage): ChatMessage[] {
   const next = chat.length >= CHAT_CAP ? chat.slice(chat.length - CHAT_CAP + 1) : chat.slice();
@@ -109,6 +120,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
   pendingJoin: null,
   joinError: null,
   clockOffset: 0,
+  guessDraft: '',
 
   setConnection: (connection) => set({ connection }),
   setRejoining: (rejoining) => set({ rejoining }),
@@ -128,6 +140,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
           joinError: null,
           rejoining: false,
           clockOffset: msg.room.serverTime - Date.now(),
+          guessDraft: '',
         }));
         break;
       case 'room':
@@ -136,10 +149,12 @@ export const useGameStore = create<GameStore>()((set, get) => ({
           const next = msg.room.phase.kind;
           // A new turn (or a return to the lobby) always starts on a blank canvas.
           const freshCanvas = (next === 'choosing' && prev !== 'choosing') || (next === 'lobby' && prev !== 'lobby');
+          const freshDraft = isNewTurn(s.room, msg.room) || next === 'lobby';
           return {
             room: msg.room,
             clockOffset: msg.room.serverTime - Date.now(),
             ...(freshCanvas ? { canvas: [], canvasEpoch: s.canvasEpoch + 1 } : {}),
+            ...(freshDraft ? { guessDraft: '' } : {}),
           };
         });
         break;
@@ -199,6 +214,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
       rejoining: false,
       joinPending: false,
       pendingJoin: null,
+      guessDraft: '',
     }));
   },
 
@@ -219,6 +235,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
     savePrefs(prefs);
     set({ prefs });
   },
+  setGuessDraft: (guessDraft) => set({ guessDraft }),
 }));
 
 // ---------------------------------------------------------------------------

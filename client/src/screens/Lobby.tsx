@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Avatar as AvatarData } from '@shared/avatar';
 import { MIN_PLAYERS_TO_START, NAME_MAX_LENGTH } from '@shared/constants';
 import type { RoomState } from '@shared/protocol';
@@ -9,7 +9,7 @@ import { selectIsHost, selectMe, useGameStore } from '../store/useGameStore';
 import { AvatarPicker } from '../components/AvatarPicker';
 import { Chat } from '../components/Chat';
 import { ConnectionPill } from '../components/ConnectionPill';
-import { CopyIcon, EditIcon, LinkIcon, LogoutIcon, PencilIcon, PlayIcon } from '../components/Icons';
+import { CopyIcon, EditIcon, LinkIcon, LogoutIcon, PencilIcon, PlayIcon, SendIcon } from '../components/Icons';
 import { PlayerList } from '../components/PlayerList';
 import { SettingsPanel } from '../components/SettingsPanel';
 import { SoundToggle, ThemeToggle } from '../components/ThemeToggle';
@@ -21,6 +21,9 @@ export function Lobby({ room }: { room: RoomState }) {
   const addToast = useGameStore((s) => s.addToast);
   const [editing, setEditing] = useState(false);
 
+  // The home page was likely scrolled to its join form; start the lobby at the code.
+  useEffect(() => window.scrollTo(0, 0), []);
+
   const connectedCount = room.players.filter((p) => p.connected).length;
   const canStart = connectedCount >= MIN_PLAYERS_TO_START;
   const host = room.players.find((p) => p.id === room.hostId);
@@ -28,6 +31,21 @@ export function Lobby({ room }: { room: RoomState }) {
   const copy = async (text: string, label: string) => {
     const ok = await copyText(text);
     addToast(ok ? 'success' : 'error', ok ? `${label} copied to clipboard` : `Couldn't copy the ${label.toLowerCase()} — select it manually.`);
+  };
+
+  /** The native share sheet where it exists (phones); otherwise the link lands on the clipboard. */
+  const share = async () => {
+    const url = inviteLink(room.code);
+    const data: ShareData = { title: 'Skribble', text: `Join my Skribble room with code ${room.code}`, url };
+    if (typeof navigator.share === 'function' && (typeof navigator.canShare !== 'function' || navigator.canShare(data))) {
+      try {
+        await navigator.share(data);
+        return;
+      } catch (err) {
+        if (err instanceof DOMException && err.name === 'AbortError') return; // the user closed the sheet
+      }
+    }
+    await copy(url, 'Invite link');
   };
 
   return (
@@ -70,6 +88,9 @@ export function Lobby({ room }: { room: RoomState }) {
           </button>
           <button type="button" className="btn btn--secondary" onClick={() => void copy(inviteLink(room.code), 'Invite link')} data-testid="copy-link">
             <LinkIcon size={16} /> Copy invite link
+          </button>
+          <button type="button" className="btn btn--ghost" onClick={() => void share()} data-testid="share-invite">
+            <SendIcon size={16} /> Share invite
           </button>
         </div>
       </section>
@@ -144,7 +165,17 @@ function ProfileEditor({ me, onClose }: { me: { name: string; avatar: AvatarData
         <label className="field__label" htmlFor="lobby-name">
           Name
         </label>
-        <input id="lobby-name" className="input" type="text" value={name} maxLength={NAME_MAX_LENGTH} onChange={(e) => setName(e.target.value)} />
+        <input
+          id="lobby-name"
+          className="input"
+          type="text"
+          value={name}
+          maxLength={NAME_MAX_LENGTH}
+          autoComplete="nickname"
+          autoCorrect="off"
+          enterKeyHint="done"
+          onChange={(e) => setName(e.target.value)}
+        />
       </div>
       <AvatarPicker value={avatar} onChange={setAvatar} compact />
       <button

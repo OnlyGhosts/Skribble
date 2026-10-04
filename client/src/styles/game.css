@@ -108,10 +108,6 @@
   padding: var(--space-3);
 }
 
-.players-toggle {
-  display: none;
-}
-
 .game__players-body {
   min-height: 0;
   overflow-y: auto;
@@ -144,69 +140,171 @@
   }
 }
 
-@media (max-width: 760px) {
+/* ---------- Phone app layout: nothing scrolls but the chat log ---------- */
+@media (max-width: 760px), (orientation: landscape) and (max-height: 520px) {
   .game {
     display: flex;
     flex-direction: column;
-    height: auto;
-    min-height: 100dvh;
-    padding: var(--space-3) var(--gutter) var(--space-5);
-    gap: var(--space-3);
+    height: var(--app-height, 100dvh);
+    min-height: 0;
+    width: 100%;
+    overflow: hidden;
+    gap: var(--space-2);
+    padding: calc(var(--space-2) + env(safe-area-inset-top)) calc(var(--space-2) + env(safe-area-inset-right)) var(--space-2)
+      calc(var(--space-2) + env(safe-area-inset-left));
   }
 
   .game__top {
-    order: 0;
+    flex: none;
     display: flex;
     flex-wrap: wrap;
-    justify-content: space-between;
-    padding: var(--space-3);
-    gap: var(--space-2) var(--space-3);
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    border-radius: var(--radius-md);
+    min-height: 56px;
   }
 
-  .game__word {
-    order: 3;
-    width: 100%;
-    justify-self: stretch;
-    padding-top: var(--space-2);
-    border-top: 1px solid var(--color-border);
+  .game__round--compact {
+    flex: 1 1 auto;
+    min-width: 0;
+    line-height: 1.15;
   }
 
-  .game__side {
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: var(--space-2);
+  .game__round--compact strong {
+    font-size: 0.85rem;
+    white-space: nowrap;
   }
 
-  .game__controls .conn-pill {
-    display: none;
+  .game__round--compact small {
+    font-size: 0.7rem;
   }
 
   .timer--lg {
-    width: 52px;
-    height: 52px;
+    width: 44px;
+    height: 44px;
+    font-size: 0.82rem;
+    letter-spacing: -0.02em;
+  }
+
+  .rating--compact {
+    gap: 4px;
+  }
+
+  .rating--compact .rating__btn {
+    min-height: 44px;
+    padding: 0 9px;
+    gap: 4px;
+    font-size: 0.8rem;
+  }
+
+  .players-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-height: 44px;
+    padding: 0 10px;
+    border-radius: var(--radius-pill);
+    background: var(--color-primary-soft);
+    color: var(--color-primary);
+    font-weight: 800;
+    font-size: 0.9rem;
+  }
+
+  .game__menu-btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  .game__word {
+    flex: 1 1 100%;
+    width: 100%;
+    justify-self: stretch;
+    padding-top: 4px;
+    border-top: 1px solid var(--color-border);
+  }
+
+  .game__word--phone-hidden {
+    display: none;
+  }
+
+  .game__word .word {
+    flex-direction: row;
+    justify-content: center;
+    align-items: baseline;
+    gap: 10px;
+  }
+
+  .game__word .word__text {
     font-size: 1.1rem;
   }
 
+  .game__word .word__text--muted {
+    font-size: 0.95rem;
+  }
+
+  /*
+   * The stage and the chat share the height with explicit bases (nothing depends on content, so
+   * the fit never feeds back). The stage never grows past the full-width 4:3 canvas (75vw) plus
+   * the drawer's toolbar; whatever is left goes to the chat log.
+   */
   .game__center {
-    order: 1;
-    flex: none;
+    flex: 3 1 0;
+    min-height: 0;
+    min-width: 0;
+    max-height: calc(75vw - 11px);
+    gap: var(--space-2);
+  }
+
+  .game--drawer .game__center {
+    max-height: calc(75vw + 110px);
   }
 
   .canvas-stage {
-    flex: none;
+    --canvas-fit: both;
+    flex: 1 1 auto;
+    min-height: 0;
     width: 100%;
   }
 
-  /* Turn and game summaries need more room than the phone-width canvas offers. */
+  .canvas-group {
+    gap: var(--space-2);
+    align-items: center;
+  }
+
+  .canvas-group__footer {
+    width: 100%;
+  }
+
+  .canvas-frame {
+    border-radius: var(--radius-md);
+  }
+
+  /*
+   * Turn and game summaries need more room than the phone-width canvas offers, so they cover the
+   * screen below the header (Game.tsx measures it); the players and menu buttons stay reachable.
+   */
   .overlay--turn-end,
   .overlay--end {
     position: fixed;
+    inset: var(--phone-header-bottom, 0px) 0 0 0;
     z-index: 60;
-    padding: var(--space-4) var(--gutter);
+    padding: var(--space-3) var(--gutter) calc(var(--space-4) + env(safe-area-inset-bottom));
   }
 
   .overlay--choosing .overlay__hint {
     display: none;
+  }
+
+  .overlay--choosing .overlay__card {
+    gap: var(--space-2);
+    padding: var(--space-3);
+  }
+
+  .btn--choice {
+    min-height: 44px;
+    font-size: 1rem;
+    padding: 0 16px;
   }
 
   .podium__step--1 .podium__block {
@@ -221,62 +319,119 @@
     height: 24px;
   }
 
-  .game__players {
-    order: 2;
-    padding: 0;
-    overflow: hidden;
-  }
-
-  .players-toggle {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    width: 100%;
-    padding: 12px var(--space-4);
-    font-weight: 700;
-    color: var(--color-text);
-    text-align: left;
-  }
-
-  .players-toggle__chevron {
-    margin-left: auto;
-    transition: transform 0.15s ease;
-  }
-
-  .game__players.is-open .players-toggle__chevron {
-    transform: rotate(180deg);
-  }
-
-  .game__players-body {
-    display: none;
-    padding: 0 var(--space-3) var(--space-3);
-  }
-
-  .game__players.is-open .game__players-body {
-    display: block;
-  }
-
+  /*
+   * Chat: the log (at least 88px) above the guess bar / chat form pinned at the bottom. The
+   * card's automatic minimum is that 88px plus the form as tall as it actually is (the tiles
+   * wrap for long phrases), so the stage gives way before anything can overflow.
+   */
   .game__chat {
-    order: 3;
-    height: 48vh;
-    min-height: 300px;
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    min-height: auto;
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+    border-radius: var(--radius-md);
   }
 
-  /* The chat sits below the fold on phones: keep the input reachable while the canvas is in view. */
-  .game__chat .chat__form {
-    position: sticky;
-    bottom: var(--space-3);
-    padding-top: var(--space-2);
-    background: var(--color-surface);
+  .game__chat .chat {
+    flex: 1 1 auto;
+    min-height: 0;
   }
 
+  .game__chat .chat__log-wrap {
+    flex: 1 1 0;
+    min-height: 88px;
+  }
+
+  .game__chat .chat__log {
+    scroll-behavior: auto;
+  }
+
+  .game__chat .chat__form,
+  .game__chat .guess-form {
+    flex: none;
+    margin-top: 6px;
+  }
+
+  .game__chat .chat__send {
+    min-height: 44px;
+  }
+
+  /* Drawer toolbar: two 44px rows, the palette scrolls sideways. */
   .toolbar {
-    padding: 8px 10px;
-    gap: 8px 10px;
+    flex-wrap: wrap;
+    gap: 6px 8px;
+    padding: 6px 8px;
+    border-radius: var(--radius-md);
+  }
+
+  .toolbar::before {
+    content: '';
+    flex-basis: 100%;
+    height: 0;
+    order: 5;
+  }
+
+  .toolbar__group {
+    gap: 4px;
+    flex-wrap: nowrap;
+  }
+
+  .toolbar__sizes {
+    order: 2;
+  }
+
+  .toolbar__palette {
+    order: 6;
+    flex: 1 1 0;
+    min-width: 0;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    padding: 2px;
+    gap: 6px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .toolbar__palette::-webkit-scrollbar {
+    display: none;
+  }
+
+  .toolbar__palette .swatch {
+    flex: none;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+  }
+
+  .toolbar__palette .swatch.is-selected {
+    outline-offset: 1px;
   }
 
   .toolbar__actions {
-    margin-left: 0;
+    order: 7;
+    margin-left: auto;
+  }
+
+  .tool-btn {
+    width: 40px;
+    height: 44px;
+  }
+
+  .size-btn {
+    width: 32px;
+    height: 44px;
+  }
+
+  .toolbar .btn--xs {
+    min-height: 44px;
+  }
+
+  .canvas-caption {
+    left: 8px;
+    bottom: 8px;
+    font-size: 0.78rem;
+    padding: 4px 10px 4px 4px;
   }
 
   .overlay__card {
@@ -285,5 +440,63 @@
 
   .overlay__title {
     font-size: 1.15rem;
+  }
+}
+
+/* ---------- Landscape phones: canvas left, header + chat right ---------- */
+@media (orientation: landscape) and (max-height: 520px) {
+  .game {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) clamp(240px, 38%, 360px);
+    grid-template-rows: auto minmax(0, 1fr);
+    padding-right: calc(var(--space-2) + env(safe-area-inset-right));
+    padding-bottom: calc(var(--space-2) + env(safe-area-inset-bottom));
+  }
+
+  .game__top {
+    grid-column: 2;
+    grid-row: 1;
+    min-height: 0;
+  }
+
+  /* The side column is too narrow for every control in one row: the ratings take a tidy second row. */
+  .game__top .rating--compact {
+    order: 1;
+    margin-left: auto;
+  }
+
+  .game__top .game__word {
+    order: 2;
+  }
+
+  .game__center {
+    grid-column: 1;
+    grid-row: 1 / 3;
+  }
+
+  .game__chat {
+    grid-column: 2;
+    grid-row: 2;
+    min-height: 0;
+    padding-bottom: 6px;
+  }
+
+  .game__center {
+    max-height: none;
+  }
+
+  .game__chat .chat__log-wrap {
+    min-height: 60px;
+  }
+
+  /* The header and chat live in the side column: the summaries cover the canvas column only. */
+  .overlay--turn-end,
+  .overlay--end {
+    inset: 0 calc(100% - var(--phone-header-left, 100%) + var(--space-2)) 0 0;
+    padding: var(--space-3) var(--space-3) calc(var(--space-3) + env(safe-area-inset-bottom)) calc(var(--space-3) + env(safe-area-inset-left));
+  }
+
+  .overlay__card {
+    max-height: 100%;
   }
 }

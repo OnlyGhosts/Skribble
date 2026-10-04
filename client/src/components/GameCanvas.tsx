@@ -3,6 +3,7 @@ import { CANVAS_HEIGHT, CANVAS_WIDTH } from '@shared/constants';
 import { canvasBus } from '../canvas/bus';
 import { CanvasRenderer } from '../canvas/renderer';
 import { useDrawing, type DrawingSettings } from '../canvas/useDrawing';
+import { PHONE_QUERY, matchesMedia } from '../lib/media';
 import { useGameStore } from '../store/useGameStore';
 
 interface Props {
@@ -21,8 +22,19 @@ interface Frame {
 }
 
 const ASPECT = CANVAS_WIDTH / CANVAS_HEIGHT;
-const STACKED_QUERY = '(max-width: 760px)';
-const GROUP_GAP = 12;
+
+/**
+ * The stage's height only counts when the layout gives it a definite one (a bounded flex item,
+ * as on desktop and in the phone app layout). A layout that lets the stage grow with its content
+ * opts out with `--canvas-fit: width`, otherwise fitting by height would feed back on itself.
+ */
+function stageHasDefiniteHeight(stage: HTMLElement): boolean {
+  return getComputedStyle(stage).getPropertyValue('--canvas-fit').trim() !== 'width';
+}
+
+function sameFrame(a: Frame | null, b: Frame): boolean {
+  return a !== null && a.width === b.width && a.height === b.height;
+}
 
 /**
  * Hosts the logical 800x600 canvas, scaled to fit its stage while keeping 4:3, and keeps the
@@ -31,10 +43,14 @@ const GROUP_GAP = 12;
  */
 export function GameCanvas({ canDraw, settings, turnKey, children, footer }: Props) {
   const stageRef = useRef<HTMLDivElement | null>(null);
+  const groupRef = useRef<HTMLDivElement | null>(null);
   const footerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rendererRef = useRef<CanvasRenderer | null>(null);
   const [frame, setFrame] = useState<Frame | null>(null);
+  // Phone layout: the toolbar spans the stage instead of the canvas, so its height never depends
+  // on the canvas width (which would feed back into the by-height fit).
+  const [fullWidthGroup, setFullWidthGroup] = useState(() => matchesMedia(PHONE_QUERY));
   const epoch = useGameStore((s) => s.canvasEpoch);
 
   useEffect(() => {
@@ -57,17 +73,22 @@ export function GameCanvas({ canDraw, settings, turnKey, children, footer }: Pro
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
-    const stacked = window.matchMedia(STACKED_QUERY);
+    const phone = window.matchMedia(PHONE_QUERY);
     const update = () => {
+      setFullWidthGroup(phone.matches);
       const rect = stage.getBoundingClientRect();
       let width = rect.width;
-      // Desktop: the stage has a fixed height, so fit both ways. Stacked (phone): width rules
-      // and the stage grows with the content, so its height must not feed back into the fit.
-      if (!stacked.matches && rect.height > 1) {
-        const footerHeight = footerRef.current ? footerRef.current.offsetHeight + GROUP_GAP : 0;
+      // Fit by both width and height (the toolbar under the canvas counts) whenever the stage has
+      // a definite height; otherwise the width rules and the stage grows with the content.
+      if (rect.height > 1 && stageHasDefiniteHeight(stage)) {
+        const gap = groupRef.current ? parseFloat(getComputedStyle(groupRef.current).rowGap) || 0 : 0;
+        const footerHeight = footerRef.current ? footerRef.current.offsetHeight + gap : 0;
         width = Math.min(rect.width, Math.max(0, rect.height - footerHeight) * ASPECT);
       }
-      if (width > 0) setFrame({ width: Math.floor(width), height: Math.floor(width / ASPECT) });
+      if (width > 0) {
+        const next: Frame = { width: Math.floor(width), height: Math.floor(width / ASPECT) };
+        setFrame((prev) => (sameFrame(prev, next) ? prev : next));
+      }
       const renderer = rendererRef.current;
       if (renderer && renderer.resize(window.devicePixelRatio)) {
         renderer.replayAll(useGameStore.getState().canvas);
@@ -78,11 +99,11 @@ export function GameCanvas({ canDraw, settings, turnKey, children, footer }: Pro
     observer?.observe(stage);
     if (footerRef.current) observer?.observe(footerRef.current);
     window.addEventListener('resize', update);
-    stacked.addEventListener('change', update);
+    phone.addEventListener('change', update);
     return () => {
       observer?.disconnect();
       window.removeEventListener('resize', update);
-      stacked.removeEventListener('change', update);
+      phone.removeEventListener('change', update);
     };
   }, [footer !== undefined]);
 
@@ -90,7 +111,7 @@ export function GameCanvas({ canDraw, settings, turnKey, children, footer }: Pro
 
   return (
     <div className="canvas-stage" ref={stageRef}>
-      <div className="canvas-group" style={frame ? { width: frame.width } : undefined}>
+      <div className="canvas-group" ref={groupRef} style={frame && !fullWidthGroup ? { width: frame.width } : undefined}>
         <div
           className={`canvas-frame${canDraw ? ` canvas-frame--drawing canvas-frame--tool-${settings.tool}` : ''}`}
           style={frame ? { width: frame.width, height: frame.height } : undefined}

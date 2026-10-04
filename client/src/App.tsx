@@ -1,9 +1,11 @@
 import { useEffect, useRef } from 'react';
 import { leaveRoom } from './net/actions';
 import { socket } from './net/socket';
+import { vibrate } from './lib/haptics';
 import { playCue, setSoundEnabled, unlockAudio } from './lib/sound';
 import { codeFromLocation, pushRoomUrl, resetUrl } from './lib/url';
-import { useGameStore } from './store/useGameStore';
+import { useViewport } from './lib/useViewport';
+import { selectIsDrawer, selectMe, useGameStore } from './store/useGameStore';
 import { Toasts } from './components/Toasts';
 import { Game } from './screens/Game';
 import { Home } from './screens/Home';
@@ -81,6 +83,16 @@ function useSoundEffects(): void {
           const prevLast = prev.chat[prev.chat.length - 1];
           if (last && last.kind === 'correct' && last.id !== prevLast?.id) playCue('correct');
         }
+        // A little buzz when this player cracks the word (the drawer is marked as guessed too; skip them).
+        if (
+          phase?.kind === 'drawing' &&
+          prevPhase?.kind === 'drawing' &&
+          !selectIsDrawer(state) &&
+          selectMe(state)?.guessedThisTurn &&
+          !selectMe(prev)?.guessedThisTurn
+        ) {
+          vibrate(30);
+        }
       }),
     [],
   );
@@ -89,6 +101,7 @@ function useSoundEffects(): void {
 export function App() {
   useEffect(() => socket.start(), []);
   useTheme();
+  useViewport();
   useUrlSync();
   useSoundEffects();
 
