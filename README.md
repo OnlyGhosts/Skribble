@@ -33,6 +33,17 @@ Open http://localhost:5173. The Vite dev server proxies `/ws` and `/api` to the 
 
 Each round, every player draws once. The drawer picks one of three words, everyone else guesses in chat (or straight into the blanks on a phone), and the turn ends when time runs out or everyone has guessed.
 
+## Deploy it
+
+The app is one Node process that needs WebSockets, so any container host works. Ready-made configs are in the repo:
+
+- **Render (free tier, easiest).** `render.yaml` is a Blueprint. Sign in at https://render.com, choose **New → Blueprint**, pick this repository, and Render builds the Dockerfile and gives you a public `https://skribble-xxxx.onrender.com` URL. Free instances sleep after 15 minutes idle and take about a minute to wake.
+- **Railway.** Create a project from this GitHub repository; Railway detects the Dockerfile. Set the `PORT` variable to `3001` and generate a public domain in the service settings.
+- **Fly.io.** `fly launch --copy-config --yes` then `fly deploy` using the included `fly.toml`. The `deploy-fly.yml` workflow deploys on every push to `main` once you add a `FLY_API_TOKEN` secret and set the repository variable `FLY_DEPLOY_ENABLED` to `true`.
+- **Your own server.** `npm ci && npm run build && PORT=3001 npm start` behind nginx or Caddy with WebSocket upgrades enabled, or `docker run -p 3001:3001` the image.
+
+Share the deployed URL with friends; room links look like `https://your-host/XK4P`.
+
 ## Production
 
 ```bash
