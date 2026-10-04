@@ -1,6 +1,6 @@
-import { WS_PATH } from '../shared/protocol.js';
-import { createApp } from './app.js';
-import { createDriverFromEnv } from './drivers/select.js';
+import { WS_PATH } from '../shared/platform/protocol.js';
+import { createApp } from './platform/app.js';
+import { createDriverFromEnv } from './platform/drivers/select.js';
 
 /**
  * Standalone entry (`npm start`, the Dockerfile, `npm run dev`): one process serving the client,
@@ -8,7 +8,7 @@ import { createDriverFromEnv } from './drivers/select.js';
  * any number of these processes can share the rooms.
  */
 const PORT = Number(process.env.PORT ?? 3001);
-const log = (msg: string): void => console.log(`[skribble] ${msg}`);
+const log = (msg: string): void => console.log(`[game-night] ${msg}`);
 
 const driver = createDriverFromEnv({ log });
 const { server, shutdown } = createApp({ driver, log });

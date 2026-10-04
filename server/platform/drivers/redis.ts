@@ -1,22 +1,23 @@
 import { Redis, type RedisOptions } from 'ioredis';
-import type { Avatar } from '../../shared/avatar.js';
-import { CLOSE_REPLACED, type DrawOp, type RoomPreview, type ServerMessage } from '../../shared/protocol.js';
-import { generateRoomCode, isValidRoomCode, normalizeRoomCode, roomCodeHint } from '../../shared/roomCode.js';
+import type { Avatar } from '../../../shared/platform/avatar.js';
+import type { GameId } from '../../../shared/platform/games.js';
+import { CLOSE_REPLACED, type RoomPreview } from '../../../shared/platform/protocol.js';
+import { generateRoomCode, isValidRoomCode, normalizeRoomCode, roomCodeHint } from '../../../shared/platform/roomCode.js';
 import type { Action } from '../engine/actions.js';
 import { resolveRecipients } from '../engine/effects.js';
-import { NOT_DRAWER_MESSAGE, canDraw, connectedIds, drawerCheck, findPlayer } from '../engine/players.js';
+import { moduleFor } from '../engine/module.js';
+import { connectedIds, findPlayer, platformPlayers } from '../engine/players.js';
 import { applyAction } from '../engine/reduce.js';
-import type { RoomData } from '../engine/state.js';
+import type { PlatformRoomData } from '../engine/state.js';
 import { nextDeadline } from '../engine/time.js';
 import { previewOf, viewFor } from '../engine/view.js';
-import { CANVAS_RESYNC_DEBOUNCE_MS } from '../canvasStore.js';
-import type { RoomMessage } from '../room.js';
+import { SIDE_RESYNC_DEBOUNCE_MS, type AnyGameSideStore, type SideRoom } from '../game.js';
 import { productionCtx, systemClock, type Clock, type Rng } from '../transport.js';
-import { RedisCanvas } from './redisCanvas.js';
-import { PRESENCE_TTL_MS, parseChannelMessage, roomChannel, type CanvasChannelMessage, type RoomChannelMessage } from './redisKeys.js';
+import { PRESENCE_TTL_MS, parseChannelMessage, roomChannel, type RoomChannelMessage } from './redisKeys.js';
 import { RedisRooms, type Dispatched } from './redisRooms.js';
+import { RedisStorage } from './redisStorage.js';
 import { AsyncLock } from './serial.js';
-import { SOCKET_OPEN, sendTo, type DriverHealth, type GameDriver, type LookupResult, type Seat, type SeatResult, type SocketLike } from './types.js';
+import { SOCKET_OPEN, sendTo, type DriverHealth, type GameDriver, type LookupResult, type OutboundMessage, type RoomInbound, type Seat, type SeatResult, type SocketLike } from './types.js';
 
 export interface RedisDriverOptions {
   url: string;
@@ -46,12 +47,12 @@ interface SocketEntry {
 interface LocalRoom {
   code: string;
   /** The newest state seen, from our own writes or the channel. */
-  data: RoomData | null;
+  data: PlatformRoomData | null;
   /** playerId -> connectionId of the seats whose sockets live in this process. */
   seats: Map<string, string>;
   /**
-   * playerId -> canvas sequence number the player's welcome snapshot included; canvas messages up
-   * to it are already on their canvas. Infinity until the welcome has been sent.
+   * playerId -> side-store sequence number the player's welcome snapshot included; side messages
+   * up to it are already applied on their side. Infinity until the welcome has been sent.
    */
   seen: Map<string, number>;
   /** Seat operations in flight; the room is not released while one runs. */
@@ -77,7 +78,8 @@ export class RedisDriver implements GameDriver {
   private readonly redis: Redis;
   private readonly sub: Redis;
   private readonly rooms: RedisRooms;
-  private readonly canvas: RedisCanvas;
+  private readonly storage: RedisStorage;
+  private readonly sideStores = new Map<GameId, AnyGameSideStore | null>();
   private readonly sockets = new Map<string, SocketEntry>();
   private readonly locals = new Map<string, LocalRoom>();
   private readonly log: (msg: string) => void;
@@ -95,7 +97,7 @@ export class RedisDriver implements GameDriver {
     this.sub = this.connection(options.url);
     this.sub.on('message', (channel: string, raw: string) => this.onChannelMessage(channel, raw));
     this.rooms = new RedisRooms(this.redis, new AsyncLock(), () => productionCtx(this.clock, this.rng), options.presenceTtlMs ?? PRESENCE_TTL_MS);
-    this.canvas = new RedisCanvas(this.redis, new AsyncLock());
+    this.storage = new RedisStorage(this.redis);
   }
 
   // ---------------------------------------------------------------------------
@@ -134,10 +136,10 @@ export class RedisDriver implements GameDriver {
     return { ok: true, code };
   }
 
-  async create(name: string, avatar: Avatar, connectionId: string): Promise<SeatResult> {
+  async create(gameId: GameId, name: string, avatar: Avatar, connectionId: string): Promise<SeatResult> {
     for (let i = 0; i < MAX_CODE_ATTEMPTS; i++) {
       const code = generateRoomCode(this.rng);
-      const result = await this.seat(code, { type: 'create', name, avatar, connectionId }, connectionId);
+      const result = await this.seat(code, { type: 'create', gameId, name, avatar, connectionId }, connectionId);
       // The engine refuses to create into a room that already has players: that code is taken.
       if (result.ok || result.code !== 'INTERNAL') return result;
     }
@@ -169,19 +171,17 @@ export class RedisDriver implements GameDriver {
     }
   }
 
-  async handle(seat: Seat, msg: RoomMessage): Promise<void> {
-    switch (msg.t) {
-      case 'draw':
-        return this.draw(seat, msg.ops);
-      case 'undo':
-        return this.undo(seat);
-      case 'clear':
-        return this.clear(seat);
-      default: {
-        const dispatched = await this.rooms.dispatch(seat.code, { type: 'clientMessage', playerId: seat.playerId, msg });
-        if (!dispatched.ok) this.roomGone(seat.code);
-      }
+  async handle(seat: Seat, inbound: RoomInbound): Promise<void> {
+    if (inbound.kind === 'game') {
+      const local = this.locals.get(seat.code);
+      const data = local?.data ?? (await this.rooms.read(seat.code));
+      if (!data) return this.roomGone(seat.code);
+      const store = this.sideStore(data.gameId);
+      if (store && moduleFor(data.gameId).sideMessages?.has(inbound.msg.t)) return this.sideMessage(seat, data, store, inbound.msg);
     }
+    const action: Action = inbound.kind === 'platform' ? { type: 'platformMessage', playerId: seat.playerId, msg: inbound.msg } : { type: 'gameMessage', playerId: seat.playerId, msg: inbound.msg };
+    const dispatched = await this.rooms.dispatch(seat.code, action);
+    if (!dispatched.ok) this.roomGone(seat.code);
   }
 
   // ---------------------------------------------------------------------------
@@ -220,7 +220,7 @@ export class RedisDriver implements GameDriver {
     local.pending++;
     try {
       const dispatched = await this.rooms.dispatch(code, action, {
-        createIfMissing: creating,
+        createIfMissing: creating ? action.gameId : undefined,
         onApplied: (data, result) => {
           this.remember(local, data);
           if (result.ok && result.playerId !== null) this.bind(local, result.playerId, connectionId);
@@ -277,7 +277,7 @@ export class RedisDriver implements GameDriver {
     if (!this.closed) this.sub.unsubscribe(roomChannel(local.code)).catch((err: unknown) => this.warn('unsubscribe', err));
   }
 
-  private remember(local: LocalRoom, data: RoomData): void {
+  private remember(local: LocalRoom, data: PlatformRoomData): void {
     if (!local.data || data.version >= local.data.version) local.data = data;
   }
 
@@ -320,59 +320,54 @@ export class RedisDriver implements GameDriver {
   }
 
   // ---------------------------------------------------------------------------
-  // Canvas (ops never touch the engine; it only authorises the drawer)
+  // Side stores (Skribble's canvas): changes never touch the engine
   // ---------------------------------------------------------------------------
 
-  /** The state the drawer was authorised against (its turnId stamps the write), or null. */
-  private async authoriseDrawer(seat: Seat): Promise<RoomData | null> {
-    const local = this.locals.get(seat.code);
-    const data = local?.data ?? (await this.rooms.read(seat.code));
-    if (!data) return null;
-    const check = drawerCheck(data, seat.playerId, this.clock.now());
-    if (check === 'forbidden' && local) this.sendLocal(local, seat.playerId, { t: 'error', code: 'NOT_ALLOWED', message: NOT_DRAWER_MESSAGE });
-    return check === 'ok' ? data : null;
-  }
-
-  private async draw(seat: Seat, ops: DrawOp[]): Promise<void> {
-    const data = await this.authoriseDrawer(seat);
-    if (!data) return;
-    const appended = await this.canvas.append(seat.code, data.turnId, ops);
-    if (appended === 'stale') return;
-    if (appended.accepted.length > 0) {
-      await this.rooms.publish(seat.code, { kind: 'draw', drawerId: seat.playerId, ops: appended.accepted, turnId: data.turnId, seq: appended.seq });
+  private sideStore(gameId: GameId): AnyGameSideStore | null {
+    let store = this.sideStores.get(gameId);
+    if (store === undefined) {
+      store = moduleFor(gameId).createSideStore?.(this.storage) ?? null;
+      this.sideStores.set(gameId, store);
     }
-    // The drawer applied the full ops locally; bring their canvas back to what everyone else has.
+    return store;
+  }
+
+  private sideRoom(data: PlatformRoomData): SideRoom<unknown> {
+    return { code: data.code, phase: data.phase, game: data.game, players: platformPlayers(data) };
+  }
+
+  private async sideMessage(seat: Seat, data: PlatformRoomData, store: AnyGameSideStore, raw: { t: string }): Promise<void> {
     const local = this.locals.get(seat.code);
-    if (appended.truncated && local) this.scheduleResync(local, seat.playerId);
+    const parsed = moduleFor(data.gameId).clientMessageSchema.safeParse(raw);
+    if (!parsed.success) {
+      if (local) this.sendLocal(local, seat.playerId, { t: 'error', code: 'INVALID_MESSAGE', message: parsed.error.issues[0]?.message ?? 'Invalid message' });
+      return;
+    }
+    const room = this.sideRoom(data);
+    const outcome = await store.handleMessage(room, seat.playerId, parsed.data, this.clock.now());
+    if (!outcome.ok) {
+      if (outcome.message !== null && local) this.sendLocal(local, seat.playerId, { t: 'error', code: 'NOT_ALLOWED', message: outcome.message });
+      return;
+    }
+    if (outcome.seq > 0 && outcome.sends.length > 0) {
+      await this.rooms.publish(seat.code, { kind: 'side', seq: outcome.seq, stamp: store.stamp(room), sends: outcome.sends.map((s) => ({ to: s.to, msg: asWire(s.msg) })) });
+    }
+    if (outcome.resync !== undefined && local) this.scheduleResync(local, store, outcome.resync);
   }
 
-  private async undo(seat: Seat): Promise<void> {
-    const data = await this.authoriseDrawer(seat);
-    if (!data) return;
-    const seq = await this.canvas.undo(seat.code, data.turnId);
-    if (seq !== null) await this.rooms.publish(seat.code, { kind: 'undo', turnId: data.turnId, seq });
-  }
-
-  private async clear(seat: Seat): Promise<void> {
-    const data = await this.authoriseDrawer(seat);
-    if (!data) return;
-    const seq = await this.canvas.clear(seat.code, data.turnId);
-    if (seq !== null) await this.rooms.publish(seat.code, { kind: 'clear', turnId: data.turnId, seq });
-  }
-
-  private scheduleResync(local: LocalRoom, drawerId: string): void {
+  private scheduleResync(local: LocalRoom, store: AnyGameSideStore, playerId: string): void {
     if (local.resync) return;
     local.resync = setTimeout(() => {
       local.resync = null;
-      if (!local.data || !canDraw(local.data, drawerId, this.clock.now())) return;
-      this.canvas
-        .load(local.code)
-        .then((snapshot) => {
-          local.seen.set(drawerId, snapshot.seq);
-          this.sendLocal(local, drawerId, { t: 'canvas', actions: snapshot.actions });
+      if (!local.data) return;
+      Promise.resolve(store.resync(this.sideRoom(local.data), playerId, this.clock.now()))
+        .then((out) => {
+          if (!out) return;
+          local.seen.set(playerId, out.seq);
+          this.sendLocal(local, playerId, asWire(out.msg));
         })
-        .catch((err: unknown) => this.warn('canvas resync', err));
-    }, CANVAS_RESYNC_DEBOUNCE_MS);
+        .catch((err: unknown) => this.warn('side resync', err));
+    }, SIDE_RESYNC_DEBOUNCE_MS);
   }
 
   // ---------------------------------------------------------------------------
@@ -390,14 +385,20 @@ export class RedisDriver implements GameDriver {
   private async apply(local: LocalRoom, msg: RoomChannelMessage): Promise<void> {
     if (this.locals.get(local.code) !== local) return;
     if (msg.kind === 'effects') return this.applyEffects(local, msg);
-    const except = msg.kind === 'draw' ? msg.drawerId : null;
-    const out: ServerMessage = msg.kind === 'draw' ? { t: 'draw', ops: msg.ops } : { t: msg.kind };
-    for (const id of this.localConnected(local)) if (id !== except && this.wantsCanvas(local, id, msg)) this.sendLocal(local, id, out);
+    const connected = new Set(this.localConnected(local));
+    for (const send of msg.sends) {
+      for (const id of resolveRecipients(local.data ?? emptyPlayers, send.to)) {
+        if (connected.has(id) && this.wantsSide(local, id, msg)) this.sendLocal(local, id, send.msg);
+      }
+    }
   }
 
-  /** A canvas change is for the player unless their welcome snapshot already had it, or it belongs to a turn that is over. */
-  private wantsCanvas(local: LocalRoom, playerId: string, msg: CanvasChannelMessage): boolean {
-    if (local.data && msg.turnId !== local.data.turnId) return false;
+  /** A side change is for the player unless their welcome snapshot already had it, or it belongs to a store the game has since reset. */
+  private wantsSide(local: LocalRoom, playerId: string, msg: Extract<RoomChannelMessage, { kind: 'side' }>): boolean {
+    if (local.data) {
+      const store = this.sideStore(local.data.gameId);
+      if (store && msg.stamp !== store.stamp(this.sideRoom(local.data))) return false;
+    }
     return msg.seq > (local.seen.get(playerId) ?? Infinity);
   }
 
@@ -418,17 +419,18 @@ export class RedisDriver implements GameDriver {
           break;
         case 'welcome': {
           if (!local.seats.has(effect.playerId)) break;
-          const snapshot = await this.canvas.load(local.code);
+          const store = this.sideStore(msg.data.gameId);
+          const side = store ? await store.welcomeExtra(this.sideRoom(msg.data), effect.playerId) : null;
           const room = stale && local.data ? viewFor(local.data, effect.playerId, this.clock.now()) : effect.msg.room;
-          local.seen.set(effect.playerId, snapshot.seq);
-          this.sendLocal(local, effect.playerId, { ...effect.msg, room, canvas: snapshot.actions });
+          if (side) local.seen.set(effect.playerId, side.seq);
+          this.sendLocal(local, effect.playerId, side ? { ...effect.msg, room, extra: side.extra } : { ...effect.msg, room });
           break;
         }
         case 'close':
           this.closeLocal(local, effect.playerId, effect.code, effect.reason);
           break;
-        case 'canvas':
-          for (const id of connectedIds(msg.data)) this.sendLocal(local, id, { t: 'clear' });
+        case 'side':
+          // Applied atomically with the room write (RedisRooms); the game's own 'clear' message travels as a send.
           break;
         case 'destroy':
           destroyed = true;
@@ -450,7 +452,7 @@ export class RedisDriver implements GameDriver {
     this.arm(local);
   }
 
-  private closeReplaced(local: LocalRoom, data: RoomData): void {
+  private closeReplaced(local: LocalRoom, data: PlatformRoomData): void {
     for (const [playerId, connectionId] of [...local.seats]) {
       const player = findPlayer(data, playerId);
       if (player && player.connectionId !== connectionId) this.closeLocal(local, playerId, CLOSE_REPLACED, 'Replaced by a newer connection');
@@ -473,7 +475,7 @@ export class RedisDriver implements GameDriver {
     return local.data ? connectedIds(local.data).filter((id) => local.seats.has(id)) : [];
   }
 
-  private sendLocal(local: LocalRoom, playerId: string, msg: ServerMessage): void {
+  private sendLocal(local: LocalRoom, playerId: string, msg: OutboundMessage): void {
     const connectionId = local.seats.get(playerId);
     const entry = connectionId !== undefined ? this.sockets.get(connectionId) : undefined;
     if (entry) sendTo(entry.ws, msg);
@@ -571,4 +573,11 @@ export class RedisDriver implements GameDriver {
   private warn(what: string, err: unknown): void {
     this.log(`${what}: ${err instanceof Error ? err.message : String(err)}`);
   }
+}
+
+const emptyPlayers: PlatformRoomData['players'] = [];
+
+function asWire(msg: unknown): OutboundMessage {
+  if (typeof msg === 'object' && msg !== null && typeof (msg as { t?: unknown }).t === 'string') return msg as OutboundMessage;
+  throw new Error('side store message must be an object with a string `t`');
 }

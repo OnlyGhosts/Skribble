@@ -1,20 +1,24 @@
-import type { Avatar } from '../shared/avatar.js';
-import type { ErrorCode } from '../shared/protocol.js';
-import { generateRoomCode, isValidRoomCode, normalizeRoomCode, roomCodeHint } from '../shared/roomCode.js';
-import type { Player } from './player.js';
+import type { Avatar } from '../../../shared/platform/avatar.js';
+import type { GameId } from '../../../shared/platform/games.js';
+import type { ErrorCode } from '../../../shared/platform/protocol.js';
+import { generateRoomCode, isValidRoomCode, normalizeRoomCode, roomCodeHint } from '../../../shared/platform/roomCode.js';
+import { MemoryStorage, type GameStorage } from '../storage.js';
+import { systemClock, type Clock, type Rng, type Transport } from '../transport.js';
 import { Room } from './room.js';
-import { systemClock, type Clock, type Rng, type Transport } from './transport.js';
 
 export interface RoomManagerDeps {
   transport: Transport;
+  /** Side-store storage shared by every room; defaults to an in-memory one. */
+  storage?: GameStorage;
   clock?: Clock;
   rng?: Rng;
   /** Rooms alive at once, empty ones awaiting deletion included (defaults to MAX_ROOMS). */
   maxRooms?: number;
+  log?: (msg: string) => void;
 }
 
 export type CreateResult =
-  | { ok: true; room: Room; player: Player }
+  | { ok: true; room: Room; playerId: string }
   | { ok: false; code: Extract<ErrorCode, 'RATE_LIMITED'>; message: string };
 
 export type LookupResult =
@@ -28,39 +32,46 @@ export interface RoomStats {
 
 const MAX_CODE_ATTEMPTS = 1000;
 /**
- * Global cap on rooms. Each room holds a canvas, chat log and a timer and an abandoned one lives
+ * Global cap on rooms. Each room holds state, a chat log and a timer and an abandoned one lives
  * EMPTY_ROOM_TTL_MS, so without a ceiling one client could exhaust memory (or the code space).
  */
 export const MAX_ROOMS = 5000;
 
+/** All rooms of one process, across every game: codes are a single namespace. */
 export class RoomManager {
   private readonly rooms = new Map<string, Room>();
   private readonly transport: Transport;
+  private readonly storage: GameStorage;
   private readonly clock: Clock;
   private readonly rng: Rng;
   private readonly maxRooms: number;
+  private readonly log: ((msg: string) => void) | undefined;
 
   constructor(deps: RoomManagerDeps) {
     this.transport = deps.transport;
+    this.storage = deps.storage ?? new MemoryStorage();
     this.clock = deps.clock ?? systemClock;
     this.rng = deps.rng ?? Math.random;
     this.maxRooms = deps.maxRooms ?? MAX_ROOMS;
+    this.log = deps.log;
   }
 
   get isAtCapacity(): boolean {
     return this.rooms.size >= this.maxRooms;
   }
 
-  /** Creates a room with a fresh code and seats its host, unless the server is at its room cap. */
-  createRoom(name: string, avatar: Avatar, connectionId: string): CreateResult {
+  /** Creates a room for `gameId` with a fresh code and seats its host, unless the server is at its room cap. */
+  createRoom(gameId: GameId, name: string, avatar: Avatar, connectionId: string): CreateResult {
     if (this.isAtCapacity) {
       return { ok: false, code: 'RATE_LIMITED', message: 'The server is hosting too many rooms right now. Please try again in a minute.' };
     }
     const code = this.uniqueCode();
-    const room = new Room(code, {
+    const room = new Room(code, gameId, {
       transport: this.transport,
+      storage: this.storage,
       clock: this.clock,
       rng: this.rng,
+      log: this.log,
       // Rooms delete themselves once they have been empty for EMPTY_ROOM_TTL_MS.
       onDestroy: (r) => {
         if (this.rooms.get(r.code) === r) this.rooms.delete(r.code);
@@ -74,7 +85,7 @@ export class RoomManager {
       room.destroy();
       throw new Error(`failed to seat host in new room: ${joined.code}`);
     }
-    return { ok: true, room, player: joined.player };
+    return { ok: true, room, playerId: joined.playerId };
   }
 
   /** Resolves user input (any case, with noise) to a room. */

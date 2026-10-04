@@ -15,8 +15,8 @@ export function updateSettings(cx: Cx, playerId: string, patch: Record<string, u
   const game = moduleFor(data.gameId);
   const platform = platformSettingsPatchSchema.safeParse(patch);
   const own = game.settings.patchSchema.safeParse(patch);
+  const issue = !platform.success ? platform.error.issues[0] : !own.success ? own.error.issues[0] : undefined;
   if (!platform.success || !own.success) {
-    const issue = (platform.success ? own : platform).error.issues[0];
     return fail(cx, playerId, 'INVALID_MESSAGE', `Invalid settings${issue ? ` at ${issue.path.join('.')}: ${issue.message}` : ''}`);
   }
   const merged: RoomSettingsData = { ...data.settings, ...platform.data, ...(own.data as Record<string, unknown>) };

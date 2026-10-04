@@ -3,8 +3,8 @@ import { createServer, type Server } from 'node:http';
 import path from 'node:path';
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
 import { WebSocketServer } from 'ws';
-import { MAX_WS_MESSAGE_BYTES } from '../shared/constants.js';
-import { ROOM_PREVIEW_PATH, WS_PATH } from '../shared/protocol.js';
+import { MAX_WS_MESSAGE_BYTES } from '../../shared/platform/constants.js';
+import { ROOM_PREVIEW_PATH, WS_PATH } from '../../shared/platform/protocol.js';
 import { asSocketLike, handleConnection } from './connection.js';
 import { after, type GameDriver } from './drivers/types.js';
 
@@ -57,7 +57,7 @@ export function createApp(options: AppOptions): App {
     const clientIndex = path.join(clientDir, 'index.html');
     if (existsSync(clientIndex)) {
       app.use(express.static(clientDir, { index: 'index.html', maxAge: '1h' }));
-      // SPA fallback so share links such as https://host/XK4P load the app.
+      // SPA fallback so share links such as https://host/skribble/XK4P load the app.
       app.use((req: Request, res: Response, next: NextFunction) => {
         if (req.method !== 'GET' && req.method !== 'HEAD') return next();
         if (req.path.startsWith('/api') || wsPaths.some((p) => req.path.startsWith(p))) return next();

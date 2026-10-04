@@ -1,6 +1,6 @@
-import { WS_PATH } from '../shared/protocol.js';
-import { createApp } from '../server/app.js';
-import { createDriverFromEnv } from '../server/drivers/select.js';
+import { WS_PATH } from '../shared/platform/protocol.js';
+import { createApp } from '../server/platform/app.js';
+import { createDriverFromEnv } from '../server/platform/drivers/select.js';
 
 /**
  * Vercel Function entry. Exporting the http.Server (never calling listen) lets Vercel route both
@@ -11,7 +11,7 @@ import { createDriverFromEnv } from '../server/drivers/select.js';
  * Instances are many and short-lived (a connection is cut at the function's max duration), so
  * rooms must live in Redis: REDIS_URL (or KV_URL) comes from a Marketplace Redis store.
  */
-const log = (msg: string): void => console.log(`[skribble] ${msg}`);
+const log = (msg: string): void => console.log(`[game-night] ${msg}`);
 
 const driver = createDriverFromEnv({ log, expectRedis: true });
 const { server } = createApp({ driver, log, serveStatic: false, wsPaths: [WS_PATH, '/api/server'] });

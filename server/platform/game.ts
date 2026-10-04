@@ -8,7 +8,8 @@
  */
 import type { z } from 'zod';
 import type { GameMeta } from '../../shared/platform/games.js';
-import type { ChatKind, PlatformSettings } from '../../shared/platform/protocol.js';
+import type { ChatKind } from '../../shared/platform/protocol.js';
+import type { PlatformSettings } from '../../shared/platform/settings.js';
 import type { MaybePromise } from './drivers/types.js';
 import { deepEqual } from './json.js';
 import type { GameStorage } from './storage.js';
@@ -90,10 +91,15 @@ export interface GameResult<D, SMsg> {
   effects: GameEffect<SMsg>[];
 }
 
+/** The part of a zod schema the platform uses (structural, so `schema.partial()` qualifies whatever its exact zod type). */
+export interface Parser<T> {
+  safeParse(input: unknown): { success: true; data: T } | { success: false; error: { issues: Array<{ path: PropertyKey[]; message: string }> } };
+}
+
 export interface GameSettingsSpec<S> {
   schema: z.ZodType<S>;
   /** `schema.partial()`: validates the game part of an updateSettings patch. */
-  patchSchema: z.ZodType<Partial<S>>;
+  patchSchema: Parser<Partial<S>>;
   defaults: S;
   /** Fixes up invariants after a patch (e.g. dependent fields). */
   normalize?(s: S): S;
@@ -123,12 +129,8 @@ export interface GameServerModule<S = unknown, D = unknown, V = unknown, CMsg = 
 export type AnyGameServerModule = GameServerModule<unknown, unknown, unknown, unknown, unknown>;
 
 /** Builds a settings spec from a zod object schema. */
-export function defineSettings<Shape extends z.ZodRawShape>(
-  schema: z.ZodObject<Shape>,
-  defaults: z.infer<z.ZodObject<Shape>>,
-  normalize?: (s: z.infer<z.ZodObject<Shape>>) => z.infer<z.ZodObject<Shape>>,
-): GameSettingsSpec<z.infer<z.ZodObject<Shape>>> {
-  const spec: GameSettingsSpec<z.infer<z.ZodObject<Shape>>> = { schema, patchSchema: schema.partial(), defaults };
+export function defineSettings<S>(schema: z.ZodType<S> & { partial(): Parser<Partial<S>> }, defaults: S, normalize?: (s: S) => S): GameSettingsSpec<S> {
+  const spec: GameSettingsSpec<S> = { schema, patchSchema: schema.partial(), defaults };
   if (normalize) spec.normalize = normalize;
   return spec;
 }

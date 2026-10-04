@@ -1,11 +1,11 @@
-import type { Avatar } from '../../shared/avatar.js';
-import type { RoomPreview } from '../../shared/protocol.js';
-import { normalizeRoomCode } from '../../shared/roomCode.js';
+import type { Avatar } from '../../../shared/platform/avatar.js';
+import type { GameId } from '../../../shared/platform/games.js';
+import type { RoomPreview } from '../../../shared/platform/protocol.js';
+import { normalizeRoomCode } from '../../../shared/platform/roomCode.js';
 import { previewOf } from '../engine/view.js';
-import type { RoomMessage } from '../room.js';
-import { RoomManager, type RoomManagerDeps } from '../roomManager.js';
+import { RoomManager, type RoomManagerDeps } from './roomManager.js';
 import { SocketHub } from './socketHub.js';
-import type { DriverHealth, GameDriver, LookupResult, Seat, SeatResult, SocketLike } from './types.js';
+import type { DriverHealth, GameDriver, LookupResult, RoomInbound, Seat, SeatResult, SocketLike } from './types.js';
 
 export type MemoryDriverOptions = Omit<RoomManagerDeps, 'transport'>;
 
@@ -36,10 +36,10 @@ export class MemoryDriver implements GameDriver {
     return found.ok ? { ok: true, code: found.room.code } : found;
   }
 
-  create(name: string, avatar: Avatar, connectionId: string): SeatResult {
-    const created = this.rooms.createRoom(name, avatar, connectionId);
+  create(gameId: GameId, name: string, avatar: Avatar, connectionId: string): SeatResult {
+    const created = this.rooms.createRoom(gameId, name, avatar, connectionId);
     if (!created.ok) return created;
-    return { ok: true, seat: { code: created.room.code, playerId: created.player.id } };
+    return { ok: true, seat: { code: created.room.code, playerId: created.playerId } };
   }
 
   join(code: string, name: string, avatar: Avatar, connectionId: string): SeatResult {
@@ -47,7 +47,7 @@ export class MemoryDriver implements GameDriver {
     if (!found.ok) return found;
     const joined = found.room.join(name, avatar, connectionId);
     if (!joined.ok) return joined;
-    return { ok: true, seat: { code: found.room.code, playerId: joined.player.id } };
+    return { ok: true, seat: { code: found.room.code, playerId: joined.playerId } };
   }
 
   rejoin(code: string, token: string, connectionId: string): SeatResult {
@@ -55,25 +55,22 @@ export class MemoryDriver implements GameDriver {
     if (!found.ok) return { ok: false, code: 'REJOIN_FAILED', message: found.message };
     const joined = found.room.rejoin(token, connectionId);
     if (!joined.ok) return joined;
-    return { ok: true, seat: { code: found.room.code, playerId: joined.player.id } };
+    return { ok: true, seat: { code: found.room.code, playerId: joined.playerId } };
   }
 
   leave(seat: Seat): void {
     const room = this.rooms.get(seat.code);
-    const player = room?.getPlayer(seat.playerId);
-    if (room && player) room.leave(player);
+    if (room?.getPlayer(seat.playerId)) room.leave(seat.playerId);
   }
 
   disconnected(seat: Seat, connectionId: string): void {
     const room = this.rooms.get(seat.code);
-    const player = room?.getPlayer(seat.playerId);
-    if (room && player) room.handleDisconnect(player, connectionId);
+    if (room?.getPlayer(seat.playerId)) room.handleDisconnect(seat.playerId, connectionId);
   }
 
-  handle(seat: Seat, msg: RoomMessage): void {
+  handle(seat: Seat, msg: RoomInbound): void {
     const room = this.rooms.get(seat.code);
-    const player = room?.getPlayer(seat.playerId);
-    if (room && player) room.handleMessage(player, msg);
+    if (room?.getPlayer(seat.playerId)) room.handleMessage(seat.playerId, msg);
   }
 
   holds(seat: Seat, connectionId: string): boolean {
