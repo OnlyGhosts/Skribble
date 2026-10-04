@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import type { Action } from './actions';
-import { applyAction } from './reduce';
-import type { RoomData } from './state';
-import { nextDeadline, pendingDeadlines } from './time';
-import { AVATAR, Ids, START, ctxAt, sim, startGame, type Sim } from './testHarness';
+import type { Action } from './actions.js';
+import { applyAction } from './reduce.js';
+import type { RoomData } from './state.js';
+import { nextDeadline, pendingDeadlines } from './time.js';
+import { AVATAR, Ids, START, ctxAt, sim, startGame, type Sim } from './testHarness.js';
 
 /** True when a tick at `now` changes the state. */
 function fires(data: RoomData, now: number): boolean {

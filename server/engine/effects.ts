@@ -1,5 +1,5 @@
-import type { ServerMessage, ServerMessageOf } from '../../shared/protocol';
-import type { RoomData } from './state';
+import type { ServerMessage, ServerMessageOf } from '../../shared/protocol.js';
+import type { RoomData } from './state.js';
 
 /** 'all' and `except` mean the players connected once the action has been applied. */
 export type Recipients = string[] | 'all' | { except: string[] };

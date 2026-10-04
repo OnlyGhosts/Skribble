@@ -1,11 +1,11 @@
 /** The reducer's working context and the helpers that emit effects. */
-import { CHAT_HISTORY_LENGTH } from '../../shared/constants';
-import type { ChatKind, ChatMessage, ErrorCode, ServerMessage } from '../../shared/protocol';
-import type { Ctx } from './actions';
-import type { Effect } from './effects';
-import { connectedPlayers, findPlayer } from './players';
-import type { PhaseData, PlayerData, RoomData } from './state';
-import { viewFor, welcomeFor } from './view';
+import { CHAT_HISTORY_LENGTH } from '../../shared/constants.js';
+import type { ChatKind, ChatMessage, ErrorCode, ServerMessage } from '../../shared/protocol.js';
+import type { Ctx } from './actions.js';
+import type { Effect } from './effects.js';
+import { connectedPlayers, findPlayer } from './players.js';
+import type { PhaseData, PlayerData, RoomData } from './state.js';
+import { viewFor, welcomeFor } from './view.js';
 
 export interface Cx {
   /** A private copy of the input the reducer mutates freely. */

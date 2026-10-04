@@ -3,10 +3,10 @@ import { createServer, type Server } from 'node:http';
 import path from 'node:path';
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
 import { WebSocketServer } from 'ws';
-import { MAX_WS_MESSAGE_BYTES } from '../shared/constants';
-import { ROOM_PREVIEW_PATH, WS_PATH } from '../shared/protocol';
-import { asSocketLike, handleConnection } from './connection';
-import { after, type GameDriver } from './drivers/types';
+import { MAX_WS_MESSAGE_BYTES } from '../shared/constants.js';
+import { ROOM_PREVIEW_PATH, WS_PATH } from '../shared/protocol.js';
+import { asSocketLike, handleConnection } from './connection.js';
+import { after, type GameDriver } from './drivers/types.js';
 
 export interface AppOptions {
   driver: GameDriver;

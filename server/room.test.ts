@@ -9,12 +9,12 @@ import {
   MAX_POINTS_PER_TURN,
   RECONNECT_GRACE_MS,
   TURN_END_SECONDS,
-} from '../shared/constants';
-import { hintRevealOrder, hintSchedule, maskWord } from '../shared/hints';
-import type { DrawOp } from '../shared/protocol';
-import { drawerPoints, guesserPoints } from '../shared/scoring';
-import { DEFAULT_SETTINGS } from '../shared/settings';
-import { AVATAR, TEST_WORDS, createHarness, drawerOf, expectPhase, phaseOf, startGame, type Harness } from './testUtils';
+} from '../shared/constants.js';
+import { hintRevealOrder, hintSchedule, maskWord } from '../shared/hints.js';
+import type { DrawOp } from '../shared/protocol.js';
+import { drawerPoints, guesserPoints } from '../shared/scoring.js';
+import { DEFAULT_SETTINGS } from '../shared/settings.js';
+import { AVATAR, TEST_WORDS, createHarness, drawerOf, expectPhase, phaseOf, startGame, type Harness } from './testUtils.js';
 
 const START = new Date('2026-01-01T12:00:00Z').getTime();
 

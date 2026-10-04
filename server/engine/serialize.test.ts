@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { CHOOSE_TIME_SECONDS, TURN_END_SECONDS } from '../../shared/constants';
-import { createRoomData, type RoomData } from './state';
-import { AVATAR, START, sim, startGame } from './testHarness';
+import { CHOOSE_TIME_SECONDS, TURN_END_SECONDS } from '../../shared/constants.js';
+import { createRoomData, type RoomData } from './state.js';
+import { AVATAR, START, sim, startGame } from './testHarness.js';
 
 function roundTrip(data: RoomData): RoomData {
   return JSON.parse(JSON.stringify(data)) as RoomData;

@@ -1,6 +1,6 @@
 /** Read-only queries over RoomData shared by the reducer, the views and the drivers. */
-import { MIN_PLAYERS_TO_START } from '../../shared/constants';
-import type { PhaseData, PlayerData, RoomData } from './state';
+import { MIN_PLAYERS_TO_START } from '../../shared/constants.js';
+import type { PhaseData, PlayerData, RoomData } from './state.js';
 
 export function findPlayer(data: RoomData, id: string): PlayerData | undefined {
   return data.players.find((p) => p.id === id);
@@ -75,4 +75,15 @@ export function canDraw(data: RoomData, playerId: string, now: number): boolean 
 
 export function isDrawer(data: RoomData, playerId: string): boolean {
   return data.turn !== null && data.turn.drawerId === playerId;
+}
+
+export const NOT_DRAWER_MESSAGE = 'Only the drawer can draw right now.';
+
+/**
+ * Whether a canvas op from `playerId` is accepted. Ops the drawer had in flight when their turn
+ * ended are expected ('silent'); only a stranger drawing gets an error ('forbidden').
+ */
+export function drawerCheck(data: RoomData, playerId: string, now: number): 'ok' | 'silent' | 'forbidden' {
+  if (canDraw(data, playerId, now)) return 'ok';
+  return isDrawer(data, playerId) ? 'silent' : 'forbidden';
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { RateLimiter } from './rateLimiter';
+import { RateLimiter } from './rateLimiter.js';
 
 describe('RateLimiter', () => {
   it('allows `limit` events per window and recovers as the window slides', () => {

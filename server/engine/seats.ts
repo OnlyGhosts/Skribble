@@ -1,9 +1,9 @@
 /** Seats: join / rejoin / disconnect / leave, host transfer, kicks and vote-kicks. */
-import type { Avatar } from '../../shared/avatar';
-import { DRAWER_DISCONNECT_GRACE_MS, EMPTY_ROOM_TTL_MS } from '../../shared/constants';
-import { CLOSE_REMOVED } from '../../shared/protocol';
-import type { ActionResult } from './actions';
-import { broadcastSnapshot, fail, requireHost, sendTo, sendWelcome, systemMessage, type Cx } from './messaging';
+import type { Avatar } from '../../shared/avatar.js';
+import { DRAWER_DISCONNECT_GRACE_MS, EMPTY_ROOM_TTL_MS } from '../../shared/constants.js';
+import { CLOSE_REMOVED } from '../../shared/protocol.js';
+import type { ActionResult } from './actions.js';
+import { broadcastSnapshot, fail, requireHost, sendTo, sendWelcome, systemMessage, type Cx } from './messaging.js';
 import {
   connectedCount,
   everyoneGuessed,
@@ -15,9 +15,9 @@ import {
   isGamePhase,
   othersConnected,
   votesNeeded,
-} from './players';
-import { MAX_KICKED_TOKENS, type PlayerData } from './state';
-import { clearTurnGrace, endTurn, ensureEnoughPlayers, resetCanvas, resumeHeldTurn } from './turns';
+} from './players.js';
+import type { PlayerData } from './state.js';
+import { clearTurnGrace, endTurn, ensureEnoughPlayers, resetCanvas, resumeHeldTurn } from './turns.js';
 
 type Seat = { ok: true; playerId: string } | { ok: false; code: 'ROOM_FULL' | 'GAME_IN_PROGRESS' | 'REJOIN_FAILED' | 'INTERNAL'; message: string };
 
@@ -67,7 +67,7 @@ export function join(cx: Cx, name: string, avatar: Avatar, connectionId: string)
 export function rejoin(cx: Cx, token: string, connectionId: string): Seat {
   const { data } = cx;
   const player = findByToken(data, token);
-  if (!player || data.kickedTokens.includes(token)) {
+  if (!player) {
     return { ok: false, code: 'REJOIN_FAILED', message: 'Your seat in this room has expired.' };
   }
   const wasConnected = player.connected;
@@ -201,7 +201,6 @@ function removePlayer(cx: Cx, playerId: string, how: 'left' | 'kicked', kickReas
   if (how === 'kicked') {
     sendTo(cx, player.id, { t: 'kicked', reason: kickReason ?? 'You were removed from the room.' });
     cx.effects.push({ type: 'close', playerId: player.id, code: CLOSE_REMOVED, reason: 'Removed from room' });
-    data.kickedTokens = [...data.kickedTokens.slice(-(MAX_KICKED_TOKENS - 1)), player.token];
   }
   data.players = data.players.filter((p) => p !== player);
 

@@ -1,12 +1,12 @@
 /** Turn lifecycle: start -> choosing -> drawing (hints) -> turnEnd -> next turn / gameEnd / lobby. */
-import { CHOOSE_TIME_SECONDS, MIN_PLAYERS_TO_START, TURN_END_SECONDS } from '../../shared/constants';
-import { hintCountFor, hintRevealOrder, hintSchedule } from '../../shared/hints';
-import type { TurnEndReason } from '../../shared/protocol';
-import { drawerPoints } from '../../shared/scoring';
-import { buildWordPool, pickWords } from '../../shared/words/index';
-import { broadcastSnapshot, fail, pushChat, systemMessage, type Cx } from './messaging';
-import { connectedCount, findPlayer, hasEnoughPlayers, isGamePhase, sortedPlayers } from './players';
-import type { PlayerData, Podium } from './state';
+import { CHOOSE_TIME_SECONDS, MIN_PLAYERS_TO_START, TURN_END_SECONDS } from '../../shared/constants.js';
+import { hintCountFor, hintRevealOrder, hintSchedule } from '../../shared/hints.js';
+import type { TurnEndReason } from '../../shared/protocol.js';
+import { drawerPoints } from '../../shared/scoring.js';
+import { buildWordPool, pickWords } from '../../shared/words/index.js';
+import { broadcastSnapshot, fail, pushChat, systemMessage, type Cx } from './messaging.js';
+import { connectedCount, findPlayer, hasEnoughPlayers, isGamePhase, sortedPlayers } from './players.js';
+import type { PlayerData, Podium } from './state.js';
 
 /** "Alice", "Alice and Bob", "Alice, Bob and Carol". */
 function listNames(names: string[]): string {

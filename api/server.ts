@@ -1,6 +1,6 @@
-import { WS_PATH } from '../shared/protocol';
-import { createApp } from '../server/app';
-import { createDriverFromEnv } from '../server/drivers/select';
+import { WS_PATH } from '../shared/protocol.js';
+import { createApp } from '../server/app.js';
+import { createDriverFromEnv } from '../server/drivers/select.js';
 
 /**
  * Vercel Function entry. Exporting the http.Server (never calling listen) lets Vercel route both

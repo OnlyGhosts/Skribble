@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hintCountFor, hintRevealOrder, hintSchedule, maskWord, revealableIndices } from './hints';
+import { hintCountFor, hintRevealOrder, hintSchedule, maskWord, revealableIndices } from './hints.js';
 
 describe('revealableIndices / maskWord', () => {
   it('hides letters and digits but keeps separators', () => {

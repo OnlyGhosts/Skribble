@@ -6,7 +6,7 @@ import {
   parseCustomWords,
   roomSettingsPatchSchema,
   roomSettingsSchema,
-} from './settings';
+} from './settings.js';
 
 describe('settings schemas', () => {
   it('accepts the defaults and rejects out-of-range values', () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { WORD_LISTS, buildWordPool, getWordList, pickWords } from './words/index';
+import { WORD_LISTS, buildWordPool, getWordList, pickWords } from './words/index.js';
 
 describe('word lists', () => {
   it('ships a sizeable, deduplicated English list', () => {

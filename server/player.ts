@@ -1,5 +1,5 @@
-import type { Avatar } from '../shared/avatar';
-import type { PlayerData, Rating } from './engine/state';
+import type { Avatar } from '../shared/avatar.js';
+import type { PlayerData, Rating } from './engine/state.js';
 
 /**
  * A stable handle on one seat. The game state lives in the room's RoomData and changes with

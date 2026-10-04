@@ -1,4 +1,6 @@
 import {
+  CLOSE_REMOVED,
+  CLOSE_REPLACED,
   WS_PATH,
   isServerMessage,
   type ClientMessage,
@@ -26,9 +28,8 @@ const MAX_PTS_PER_MOVE = 2000;
 /** Ops drawn while the socket is down are kept for the rejoin, up to this many. */
 export const MAX_OFFLINE_OPS = 2000;
 
-/** Application close codes the server uses (see server/connection.ts). */
-export const CLOSE_REPLACED = 4001;
-export const CLOSE_REMOVED = 4002;
+/** Application close codes the server uses; one definition for both sides. */
+export { CLOSE_REMOVED, CLOSE_REPLACED };
 
 export function wsUrl(): string {
   const protocol = location.protocol === 'https:' ? 'wss' : 'ws';

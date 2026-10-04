@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { CHOOSE_TIME_SECONDS, DRAWER_DISCONNECT_GRACE_MS, EMPTY_ROOM_TTL_MS, RECONNECT_GRACE_MS, TURN_END_SECONDS } from '../../shared/constants';
-import { hintRevealOrder, maskWord } from '../../shared/hints';
-import type { Phase, ServerMessageOf } from '../../shared/protocol';
-import type { Effect } from './effects';
-import { canDraw } from './players';
-import { applyAction } from './reduce';
-import { nextDeadline } from './time';
-import { Ids, START, ctxAt, sim, startGame } from './testHarness';
+import { CHOOSE_TIME_SECONDS, DRAWER_DISCONNECT_GRACE_MS, EMPTY_ROOM_TTL_MS, RECONNECT_GRACE_MS, TURN_END_SECONDS } from '../../shared/constants.js';
+import { hintRevealOrder, maskWord } from '../../shared/hints.js';
+import type { Phase, ServerMessageOf } from '../../shared/protocol.js';
+import type { Effect } from './effects.js';
+import { canDraw } from './players.js';
+import { applyAction } from './reduce.js';
+import { nextDeadline } from './time.js';
+import { Ids, START, ctxAt, sim, startGame } from './testHarness.js';
 
 /** The phases a player saw, in order, from the snapshot effects. */
 function phasesSeen(effects: Effect[], playerId: string): Phase[] {

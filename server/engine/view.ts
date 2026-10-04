@@ -1,8 +1,8 @@
 /** Per-recipient projections of RoomData onto the wire protocol. */
-import { maskWord } from '../../shared/hints';
-import type { Phase, PlayerPublic, RoomState, ServerMessageOf } from '../../shared/protocol';
-import { findPlayer, sortedPlayers } from './players';
-import type { PlayerData, RoomData } from './state';
+import { maskWord } from '../../shared/hints.js';
+import type { Phase, PlayerPublic, RoomPreview, RoomState, ServerMessageOf } from '../../shared/protocol.js';
+import { findPlayer, inProgress, isJoinable, sortedPlayers } from './players.js';
+import type { PlayerData, RoomData } from './state.js';
 
 export function publicPlayer(p: PlayerData, hostId: string): PlayerPublic {
   return {
@@ -80,6 +80,18 @@ function phaseFor(data: RoomData, recipient: PlayerData | undefined): Phase {
     case 'gameEnd':
       return { kind: 'gameEnd', podium: phase.podium.map((e) => ({ ...e })) };
   }
+}
+
+/** What the home screen shows about a room before joining it. */
+export function previewOf(data: RoomData): RoomPreview {
+  return {
+    exists: true,
+    code: data.code,
+    players: data.players.length,
+    maxPlayers: data.settings.maxPlayers,
+    inProgress: inProgress(data),
+    joinable: isJoinable(data),
+  };
 }
 
 /** Everything in `welcome` except the canvas, which the driver's canvas store supplies. */

@@ -2,16 +2,16 @@
  * The pure game engine: `applyAction(data, action, ctx)` computes the next RoomData and the
  * effects a driver must execute. It never mutates its input and is deterministic given `ctx`.
  */
-import type { Action, ActionResult, Ctx, EngineMessage } from './actions';
-import { chat } from './chat';
-import type { Effect } from './effects';
-import { rate, returnToLobby, start, updateProfile, updateSettings } from './lobby';
-import type { Cx } from './messaging';
-import { everyoneGuessed, findPlayer } from './players';
-import { connectionClosed, create, expireSeat, join, kick, leave, rejoin, voteKick } from './seats';
-import type { RoomData } from './state';
-import { nextDue, type Deadline } from './time';
-import { beginNextTurn, chooseTimedOut, chooseWord, endTurn, ensureEnoughPlayers, resumeHeldTurn, revealHint, systemMessageForDrawerGone } from './turns';
+import type { Action, ActionResult, Ctx, EngineMessage } from './actions.js';
+import { chat } from './chat.js';
+import type { Effect } from './effects.js';
+import { rate, returnToLobby, start, updateProfile, updateSettings } from './lobby.js';
+import type { Cx } from './messaging.js';
+import { everyoneGuessed, findPlayer } from './players.js';
+import { connectionClosed, create, expireSeat, join, kick, leave, rejoin, voteKick } from './seats.js';
+import type { RoomData } from './state.js';
+import { nextDue, type Deadline } from './time.js';
+import { beginNextTurn, chooseTimedOut, chooseWord, endTurn, ensureEnoughPlayers, resumeHeldTurn, revealHint, systemMessageForDrawerGone } from './turns.js';
 
 export interface ApplyResult {
   /** The input object itself when nothing changed, so drivers can skip the write. */

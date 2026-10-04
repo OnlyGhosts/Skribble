@@ -1,10 +1,11 @@
-import type { Avatar } from '../../shared/avatar';
-import type { RoomPreview } from '../../shared/protocol';
-import { normalizeRoomCode } from '../../shared/roomCode';
-import type { Room, RoomMessage } from '../room';
-import { RoomManager, type RoomManagerDeps } from '../roomManager';
-import { SocketHub } from './socketHub';
-import type { DriverHealth, GameDriver, LookupResult, Seat, SeatResult, SocketLike } from './types';
+import type { Avatar } from '../../shared/avatar.js';
+import type { RoomPreview } from '../../shared/protocol.js';
+import { normalizeRoomCode } from '../../shared/roomCode.js';
+import { previewOf } from '../engine/view.js';
+import type { RoomMessage } from '../room.js';
+import { RoomManager, type RoomManagerDeps } from '../roomManager.js';
+import { SocketHub } from './socketHub.js';
+import type { DriverHealth, GameDriver, LookupResult, Seat, SeatResult, SocketLike } from './types.js';
 
 export type MemoryDriverOptions = Omit<RoomManagerDeps, 'transport'>;
 
@@ -86,7 +87,7 @@ export class MemoryDriver implements GameDriver {
   preview(code: string): RoomPreview {
     const found = this.rooms.lookup(code);
     if (!found.ok) return { exists: false, code: normalizeRoomCode(code), reason: found.code };
-    return previewOf(found.room);
+    return previewOf(found.room.state);
   }
 
   health(): DriverHealth {
@@ -96,15 +97,4 @@ export class MemoryDriver implements GameDriver {
   async shutdown(): Promise<void> {
     this.rooms.destroy();
   }
-}
-
-function previewOf(room: Room): RoomPreview {
-  return {
-    exists: true,
-    code: room.code,
-    players: room.playerCount,
-    maxPlayers: room.settings.maxPlayers,
-    inProgress: room.inProgress,
-    joinable: room.isJoinable,
-  };
 }

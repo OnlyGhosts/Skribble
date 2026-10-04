@@ -1,5 +1,5 @@
-import { RECONNECT_GRACE_MS } from '../../shared/constants';
-import type { RoomData } from './state';
+import { RECONNECT_GRACE_MS } from '../../shared/constants.js';
+import type { RoomData } from './state.js';
 
 export type Deadline =
   | { kind: 'choose'; at: number }

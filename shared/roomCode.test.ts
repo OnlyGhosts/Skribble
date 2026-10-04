@@ -6,7 +6,7 @@ import {
   generateRoomCode,
   isValidRoomCode,
   normalizeRoomCode,
-} from './roomCode';
+} from './roomCode.js';
 
 describe('room codes', () => {
   it('alphabet has no look-alike glyphs', () => {

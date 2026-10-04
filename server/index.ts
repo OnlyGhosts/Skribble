@@ -1,6 +1,6 @@
-import { WS_PATH } from '../shared/protocol';
-import { createApp } from './app';
-import { createDriverFromEnv } from './drivers/select';
+import { WS_PATH } from '../shared/protocol.js';
+import { createApp } from './app.js';
+import { createDriverFromEnv } from './drivers/select.js';
 
 /**
  * Standalone entry (`npm start`, the Dockerfile, `npm run dev`): one process serving the client,

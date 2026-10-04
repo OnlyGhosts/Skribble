@@ -1,12 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import type { WebSocket } from 'ws';
-import { CHAT_RATE_LIMIT_COUNT, CHAT_RATE_LIMIT_WINDOW_MS } from '../shared/constants';
-import { CLOSE_REMOVED, CLOSE_REPLACED, clientMessageSchema, type ClientMessage, type ServerMessage } from '../shared/protocol';
-import { SerialQueue } from './drivers/serial';
-import { after, sendTo, type GameDriver, type MaybePromise, type Seat, type SeatResult, type SocketLike } from './drivers/types';
-import { RateLimiter } from './rateLimiter';
-import type { RoomMessage } from './room';
-import { systemClock, type Clock } from './transport';
+import { CHAT_RATE_LIMIT_COUNT, CHAT_RATE_LIMIT_WINDOW_MS } from '../shared/constants.js';
+import { CLOSE_REMOVED, CLOSE_REPLACED, clientMessageSchema, type ClientMessage, type ServerMessage } from '../shared/protocol.js';
+import { SerialQueue } from './drivers/serial.js';
+import { after, sendTo, type GameDriver, type MaybePromise, type Seat, type SeatResult, type SocketLike } from './drivers/types.js';
+import { RateLimiter } from './rateLimiter.js';
+import type { RoomMessage } from './room.js';
+import { systemClock, type Clock } from './transport.js';
 
 export const HEARTBEAT_INTERVAL_MS = 30_000;
 /** Draw batches above this rate (per socket, per second) are dropped silently. */
@@ -19,7 +19,7 @@ export const ROOM_RATE_LIMIT_COUNT = 5;
 export const ROOM_RATE_LIMIT_WINDOW_MS = 10_000;
 
 export { CLOSE_REMOVED, CLOSE_REPLACED };
-export { SocketHub } from './drivers/socketHub';
+export { SocketHub } from './drivers/socketHub.js';
 export type { SocketLike };
 
 export interface ConnectionDeps {
@@ -163,10 +163,21 @@ export function handleConnection(ws: SocketLike, deps: ConnectionDeps): string {
 
   ws.on('close', () => {
     clearInterval(heartbeat);
-    const s = seat;
-    seat = null;
-    // Runs after any message still in flight, so a seat taken a moment ago is released too.
-    queue.push(() => after(s ? driver.disconnected(s, connectionId) : undefined, () => driver.unregister(connectionId)));
+    // Queued, and the seat read only then: a join the driver was still answering has seated the socket by the time this runs.
+    queue.push(() => {
+      const s = seat;
+      seat = null;
+      const unregister = (): void => driver.unregister(connectionId);
+      let out: MaybePromise<void>;
+      try {
+        out = s ? driver.disconnected(s, connectionId) : undefined;
+      } catch (err) {
+        unregister();
+        throw err;
+      }
+      if (out instanceof Promise) return out.finally(unregister);
+      unregister();
+    });
   });
 
   return connectionId;

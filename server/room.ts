@@ -1,16 +1,15 @@
-import { randomBytes, randomUUID } from 'node:crypto';
-import type { Avatar } from '../shared/avatar';
-import type { CanvasAction, ClientMessage, DrawOp, ErrorCode, RoomState, ServerMessage } from '../shared/protocol';
-import { MemoryCanvasStore, type CanvasStore } from './canvasStore';
-import type { Action, ActionResult, Ctx } from './engine/actions';
-import { resolveRecipients, type Effect } from './engine/effects';
-import { canDraw, connectedIds, findPlayer, inProgress, isDrawer, isFull, isJoinable, sortedPlayers } from './engine/players';
-import { applyAction } from './engine/reduce';
-import { createRoomData, type PhaseData, type RoomData } from './engine/state';
-import { nextDeadline } from './engine/time';
-import { viewFor } from './engine/view';
-import { Player } from './player';
-import { systemClock, type Clock, type Rng, type Transport } from './transport';
+import type { Avatar } from '../shared/avatar.js';
+import type { CanvasAction, ClientMessage, DrawOp, ErrorCode, RoomState, ServerMessage } from '../shared/protocol.js';
+import { CANVAS_RESYNC_DEBOUNCE_MS, MemoryCanvasStore, type CanvasStore } from './canvasStore.js';
+import type { Action, ActionResult } from './engine/actions.js';
+import { resolveRecipients, type Effect } from './engine/effects.js';
+import { NOT_DRAWER_MESSAGE, canDraw, connectedIds, drawerCheck, findPlayer, inProgress, isFull, isJoinable, sortedPlayers } from './engine/players.js';
+import { applyAction } from './engine/reduce.js';
+import { createRoomData, type PhaseData, type RoomData } from './engine/state.js';
+import { nextDeadline } from './engine/time.js';
+import { viewFor } from './engine/view.js';
+import { Player } from './player.js';
+import { productionCtx, systemClock, type Clock, type Rng, type Transport } from './transport.js';
 
 /** Messages the connection layer hands to the room (session-level ones are handled before). */
 export type RoomMessage = Exclude<ClientMessage, { t: 'create' | 'join' | 'rejoin' | 'leave' | 'ping' }>;
@@ -31,8 +30,6 @@ export interface RoomDeps {
 
 type Timer = ReturnType<typeof setTimeout>;
 
-/** How long truncated draw ops are batched before the drawer gets a full canvas resync. */
-const CANVAS_RESYNC_DEBOUNCE_MS = 1000;
 
 /**
  * One game room in a single process: a thin driver over the pure engine. It owns the RoomData
@@ -202,13 +199,7 @@ export class Room {
   /** Applies one action, then runs its effects, re-arms the timer and reports emptiness. */
   private dispatch(action: Action, beforeEffects?: (playerId: string) => void): ActionResult {
     const before = this.data;
-    const ctx: Ctx = {
-      now: this.clock.now(),
-      rng: this.rng,
-      newId: () => randomUUID(),
-      newToken: () => randomBytes(16).toString('hex'),
-    };
-    const { data, effects, result } = applyAction(before, action, ctx);
+    const { data, effects, result } = applyAction(before, action, productionCtx(this.clock, this.rng));
     this.data = data;
     if (result.ok && result.playerId !== null) beforeEffects?.(result.playerId);
     for (const id of [...this.handles.keys()]) if (!findPlayer(data, id)) this.handles.delete(id);
@@ -277,12 +268,9 @@ export class Room {
   // ---------------------------------------------------------------------------
 
   private requireDrawer(playerId: string): boolean {
-    if (canDraw(this.data, playerId, this.clock.now())) return true;
-    // Ops the drawer had in flight when their turn ended are expected; only strangers get an error.
-    if (!isDrawer(this.data, playerId)) {
-      this.transport.send(playerId, { t: 'error', code: 'NOT_ALLOWED', message: 'Only the drawer can draw right now.' });
-    }
-    return false;
+    const check = drawerCheck(this.data, playerId, this.clock.now());
+    if (check === 'forbidden') this.transport.send(playerId, { t: 'error', code: 'NOT_ALLOWED', message: NOT_DRAWER_MESSAGE });
+    return check === 'ok';
   }
 
   private draw(playerId: string, ops: DrawOp[]): void {

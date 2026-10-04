@@ -1,6 +1,6 @@
-import { CLOSE_REPLACED, type ServerMessage } from '../../shared/protocol';
-import type { Transport } from '../transport';
-import { sendTo, type SocketLike } from './types';
+import { CLOSE_REPLACED, type ServerMessage } from '../../shared/protocol.js';
+import type { Transport } from '../transport.js';
+import { sendTo, type SocketLike } from './types.js';
 
 /** Maps player seats to live sockets in one process. The in-memory driver's `Transport`. */
 export class SocketHub implements Transport {

@@ -10,9 +10,9 @@
  * `welcome` with the snapshot, the full canvas history and recent chat.
  */
 import { z } from 'zod';
-import { avatarSchema, type Avatar } from './avatar';
-import { roomSettingsPatchSchema, type RoomSettings } from './settings';
-import { CHAT_MAX_LENGTH, NAME_MAX_LENGTH, NAME_MIN_LENGTH } from './constants';
+import { avatarSchema, type Avatar } from './avatar.js';
+import { roomSettingsPatchSchema, type RoomSettings } from './settings.js';
+import { CHAT_MAX_LENGTH, NAME_MAX_LENGTH, NAME_MIN_LENGTH } from './constants.js';
 
 // ---------------------------------------------------------------------------
 // Primitives

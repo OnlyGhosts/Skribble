@@ -1,11 +1,11 @@
 /** Lobby actions (settings, profile, start, back to lobby) and drawing ratings. */
-import type { Avatar } from '../../shared/avatar';
-import { MIN_PLAYERS_TO_START } from '../../shared/constants';
-import { applySettingsPatch, type RoomSettingsPatch } from '../../shared/settings';
-import { broadcastSnapshot, fail, requireHost, requirePhase, systemMessage, type Cx } from './messaging';
-import { connectedCount, findPlayer, sortedPlayers } from './players';
-import type { Rating } from './state';
-import { beginNextTurn, resetForGame, resetToLobby } from './turns';
+import type { Avatar } from '../../shared/avatar.js';
+import { MIN_PLAYERS_TO_START } from '../../shared/constants.js';
+import { applySettingsPatch, type RoomSettingsPatch } from '../../shared/settings.js';
+import { broadcastSnapshot, fail, requireHost, requirePhase, systemMessage, type Cx } from './messaging.js';
+import { connectedCount, findPlayer, sortedPlayers } from './players.js';
+import type { Rating } from './state.js';
+import { beginNextTurn, resetForGame, resetToLobby } from './turns.js';
 
 export function updateSettings(cx: Cx, playerId: string, patch: RoomSettingsPatch): void {
   if (!requireHost(cx, playerId) || !requirePhase(cx, playerId, 'lobby', 'Settings can only be changed in the lobby.')) return;

@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { EMPTY_ROOM_TTL_MS, RECONNECT_GRACE_MS } from '../shared/constants';
-import { ROOM_CODE_LENGTH, isValidRoomCode } from '../shared/roomCode';
-import { MAX_ROOMS, RoomManager } from './roomManager';
-import type { Player } from './player';
-import type { Room } from './room';
-import { AVATAR, FakeTransport } from './testUtils';
+import { EMPTY_ROOM_TTL_MS, RECONNECT_GRACE_MS } from '../shared/constants.js';
+import { ROOM_CODE_LENGTH, isValidRoomCode } from '../shared/roomCode.js';
+import { MAX_ROOMS, RoomManager } from './roomManager.js';
+import type { Player } from './player.js';
+import type { Room } from './room.js';
+import { AVATAR, FakeTransport } from './testUtils.js';
 
 beforeEach(() => {
   vi.useFakeTimers();

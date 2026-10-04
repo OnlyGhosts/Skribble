@@ -6,9 +6,9 @@
  * Everything the game needs lives here except the canvas ops (see CanvasStore): deadlines are
  * epoch ms, so no timers are needed; the driver asks `nextDeadline(data)` when to tick next.
  */
-import type { Avatar } from '../../shared/avatar';
-import type { ChatMessage, Phase, TurnEndReason } from '../../shared/protocol';
-import { DEFAULT_SETTINGS, type RoomSettings } from '../../shared/settings';
+import type { Avatar } from '../../shared/avatar.js';
+import type { ChatMessage, Phase, TurnEndReason } from '../../shared/protocol.js';
+import { DEFAULT_SETTINGS, type RoomSettings } from '../../shared/settings.js';
 
 export type Rating = 'like' | 'dislike';
 
@@ -97,8 +97,6 @@ export interface RoomData {
   nextJoinOrder: number;
   /** In join order. */
   players: PlayerData[];
-  /** Tokens of kicked players (most recent last, capped); they can never rejoin. */
-  kickedTokens: string[];
   phase: PhaseData;
   turn: TurnData | null;
   /** Identifies the current canvas: bumped whenever the canvas is reset (turn start, lobby reset). */
@@ -117,8 +115,6 @@ export interface RoomData {
   grace: GraceDeadlines;
 }
 
-export const MAX_KICKED_TOKENS = 100;
-
 export function createRoomData(code: string, now: number): RoomData {
   return {
     code,
@@ -130,7 +126,6 @@ export function createRoomData(code: string, now: number): RoomData {
     returningHostId: null,
     nextJoinOrder: 0,
     players: [],
-    kickedTokens: [],
     phase: { kind: 'lobby' },
     turn: null,
     turnId: 0,

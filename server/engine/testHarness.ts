@@ -1,10 +1,10 @@
 /** Deterministic helpers for engine tests: counter-based ids, rng () => 0, explicit clocks. */
 import { expect } from 'vitest';
-import type { Avatar } from '../../shared/avatar';
-import type { Action, Ctx } from './actions';
-import type { Effect } from './effects';
-import { applyAction } from './reduce';
-import { createRoomData, type RoomData } from './state';
+import type { Avatar } from '../../shared/avatar.js';
+import type { Action, Ctx } from './actions.js';
+import type { Effect } from './effects.js';
+import { applyAction } from './reduce.js';
+import { createRoomData, type RoomData } from './state.js';
 
 export const START = new Date('2026-01-01T12:00:00Z').getTime();
 export const AVATAR: Avatar = { color: 0, emoji: 0 };

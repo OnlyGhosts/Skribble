@@ -1,6 +1,6 @@
-import type { Avatar } from '../../shared/avatar';
-import type { ErrorCode, RoomPreview, ServerMessage } from '../../shared/protocol';
-import type { RoomMessage } from '../room';
+import type { Avatar } from '../../shared/avatar.js';
+import type { ErrorCode, RoomPreview, ServerMessage } from '../../shared/protocol.js';
+import type { RoomMessage } from '../room.js';
 
 /**
  * Drivers may answer synchronously (in-memory) or asynchronously (Redis). The connection layer

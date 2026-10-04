@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { compactGuess, containsWord, isCloseGuess, isCorrectGuess, levenshtein, normalizeGuess } from './guess';
+import { compactGuess, containsWord, isCloseGuess, isCorrectGuess, levenshtein, normalizeGuess } from './guess.js';
 
 describe('normalizeGuess', () => {
   it('lower-cases, trims, strips diacritics and punctuation, collapses whitespace', () => {

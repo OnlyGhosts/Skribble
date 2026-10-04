@@ -1,4 +1,4 @@
-import type { MaybePromise } from './types';
+import type { MaybePromise } from './types.js';
 
 /**
  * Runs tasks one after another. A task that finishes synchronously runs inline (so the in-memory
@@ -9,10 +9,6 @@ export class SerialQueue {
   private tail: Promise<void> | null = null;
 
   constructor(private readonly onError: (err: unknown) => void) {}
-
-  get busy(): boolean {
-    return this.tail !== null;
-  }
 
   push(task: () => MaybePromise<void>): void {
     if (this.tail) {
@@ -27,11 +23,6 @@ export class SerialQueue {
       return;
     }
     if (out instanceof Promise) this.track(out.catch(this.onError));
-  }
-
-  /** Resolves once every queued task has finished. */
-  idle(): Promise<void> {
-    return this.tail ?? Promise.resolve();
   }
 
   private track(p: Promise<void>): void {

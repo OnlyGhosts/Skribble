@@ -1,17 +1,14 @@
-import { MAX_ACTIONS_PER_TURN, MAX_POINTS_PER_STROKE, MAX_POINTS_PER_TURN } from '../shared/constants';
-import type { CanvasAction, DrawOp } from '../shared/protocol';
+import { MAX_ACTIONS_PER_TURN, MAX_POINTS_PER_STROKE, MAX_POINTS_PER_TURN } from '../shared/constants.js';
+import type { CanvasAction, DrawOp } from '../shared/protocol.js';
+
+/** How long truncated draw ops are batched before the drawer gets a full canvas resync. */
+export const CANVAS_RESYNC_DEBOUNCE_MS = 1000;
 
 export interface AppendResult {
   /** The ops to forward to viewers: dropped ops are missing, oversized moves are cut short. */
   accepted: DrawOp[];
   /** True when something the drawer drew locally did not make it into the history (an 'end' for an unknown stroke is not a loss). */
   truncated: boolean;
-}
-
-export interface CanvasStats {
-  actions: number;
-  /** Flat coordinate numbers across every stroke. */
-  points: number;
 }
 
 /**
@@ -25,7 +22,6 @@ export interface CanvasStore {
   clear(): void;
   /** Deep copies, safe to send. */
   all(): CanvasAction[];
-  stats(): CanvasStats;
 }
 
 /**
@@ -77,6 +73,21 @@ export function admitOp(op: DrawOp, counts: CanvasCounts): DrawOp | null {
   }
 }
 
+/** Runs a batch through `admitOp`, handing each kept op to `onAccept`; the single source of the truncation rule. */
+export function admitAll(ops: readonly DrawOp[], counts: CanvasCounts, onAccept: (kept: DrawOp) => void): AppendResult {
+  const accepted: DrawOp[] = [];
+  let truncated = false;
+  for (const op of ops) {
+    const kept = admitOp(op, counts);
+    if (kept) {
+      onAccept(kept);
+      accepted.push(kept);
+    }
+    if (kept !== op && op.k !== 'end') truncated = true;
+  }
+  return { accepted, truncated };
+}
+
 /** True for the ops that begin a new canvas action. */
 export function startsAction(op: DrawOp): boolean {
   return op.k === 'start' || op.k === 'fill';
@@ -90,17 +101,7 @@ export class MemoryCanvasStore implements CanvasStore {
   private counts = emptyCounts();
 
   append(ops: readonly DrawOp[]): AppendResult {
-    const accepted: DrawOp[] = [];
-    let truncated = false;
-    for (const op of ops) {
-      const kept = admitOp(op, this.counts);
-      if (kept) {
-        this.apply(kept);
-        accepted.push(kept);
-      }
-      if (kept !== op && op.k !== 'end') truncated = true;
-    }
-    return { accepted, truncated };
+    return admitAll(ops, this.counts, (kept) => this.apply(kept));
   }
 
   undo(): CanvasAction | null {
@@ -123,10 +124,6 @@ export class MemoryCanvasStore implements CanvasStore {
 
   all(): CanvasAction[] {
     return this.actions.map((a) => (a.kind === 'stroke' ? { ...a, points: [...a.points] } : { ...a }));
-  }
-
-  stats(): CanvasStats {
-    return { actions: this.counts.actions, points: this.counts.points };
   }
 
   /** Folds an already admitted op into the action list. */

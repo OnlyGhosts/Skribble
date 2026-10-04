@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { PlayerData } from './engine/state';
-import { publicPlayer } from './engine/view';
-import { Player } from './player';
+import type { PlayerData } from './engine/state.js';
+import { publicPlayer } from './engine/view.js';
+import { Player } from './player.js';
 
 function record(overrides: Partial<PlayerData> = {}): PlayerData {
   return {

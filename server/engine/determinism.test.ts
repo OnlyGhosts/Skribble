@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import type { Action } from './actions';
-import { applyAction } from './reduce';
-import type { RoomData } from './state';
-import { AVATAR, Ids, START, ctxAt, sim, startGame } from './testHarness';
+import type { Action } from './actions.js';
+import { applyAction } from './reduce.js';
+import type { RoomData } from './state.js';
+import { AVATAR, Ids, START, ctxAt, sim, startGame } from './testHarness.js';
 
 function deepFreeze<T>(value: T): T {
   if (typeof value === 'object' && value !== null) {

@@ -5,7 +5,7 @@ import {
   MAX_POINTS_PER_STROKE,
   MAX_POINTS_PER_TURN,
   MAX_WS_MESSAGE_BYTES,
-} from './constants';
+} from './constants.js';
 
 describe('canvas caps', () => {
   it('bound the whole canvas, not just one stroke', () => {

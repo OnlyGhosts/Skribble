@@ -1,5 +1,5 @@
-import { EN_WORDS } from './en';
-import type { Language } from '../settings';
+import { EN_WORDS } from './en.js';
+import type { Language } from '../settings.js';
 
 function dedupe(list: string[]): string[] {
   const seen = new Set<string>();

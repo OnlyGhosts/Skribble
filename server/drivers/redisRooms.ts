@@ -1,16 +1,53 @@
 import type { Redis } from 'ioredis';
-import type { Action, ActionResult, Ctx } from '../engine/actions';
-import type { Effect } from '../engine/effects';
-import { findPlayer } from '../engine/players';
-import { applyAction } from '../engine/reduce';
-import { createRoomData, type RoomData } from '../engine/state';
-import { ROOM_KEY_PATTERN, ROOM_TTL_MS, canvasKey, canvasMetaKey, presenceKey, roomChannel, roomKey, type RoomChannelMessage } from './redisKeys';
-import type { AsyncLock } from './serial';
+import type { Action, ActionResult, Ctx } from '../engine/actions.js';
+import type { Effect } from '../engine/effects.js';
+import { findPlayer } from '../engine/players.js';
+import { applyAction } from '../engine/reduce.js';
+import { createRoomData, type RoomData } from '../engine/state.js';
+import { CasScript, retryCas } from './redisCas.js';
+import {
+  CANVAS_TURN_FIELD,
+  ROOM_KEY_PATTERN,
+  ROOM_TTL_MS,
+  canvasKey,
+  canvasMetaKey,
+  canvasSeqKey,
+  presenceKey,
+  roomChannel,
+  roomKey,
+  type RoomChannelMessage,
+} from './redisKeys.js';
+import type { AsyncLock } from './serial.js';
 
-/** Concurrent writers (other instances) make EXEC fail; each retry re-reads the room. */
-const MAX_CAS_RETRIES = 5;
 /** SCAN iterations the health endpoint is willing to spend. */
 const MAX_SCAN_ITERATIONS = 50;
+
+/**
+ * Writes a room only if it still reads as it did when the action was applied (a missing key reads
+ * as ''). KEYS: room, canvas list, canvas meta, canvas seq, the seated player's presence key (or
+ * '' when nobody was seated), then the presence keys of removed players. ARGV: expected value,
+ * 'set' | 'destroy', new value, room TTL, turnId of a reset canvas (or ''), seated connection id
+ * (or ''), presence TTL.
+ */
+const WRITE_ROOM = `
+local current = redis.call('GET', KEYS[1]) or ''
+if current ~= ARGV[1] then return 0 end
+if ARGV[2] == 'destroy' then
+  redis.call('DEL', KEYS[1], KEYS[2], KEYS[3], KEYS[4])
+else
+  redis.call('SET', KEYS[1], ARGV[3], 'PX', ARGV[4])
+  if ARGV[5] ~= '' then
+    redis.call('DEL', KEYS[2], KEYS[3])
+    redis.call('HSET', KEYS[3], '${CANVAS_TURN_FIELD}', ARGV[5])
+    redis.call('PEXPIRE', KEYS[3], ARGV[4])
+    redis.call('INCR', KEYS[4])
+    redis.call('PEXPIRE', KEYS[4], ARGV[4])
+  end
+end
+if ARGV[6] ~= '' then redis.call('SET', KEYS[5], ARGV[6], 'PX', ARGV[7]) end
+for i = 6, #KEYS do redis.call('DEL', KEYS[i]) end
+return 1
+`;
 
 export interface DispatchOptions {
   /** Start from a fresh room when the key is missing (room creation). */
@@ -23,7 +60,7 @@ export interface DispatchOptions {
 }
 
 export type Dispatched =
-  | { ok: true; data: RoomData; effects: Effect[]; result: ActionResult; destroyed: boolean }
+  | { ok: true; data: RoomData; effects: Effect[]; result: ActionResult }
   | { ok: false; code: 'ROOM_NOT_FOUND'; message: string };
 
 export interface RoomCount {
@@ -32,18 +69,21 @@ export interface RoomCount {
 }
 
 /**
- * RoomData in Redis with optimistic concurrency: every action is applied to the version just
- * read and written back inside WATCH/MULTI/EXEC, so instances never overwrite each other. All
- * writes go through one dedicated connection guarded by `lock` (WATCH is per connection).
+ * RoomData in Redis with optimistic concurrency: every action is applied to the version just read
+ * and written back by a compare-and-set on that very value, so instances never overwrite each
+ * other. `lock` serialises this instance's own writes so they do not conflict with one another.
  */
 export class RedisRooms {
+  private readonly write: CasScript;
+
   constructor(
     private readonly redis: Redis,
-    private readonly tx: Redis,
     private readonly lock: AsyncLock,
     private readonly ctx: () => Ctx,
     private readonly presenceTtlMs: number,
-  ) {}
+  ) {
+    this.write = new CasScript(redis, WRITE_ROOM);
+  }
 
   async read(code: string): Promise<RoomData | null> {
     const raw = await this.redis.get(roomKey(code));
@@ -55,23 +95,24 @@ export class RedisRooms {
   }
 
   dispatch(code: string, action: Action, options: DispatchOptions = {}): Promise<Dispatched> {
-    return this.lock.run(async () => {
-      for (let attempt = 0; ; attempt++) {
-        const out = await this.attempt(code, action, options);
-        if (out !== 'conflict') return out;
-        if (attempt >= MAX_CAS_RETRIES) throw new Error(`room ${code}: gave up after ${attempt} concurrent writes`);
-        await sleep(5 + Math.random() * 20);
-      }
-    });
+    return this.lock.run(() => retryCas(`room ${code}`, () => this.attempt(code, action, options)));
   }
 
   publish(code: string, msg: RoomChannelMessage): Promise<number> {
     return this.redis.publish(roomChannel(code), JSON.stringify(msg));
   }
 
-  /** Marks the player's connection alive for another presence TTL. */
+  /**
+   * Marks the player's connection alive for another presence TTL. The room's own keys are only
+   * written by actions, so an idle room with connected players is kept alive from here too.
+   */
   async touch(code: string, playerId: string, connectionId: string): Promise<void> {
-    await this.redis.set(presenceKey(code, playerId), connectionId, 'PX', this.presenceTtlMs);
+    await this.redis
+      .pipeline()
+      .set(presenceKey(code, playerId), connectionId, 'PX', this.presenceTtlMs)
+      .pexpire(roomKey(code), ROOM_TTL_MS)
+      .pexpire(canvasSeqKey(code), ROOM_TTL_MS)
+      .exec();
   }
 
   /** The connection id stored for each player's presence, null where it expired. */
@@ -95,58 +136,40 @@ export class RedisRooms {
 
   private async attempt(code: string, action: Action, options: DispatchOptions): Promise<Dispatched | 'conflict'> {
     const key = roomKey(code);
-    await this.tx.watch(key);
-    try {
-      const raw = await this.tx.get(key);
-      const ctx = this.ctx();
-      let before: RoomData;
-      if (raw === null) {
-        if (!options.createIfMissing) {
-          await this.tx.unwatch();
-          return { ok: false, code: 'ROOM_NOT_FOUND', message: `No room with code ${code} exists.` };
-        }
-        before = createRoomData(code, ctx.now);
-      } else {
-        before = JSON.parse(raw) as RoomData;
-      }
-      const { data, effects, result } = applyAction(before, action, ctx);
-      const destroyed = effects.some((e) => e.type === 'destroy');
-      const clearCanvas = effects.some((e) => e.type === 'canvas');
-      const isSeat = action.type === 'create' || action.type === 'join' || action.type === 'rejoin';
-      const seated = isSeat && result.ok && result.playerId !== null ? { playerId: result.playerId, connectionId: action.connectionId } : null;
-      const removed = before.players.filter((p) => !findPlayer(data, p.id)).map((p) => p.id);
-      const changed = data !== before || raw === null;
-      const message: RoomChannelMessage = { kind: 'effects', version: data.version, data, effects };
-
-      if (!changed && !destroyed && !clearCanvas && seated === null && removed.length === 0) {
-        await this.tx.unwatch();
-        options.onApplied?.(data, result);
-        if (effects.length > 0) await this.publish(code, message);
-        return { ok: true, data, effects, result, destroyed };
-      }
-
-      const multi = this.tx.multi();
-      if (destroyed) {
-        multi.del(key, canvasKey(code), canvasMetaKey(code));
-      } else {
-        multi.set(key, JSON.stringify(data), 'PX', ROOM_TTL_MS);
-        if (clearCanvas) multi.del(canvasKey(code), canvasMetaKey(code));
-      }
-      // Presence is written in the same transaction as the seat, so a connected player always has a key until it expires.
-      if (seated) multi.set(presenceKey(code, seated.playerId), seated.connectionId, 'PX', this.presenceTtlMs);
-      for (const id of removed) multi.del(presenceKey(code, id));
-      const res = await multi.exec();
-      if (res === null) return 'conflict';
-      options.onApplied?.(data, result);
-      await this.publish(code, message);
-      return { ok: true, data, effects, result, destroyed };
-    } catch (err) {
-      await this.tx.unwatch().catch(() => undefined);
-      throw err;
+    const raw = await this.redis.get(key);
+    const ctx = this.ctx();
+    let before: RoomData;
+    if (raw === null) {
+      if (!options.createIfMissing) return { ok: false, code: 'ROOM_NOT_FOUND', message: `No room with code ${code} exists.` };
+      before = createRoomData(code, ctx.now);
+    } else {
+      before = JSON.parse(raw) as RoomData;
     }
-  }
-}
+    const { data, effects, result } = applyAction(before, action, ctx);
+    const destroyed = effects.some((e) => e.type === 'destroy');
+    const clearCanvas = effects.some((e) => e.type === 'canvas');
+    const isSeat = action.type === 'create' || action.type === 'join' || action.type === 'rejoin';
+    const seated = isSeat && result.ok && result.playerId !== null ? { playerId: result.playerId, connectionId: action.connectionId } : null;
+    const removed = before.players.filter((p) => !findPlayer(data, p.id)).map((p) => p.id);
+    const changed = data !== before || raw === null;
+    const message: RoomChannelMessage = { kind: 'effects', version: data.version, data, effects };
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+    if (changed || destroyed || clearCanvas || seated !== null || removed.length > 0) {
+      const json = JSON.stringify(data);
+      const committed = await this.write.run(
+        [key, canvasKey(code), canvasMetaKey(code), canvasSeqKey(code), seated ? presenceKey(code, seated.playerId) : '', ...removed.map((id) => presenceKey(code, id))],
+        [raw ?? '', destroyed ? 'destroy' : 'set', json, ROOM_TTL_MS, clearCanvas ? data.turnId : '', seated?.connectionId ?? '', this.presenceTtlMs],
+      );
+      // A reply lost to a reconnect makes ioredis replay the script, which then fails against its own
+      // write: re-read before retrying, or the action would be applied twice.
+      if (committed !== 1 && !(await this.landed(key, destroyed ? null : json))) return 'conflict';
+    }
+    options.onApplied?.(data, result);
+    if (changed || effects.length > 0) await this.publish(code, message);
+    return { ok: true, data, effects, result };
+  }
+
+  private async landed(key: string, expected: string | null): Promise<boolean> {
+    return (await this.redis.get(key)) === expected;
+  }
 }

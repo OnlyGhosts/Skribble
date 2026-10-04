@@ -1,6 +1,6 @@
-import { MemoryDriver } from './memory';
-import { RedisDriver } from './redis';
-import type { GameDriver } from './types';
+import { MemoryDriver } from './memory.js';
+import { RedisDriver } from './redis.js';
+import type { GameDriver } from './types.js';
 
 /** Vercel Marketplace Redis injects REDIS_URL; some providers call it KV_URL. */
 export function redisUrlFromEnv(env: NodeJS.ProcessEnv = process.env): string | null {

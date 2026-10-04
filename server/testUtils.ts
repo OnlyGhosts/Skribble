@@ -1,9 +1,9 @@
 import { expect } from 'vitest';
-import type { Avatar } from '../shared/avatar';
-import type { Phase, ServerMessage, ServerMessageOf } from '../shared/protocol';
-import type { Player } from './player';
-import { Room, type RoomDeps } from './room';
-import type { Rng, Transport } from './transport';
+import type { Avatar } from '../shared/avatar.js';
+import type { Phase, ServerMessage, ServerMessageOf } from '../shared/protocol.js';
+import type { Player } from './player.js';
+import { Room, type RoomDeps } from './room.js';
+import type { Rng, Transport } from './transport.js';
 
 /** Records everything a room sends, per player, as deep copies taken at send time. */
 export class FakeTransport implements Transport {

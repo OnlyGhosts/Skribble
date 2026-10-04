@@ -1,9 +1,9 @@
-import type { Avatar } from '../shared/avatar';
-import type { ErrorCode } from '../shared/protocol';
-import { generateRoomCode, isValidRoomCode, normalizeRoomCode, roomCodeHint } from '../shared/roomCode';
-import type { Player } from './player';
-import { Room } from './room';
-import { systemClock, type Clock, type Rng, type Transport } from './transport';
+import type { Avatar } from '../shared/avatar.js';
+import type { ErrorCode } from '../shared/protocol.js';
+import { generateRoomCode, isValidRoomCode, normalizeRoomCode, roomCodeHint } from '../shared/roomCode.js';
+import type { Player } from './player.js';
+import { Room } from './room.js';
+import { systemClock, type Clock, type Rng, type Transport } from './transport.js';
 
 export interface RoomManagerDeps {
   transport: Transport;

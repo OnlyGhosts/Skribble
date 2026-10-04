@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { drawerPoints, guesserPoints } from './scoring';
+import { drawerPoints, guesserPoints } from './scoring.js';
 
 describe('guesserPoints', () => {
   it('scales from 400 (instant) down to 50 (last moment) and clamps out-of-range input', () => {

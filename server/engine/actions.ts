@@ -1,5 +1,5 @@
-import type { Avatar } from '../../shared/avatar';
-import type { ClientMessage, ErrorCode } from '../../shared/protocol';
+import type { Avatar } from '../../shared/avatar.js';
+import type { ClientMessage, ErrorCode } from '../../shared/protocol.js';
 
 /**
  * Messages the engine handles. Session-level ones (create/join/rejoin/leave/ping) are separate

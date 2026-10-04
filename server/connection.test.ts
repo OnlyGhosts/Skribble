@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { CHAT_RATE_LIMIT_COUNT, CHAT_RATE_LIMIT_WINDOW_MS } from '../shared/constants';
+import { CHAT_RATE_LIMIT_COUNT, CHAT_RATE_LIMIT_WINDOW_MS } from '../shared/constants.js';
 import {
   CLOSE_REMOVED,
   CLOSE_REPLACED,
@@ -9,11 +9,12 @@ import {
   ROOM_RATE_LIMIT_WINDOW_MS,
   SocketHub,
   handleConnection,
-} from './connection';
-import { MemoryDriver } from './drivers/memory';
-import { FakeSocket } from './drivers/testSocket';
-import type { RoomManager } from './roomManager';
-import { AVATAR } from './testUtils';
+} from './connection.js';
+import { MemoryDriver } from './drivers/memory.js';
+import { FakeSocket } from './drivers/testSocket.js';
+import type { GameDriver, Seat } from './drivers/types.js';
+import type { RoomManager } from './roomManager.js';
+import { AVATAR } from './testUtils.js';
 
 interface World {
   hub: SocketHub;
@@ -246,6 +247,118 @@ describe('handleConnection', () => {
     guest.receive({ t: 'create', name: 'Bob', avatar: AVATAR });
     expect(host.last('chat').message.text).toBe('Bob left');
     expect(w.rooms.stats()).toEqual({ rooms: 2, players: 2 });
+  });
+});
+
+/**
+ * A driver that answers like the Redis one: every seat operation is a promise the test settles by
+ * hand, so the ordering the connection layer must keep (join before chat, close after an in-flight
+ * join) can be exercised without Redis.
+ */
+class SlowDriver implements GameDriver {
+  readonly name = 'slow';
+  readonly calls: string[] = [];
+  readonly seats = new Map<string, string>();
+  pendingJoin: ((result: Seat) => void) | null = null;
+  // A factory, not a stored promise: an eagerly created rejected promise would be
+  // reported as unhandled before connection.ts gets a chance to catch it.
+  disconnectedResult: () => Promise<void> = () => Promise.resolve();
+
+  register(connectionId: string): void {
+    this.calls.push(`register ${connectionId}`);
+  }
+  unregister(connectionId: string): void {
+    this.calls.push(`unregister ${connectionId}`);
+  }
+  lookup(code: string): Promise<{ ok: true; code: string }> {
+    return Promise.resolve({ ok: true, code });
+  }
+  create(): never {
+    throw new Error('not used');
+  }
+  join(code: string, name: string, _avatar: unknown, connectionId: string): Promise<{ ok: true; seat: Seat }> {
+    this.calls.push(`join ${name}`);
+    return new Promise((resolve) => {
+      this.pendingJoin = (seat) => {
+        this.seats.set(seat.playerId, connectionId);
+        resolve({ ok: true, seat });
+      };
+    });
+  }
+  rejoin(): never {
+    throw new Error('not used');
+  }
+  leave(): Promise<void> {
+    return Promise.resolve();
+  }
+  disconnected(seat: Seat, connectionId: string): Promise<void> {
+    this.calls.push(`disconnected ${seat.playerId} ${connectionId}`);
+    return this.disconnectedResult();
+  }
+  handle(seat: Seat, msg: { t: string }): Promise<void> {
+    this.calls.push(`handle ${seat.playerId} ${msg.t}`);
+    return Promise.resolve();
+  }
+  holds(seat: Seat, connectionId: string): boolean {
+    return this.seats.get(seat.playerId) === connectionId;
+  }
+  heartbeat(): void {}
+  preview(): never {
+    throw new Error('not used');
+  }
+  health(): never {
+    throw new Error('not used');
+  }
+  shutdown(): Promise<void> {
+    return Promise.resolve();
+  }
+}
+
+describe('handleConnection with an asynchronous driver', () => {
+  // Promise settlement is what is under test here, not timers.
+  beforeEach(() => vi.useRealTimers());
+  const flush = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
+
+  it('delivers a chat queued behind a slow join only once the join has answered', async () => {
+    const driver = new SlowDriver();
+    const ws = new FakeSocket();
+    const connectionId = handleConnection(ws, { driver });
+    ws.receive({ t: 'join', code: 'ABCD', name: 'Bob', avatar: AVATAR });
+    ws.receive({ t: 'chat', text: 'hi' });
+    await flush();
+    expect(driver.calls).toEqual([`register ${connectionId}`, 'join Bob']);
+    expect(ws.errors()).toEqual([]);
+    driver.pendingJoin?.({ code: 'ABCD', playerId: 'p1' });
+    await flush();
+    expect(driver.calls).toEqual([`register ${connectionId}`, 'join Bob', 'handle p1 chat']);
+  });
+
+  it('releases a seat taken by a join that was still in flight when the socket closed', async () => {
+    const driver = new SlowDriver();
+    const ws = new FakeSocket();
+    const connectionId = handleConnection(ws, { driver });
+    ws.receive({ t: 'join', code: 'ABCD', name: 'Bob', avatar: AVATAR });
+    ws.close();
+    await flush();
+    driver.pendingJoin?.({ code: 'ABCD', playerId: 'p1' });
+    await flush();
+    expect(driver.calls).toEqual([`register ${connectionId}`, 'join Bob', `disconnected p1 ${connectionId}`, `unregister ${connectionId}`]);
+  });
+
+  it('unregisters the socket even when reporting the disconnect fails', async () => {
+    const driver = new SlowDriver();
+    driver.disconnectedResult = () => Promise.reject(new Error('redis down'));
+    const logs: string[] = [];
+    const ws = new FakeSocket();
+    const connectionId = handleConnection(ws, { driver, log: (m) => logs.push(m) });
+    ws.receive({ t: 'join', code: 'ABCD', name: 'Bob', avatar: AVATAR });
+    await flush();
+    driver.pendingJoin?.({ code: 'ABCD', playerId: 'p1' });
+    await flush();
+    ws.close();
+    await flush();
+    expect(driver.calls.slice(-2)).toEqual([`disconnected p1 ${connectionId}`, `unregister ${connectionId}`]);
+    expect(logs.some((l) => l.includes('redis down'))).toBe(true);
   });
 });
 

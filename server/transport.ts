@@ -1,4 +1,6 @@
-import type { ServerMessage } from '../shared/protocol';
+import { randomBytes, randomUUID } from 'node:crypto';
+import type { ServerMessage } from '../shared/protocol.js';
+import type { Ctx } from './engine/actions.js';
 
 /**
  * Delivery boundary between the game engine and the network. Rooms only ever
@@ -20,3 +22,13 @@ export interface Clock {
 export type Rng = () => number;
 
 export const systemClock: Clock = { now: () => Date.now() };
+
+/** The engine context every driver dispatches with: real ids and tokens, the driver's clock and rng. */
+export function productionCtx(clock: Clock, rng: Rng): Ctx {
+  return {
+    now: clock.now(),
+    rng,
+    newId: () => randomUUID(),
+    newToken: () => randomBytes(16).toString('hex'),
+  };
+}

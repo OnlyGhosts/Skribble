@@ -40,7 +40,7 @@ Each round, every player draws once. The drawer picks one of three words, everyo
 Vercel serves the client from its CDN and runs the game server as one Vercel Function that speaks WebSockets (public beta, available on every plan, needs Fluid compute, which is the default). Function instances come and go, so rooms live in Redis and any instance can serve any player.
 
 1. Push this repository to GitHub and open https://vercel.com/new. **Import** the repository and choose the branch to deploy.
-2. Keep the detected settings. `vercel.json` drives everything: it builds the client with `npm run build:client`, serves `dist/client`, routes `/ws` and `/api/*` to `api/server.ts` and gives that function a 300-second max duration.
+2. Keep the detected settings. `vercel.json` drives everything: it builds the client with `npm run build:client`, serves `dist/client`, routes `/ws` and `/api/*` to `api/server.ts`, gives that function a 300-second max duration and asks for Fluid compute. WebSockets need Fluid compute: it is on by default for new projects, but on a project created before April 2025 (or where it was switched off) enable it under **Settings → Functions → Fluid Compute**, otherwise `/api/*` works while every `/ws` upgrade is refused.
 3. Add a Redis store: in the project, open **Storage → Marketplace** and create a Redis (the Upstash or Redis Cloud free tier is plenty). Connect it to the project so it injects `REDIS_URL` (some providers call it `KV_URL`; both are read). Without it the function logs a loud warning and falls back to in-memory rooms, which only work while every player happens to hit the same instance.
 4. **Deploy**, then share the URL. Room links look like `https://your-project.vercel.app/XK4P`.
 

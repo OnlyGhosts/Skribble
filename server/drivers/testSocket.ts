@@ -1,7 +1,7 @@
 /** An in-memory `SocketLike` for driver and connection tests: records what the server sent. */
 import { EventEmitter } from 'node:events';
-import type { ServerMessage, ServerMessageOf } from '../../shared/protocol';
-import type { SocketLike } from './types';
+import type { ServerMessage, ServerMessageOf } from '../../shared/protocol.js';
+import type { SocketLike } from './types.js';
 
 export class FakeSocket extends EventEmitter implements SocketLike {
   readyState = 1;

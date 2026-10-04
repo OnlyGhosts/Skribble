@@ -1,10 +1,10 @@
 /** Chat and guessing: who sees what, scoring a correct guess, close-guess hints. */
-import { containsWord, isCloseGuess, isCorrectGuess } from '../../shared/guess';
-import { guesserPoints } from '../../shared/scoring';
-import { broadcastSnapshot, pushChat, sendPrivate, type Cx } from './messaging';
-import { everyoneGuessed, findPlayer } from './players';
-import type { PlayerData } from './state';
-import { endTurn } from './turns';
+import { containsWord, isCloseGuess, isCorrectGuess } from '../../shared/guess.js';
+import { guesserPoints } from '../../shared/scoring.js';
+import { broadcastSnapshot, pushChat, sendPrivate, type Cx } from './messaging.js';
+import { everyoneGuessed, findPlayer } from './players.js';
+import type { PlayerData } from './state.js';
+import { endTurn } from './turns.js';
 
 export function chat(cx: Cx, playerId: string, text: string): void {
   const { data } = cx;
