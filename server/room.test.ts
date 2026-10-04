@@ -518,7 +518,7 @@ describe('Room: canvas', () => {
     expect(forwarded).toEqual([start(1), { k: 'move', id: 1, pts: [11, 21, 12, 22] }, { k: 'end', id: 1 }, { k: 'fill', x: 5, y: 5, color: '#00ff00' }]);
     expect(h.transport.last(carol, 'draw').ops).toEqual(forwarded);
     expect(h.room.canvasHistory).toEqual([
-      { kind: 'stroke', id: 1, tool: 'brush', color: '#ff0000', size: 6, points: [10, 20, 11, 21, 12, 22] },
+      { kind: 'stroke', id: 1, tool: 'brush', color: '#ff0000', size: 6, points: [10, 20, 11, 21, 12, 22], done: true },
       { kind: 'fill', x: 5, y: 5, color: '#00ff00' },
     ]);
     // No snapshot for draw traffic.

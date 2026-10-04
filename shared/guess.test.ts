@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { containsWord, isCloseGuess, isCorrectGuess, levenshtein, normalizeGuess } from './guess';
+import { compactGuess, containsWord, isCloseGuess, isCorrectGuess, levenshtein, normalizeGuess } from './guess';
 
 describe('normalizeGuess', () => {
   it('lower-cases, trims, strips diacritics and punctuation, collapses whitespace', () => {
@@ -10,11 +10,21 @@ describe('normalizeGuess', () => {
   });
 });
 
+describe('compactGuess', () => {
+  it('drops spaces, hyphens and apostrophes after normalising', () => {
+    expect(compactGuess(" Ice-Cream's ")).toBe('icecreams');
+    expect(compactGuess('')).toBe('');
+  });
+});
+
 describe('isCorrectGuess', () => {
   it('matches ignoring case, spacing and accents but never matches empty input', () => {
     expect(isCorrectGuess('APPLE', 'apple')).toBe(true);
     expect(isCorrectGuess(' ice  cream ', 'ice cream')).toBe(true);
     expect(isCorrectGuess('cafe', 'café')).toBe(true);
+    expect(isCorrectGuess('icecream', 'ice cream')).toBe(true); // typed into letter tiles without the space
+    expect(isCorrectGuess('hot-dog', 'hot dog')).toBe(true);
+    expect(isCorrectGuess('ice cream', 'icecream')).toBe(true);
     expect(isCorrectGuess('apples', 'apple')).toBe(false);
     expect(isCorrectGuess('', 'apple')).toBe(false);
     expect(isCorrectGuess('!!!', 'apple')).toBe(false);
@@ -37,6 +47,7 @@ describe('levenshtein / isCloseGuess', () => {
     expect(isCloseGuess('elefunt', 'elephant')).toBe(false);
     expect(isCloseGuess('', 'apple')).toBe(false);
     expect(isCloseGuess('applesauce', 'apple')).toBe(false);
+    expect(isCloseGuess('icecreem', 'ice cream')).toBe(true); // separators never count as edits
   });
 });
 

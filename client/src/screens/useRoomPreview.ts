@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
+import { ROOM_PREVIEW_PATH, type RoomPreview as WirePreview } from '@shared/protocol';
 import { isValidRoomCode } from '@shared/roomCode';
 
+/** Flattened view of the wire `RoomPreview`, with safe defaults when the room does not exist. */
 export interface RoomPreview {
   exists: boolean;
   players: number;
@@ -19,14 +21,15 @@ const DEBOUNCE_MS = 250;
 
 function parsePreview(v: unknown): RoomPreview | null {
   if (typeof v !== 'object' || v === null) return null;
-  const o = v as Record<string, unknown>;
+  const o = v as Partial<WirePreview> & Record<string, unknown>;
   if (typeof o.exists !== 'boolean') return null;
+  if (!o.exists) return { exists: false, players: 0, maxPlayers: 0, inProgress: false, joinable: false };
   return {
-    exists: o.exists,
+    exists: true,
     players: typeof o.players === 'number' ? o.players : 0,
     maxPlayers: typeof o.maxPlayers === 'number' ? o.maxPlayers : 0,
     inProgress: o.inProgress === true,
-    joinable: typeof o.joinable === 'boolean' ? o.joinable : o.exists,
+    joinable: typeof o.joinable === 'boolean' ? o.joinable : true,
   };
 }
 
@@ -43,7 +46,7 @@ export function useRoomPreview(code: string): PreviewState {
     const timer = window.setTimeout(async () => {
       setState({ status: 'loading', preview: null });
       try {
-        const res = await fetch(`/api/rooms/${encodeURIComponent(code)}`, {
+        const res = await fetch(`${ROOM_PREVIEW_PATH}/${encodeURIComponent(code)}`, {
           signal: controller.signal,
           headers: { accept: 'application/json' },
         });

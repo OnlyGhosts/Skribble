@@ -34,8 +34,13 @@ export function applyOpsToActions(actions: readonly CanvasAction[], ops: readonl
         if (target.kind === 'stroke') for (const v of op.pts) target.points.push(v);
         break;
       }
-      case 'end':
+      case 'end': {
+        const i = findStroke(next, op.id);
+        if (i < 0) break;
+        const stroke = next[i];
+        if (stroke.kind === 'stroke' && !stroke.done) next[i] = { ...stroke, done: true };
         break;
+      }
       case 'fill':
         next.push({ kind: 'fill', x: op.x, y: op.y, color: op.color });
         break;

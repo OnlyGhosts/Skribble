@@ -616,8 +616,12 @@ export class Room {
         stroke.points.push(...pts);
         return pts === op.pts ? op : { ...op, pts };
       }
-      case 'end':
-        return this.strokes.has(op.id) ? op : null;
+      case 'end': {
+        const stroke = this.strokes.get(op.id);
+        if (!stroke) return null;
+        stroke.done = true;
+        return op;
+      }
       case 'fill': {
         if (this.canvas.length >= MAX_ACTIONS_PER_TURN) return null;
         this.canvas.push({ kind: 'fill', x: op.x, y: op.y, color: op.color });

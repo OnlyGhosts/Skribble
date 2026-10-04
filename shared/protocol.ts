@@ -61,7 +61,16 @@ export type DrawOp = z.infer<typeof drawOpSchema>;
 
 /** Canvas history as kept by the server and replayed by late joiners. Undo removes the last action. */
 export type CanvasAction =
-  | { kind: 'stroke'; id: number; tool: Tool; color: string; size: number; points: number[] }
+  | {
+      kind: 'stroke';
+      id: number;
+      tool: Tool;
+      color: string;
+      size: number;
+      points: number[];
+      /** Set once the drawer's 'end' op arrived; absent while the stroke may still receive points. */
+      done?: boolean;
+    }
   | { kind: 'fill'; x: number; y: number; color: string };
 
 // ---------------------------------------------------------------------------
@@ -237,6 +246,13 @@ export function isServerMessage(x: unknown): x is ServerMessage {
 }
 
 export const WS_PATH = '/ws';
+
+/** GET /api/rooms/:code — lets the home screen preview a code before joining. Always HTTP 200. */
+export const ROOM_PREVIEW_PATH = '/api/rooms';
+
+export type RoomPreview =
+  | { exists: false; code: string; reason: 'INVALID_CODE' | 'ROOM_NOT_FOUND' }
+  | { exists: true; code: string; players: number; maxPlayers: number; inProgress: boolean; joinable: boolean };
 
 /** Session storage key under which the client remembers its seat for reconnects. */
 export const SESSION_STORAGE_KEY = 'skribble.session';

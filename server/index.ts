@@ -4,7 +4,7 @@ import path from 'node:path';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import { WebSocketServer } from 'ws';
 import { MAX_WS_MESSAGE_BYTES } from '../shared/constants';
-import { WS_PATH } from '../shared/protocol';
+import { ROOM_PREVIEW_PATH, WS_PATH, type RoomPreview } from '../shared/protocol';
 import { normalizeRoomCode } from '../shared/roomCode';
 import { SocketHub, asSocketLike, handleConnection } from './connection';
 import { RoomManager } from './roomManager';
@@ -23,21 +23,19 @@ app.get('/api/health', (_req: Request, res: Response) => {
   res.json({ ok: true, ...rooms.stats() });
 });
 
-app.get('/api/rooms/:code', (req: Request<{ code: string }>, res: Response) => {
+app.get(`${ROOM_PREVIEW_PATH}/:code`, (req: Request<{ code: string }>, res: Response) => {
   const found = rooms.lookup(req.params.code);
-  if (!found.ok) {
-    res.json({ exists: false, code: normalizeRoomCode(req.params.code), reason: found.code });
-    return;
-  }
-  const room = found.room;
-  res.json({
-    exists: true,
-    code: room.code,
-    players: room.playerCount,
-    maxPlayers: room.settings.maxPlayers,
-    inProgress: room.inProgress,
-    joinable: room.isJoinable,
-  });
+  const preview: RoomPreview = found.ok
+    ? {
+        exists: true,
+        code: found.room.code,
+        players: found.room.playerCount,
+        maxPlayers: found.room.settings.maxPlayers,
+        inProgress: found.room.inProgress,
+        joinable: found.room.isJoinable,
+      }
+    : { exists: false, code: normalizeRoomCode(req.params.code), reason: found.code };
+  res.json(preview);
 });
 
 app.use('/api', (_req: Request, res: Response) => {

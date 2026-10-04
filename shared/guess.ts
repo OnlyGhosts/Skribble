@@ -12,9 +12,14 @@ export function normalizeGuess(s: string): string {
     .trim();
 }
 
+/** Normalised form with spaces, hyphens and apostrophes removed: "ice cream" and "icecream" are the same guess. */
+export function compactGuess(s: string): string {
+  return normalizeGuess(s).replace(/[\s'-]/g, '');
+}
+
 export function isCorrectGuess(guess: string, word: string): boolean {
-  const g = normalizeGuess(guess);
-  return g.length > 0 && g === normalizeGuess(word);
+  const g = compactGuess(guess);
+  return g.length > 0 && g === compactGuess(word);
 }
 
 export function levenshtein(a: string, b: string): number {
@@ -37,8 +42,8 @@ export function levenshtein(a: string, b: string): number {
 
 /** "Close" = one edit away for short words, two edits away for long words (but never exact). */
 export function isCloseGuess(guess: string, word: string): boolean {
-  const g = normalizeGuess(guess);
-  const w = normalizeGuess(word);
+  const g = compactGuess(guess);
+  const w = compactGuess(word);
   if (!g || !w || g === w) return false;
   if (w.length < 4) return false;
   const maxDist = w.length >= 8 ? 2 : 1;
