@@ -2,7 +2,7 @@
 import { expect } from 'vitest';
 import type { Avatar } from '../../../shared/platform/avatar.js';
 import type { GameId } from '../../../shared/platform/games.js';
-import { GAME_TEST_FIXTURES, TEST_WORDS } from '../../games/testFixtures.js';
+import { GAME_TEST_FIXTURES, TEST_WORDS, enoughNames } from '../../games/testFixtures.js';
 import type { PlatformRoomMessage } from '../drivers/types.js';
 import type { Action, Ctx } from './actions.js';
 import type { Effect } from './effects.js';
@@ -76,9 +76,12 @@ export function sim(gameId: GameId = 'skribble', code = 'ABCD', now = START, rng
   return s;
 }
 
-/** Seats `names` (the first one creates the room), applies the game's deterministic test settings and starts the game. */
+/**
+ * Seats `names` (the first one creates the room; filler players are added up to the game's
+ * minPlayers), applies the game's deterministic test settings and starts the game.
+ */
 export function startGame(s: Sim, names: string[], settings: Record<string, unknown> = {}): string[] {
-  const ids = names.map((name, i) => {
+  const ids = enoughNames(s.data.gameId, names).map((name, i) => {
     s.apply(
       i === 0
         ? { type: 'create', gameId: s.data.gameId, name, avatar: AVATAR, connectionId: `conn-${name}` }

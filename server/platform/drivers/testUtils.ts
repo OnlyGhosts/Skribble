@@ -6,7 +6,7 @@ import type { Avatar } from '../../../shared/platform/avatar.js';
 import type { GameId } from '../../../shared/platform/games.js';
 import { isPlatformMessageType } from '../../../shared/platform/protocol.js';
 import { createCanvasStore } from '../../games/skribble/canvas.js';
-import { GAME_TEST_FIXTURES, TEST_WORDS } from '../../games/testFixtures.js';
+import { GAME_TEST_FIXTURES, TEST_WORDS, enoughNames } from '../../games/testFixtures.js';
 import type { PlatformPlayerData } from '../engine/state.js';
 import { MemoryStorage } from '../storage.js';
 import type { Rng, Transport } from '../transport.js';
@@ -172,9 +172,12 @@ export function expectPhase<K extends SkribblePhase['kind']>(room: Room, kind: K
   return phase as Extract<SkribblePhase, { kind: K }>;
 }
 
-/** Joins `names`, applies the game's deterministic test settings and starts the game. The first player is the host. */
+/**
+ * Joins `names` (plus filler players up to the game's minPlayers), applies the game's deterministic
+ * test settings and starts the game. The first player is the host.
+ */
 export function startGame(h: Harness, names: string[], settings: Record<string, unknown> = {}): string[] {
-  const players = names.map((n) => h.join(n));
+  const players = enoughNames(h.room.gameId, names).map((n) => h.join(n));
   const host = players[0];
   h.send(host, { t: 'updateSettings', settings: { ...GAME_TEST_FIXTURES[h.room.gameId].settings, ...settings } });
   h.send(host, { t: 'start' });

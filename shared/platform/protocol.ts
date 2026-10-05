@@ -89,7 +89,7 @@ export interface ChatMessage {
 // Client → Server (platform messages)
 // ---------------------------------------------------------------------------
 
-export const gameIdSchema = z.enum(['skribble', 'template']);
+export const gameIdSchema = z.enum(['skribble', 'spygame', 'template']);
 
 export const platformClientMessageSchema = z.discriminatedUnion('t', [
   z.object({ t: z.literal('create'), gameId: gameIdSchema, name: nameSchema, avatar: avatarSchema }),

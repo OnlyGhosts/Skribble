@@ -2,7 +2,7 @@
  * The game registry: every game the site offers, in library order. Adding a game means adding a
  * GameId, a GameMeta entry here, a server module (server/games) and a client module (client/src/games).
  */
-export type GameId = 'skribble' | 'template';
+export type GameId = 'skribble' | 'spygame' | 'template';
 
 export type GameStatus = 'live' | 'soon' | 'hidden';
 
@@ -41,6 +41,26 @@ export const GAME_LIST: readonly GameMeta[] = [
     maxPlayers: 20,
     icon: '✏️',
     accent: '#6366f1',
+    status: 'live',
+  },
+  {
+    id: 'spygame',
+    slug: 'spygame',
+    name: 'The Spy Game',
+    tagline: 'Find the spy before the spy finds the location.',
+    description:
+      'Everyone is at the same secret location except one player: the spy. Ask each other questions out loud to sniff out who is bluffing, while the spy listens for clues and tries to guess where you all are.',
+    howToPlay: [
+      'Everyone except the spy sees the secret location on their phone.',
+      'Take turns asking each other questions about the place without giving it away.',
+      'Agents accuse a suspect and vote; a passed vote is the group\'s one guess for the round.',
+      'The spy wins by guessing the location from the 24 candidates within two tries.',
+      'Time runs out? The agents win the round.',
+    ],
+    minPlayers: 3,
+    maxPlayers: 12,
+    icon: '🕵️',
+    accent: '#0f766e',
     status: 'live',
   },
   {

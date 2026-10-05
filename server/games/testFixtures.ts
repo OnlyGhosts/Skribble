@@ -3,7 +3,7 @@
  * need to know about each game. Keyed by GameId on purpose: a new game fails `npm run typecheck`
  * until it is added here, instead of failing a runtime assertion written for another game.
  */
-import type { GameId } from '../../shared/platform/games.js';
+import { gameById, type GameId } from '../../shared/platform/games.js';
 import type { WireMessage } from '../../shared/platform/protocol.js';
 
 export interface GameTestFixture {
@@ -24,9 +24,25 @@ export const GAME_TEST_FIXTURES: Readonly<Record<GameId, GameTestFixture>> = {
     longSettings: { drawTime: 180 },
     validMessage: { t: 'chooseWord', index: 0 },
   },
+  spygame: {
+    settings: { rounds: 1, roundMinutes: 3, voteSeconds: 15 },
+    longSettings: { roundMinutes: 15 },
+    // With rng () => 0 the host is round one's spy and 'airplane' (the first location) is never the
+    // real one among the shuffled candidates it holds, so this is a wrong first guess.
+    validMessage: { t: 'guess', locationId: 'airplane' },
+  },
   template: {
     settings: {},
     longSettings: { timeLimit: 120 },
     validMessage: { t: 'click' },
   },
 };
+
+/** Extra seats the cross-game suites add so a scenario written for two players also starts a game with a higher minimum. */
+const FILLER_NAMES = ['Fay', 'Gus', 'Hal', 'Ivy', 'Jem', 'Kit', 'Lou', 'Max', 'Ned', 'Oli'];
+
+/** `names` padded with filler players up to the game's minPlayers, so startGame can start it. */
+export function enoughNames(gameId: GameId, names: string[]): string[] {
+  const missing = gameById(gameId).minPlayers - names.length;
+  return missing > 0 ? [...names, ...FILLER_NAMES.slice(0, missing)] : names;
+}
