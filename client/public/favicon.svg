@@ -6,8 +6,13 @@
     </linearGradient>
   </defs>
   <rect width="64" height="64" rx="16" fill="url(#g)"/>
-  <path d="M18 46c6-2 10-10 18-18l6 6c-8 8-16 12-18 18l-8 2z" fill="#fff"/>
-  <path d="M36 28l6 6 7-7a4.2 4.2 0 0 0-6-6z" fill="#ffd166"/>
-  <circle cx="46" cy="46" r="5" fill="#ff7b54"/>
-  <circle cx="17" cy="20" r="4" fill="#4ade80"/>
+  <g transform="rotate(-8 29 34)">
+    <rect x="14" y="19" width="30" height="30" rx="8" fill="#fff"/>
+    <g fill="#5b4bd6">
+      <circle cx="22" cy="27" r="3.2"/><circle cx="36" cy="27" r="3.2"/><circle cx="29" cy="34" r="3.2"/><circle cx="22" cy="41" r="3.2"/><circle cx="36" cy="41" r="3.2"/>
+    </g>
+  </g>
+  <path d="M50 9l1.9 4.7 4.7 1.9-4.7 1.9L50 22.2l-1.9-4.7-4.7-1.9 4.7-1.9z" fill="#ffd166"/>
+  <circle cx="15" cy="52" r="3.5" fill="#ff7b54"/>
+  <circle cx="52" cy="50" r="2.5" fill="#4ade80"/>
 </svg>

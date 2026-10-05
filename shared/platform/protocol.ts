@@ -128,6 +128,7 @@ export function isPlatformMessageType(t: string): t is PlatformClientMessage['t'
 /** Any wire message: an object with a string discriminator. Game messages are validated by the game. */
 export interface WireMessage {
   t: string;
+  [field: string]: unknown;
 }
 
 export function isWireMessage(x: unknown): x is WireMessage {
@@ -192,7 +193,7 @@ export type RoomPreview =
   | { exists: true; code: string; gameId: GameId; players: number; maxPlayers: number; inProgress: boolean; joinable: boolean };
 
 /** Session storage key under which the client remembers its seat for reconnects. */
-export const SESSION_STORAGE_KEY = 'gamenight.session';
+export const SESSION_STORAGE_KEY = 'boredgames.session';
 
 export interface StoredSession {
   code: string;

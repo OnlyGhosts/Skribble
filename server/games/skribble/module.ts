@@ -81,6 +81,11 @@ function onPlayerLeft(gx: Gx, playerId: string): void {
   const { data } = gx;
   const queued = data.turnQueue.indexOf(playerId);
   if (queued > data.turnIndex) data.turnQueue.splice(queued, 1);
+  // Their guess still counts for the drawer (turn.correct / guesserIds); the summary and the rating tally forget them.
+  if (data.turn) {
+    delete data.turn.points[playerId];
+    delete data.turn.ratings[playerId];
+  }
   if (isDrawer(data, playerId) && (data.phase.kind === 'choosing' || data.phase.kind === 'drawing')) return endTurn(gx, 'drawerLeft');
   if (data.phase.kind === 'drawing' && everyoneGuessed(gx.ctx, data)) return endTurn(gx, 'allGuessed');
 }

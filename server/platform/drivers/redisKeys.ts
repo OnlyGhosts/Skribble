@@ -1,3 +1,4 @@
+import type { WireMessage } from '../../../shared/platform/protocol.js';
 import type { Effect } from '../engine/effects.js';
 import type { PlatformRoomData } from '../engine/state.js';
 import type { Recipients } from '../game.js';
@@ -25,7 +26,7 @@ export const ROOM_KEY_PATTERN = 'room:????';
 export type RoomChannelMessage =
   | { kind: 'effects'; version: number; data: PlatformRoomData; effects: Effect[] }
   /** A side-store change: stamped with the store's stamp and its sequence number. */
-  | { kind: 'side'; seq: number; stamp: string; sends: Array<{ to: Recipients; msg: { t: string } }> };
+  | { kind: 'side'; seq: number; stamp: string; sends: Array<{ to: Recipients; msg: WireMessage }> };
 
 export function parseChannelMessage(raw: string): RoomChannelMessage | null {
   try {

@@ -1,7 +1,7 @@
 {
-  "name": "Skribble",
-  "short_name": "Skribble",
-  "description": "Draw and guess with friends. Share a 4-character code and play instantly.",
+  "name": "Bored Games",
+  "short_name": "Bored Games",
+  "description": "Games to play with friends. Share a code, play instantly.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

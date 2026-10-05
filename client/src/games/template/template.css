@@ -1,0 +1,131 @@
+/* ---------- Click Race ---------- */
+.race {
+  width: min(1040px, 100%);
+  margin: 0 auto;
+  padding: calc(var(--space-4) + env(safe-area-inset-top)) max(var(--gutter), env(safe-area-inset-right)) calc(var(--space-6) + env(safe-area-inset-bottom))
+    max(var(--gutter), env(safe-area-inset-left));
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.race__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(280px, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.race__main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-5);
+}
+
+.race__head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.race__title {
+  font-size: 1.4rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.race__button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: min(260px, 70vw);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  color: #fff;
+  box-shadow: var(--shadow-lg);
+  transition: transform 0.06s ease;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+.race__button:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.race__button:disabled {
+  opacity: 0.6;
+}
+
+.race__count {
+  font-size: 4rem;
+  font-weight: 900;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.race__target {
+  font-weight: 700;
+  opacity: 0.85;
+}
+
+.race__list {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.race__row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) minmax(80px, 2fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-2);
+}
+
+.race__row--me {
+  background: var(--color-primary-soft);
+}
+
+.race__name {
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.race__bar {
+  width: 100%;
+  height: 10px;
+  accent-color: var(--color-primary);
+}
+
+.race__clicks {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  min-width: 2ch;
+  text-align: right;
+}
+
+.race__chat {
+  display: flex;
+  flex-direction: column;
+  height: min(70vh, 640px);
+}
+
+@media (max-width: 760px) {
+  .race__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .race__chat {
+    height: 50vh;
+  }
+}

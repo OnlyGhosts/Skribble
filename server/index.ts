@@ -8,7 +8,7 @@ import { createDriverFromEnv } from './platform/drivers/select.js';
  * any number of these processes can share the rooms.
  */
 const PORT = Number(process.env.PORT ?? 3001);
-const log = (msg: string): void => console.log(`[game-night] ${msg}`);
+const log = (msg: string): void => console.log(`[bored-games] ${msg}`);
 
 const driver = createDriverFromEnv({ log });
 const { server, shutdown } = createApp({ driver, log });

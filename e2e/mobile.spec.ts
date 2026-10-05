@@ -216,8 +216,8 @@ test.afterAll(async () => {
   for (const p of players) await p.context.close();
 });
 
-test('the phone home screen fits the viewport and its primary buttons are 44px targets', async () => {
-  await phone.page.goto('/');
+test('the phone game home fits the viewport and its primary buttons are 44px targets', async () => {
+  await phone.page.goto('/skribble');
   await expect(phone.page.getByTestId('home-create')).toBeVisible();
   await expect(phone.page.getByTestId('connection-status')).toHaveAttribute('data-status', 'connected');
   await expectNoHorizontalOverflow(phone.page, PORTRAIT.width);
@@ -230,12 +230,12 @@ test('the phone home screen fits the viewport and its primary buttons are 44px t
   // The narrowest phones: the header bar must not push the theme toggle off screen.
   await phone.page.setViewportSize(SMALL_PORTRAIT);
   await expectNoHorizontalOverflow(phone.page, SMALL_PORTRAIT.width);
-  await expectInsideViewport(phone.page.locator('.home__bar-actions button').last(), SMALL_PORTRAIT, 'theme toggle at 320px');
+  await expectInsideViewport(phone.page.locator('.site-header__actions button').last(), SMALL_PORTRAIT, 'theme toggle at 320px');
   await phone.page.setViewportSize(PORTRAIT);
 });
 
 test('the host creates a room and the phone joins by typing the code', async () => {
-  await host.page.goto('/');
+  await host.page.goto('/skribble');
   await host.page.getByTestId('home-name').fill(host.name);
   await host.page.getByTestId('home-create').click();
   const codeEl = host.page.getByTestId('room-code');
@@ -465,6 +465,15 @@ test('the players button opens a sheet with both players and the backdrop closes
   await phone.page.getByTestId('players-sheet-backdrop').click({ position: { x: 12, y: 12 } });
   await expect(sheet).toHaveCount(0);
   await expect(phone.page.getByTestId('guess-tiles')).toBeVisible();
+
+  // The options sheet holds the connection pill, the toggles and a Leave button.
+  await phone.page.getByTestId('game-menu').click();
+  const menu = phone.page.getByTestId('menu-sheet');
+  await expect(menu).toBeVisible();
+  await expect(menu.getByTestId('leave-room')).toBeVisible();
+  await expectTallEnough(menu.getByTestId('leave-room'), 'menu leave button');
+  await menu.getByTestId('menu-sheet-close').click();
+  await expect(menu).toHaveCount(0);
 });
 
 test('the phone guesser fills every tile with the word, submits with Enter and keeps a focused chat input', async () => {
@@ -513,11 +522,11 @@ test('the phone draws in the second turn if it has not drawn yet, then the podiu
   await expectNoHorizontalOverflow(phone.page, PORTRAIT.width);
 });
 
-test('leaving the game drops the app mode so the home page scrolls again', async () => {
-  await phone.page.getByTestId('game-menu').click();
-  await expect(phone.page.getByTestId('menu-sheet')).toBeVisible();
-  await phone.page.getByTestId('menu-sheet').getByTestId('leave-room').click();
+test('leaving from the podium drops the app mode so the game home scrolls again', async () => {
+  // The platform podium covers the game, so its own Leave button is the way out here.
+  await phone.page.getByTestId('podium-leave').click();
   await expect(phone.page.getByTestId('home-create')).toBeVisible();
+  await expect(phone.page).toHaveURL(/\/skribble$/);
   await expect.poll(async () => (await pageMetrics(phone.page)).isApp).toBe(false);
   await expect(host.page.getByTestId('chat-log')).toContainText(`${phone.name} left`);
 });

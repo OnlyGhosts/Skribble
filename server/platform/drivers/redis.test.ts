@@ -2,19 +2,36 @@ import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { connect, createServer } from 'node:net';
 import { Redis } from 'ioredis';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { CHOOSE_TIME_SECONDS, EMPTY_ROOM_TTL_MS, MAX_ACTIONS_PER_TURN, MAX_POINTS_PER_STROKE } from '../../shared/constants.js';
-import { CLOSE_REPLACED, type DrawOp, type ServerMessageOf } from '../../shared/protocol.js';
-import { MemoryCanvasStore } from '../canvasStore.js';
+import { CHOOSE_TIME_SECONDS, MAX_ACTIONS_PER_TURN, MAX_POINTS_PER_STROKE } from '../../../shared/games/skribble/constants.js';
+import { isSkribbleWelcomeExtra, type CanvasAction, type DrawOp, type SkribbleClientMessage } from '../../../shared/games/skribble/protocol.js';
+import type { TemplateClientMessage } from '../../../shared/games/template/protocol.js';
+import { EMPTY_ROOM_TTL_MS } from '../../../shared/platform/constants.js';
+import { CLOSE_REPLACED } from '../../../shared/platform/protocol.js';
+import { CanvasHistory } from '../../games/skribble/canvas.js';
+import type { SkribbleData } from '../../games/skribble/state.js';
 import { handleConnection } from '../connection.js';
-import type { RoomData } from '../engine/state.js';
-import { AVATAR, TEST_WORDS } from '../testUtils.js';
+import type { PlatformRoomData } from '../engine/state.js';
 import { productionCtx, systemClock } from '../transport.js';
 import { RedisDriver, TICK_RETRY_MS, type RedisDriverOptions } from './redis.js';
-import { canvasKey, canvasMetaKey, canvasSeqKey, roomChannel, roomKey, type RoomChannelMessage } from './redisKeys.js';
+import { roomChannel, roomKey, sideHashKey, sideListKey, sideSeqKey, type RoomChannelMessage } from './redisKeys.js';
 import { RedisRooms } from './redisRooms.js';
 import { AsyncLock } from './serial.js';
-import { FakeSocket } from './testSocket.js';
-import type { Seat } from './types.js';
+import { FakeSocket, type AnyServerMessageOf } from './testSocket.js';
+import { AVATAR, TEST_WORDS, toInbound } from './testUtils.js';
+import type { PlatformRoomMessage, Seat } from './types.js';
+
+/** Wraps a platform or game message the way the connection layer would. */
+const msg = (m: PlatformRoomMessage | SkribbleClientMessage | TemplateClientMessage): ReturnType<typeof toInbound> => toInbound(m);
+
+function canvasOf(welcome: AnyServerMessageOf<'welcome'>): CanvasAction[] {
+  if (!isSkribbleWelcomeExtra(welcome.extra)) throw new Error('welcome without a canvas');
+  return welcome.extra.canvas;
+}
+
+function skribble(data: PlatformRoomData): SkribbleData {
+  if (!data.game) throw new Error('no game running');
+  return data.game as SkribbleData;
+}
 
 /**
  * Two RedisDriver instances in one process sharing a throw-away redis-server: the host joins
@@ -85,11 +102,11 @@ describe.skipIf(!hasRedisServer)('RedisDriver across two instances', () => {
     return { ws, seat: result.seat, connectionId, token: ws.last('welcome').token, driver };
   }
 
-  async function create(driver: RedisDriver, name: string): Promise<Client> {
+  async function create(driver: RedisDriver, name: string, gameId: 'skribble' | 'template' = 'skribble'): Promise<Client> {
     const ws = new FakeSocket();
     const connectionId = `conn-${name}-${++connections}`;
     driver.register(connectionId, ws);
-    return seated(driver, ws, connectionId, await driver.create(name, AVATAR, connectionId));
+    return seated(driver, ws, connectionId, await driver.create(gameId, name, AVATAR, connectionId));
   }
 
   async function join(driver: RedisDriver, code: string, name: string): Promise<Client> {
@@ -111,29 +128,26 @@ describe.skipIf(!hasRedisServer)('RedisDriver across two instances', () => {
     const host = await create(a, 'Alice');
     const code = host.seat.code;
     const guest = await join(b, code, 'Bob');
-    await a.handle(host.seat, {
-      t: 'updateSettings',
-      settings: { customWords: TEST_WORDS, customWordsOnly: true, rounds: 1, drawTime, hints: 2, wordChoices: 3 },
-    });
+    await a.handle(host.seat, msg({ t: 'updateSettings', settings: { customWords: TEST_WORDS, customWordsOnly: true, rounds: 1, drawTime, hints: 2, wordChoices: 3 } }));
     await vi.waitFor(() => expect(guest.ws.last('room').room.settings.rounds).toBe(1), WAIT);
     return { host, guest, code };
   }
 
   async function startAndChoose(host: Client, guest: Client): Promise<string> {
-    await host.driver.handle(host.seat, { t: 'start' });
-    await vi.waitFor(() => expect(guest.ws.last('room').room.phase.kind).toBe('choosing'), WAIT);
-    expect(host.ws.last('room').room.phase.kind).toBe('choosing');
-    await host.driver.handle(host.seat, { t: 'chooseWord', index: 0 });
-    await vi.waitFor(() => expect(guest.ws.last('room').room.phase.kind).toBe('drawing'), WAIT);
-    const phase = host.ws.last('room').room.phase;
-    if (phase.kind !== 'drawing' || !phase.word) throw new Error('host is not the drawer');
+    await host.driver.handle(host.seat, msg({ t: 'start' }));
+    await vi.waitFor(() => expect(guest.ws.last('room').room.game?.phase.kind).toBe('choosing'), WAIT);
+    expect(host.ws.last('room').room.game?.phase.kind).toBe('choosing');
+    await host.driver.handle(host.seat, msg({ t: 'chooseWord', index: 0 }));
+    await vi.waitFor(() => expect(guest.ws.last('room').room.game?.phase.kind).toBe('drawing'), WAIT);
+    const phase = host.ws.last('room').room.game?.phase;
+    if (phase?.kind !== 'drawing' || !phase.word) throw new Error('host is not the drawer');
     return phase.word;
   }
 
-  async function stored(code: string): Promise<RoomData> {
+  async function stored(code: string): Promise<PlatformRoomData> {
     const raw = await admin.get(`room:${code}`);
     if (raw === null) throw new Error('room missing');
-    return JSON.parse(raw) as RoomData;
+    return JSON.parse(raw) as PlatformRoomData;
   }
 
   const stroke = (id: number, x = 1): DrawOp => ({ k: 'start', id, tool: 'brush', color: '#000000', size: 6, x, y: 2 });
@@ -154,11 +168,11 @@ describe.skipIf(!hasRedisServer)('RedisDriver across two instances', () => {
     await vi.waitFor(() => expect(host.ws.last('room').room.players.map((p) => p.name)).toEqual(['Alice', 'Bob']), WAIT);
     expect(host.ws.chats()).toEqual([{ kind: 'system', text: 'Bob joined' }]);
 
-    await b.handle(guest.seat, { t: 'chat', text: 'hello from B' });
+    await b.handle(guest.seat, msg({ t: 'chat', text: 'hello from B' }));
     await vi.waitFor(() => expect(host.ws.chats()).toContainEqual({ kind: 'chat', text: 'hello from B' }), WAIT);
     expect(guest.ws.chats()).toContainEqual({ kind: 'chat', text: 'hello from B' });
 
-    expect(await a.preview(code)).toMatchObject({ exists: true, code, players: 2, inProgress: false, joinable: true });
+    expect(await a.preview(code)).toMatchObject({ exists: true, code, gameId: 'skribble', players: 2, inProgress: false, joinable: true });
     expect(await b.health()).toEqual({ driver: 'redis', rooms: 1, approximate: false });
     expect(a.holds(host.seat, host.connectionId)).toBe(true);
     expect(b.holds(host.seat, host.connectionId)).toBe(false);
@@ -171,45 +185,45 @@ describe.skipIf(!hasRedisServer)('RedisDriver across two instances', () => {
     const { host, guest } = await pair(a, b);
     const word = await startAndChoose(host, guest);
 
-    await b.handle(guest.seat, { t: 'draw', ops: [stroke(1)] });
+    await b.handle(guest.seat, msg({ t: 'draw', ops: [stroke(1)] }));
     await vi.waitFor(() => expect(guest.ws.errors()).toEqual(['NOT_ALLOWED']), WAIT);
 
-    await a.handle(host.seat, { t: 'draw', ops: [stroke(1), { k: 'move', id: 1, pts: [3, 4, 5, 6] }, { k: 'end', id: 1 }] });
+    await a.handle(host.seat, msg({ t: 'draw', ops: [stroke(1), { k: 'move', id: 1, pts: [3, 4, 5, 6] }, { k: 'end', id: 1 }] }));
     await vi.waitFor(() => expect(guest.ws.ofType('draw')).toHaveLength(1), WAIT);
     expect(guest.ws.last('draw').ops).toHaveLength(3);
     expect(host.ws.ofType('draw')).toHaveLength(0);
 
-    await a.handle(host.seat, { t: 'undo' });
+    await a.handle(host.seat, msg({ t: 'undo' }));
     await vi.waitFor(() => expect(guest.ws.ofType('undo')).toHaveLength(1), WAIT);
     await vi.waitFor(() => expect(host.ws.ofType('undo')).toHaveLength(1), WAIT);
     // Undo on an empty canvas is a no-op nobody hears about.
-    await a.handle(host.seat, { t: 'undo' });
-    await a.handle(host.seat, { t: 'draw', ops: [{ k: 'fill', x: 1, y: 1, color: '#ff0000' }] });
+    await a.handle(host.seat, msg({ t: 'undo' }));
+    await a.handle(host.seat, msg({ t: 'draw', ops: [{ k: 'fill', x: 1, y: 1, color: '#ff0000' }] }));
     await vi.waitFor(() => expect(guest.ws.ofType('draw')).toHaveLength(2), WAIT);
     expect(host.ws.ofType('undo')).toHaveLength(1);
 
     // A late joiner gets the canvas as it stands.
     const late = await join(b, host.seat.code, 'Carol');
-    expect(late.ws.last('welcome').canvas).toEqual([{ kind: 'fill', x: 1, y: 1, color: '#ff0000' }]);
+    expect(canvasOf(late.ws.last('welcome'))).toEqual([{ kind: 'fill', x: 1, y: 1, color: '#ff0000' }]);
 
     // Everyone already received one 'clear' when the turn started (the engine resets the canvas).
     expect(host.ws.ofType('clear')).toHaveLength(1);
     expect(guest.ws.ofType('clear')).toHaveLength(1);
-    await a.handle(host.seat, { t: 'clear' });
+    await a.handle(host.seat, msg({ t: 'clear' }));
     await vi.waitFor(() => expect(guest.ws.ofType('clear')).toHaveLength(2), WAIT);
     await vi.waitFor(() => expect(late.ws.ofType('clear')).toHaveLength(1), WAIT);
     await vi.waitFor(() => expect(host.ws.ofType('clear')).toHaveLength(2), WAIT);
 
-    await b.handle(guest.seat, { t: 'chat', text: word });
+    await b.handle(guest.seat, msg({ t: 'chat', text: word }));
     await vi.waitFor(() => expect(host.ws.chats()).toContainEqual({ kind: 'correct', text: 'Bob guessed the word!' }), WAIT);
     expect(guest.ws.chats()).toContainEqual({ kind: 'correct', text: 'Bob guessed the word!' });
     await vi.waitFor(() => expect(late.ws.last('room').room.players.find((p) => p.name === 'Bob')?.score).toBeGreaterThan(0), WAIT);
     // Carol has not guessed, so the turn goes on; her guess ends it for everyone.
-    expect(host.ws.last('room').room.phase.kind).toBe('drawing');
-    await b.handle(late.seat, { t: 'chat', text: word });
-    await vi.waitFor(() => expect(host.ws.last('room').room.phase.kind).toBe('turnEnd'), WAIT);
-    await vi.waitFor(() => expect(guest.ws.last('room').room.phase.kind).toBe('turnEnd'), WAIT);
-    expect(late.ws.last('room').room.phase.kind).toBe('turnEnd');
+    expect(host.ws.last('room').room.game?.phase.kind).toBe('drawing');
+    await b.handle(late.seat, msg({ t: 'chat', text: word }));
+    await vi.waitFor(() => expect(host.ws.last('room').room.game?.phase.kind).toBe('turnEnd'), WAIT);
+    await vi.waitFor(() => expect(guest.ws.last('room').room.game?.phase.kind).toBe('turnEnd'), WAIT);
+    expect(late.ws.last('room').room.game?.phase.kind).toBe('turnEnd');
   });
 
   it('a rejoin from another instance replaces the old socket without a disconnect blip', async () => {
@@ -230,7 +244,7 @@ describe.skipIf(!hasRedisServer)('RedisDriver across two instances', () => {
     expect(host.ws.ofType('room')).toHaveLength(roomsBefore);
     expect((await stored(code)).players.find((p) => p.id === guest.seat.playerId)?.connected).toBe(true);
 
-    await a.handle(fresh.seat, { t: 'chat', text: 'moved' });
+    await a.handle(fresh.seat, msg({ t: 'chat', text: 'moved' }));
     await vi.waitFor(() => expect(host.ws.chats()).toContainEqual({ kind: 'chat', text: 'moved' }), WAIT);
     expect(guest.ws.chats().some((c) => c.text === 'moved')).toBe(false);
 
@@ -261,8 +275,8 @@ describe.skipIf(!hasRedisServer)('RedisDriver across two instances', () => {
     const a = instance({ clock });
     const b = instance({ clock });
     const { host, guest, code } = await pair(a, b, 20);
-    await a.handle(host.seat, { t: 'start' });
-    await vi.waitFor(() => expect(guest.ws.last('room').room.phase.kind).toBe('choosing'), WAIT);
+    await a.handle(host.seat, msg({ t: 'start' }));
+    await vi.waitFor(() => expect(guest.ws.last('room').room.game?.phase.kind).toBe('choosing'), WAIT);
     const before = await stored(code);
 
     await a.shutdown();
@@ -273,8 +287,9 @@ describe.skipIf(!hasRedisServer)('RedisDriver across two instances', () => {
     const c = instance({ clock });
     const back = await rejoin(c, code, host.token, 'Alice');
     const welcome = back.ws.last('welcome');
-    expect(welcome.room.phase.kind).toBe('drawing');
-    expect(TEST_WORDS).toContain(welcome.room.phase.kind === 'drawing' ? welcome.room.phase.word : '');
+    const phase = welcome.room.game?.phase;
+    expect(phase?.kind).toBe('drawing');
+    expect(TEST_WORDS).toContain(phase?.kind === 'drawing' ? phase.word : '');
     expect((await stored(code)).version).toBeGreaterThan(before.version);
     expect(welcome.chat.map((m) => m.text)).toContain('Alice joined');
   });
@@ -287,8 +302,8 @@ describe.skipIf(!hasRedisServer)('RedisDriver across two instances', () => {
 
     const sends: Promise<void>[] = [];
     for (let i = 0; i < 10; i++) {
-      sends.push(a.handle(host.seat, { t: 'chat', text: `A${i}` }));
-      sends.push(b.handle(guest.seat, { t: 'chat', text: `B${i}` }));
+      sends.push(a.handle(host.seat, msg({ t: 'chat', text: `A${i}` })));
+      sends.push(b.handle(guest.seat, msg({ t: 'chat', text: `B${i}` })));
     }
     await Promise.all(sends);
 
@@ -310,10 +325,10 @@ describe.skipIf(!hasRedisServer)('RedisDriver across two instances', () => {
     const b = instance({ clock });
     const { host, guest, code } = await pair(a, b);
     await startAndChoose(host, guest);
-    await a.handle(host.seat, { t: 'draw', ops: [stroke(1)] });
+    await a.handle(host.seat, msg({ t: 'draw', ops: [stroke(1)] }));
     await vi.waitFor(() => expect(guest.ws.ofType('draw')).toHaveLength(1), WAIT);
     expect((await admin.keys('*')).sort()).toEqual(
-      [`presence:${code}:${guest.seat.playerId}`, `presence:${code}:${host.seat.playerId}`, `room:${code}`, `room:${code}:canvas`, `room:${code}:canvas:meta`, `room:${code}:canvas:seq`].sort(),
+      [`presence:${code}:${guest.seat.playerId}`, `presence:${code}:${host.seat.playerId}`, `room:${code}`, `room:${code}:side`, `room:${code}:side:meta`, `room:${code}:side:seq`].sort(),
     );
 
     await b.leave(guest.seat);
@@ -322,8 +337,9 @@ describe.skipIf(!hasRedisServer)('RedisDriver across two instances', () => {
     const empty = await stored(code);
     expect(empty.players).toEqual([]);
     expect(empty.grace.emptyRoomAt).not.toBeNull();
-    // Leaving reset the canvas (its turn stamp and sequence number stay) and dropped the presence keys; the room record waits for its TTL.
-    expect((await admin.keys('*')).sort()).toEqual([`room:${code}`, `room:${code}:canvas:meta`, `room:${code}:canvas:seq`].sort());
+    // Leaving reset the canvas (its stamp and sequence number stay) and dropped the presence keys; the room record waits for its TTL.
+    expect((await admin.keys('*')).sort()).toEqual([`room:${code}`, `room:${code}:side:meta`, `room:${code}:side:seq`].sort());
+    expect(await admin.hgetall(sideHashKey(code))).toEqual({ stamp: '' });
 
     skew += EMPTY_ROOM_TTL_MS + 1000;
     const late = new FakeSocket();
@@ -339,7 +355,7 @@ describe.skipIf(!hasRedisServer)('RedisDriver across two instances', () => {
     const b = instance();
     const { host, guest, code } = await pair(a, b);
     await startAndChoose(host, guest);
-    const memory = new MemoryCanvasStore();
+    const memory = new CanvasHistory();
 
     // One stroke well over the per-stroke cap, then more fills than the action cap allows, then
     // ops that must all be dropped: a duplicate start, a move for an unknown stroke, a late stroke.
@@ -352,36 +368,36 @@ describe.skipIf(!hasRedisServer)('RedisDriver across two instances', () => {
     const expectedOps: DrawOp[] = [];
     for (const chunk of chunks) {
       expectedOps.push(...memory.append(chunk).accepted);
-      await a.handle(host.seat, { t: 'draw', ops: chunk });
+      await a.handle(host.seat, msg({ t: 'draw', ops: chunk }));
     }
     expect(memory.all()).toHaveLength(MAX_ACTIONS_PER_TURN);
     expect(memory.all().reduce((n, a) => n + (a.kind === 'stroke' ? a.points.length : 0), 0)).toBe(MAX_POINTS_PER_STROKE);
     const received = (): DrawOp[] => guest.ws.ofType('draw').flatMap((m) => m.ops);
     await vi.waitFor(() => expect(received()).toHaveLength(expectedOps.length), WAIT);
     expect(received()).toEqual(expectedOps);
-    expect(await admin.hget(`room:${code}:canvas:meta`, 'actions')).toBe(String(MAX_ACTIONS_PER_TURN));
-    expect(await admin.hget(`room:${code}:canvas:meta`, 'points')).toBe(String(MAX_POINTS_PER_STROKE));
+    expect(await admin.hget(sideHashKey(code), 'actions')).toBe(String(MAX_ACTIONS_PER_TURN));
+    expect(await admin.hget(sideHashKey(code), 'points')).toBe(String(MAX_POINTS_PER_STROKE));
 
     const late = await join(b, code, 'Carol');
-    expect(late.ws.last('welcome').canvas).toEqual(memory.all());
+    expect(canvasOf(late.ws.last('welcome'))).toEqual(memory.all());
     // The drawer's canvas was truncated: they get a resync after the debounce.
     await vi.waitFor(() => expect(host.ws.ofType('canvas')).toHaveLength(1), { timeout: 3000, interval: 50 });
     expect(host.ws.last('canvas').actions).toEqual(memory.all());
 
     // Undo pops exactly one action (the last fill) on both sides.
-    await a.handle(host.seat, { t: 'undo' });
+    await a.handle(host.seat, msg({ t: 'undo' }));
     memory.undo();
     await vi.waitFor(() => expect(late.ws.ofType('undo')).toHaveLength(1), WAIT);
     const later = await join(b, code, 'Dave');
-    expect(later.ws.last('welcome').canvas).toEqual(memory.all());
-    expect(later.ws.last('welcome').canvas).toHaveLength(MAX_ACTIONS_PER_TURN - 1);
+    expect(canvasOf(later.ws.last('welcome'))).toEqual(memory.all());
+    expect(canvasOf(later.ws.last('welcome'))).toHaveLength(MAX_ACTIONS_PER_TURN - 1);
     // Undoing the stroke frees its points too.
     for (let i = 0; i < MAX_ACTIONS_PER_TURN - 1; i++) {
-      await a.handle(host.seat, { t: 'undo' });
+      await a.handle(host.seat, msg({ t: 'undo' }));
       memory.undo();
     }
-    expect(await admin.hgetall(`room:${code}:canvas:meta`)).toEqual({ turn: String((await stored(code)).turnId), actions: '0', points: '0' });
-    expect(await admin.llen(`room:${code}:canvas`)).toBe(0);
+    expect(await admin.hgetall(sideHashKey(code))).toEqual({ stamp: skribble(await stored(code)).canvasId, actions: '0', points: '0' });
+    expect(await admin.llen(sideListKey(code))).toBe(0);
   }, 20_000);
 
   it('a new turn clears the canvas list and the drawer may not draw after the turn ended', async () => {
@@ -389,32 +405,32 @@ describe.skipIf(!hasRedisServer)('RedisDriver across two instances', () => {
     const b = instance();
     const { host, guest, code } = await pair(a, b);
     const word = await startAndChoose(host, guest);
-    await a.handle(host.seat, { t: 'draw', ops: [stroke(1)] });
+    await a.handle(host.seat, msg({ t: 'draw', ops: [stroke(1)] }));
     await vi.waitFor(() => expect(guest.ws.ofType('draw')).toHaveLength(1), WAIT);
-    expect(await admin.llen(`room:${code}:canvas`)).toBe(1);
+    expect(await admin.llen(sideListKey(code))).toBe(1);
 
-    await b.handle(guest.seat, { t: 'chat', text: word });
-    await vi.waitFor(() => expect(host.ws.last('room').room.phase.kind).toBe('turnEnd'), WAIT);
+    await b.handle(guest.seat, msg({ t: 'chat', text: word }));
+    await vi.waitFor(() => expect(host.ws.last('room').room.game?.phase.kind).toBe('turnEnd'), WAIT);
     // In-flight ops from the previous drawer are dropped silently.
-    await a.handle(host.seat, { t: 'draw', ops: [stroke(2)] });
+    await a.handle(host.seat, msg({ t: 'draw', ops: [stroke(2)] }));
     expect(host.ws.errors()).toEqual([]);
-    expect(await admin.llen(`room:${code}:canvas`)).toBe(1);
+    expect(await admin.llen(sideListKey(code))).toBe(1);
 
     // The turn-end timer fires on whichever instance holds a socket; the next turn resets the canvas.
-    await vi.waitFor(() => expect(guest.ws.last('room').room.phase.kind).toBe('choosing'), { timeout: 10_000, interval: 50 });
-    expect(await admin.llen(`room:${code}:canvas`)).toBe(0);
+    await vi.waitFor(() => expect(guest.ws.last('room').room.game?.phase.kind).toBe('choosing'), { timeout: 10_000, interval: 50 });
+    expect(await admin.llen(sideListKey(code))).toBe(0);
     await vi.waitFor(() => expect(guest.ws.ofType('clear').length).toBeGreaterThan(0), WAIT);
-    const next = guest.ws.last('room').room.phase;
-    expect(next.kind === 'choosing' ? next.drawerId : null).toBe(guest.seat.playerId);
-    const welcome: ServerMessageOf<'welcome'> = (await join(a, code, 'Eve')).ws.last('welcome');
-    expect(welcome.canvas).toEqual([]);
+    const next = guest.ws.last('room').room.game?.phase;
+    expect(next?.kind === 'choosing' ? next.drawerId : null).toBe(guest.seat.playerId);
+    const welcome = (await join(a, code, 'Eve')).ws.last('welcome');
+    expect(canvasOf(welcome)).toEqual([]);
   }, 15_000);
 
   it('releases a seat that was taken while its socket was already closing', async () => {
     const a = instance();
     const ws = new FakeSocket();
     handleConnection(ws, { driver: a });
-    ws.receive({ t: 'create', name: 'Alice', avatar: AVATAR });
+    ws.receive({ t: 'create', gameId: 'skribble', name: 'Alice', avatar: AVATAR });
     // The tab closes before Redis has answered the create: the seat must still end up disconnected.
     ws.close();
     await vi.waitFor(async () => expect(await admin.keys('room:????')).toHaveLength(1), WAIT);
@@ -432,8 +448,8 @@ describe.skipIf(!hasRedisServer)('RedisDriver across two instances', () => {
     const clock = { now: () => Date.now() + skew };
     const a = instance({ clock });
     const { host, guest, code } = await pair(a, a);
-    await a.handle(host.seat, { t: 'start' });
-    await vi.waitFor(() => expect(guest.ws.last('room').room.phase.kind).toBe('choosing'), WAIT);
+    await a.handle(host.seat, msg({ t: 'start' }));
+    await vi.waitFor(() => expect(guest.ws.last('room').room.game?.phase.kind).toBe('choosing'), WAIT);
     const data = await stored(code);
 
     // The choose deadline is due, but the only instance's tick fails (the room reads as garbage for a moment).
@@ -443,10 +459,10 @@ describe.skipIf(!hasRedisServer)('RedisDriver across two instances', () => {
     await admin.publish(roomChannel(code), JSON.stringify(nudge));
     await vi.waitFor(() => expect(logs.some((l) => l.includes('tick'))).toBe(true), WAIT);
     await admin.set(roomKey(code), JSON.stringify(data), 'PX', 60_000);
-    expect(host.ws.last('room').room.phase.kind).toBe('choosing');
+    expect(host.ws.last('room').room.game?.phase.kind).toBe('choosing');
 
-    await vi.waitFor(() => expect(host.ws.last('room').room.phase.kind).toBe('drawing'), { timeout: TICK_RETRY_MS * 4, interval: 20 });
-    expect(guest.ws.last('room').room.phase.kind).toBe('drawing');
+    await vi.waitFor(() => expect(host.ws.last('room').room.game?.phase.kind).toBe('drawing'), { timeout: TICK_RETRY_MS * 4, interval: 20 });
+    expect(guest.ws.last('room').room.game?.phase.kind).toBe('drawing');
   });
 
   it("skips canvas changes a joiner's welcome snapshot already included, and ops of another turn", async () => {
@@ -454,24 +470,26 @@ describe.skipIf(!hasRedisServer)('RedisDriver across two instances', () => {
     const b = instance();
     const { host, guest, code } = await pair(a, b);
     await startAndChoose(host, guest);
-    await a.handle(host.seat, { t: 'draw', ops: [stroke(1)] });
+    await a.handle(host.seat, msg({ t: 'draw', ops: [stroke(1)] }));
     await vi.waitFor(() => expect(guest.ws.ofType('draw')).toHaveLength(1), WAIT);
     const late = await join(b, code, 'Carol');
-    expect(late.ws.last('welcome').canvas).toHaveLength(1);
-    const { turnId } = await stored(code);
-    const seq = Number(await admin.get(canvasSeqKey(code)));
-    const draw = (ops: DrawOp[], overrides: Partial<Extract<RoomChannelMessage, { kind: 'draw' }>>): Promise<number> =>
-      admin.publish(roomChannel(code), JSON.stringify({ kind: 'draw', drawerId: host.seat.playerId, ops, turnId, seq, ...overrides }));
+    expect(canvasOf(late.ws.last('welcome'))).toHaveLength(1);
+    const stamp = skribble(await stored(code)).canvasId;
+    const seq = Number(await admin.get(sideSeqKey(code)));
+    const draw = (ops: DrawOp[], overrides: Partial<Extract<RoomChannelMessage, { kind: 'side' }>>): Promise<number> => {
+      const message: RoomChannelMessage = { kind: 'side', seq, stamp, sends: [{ to: { except: [host.seat.playerId] }, msg: { t: 'draw', ops } }], ...overrides };
+      return admin.publish(roomChannel(code), JSON.stringify(message));
+    };
 
     // A batch the drawer's instance published after Carol's snapshot was taken, but which the snapshot already contains.
     await draw([stroke(1)], { seq });
     await vi.waitFor(() => expect(guest.ws.ofType('draw')).toHaveLength(2), WAIT);
     await settle();
     expect(late.ws.ofType('draw')).toHaveLength(0);
-    // A change after the snapshot reaches her; one for a turn that is over reaches nobody.
+    // A change after the snapshot reaches her; one for a canvas that is gone reaches nobody.
     await draw([stroke(2)], { seq: seq + 1 });
     await vi.waitFor(() => expect(late.ws.ofType('draw')).toHaveLength(1), WAIT);
-    await draw([stroke(3)], { seq: seq + 2, turnId: turnId + 1 });
+    await draw([stroke(3)], { seq: seq + 2, stamp: 'previous-canvas' });
     await settle();
     expect(late.ws.ofType('draw')).toHaveLength(1);
     expect(guest.ws.ofType('draw')).toHaveLength(3);
@@ -482,23 +500,23 @@ describe.skipIf(!hasRedisServer)('RedisDriver across two instances', () => {
     const b = instance();
     const { host, guest, code } = await pair(a, b);
     await startAndChoose(host, guest);
-    const { turnId } = await stored(code);
+    const stamp = skribble(await stored(code)).canvasId;
     // Another instance committed a turn change this instance has not seen yet: the canvas now belongs to a later turn.
-    await admin.hset(canvasMetaKey(code), 'turn', String(turnId + 1));
-    await a.handle(host.seat, { t: 'draw', ops: [stroke(1)] });
-    await a.handle(host.seat, { t: 'undo' });
-    await a.handle(host.seat, { t: 'clear' });
+    await admin.hset(sideHashKey(code), 'stamp', 'later-canvas');
+    await a.handle(host.seat, msg({ t: 'draw', ops: [stroke(1)] }));
+    await a.handle(host.seat, msg({ t: 'undo' }));
+    await a.handle(host.seat, msg({ t: 'clear' }));
     await settle();
-    expect(await admin.llen(canvasKey(code))).toBe(0);
+    expect(await admin.llen(sideListKey(code))).toBe(0);
     expect(host.ws.errors()).toEqual([]);
     expect(guest.ws.ofType('draw')).toHaveLength(0);
     expect(guest.ws.ofType('undo')).toHaveLength(0);
     expect(guest.ws.ofType('clear')).toHaveLength(1);
 
-    await admin.hset(canvasMetaKey(code), 'turn', String(turnId));
-    await a.handle(host.seat, { t: 'draw', ops: [stroke(1)] });
+    await admin.hset(sideHashKey(code), 'stamp', stamp);
+    await a.handle(host.seat, msg({ t: 'draw', ops: [stroke(1)] }));
     await vi.waitFor(() => expect(guest.ws.ofType('draw')).toHaveLength(1), WAIT);
-    expect(await admin.llen(canvasKey(code))).toBe(1);
+    expect(await admin.llen(sideListKey(code))).toBe(1);
   });
 
   it('tells seated sockets when their room vanished, and keeps a live room from expiring', async () => {
@@ -510,15 +528,53 @@ describe.skipIf(!hasRedisServer)('RedisDriver across two instances', () => {
     await vi.waitFor(async () => expect(await admin.pttl(roomKey(code))).toBeGreaterThan(5000), WAIT);
 
     await admin.del(roomKey(code));
-    await a.handle(host.seat, { t: 'chat', text: 'anyone?' });
+    await a.handle(host.seat, msg({ t: 'chat', text: 'anyone?' }));
     expect(host.ws.errors()).toEqual(['REJOIN_FAILED']);
     expect(a.holds(host.seat, host.connectionId)).toBe(false);
     expect(host.ws.closes).toEqual([]);
     expect(await a.health()).toEqual({ driver: 'redis', rooms: 0, approximate: false });
     // The guest learns the same way, through the first dispatch after the loss.
-    await b.handle(guest.seat, { t: 'chat', text: 'hello?' });
+    await b.handle(guest.seat, msg({ t: 'chat', text: 'hello?' }));
     expect(guest.ws.errors()).toEqual(['REJOIN_FAILED']);
     expect(b.holds(guest.seat, guest.connectionId)).toBe(false);
+  });
+});
+
+describe.skipIf(!hasRedisServer)('RedisDriver with the template game', () => {
+  const drivers: RedisDriver[] = [];
+
+  afterEach(async () => {
+    for (const d of drivers) await d.shutdown();
+    drivers.length = 0;
+    await admin.flushall();
+  });
+
+  it('runs a Click Race across two instances without a side store', async () => {
+    const a = new RedisDriver({ url });
+    const b = new RedisDriver({ url });
+    drivers.push(a, b);
+    const hostWs = new FakeSocket();
+    a.register('conn-h', hostWs);
+    const created = await a.create('template', 'Alice', AVATAR, 'conn-h');
+    if (!created.ok) throw new Error(created.code);
+    await vi.waitFor(() => expect(hostWs.ofType('welcome')).toHaveLength(1), WAIT);
+    const welcome = hostWs.last('welcome');
+    expect(welcome.room).toMatchObject({ gameId: 'template', phase: 'lobby' });
+    expect(welcome.extra).toBeUndefined();
+    expect(await b.preview(created.seat.code)).toMatchObject({ exists: true, gameId: 'template' });
+
+    const guestWs = new FakeSocket();
+    b.register('conn-g', guestWs);
+    const joined = await b.join(created.seat.code, 'Bob', AVATAR, 'conn-g');
+    if (!joined.ok) throw new Error(joined.code);
+    await a.handle(created.seat, msg({ t: 'updateSettings', settings: { targetClicks: 10 } }));
+    await a.handle(created.seat, msg({ t: 'start' }));
+    await vi.waitFor(() => expect(guestWs.last('room').room.phase).toBe('playing'), WAIT);
+    for (let i = 0; i < 10; i++) await b.handle(joined.seat, msg({ t: 'click' }));
+    await vi.waitFor(() => expect(hostWs.last('room').room.phase).toBe('ended'), WAIT);
+    expect(hostWs.last('room').room.podium?.[0]).toMatchObject({ playerId: joined.seat.playerId, score: 100, rank: 1 });
+    // No side store: the room's keys are just the record and the presence keys.
+    expect((await admin.keys('*')).filter((k) => k.includes(':side'))).toEqual([]);
   });
 });
 
@@ -539,11 +595,11 @@ describe.skipIf(!hasRedisServer || !hasRedisCli)('RedisRooms compare-and-set', (
       60_000,
     );
     try {
-      const created = await rooms.dispatch('CAS1', { type: 'create', name: 'Alice', avatar: AVATAR, connectionId: 'c1' }, { createIfMissing: true });
+      const created = await rooms.dispatch('CAS1', { type: 'create', gameId: 'skribble', name: 'Alice', avatar: AVATAR, connectionId: 'c1' }, { createIfMissing: 'skribble' });
       if (!created.ok || !created.result.ok || created.result.playerId === null) throw new Error('create failed');
       const hostId = created.result.playerId;
       const clientId = await redis.client('ID');
-      const competing: RoomData = { ...created.data, version: created.data.version + 5, chat: [...created.data.chat, { id: 99, kind: 'system', text: 'Zed joined', ts: 0 }] };
+      const competing: PlatformRoomData = { ...created.data, version: created.data.version + 5, chat: [...created.data.chat, { id: 99, kind: 'system', text: 'Zed joined', ts: 0 }] };
       // Synchronously, between the dispatch's read and its write: the connection dies and another instance commits.
       const cli = (...args: string[]): void => {
         spawnSync('redis-cli', ['-p', String(port), ...args], { stdio: 'ignore' });
@@ -553,10 +609,10 @@ describe.skipIf(!hasRedisServer || !hasRedisCli)('RedisRooms compare-and-set', (
         cli('CLIENT', 'KILL', 'ID', String(clientId));
         cli('SET', roomKey('CAS1'), JSON.stringify(competing));
       };
-      await rooms.dispatch('CAS1', { type: 'clientMessage', playerId: hostId, msg: { t: 'chat', text: 'hello' } });
+      await rooms.dispatch('CAS1', { type: 'platformMessage', playerId: hostId, msg: { t: 'chat', text: 'hello' } });
 
       const raw = await redis.get(roomKey('CAS1'));
-      const after = JSON.parse(raw ?? 'null') as RoomData;
+      const after = JSON.parse(raw ?? 'null') as PlatformRoomData;
       expect(after.version).toBe(competing.version + 1);
       expect(after.chat.map((c) => c.text)).toEqual(['Alice joined', 'Zed joined', 'hello']);
     } finally {

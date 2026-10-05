@@ -10,7 +10,7 @@ test.describe.configure({ mode: 'serial' });
 
 const INSTANCE_A = 'http://localhost:4181';
 const INSTANCE_B = 'http://localhost:4182';
-const SESSION_KEY = 'skribble.session';
+const SESSION_KEY = 'boredgames.session';
 
 interface Player {
   name: string;
@@ -114,13 +114,13 @@ test.afterAll(async () => {
 });
 
 test('the host creates a room on instance A and the guest joins it by code on instance B', async () => {
-  await host.page.goto(`${host.base}/`);
+  await host.page.goto(`${host.base}/skribble`);
   await host.page.getByTestId('home-name').fill(host.name);
   await host.page.getByTestId('home-create').click();
   code = ((await host.page.getByTestId('room-code').textContent()) ?? '').replace(/\s+/g, '');
   expect(code).toMatch(/^[A-Z2-9]{4}$/);
 
-  await guest.page.goto(`${guest.base}/`);
+  await guest.page.goto(`${guest.base}/skribble`);
   await guest.page.getByTestId('home-name').fill(guest.name);
   await guest.page.getByTestId('code-input-0').pressSequentially(code, { delay: 20 });
   await expect(guest.page.getByTestId('room-preview')).toContainText(/1\/12 players/);
@@ -188,15 +188,15 @@ test('the second drawer draws, is cut off, and rejoins through the other instanc
   // stored seat to a fresh page on the other port, exactly as sessionStorage survives in one tab.
   const stored = await second.page.evaluate((key) => sessionStorage.getItem(key), SESSION_KEY);
   expect(stored).not.toBeNull();
-  const session = JSON.parse(stored ?? '{}') as { code?: string; token?: string; playerId?: string };
+  const session = JSON.parse(stored ?? '{}') as { code?: string; gameId?: string; token?: string; playerId?: string };
   expect(session.code).toBe(code);
   expect(session.token).toBeTruthy();
 
   const otherBase = second.base === INSTANCE_A ? INSTANCE_B : INSTANCE_A;
   const back = await newPlayer(browser, `${second.name}-back`, otherBase);
-  await back.page.goto(`${otherBase}/`);
+  await back.page.goto(`${otherBase}/skribble`);
   await back.page.evaluate(([key, value]) => sessionStorage.setItem(key, value), [SESSION_KEY, stored ?? ''] as const);
-  await back.page.goto(`${otherBase}/${code}`);
+  await back.page.goto(`${otherBase}/skribble/${code}`);
 
   // Same seat: still the drawer, same word, same score, the drawing restored, nobody duplicated.
   await expect(back.page.getByTestId('toolbar')).toBeVisible({ timeout: 15_000 });

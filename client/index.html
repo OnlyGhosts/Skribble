@@ -5,22 +5,30 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
     <meta name="theme-color" content="#6c5ce7" />
     <meta name="color-scheme" content="light dark" />
-    <meta name="description" content="Skribble — draw and guess with friends. Share a 4-character code and play instantly." />
+    <meta name="description" content="Bored Games — games to play with friends. Share a code, play instantly." />
+    <link rel="canonical" href="https://boredgames.io/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Bored Games" />
+    <meta property="og:title" content="Bored Games" />
+    <meta property="og:description" content="Games to play with friends. Share a code, play instantly." />
+    <meta property="og:url" content="https://boredgames.io/" />
+    <meta property="og:image" content="https://boredgames.io/icons/icon-512.png" />
+    <meta name="twitter:card" content="summary" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="Skribble" />
+    <meta name="apple-mobile-web-app-title" content="Bored Games" />
     <meta name="format-detection" content="telephone=no" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
-    <title>Skribble — draw &amp; guess with friends</title>
+    <title>Bored Games</title>
     <script>
       // Apply the saved theme before first paint to avoid a flash of the wrong colours.
       (function () {
         var theme = 'light';
         try {
-          var prefs = JSON.parse(localStorage.getItem('skribble.prefs') || 'null');
+          var prefs = JSON.parse(localStorage.getItem('boredgames.prefs') || 'null');
           if (prefs && (prefs.theme === 'dark' || prefs.theme === 'light')) theme = prefs.theme;
           else if (window.matchMedia('(prefers-color-scheme: dark)').matches) theme = 'dark';
         } catch (e) {

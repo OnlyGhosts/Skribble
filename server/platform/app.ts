@@ -11,8 +11,10 @@ import { after, type GameDriver } from './drivers/types.js';
 export interface AppOptions {
   driver: GameDriver;
   log?: (msg: string) => void;
-  /** Serve dist/client with an SPA fallback (off on Vercel, where the CDN serves the client). */
+  /** Serve the client build with an SPA fallback (off on Vercel, where the CDN serves the client). */
   serveStatic?: boolean;
+  /** Where the client build lives; defaults to dist/client under the working directory. */
+  clientDir?: string;
   /** Request paths that accept the WebSocket upgrade; defaults to WS_PATH. */
   wsPaths?: string[];
 }
@@ -53,9 +55,8 @@ export function createApp(options: AppOptions): App {
   });
 
   if (options.serveStatic ?? true) {
-    const clientDir = path.resolve(process.cwd(), 'dist/client');
-    const clientIndex = path.join(clientDir, 'index.html');
-    if (existsSync(clientIndex)) {
+    const clientDir = options.clientDir ?? path.resolve(process.cwd(), 'dist/client');
+    if (existsSync(path.join(clientDir, 'index.html'))) {
       app.use(express.static(clientDir, { index: 'index.html', maxAge: '1h' }));
       // SPA fallback so share links such as https://host/skribble/XK4P load the app.
       app.use((req: Request, res: Response, next: NextFunction) => {
@@ -63,7 +64,9 @@ export function createApp(options: AppOptions): App {
         if (req.path.startsWith('/api') || wsPaths.some((p) => req.path.startsWith(p))) return next();
         if (/\.[a-zA-Z0-9]+$/.test(req.path)) return next(); // missing asset, not a route
         res.setHeader('Cache-Control', 'no-cache');
-        res.sendFile(clientIndex);
+        // `root` keeps the path relative: an absolute path would make sendFile apply its dotfiles
+        // policy to every directory on the way and 404 from a checkout under a dot-directory.
+        res.sendFile('index.html', { root: clientDir, dotfiles: 'allow' });
       });
       log(`serving client from ${clientDir}`);
     } else {

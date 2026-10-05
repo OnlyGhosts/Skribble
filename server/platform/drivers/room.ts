@@ -1,6 +1,6 @@
 import type { Avatar } from '../../../shared/platform/avatar.js';
 import type { GameId } from '../../../shared/platform/games.js';
-import type { ErrorCode, RoomState } from '../../../shared/platform/protocol.js';
+import { isWireMessage, type ErrorCode, type RoomState } from '../../../shared/platform/protocol.js';
 import type { Action, ActionResult } from '../engine/actions.js';
 import { resolveRecipients, type Effect } from '../engine/effects.js';
 import { moduleFor } from '../engine/module.js';
@@ -9,7 +9,7 @@ import { applyAction } from '../engine/reduce.js';
 import { createRoomData, type PlatformPlayerData, type PlatformRoomData } from '../engine/state.js';
 import { nextDeadline } from '../engine/time.js';
 import { viewFor } from '../engine/view.js';
-import { SIDE_RESYNC_DEBOUNCE_MS, type AnyGameSideStore, type SideRoom } from '../game.js';
+import { SIDE_RESYNC_DEBOUNCE_MS, type AnyGameSideStore, type Recipients, type SideRoom } from '../game.js';
 import type { GameStorage } from '../storage.js';
 import { productionCtx, systemClock, type Clock, type Rng, type Transport } from '../transport.js';
 import { after, type OutboundMessage, type RoomInbound } from './types.js';
@@ -287,12 +287,12 @@ export class Room {
     }, SIDE_RESYNC_DEBOUNCE_MS);
   }
 
-  private broadcast(to: Effect extends { to: infer R } ? R : never, msg: OutboundMessage): void {
+  private broadcast(to: Recipients, msg: OutboundMessage): void {
     for (const id of resolveRecipients(this.data, to)) this.transport.send(id, msg);
   }
 }
 
 function asWire(msg: unknown): OutboundMessage {
-  if (typeof msg === 'object' && msg !== null && typeof (msg as { t?: unknown }).t === 'string') return msg as OutboundMessage;
+  if (isWireMessage(msg)) return msg;
   throw new Error('side store message must be an object with a string `t`');
 }

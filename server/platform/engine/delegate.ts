@@ -1,4 +1,5 @@
 /** Runs the room's game module and folds its effects into the platform's state and effect list. */
+import { isWireMessage, type WireMessage } from '../../../shared/platform/protocol.js';
 import type { GameCtx, GameEffect, GameEvent, GameResult } from '../game.js';
 import { broadcastSnapshot, fail, pushChat, snapshotTo, systemMessage, type Cx } from './messaging.js';
 import { moduleFor } from './module.js';
@@ -79,7 +80,7 @@ function applyEffect(cx: Cx, effect: GameEffect<unknown>, applied: Applied): voi
 }
 
 /** Game server messages are JSON objects with a string `t`; anything else is a module bug. */
-function toWire(msg: unknown): { t: string } {
-  if (typeof msg === 'object' && msg !== null && typeof (msg as { t?: unknown }).t === 'string') return msg as { t: string };
+function toWire(msg: unknown): WireMessage {
+  if (isWireMessage(msg)) return msg;
   throw new Error('game message must be an object with a string `t`');
 }

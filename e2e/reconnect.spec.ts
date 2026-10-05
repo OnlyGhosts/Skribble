@@ -72,12 +72,12 @@ test.afterAll(async () => {
 });
 
 test('two players start a long turn and the drawer draws', async () => {
-  await host.page.goto('/');
+  await host.page.goto('/skribble');
   await host.page.getByTestId('home-name').fill(host.name);
   await host.page.getByTestId('home-create').click();
   const code = ((await host.page.getByTestId('room-code').textContent()) ?? '').replace(/\s+/g, '');
 
-  await guest.page.goto('/');
+  await guest.page.goto('/skribble');
   await guest.page.getByTestId('home-name').fill(guest.name);
   await guest.page.getByTestId('code-input-0').pressSequentially(code, { delay: 20 });
   await guest.page.getByTestId('home-join').click();
@@ -146,7 +146,7 @@ test('the host kicks the other player, who lands on the home screen', async () =
 
   await expect(target.page.getByTestId('home-create')).toBeVisible();
   await expect(target.page.getByTestId('toast')).toContainText(/removed|kicked/i);
-  await expect(target.page).toHaveURL(/\/$/);
+  await expect(target.page).toHaveURL(/\/skribble$/);
   await expect(target.page.getByTestId('invite-banner')).toHaveCount(0);
 
   await expect(host.page.getByTestId('chat-log')).toContainText(`${target.name} was kicked`);

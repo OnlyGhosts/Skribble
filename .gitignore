@@ -9,3 +9,6 @@ blob-report/
 .env
 .env.*
 !.env.example
+
+# Claude Code harness state (worktrees, settings)
+.claude/

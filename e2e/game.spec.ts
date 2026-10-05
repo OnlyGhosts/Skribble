@@ -131,8 +131,8 @@ test.afterAll(async () => {
   for (const p of players) await p.context.close();
 });
 
-test('home renders and the host creates a room with a readable 4-character code', async () => {
-  await host.page.goto('/');
+test('the game home renders and the host creates a room with a readable 4-character code', async () => {
+  await host.page.goto('/skribble');
   await expect(host.page.getByTestId('home-create')).toBeVisible();
   await expect(host.page.getByTestId('home-join')).toBeVisible();
   await expect(host.page.getByTestId('connection-status')).toHaveAttribute('data-status', 'connected');
@@ -144,20 +144,20 @@ test('home renders and the host creates a room with a readable 4-character code'
   await expect(codeEl).toBeVisible();
   roomCode = (await codeEl.textContent())?.replace(/\s+/g, '') ?? '';
   expect(roomCode).toMatch(ROOM_CODE_RE);
-  await expect(host.page).toHaveURL(new RegExp(`/${roomCode}$`));
+  await expect(host.page).toHaveURL(new RegExp(`/skribble/${roomCode}$`));
   await expect(playerItem(host.page, host.name).getByTestId('host-crown')).toBeVisible();
   await expect(host.page.getByTestId('start-game')).toBeDisabled();
   await expect(host.page.getByTestId('start-hint')).toBeVisible();
 });
 
 test('an invalid code shows the alphabet hint and an unknown code is reported as not found', async () => {
-  await bob.page.goto('/');
+  await bob.page.goto('/skribble');
   await enterName(bob.page, bob.name);
   await typeCode(bob.page, 'AB0!');
   await expect(bob.page.getByTestId('code-hint')).toContainText(/never I, L or O/);
   await expect(bob.page.getByTestId('code-input-2')).toHaveValue('');
 
-  await bob.page.goto('/');
+  await bob.page.goto('/skribble');
   const unknown = roomCode === 'ZZZZ' ? 'YYYY' : 'ZZZZ';
   await typeCode(bob.page, unknown);
   await expect(bob.page.getByTestId('room-preview')).toContainText(/no room with this code/i);
@@ -167,14 +167,14 @@ test('an invalid code shows the alphabet hint and an unknown code is reported as
 });
 
 test('player 2 joins by typing the code and player 3 joins through the share link', async () => {
-  await bob.page.goto('/');
+  await bob.page.goto('/skribble');
   await expect(bob.page.getByTestId('home-name')).toHaveValue(bob.name);
   await typeCode(bob.page, roomCode);
   await expect(bob.page.getByTestId('room-preview')).toContainText(/1\/12 players/);
   await bob.page.getByTestId('home-join').click();
   await expect(bob.page.getByTestId('room-code')).toHaveText(roomCode);
 
-  await carol.page.goto(`/${roomCode}`);
+  await carol.page.goto(`/skribble/${roomCode}`);
   await expect(carol.page.getByTestId('invite-banner')).toContainText(roomCode);
   await enterName(carol.page, carol.name);
   await carol.page.getByTestId('home-join').click();
@@ -185,7 +185,7 @@ test('player 2 joins by typing the code and player 3 joins through the share lin
     await expect(playerItem(p.page, host.name).getByTestId('host-crown')).toBeVisible();
     await expect(playerItem(p.page, bob.name).getByTestId('host-crown')).toHaveCount(0);
     await expect(playerItem(p.page, carol.name).getByTestId('host-crown')).toHaveCount(0);
-    await expect(p.page).toHaveURL(new RegExp(`/${roomCode}$`));
+    await expect(p.page).toHaveURL(new RegExp(`/skribble/${roomCode}$`));
   }
   await expect(host.page.getByTestId('chat-log')).toContainText(`${bob.name} joined`);
   await expect(host.page.getByTestId('chat-log')).toContainText(`${carol.name} joined`);
@@ -321,7 +321,7 @@ test('back to lobby resets the scores for everyone', async () => {
 test('leaving removes the player and tells the others', async () => {
   await carol.page.getByTestId('leave-room').click();
   await expect(carol.page.getByTestId('home-create')).toBeVisible();
-  await expect(carol.page).toHaveURL(/\/$/);
+  await expect(carol.page).toHaveURL(/\/skribble$/);
   await expect(carol.page.getByTestId('invite-banner')).toHaveCount(0);
   for (const p of [host, bob]) {
     await expect(p.page.getByTestId('player-item')).toHaveCount(2);

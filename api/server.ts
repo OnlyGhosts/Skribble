@@ -11,7 +11,7 @@ import { createDriverFromEnv } from '../server/platform/drivers/select.js';
  * Instances are many and short-lived (a connection is cut at the function's max duration), so
  * rooms must live in Redis: REDIS_URL (or KV_URL) comes from a Marketplace Redis store.
  */
-const log = (msg: string): void => console.log(`[game-night] ${msg}`);
+const log = (msg: string): void => console.log(`[bored-games] ${msg}`);
 
 const driver = createDriverFromEnv({ log, expectRedis: true });
 const { server } = createApp({ driver, log, serveStatic: false, wsPaths: [WS_PATH, '/api/server'] });

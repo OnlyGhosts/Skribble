@@ -1,5 +1,5 @@
 # Fly.io config: `fly launch --copy-config --yes` then `fly deploy`.
-app = "skribble"
+app = "bored-games"
 primary_region = "lhr"
 
 [build]

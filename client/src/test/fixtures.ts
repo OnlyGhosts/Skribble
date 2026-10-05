@@ -1,6 +1,14 @@
-import type { ChatMessage, Phase, PlayerPublic, RoomState, ServerMessageOf } from '@shared/protocol';
-import { DEFAULT_SETTINGS } from '@shared/settings';
-import { useGameStore } from '../store/useGameStore';
+import { DEFAULT_SKRIBBLE_SETTINGS } from '@shared/games/skribble/protocol';
+import { GAME_IDS, type GameId } from '@shared/platform/games';
+import type { ChatMessage, PlayerPublic, RoomState, WelcomeMessage } from '@shared/platform/protocol';
+import type { AnyGameClientModule } from '../platform/game';
+import { usePlatformStore } from '../platform/store/usePlatformStore';
+
+/** The same module (or stub) under every game id, for `registerGames`; built from GAME_IDS so new games need no edit here. */
+export function registryOf(module: Partial<AnyGameClientModule>): Record<GameId, AnyGameClientModule> {
+  const stub = module as AnyGameClientModule;
+  return Object.fromEntries(GAME_IDS.map((id) => [id, stub])) as Record<GameId, AnyGameClientModule>;
+}
 
 export function player(id: string, overrides: Partial<PlayerPublic> = {}): PlayerPublic {
   return {
@@ -10,44 +18,31 @@ export function player(id: string, overrides: Partial<PlayerPublic> = {}): Playe
     score: 0,
     isHost: id === 'host',
     connected: true,
-    guessedThisTurn: false,
-    turnPoints: 0,
     joinOrder: 0,
     ...overrides,
   };
 }
 
+/** A Skribble lobby by default; `game` carries a game view for in-game states. */
 export function room(overrides: Partial<RoomState> = {}): RoomState {
   return {
     code: 'ABCD',
+    gameId: 'skribble',
     hostId: 'host',
-    settings: { ...DEFAULT_SETTINGS },
+    settings: { maxPlayers: 12, allowMidGameJoin: true, ...DEFAULT_SKRIBBLE_SETTINGS },
     players: [player('host'), player('bob', { joinOrder: 1 })],
-    phase: { kind: 'lobby' },
-    round: 0,
-    totalRounds: 3,
-    turn: 0,
-    turnsInRound: 0,
+    phase: 'lobby',
+    podium: null,
+    game: null,
     serverTime: Date.now(),
     ...overrides,
   };
 }
 
-export function drawingPhase(drawerId: string, overrides: Partial<Extract<Phase, { kind: 'drawing' }>> = {}): Phase {
-  return {
-    kind: 'drawing',
-    drawerId,
-    startedAt: Date.now(),
-    endsAt: Date.now() + 60_000,
-    mask: '_____',
-    likes: 0,
-    dislikes: 0,
-    ...overrides,
-  };
-}
-
-export function welcome(playerId: string, roomState: RoomState, token = `token-${playerId}`): ServerMessageOf<'welcome'> {
-  return { t: 'welcome', playerId, token, room: roomState, canvas: [], chat: [] };
+export function welcome(playerId: string, roomState: RoomState, token = `token-${playerId}`, extra?: unknown): WelcomeMessage {
+  const msg: WelcomeMessage = { t: 'welcome', playerId, token, room: roomState, chat: [] };
+  if (extra !== undefined) msg.extra = extra;
+  return msg;
 }
 
 export function chatLine(id: number, kind: ChatMessage['kind'] = 'chat', text = `line ${id}`): ChatMessage {
@@ -56,13 +51,11 @@ export function chatLine(id: number, kind: ChatMessage['kind'] = 'chat', text = 
 
 /** Puts the singleton store back to its initial shape between tests. */
 export function resetStore(): void {
-  useGameStore.setState({
+  usePlatformStore.setState({
     connection: 'connecting',
     playerId: null,
     room: null,
     rejoining: false,
-    canvas: [],
-    canvasEpoch: 0,
     chat: [],
     toasts: [],
     joinPending: false,
@@ -70,6 +63,5 @@ export function resetStore(): void {
     joinError: null,
     clockOffset: 0,
     clockSynced: false,
-    guessDraft: '',
   });
 }

@@ -1,7 +1,7 @@
 import { Redis, type RedisOptions } from 'ioredis';
 import type { Avatar } from '../../../shared/platform/avatar.js';
 import type { GameId } from '../../../shared/platform/games.js';
-import { CLOSE_REPLACED, type RoomPreview } from '../../../shared/platform/protocol.js';
+import { CLOSE_REPLACED, isWireMessage, type RoomPreview, type WireMessage } from '../../../shared/platform/protocol.js';
 import { generateRoomCode, isValidRoomCode, normalizeRoomCode, roomCodeHint } from '../../../shared/platform/roomCode.js';
 import type { Action } from '../engine/actions.js';
 import { resolveRecipients } from '../engine/effects.js';
@@ -385,9 +385,10 @@ export class RedisDriver implements GameDriver {
   private async apply(local: LocalRoom, msg: RoomChannelMessage): Promise<void> {
     if (this.locals.get(local.code) !== local) return;
     if (msg.kind === 'effects') return this.applyEffects(local, msg);
+    if (!local.data) return;
     const connected = new Set(this.localConnected(local));
     for (const send of msg.sends) {
-      for (const id of resolveRecipients(local.data ?? emptyPlayers, send.to)) {
+      for (const id of resolveRecipients(local.data, send.to)) {
         if (connected.has(id) && this.wantsSide(local, id, msg)) this.sendLocal(local, id, send.msg);
       }
     }
@@ -575,9 +576,8 @@ export class RedisDriver implements GameDriver {
   }
 }
 
-const emptyPlayers: PlatformRoomData['players'] = [];
 
-function asWire(msg: unknown): OutboundMessage {
-  if (typeof msg === 'object' && msg !== null && typeof (msg as { t?: unknown }).t === 'string') return msg as OutboundMessage;
+function asWire(msg: unknown): WireMessage {
+  if (isWireMessage(msg)) return msg;
   throw new Error('side store message must be an object with a string `t`');
 }

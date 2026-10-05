@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { CHAT_RATE_LIMIT_COUNT, CHAT_RATE_LIMIT_WINDOW_MS } from '../shared/constants.js';
+import { CHAT_RATE_LIMIT_COUNT, CHAT_RATE_LIMIT_WINDOW_MS } from '../../shared/platform/constants.js';
 import {
   CLOSE_REMOVED,
   CLOSE_REPLACED,
-  DRAW_RATE_LIMIT_PER_SECOND,
+  GAME_MESSAGE_RATE_LIMIT_PER_SECOND,
   HEARTBEAT_INTERVAL_MS,
   ROOM_RATE_LIMIT_COUNT,
   ROOM_RATE_LIMIT_WINDOW_MS,
@@ -11,10 +11,10 @@ import {
   handleConnection,
 } from './connection.js';
 import { MemoryDriver } from './drivers/memory.js';
+import type { RoomManager } from './drivers/roomManager.js';
 import { FakeSocket } from './drivers/testSocket.js';
-import type { GameDriver, Seat } from './drivers/types.js';
-import type { RoomManager } from './roomManager.js';
-import { AVATAR } from './testUtils.js';
+import { AVATAR } from './drivers/testUtils.js';
+import type { GameDriver, RoomInbound, Seat } from './drivers/types.js';
 
 interface World {
   hub: SocketHub;
@@ -37,7 +37,7 @@ function world(): World {
 
 /** Creates a room on `host` and joins `guest`; returns the code. */
 function pair(w: World, host: FakeSocket, guest: FakeSocket): string {
-  host.receive({ t: 'create', name: 'Alice', avatar: AVATAR });
+  host.receive({ t: 'create', gameId: 'skribble', name: 'Alice', avatar: AVATAR });
   const code = host.last('welcome').room.code;
   guest.receive({ t: 'join', code, name: 'Bob', avatar: AVATAR });
   return code;
@@ -57,12 +57,16 @@ describe('handleConnection', () => {
     const w = world();
     const ws = w.connect();
     ws.receive('{not json', true);
-    ws.receive({ t: 'nope' });
+    ws.receive({ t: 5 });
     ws.receive({ t: 'join', code: 'ABCD', name: '', avatar: AVATAR });
-    ws.receive({ t: 'draw', ops: [] });
+    ws.receive({ t: 'create', gameId: 'chess', name: 'Al', avatar: AVATAR });
     ws.emit('message', Buffer.from('x'), true);
     expect(ws.errors()).toEqual(['INVALID_MESSAGE', 'INVALID_MESSAGE', 'INVALID_MESSAGE', 'INVALID_MESSAGE', 'INVALID_MESSAGE']);
     expect(ws.last('error').message.length).toBeGreaterThan(0);
+    // Unknown and game messages are the room's business: without a seat they are refused, not parsed.
+    ws.receive({ t: 'nope' });
+    ws.receive({ t: 'draw', ops: [] });
+    expect(ws.errors().slice(-2)).toEqual(['NOT_ALLOWED', 'NOT_ALLOWED']);
   });
 
   it('answers ping with the server time and rejects room actions before joining', () => {
@@ -94,8 +98,11 @@ describe('handleConnection', () => {
     expect(stranger.last('welcome').room.code).toBe('AAAA');
 
     host.receive({ t: 'start' });
-    expect(host.last('room').room.phase.kind).toBe('choosing');
-    expect(guest.last('room').room.phase.kind).toBe('choosing');
+    expect(host.last('room').room.game?.phase.kind).toBe('choosing');
+    expect(guest.last('room').room.game?.phase.kind).toBe('choosing');
+    // Game messages are validated by the room's game, not the connection layer.
+    host.receive({ t: 'chooseWord', index: 'first' });
+    expect(host.errors()).toEqual(['INVALID_MESSAGE']);
     host.receive({ t: 'chooseWord', index: 0 });
     host.receive({ t: 'draw', ops: [{ k: 'start', id: 1, tool: 'brush', color: '#000000', size: 6, x: 1, y: 2 }] });
     expect(host.ofType('draw')).toHaveLength(0);
@@ -117,20 +124,22 @@ describe('handleConnection', () => {
 
     host.receive({ t: 'start' });
     host.receive({ t: 'chooseWord', index: 0 });
-    for (let i = 0; i < DRAW_RATE_LIMIT_PER_SECOND + 20; i++) {
+    // Every game message shares the budget; start a fresh second for the flood.
+    vi.advanceTimersByTime(1000);
+    for (let i = 0; i < GAME_MESSAGE_RATE_LIMIT_PER_SECOND + 20; i++) {
       host.receive({ t: 'draw', ops: [{ k: 'fill', x: i, y: i, color: '#000000' }] });
     }
-    expect(guest.ofType('draw')).toHaveLength(DRAW_RATE_LIMIT_PER_SECOND);
+    expect(guest.ofType('draw')).toHaveLength(GAME_MESSAGE_RATE_LIMIT_PER_SECOND);
     expect(host.errors()).toEqual([]);
     vi.advanceTimersByTime(1000);
     host.receive({ t: 'draw', ops: [{ k: 'fill', x: 0, y: 0, color: '#000000' }] });
-    expect(guest.ofType('draw')).toHaveLength(DRAW_RATE_LIMIT_PER_SECOND + 1);
+    expect(guest.ofType('draw')).toHaveLength(GAME_MESSAGE_RATE_LIMIT_PER_SECOND + 1);
   });
 
   it('rate-limits room creation and joining per socket and refuses creates at the room cap', () => {
     const w = world();
     const flooder = w.connect();
-    for (let i = 0; i < ROOM_RATE_LIMIT_COUNT * 4; i++) flooder.receive({ t: 'create', name: 'Mallory', avatar: AVATAR });
+    for (let i = 0; i < ROOM_RATE_LIMIT_COUNT * 4; i++) flooder.receive({ t: 'create', gameId: 'skribble', name: 'Mallory', avatar: AVATAR });
     expect(flooder.ofType('welcome')).toHaveLength(ROOM_RATE_LIMIT_COUNT);
     expect(flooder.errors()).toEqual(new Array<string>(ROOM_RATE_LIMIT_COUNT * 3).fill('RATE_LIMITED'));
     // Only the latest room is occupied; the abandoned ones wait for their TTL but count against the cap.
@@ -153,8 +162,8 @@ describe('handleConnection', () => {
     const b = new FakeSocket();
     handleConnection(a, { driver: cappedDriver, clock: { now: () => Date.now() } });
     handleConnection(b, { driver: cappedDriver, clock: { now: () => Date.now() } });
-    a.receive({ t: 'create', name: 'Alice', avatar: AVATAR });
-    b.receive({ t: 'create', name: 'Bob', avatar: AVATAR });
+    a.receive({ t: 'create', gameId: 'skribble', name: 'Alice', avatar: AVATAR });
+    b.receive({ t: 'create', gameId: 'skribble', name: 'Bob', avatar: AVATAR });
     expect(a.ofType('welcome')).toHaveLength(1);
     expect(b.ofType('welcome')).toHaveLength(0);
     expect(b.last('error')).toMatchObject({ code: 'RATE_LIMITED', message: expect.stringMatching(/too many rooms/) });
@@ -232,11 +241,39 @@ describe('handleConnection', () => {
 
     host.receive({ t: 'leave' });
     expect(w.rooms.stats().players).toBe(0);
-    host.receive({ t: 'create', name: 'Alice', avatar: AVATAR });
+    host.receive({ t: 'create', gameId: 'skribble', name: 'Alice', avatar: AVATAR });
     expect(host.ofType('welcome')).toHaveLength(2);
     expect(w.rooms.stats()).toEqual({ rooms: 2, players: 1 });
     host.receive({ t: 'chat', text: 'new room' });
     expect(host.errors()).toEqual([]);
+  });
+
+  it('runs a Click Race room next to Skribble rooms, codes shared across games', () => {
+    const w = world();
+    const host = w.connect();
+    const guest = w.connect();
+    host.receive({ t: 'create', gameId: 'template', name: 'Alice', avatar: AVATAR });
+    const welcome = host.last('welcome');
+    expect(welcome.room).toMatchObject({ gameId: 'template', phase: 'lobby', game: null });
+    expect(welcome.room.settings).toMatchObject({ targetClicks: 30, timeLimit: 30 });
+    expect(welcome.extra).toBeUndefined();
+    guest.receive({ t: 'join', code: welcome.room.code, name: 'Bob', avatar: AVATAR });
+    expect(guest.last('welcome').room.gameId).toBe('template');
+    // Another game's fields are ignored, the race's own apply.
+    host.receive({ t: 'updateSettings', settings: { targetClicks: 10, rounds: 5 } });
+    expect(host.errors()).toEqual([]);
+    expect(host.last('room').room.settings).toMatchObject({ targetClicks: 10 });
+    expect(host.last('room').room.settings).not.toHaveProperty('rounds');
+    host.receive({ t: 'start' });
+    expect(guest.last('room').room.phase).toBe('playing');
+    for (let i = 0; i < 10; i++) guest.receive({ t: 'click' });
+    expect(host.last('room').room.phase).toBe('ended');
+    expect(host.last('room').room.podium?.[0]).toMatchObject({ playerId: guest.last('welcome').playerId, score: 100, rank: 1 });
+    // A Skribble room created meanwhile lives in the same code space.
+    const other = w.connect();
+    other.receive({ t: 'create', gameId: 'skribble', name: 'Zed', avatar: AVATAR });
+    expect(other.last('welcome').room.code).not.toBe(welcome.room.code);
+    expect(w.rooms.stats()).toEqual({ rooms: 2, players: 3 });
   });
 
   it('leaves the previous room when creating or joining another', () => {
@@ -244,7 +281,7 @@ describe('handleConnection', () => {
     const host = w.connect();
     const guest = w.connect();
     pair(w, host, guest);
-    guest.receive({ t: 'create', name: 'Bob', avatar: AVATAR });
+    guest.receive({ t: 'create', gameId: 'skribble', name: 'Bob', avatar: AVATAR });
     expect(host.last('chat').message.text).toBe('Bob left');
     expect(w.rooms.stats()).toEqual({ rooms: 2, players: 2 });
   });
@@ -295,8 +332,8 @@ class SlowDriver implements GameDriver {
     this.calls.push(`disconnected ${seat.playerId} ${connectionId}`);
     return this.disconnectedResult();
   }
-  handle(seat: Seat, msg: { t: string }): Promise<void> {
-    this.calls.push(`handle ${seat.playerId} ${msg.t}`);
+  handle(seat: Seat, inbound: RoomInbound): Promise<void> {
+    this.calls.push(`handle ${seat.playerId} ${inbound.msg.t}`);
     return Promise.resolve();
   }
   holds(seat: Seat, connectionId: string): boolean {

@@ -1,26 +1,32 @@
 import { useEffect } from 'react';
-import { leaveRoom } from './net/actions';
-import { socket } from './net/socket';
-import { vibrate } from './lib/haptics';
-import { playCue, setSoundEnabled, unlockAudio } from './lib/sound';
-import { codeFromLocation, pushRoomUrl } from './lib/url';
-import { useViewport } from './lib/useViewport';
-import { isChatAppend, selectIsDrawer, selectMe, useGameStore } from './store/useGameStore';
-import { Toasts } from './components/Toasts';
-import { Game } from './screens/Game';
-import { Home } from './screens/Home';
-import { Lobby } from './screens/Lobby';
+import { gameById } from '@shared/platform/games';
+import type { RoomState } from '@shared/platform/protocol';
+import { PodiumOverlay } from './platform/components/PodiumOverlay';
+import { Toasts } from './platform/components/Toasts';
+import { DARK_SCHEME_QUERY } from './platform/lib/media';
+import { setSoundEnabled, unlockAudio } from './platform/lib/sound';
+import { fetchPreview } from './platform/lib/useRoomPreview';
+import { useViewport } from './platform/lib/useViewport';
+import { socket } from './platform/net/socket';
+import { registeredGame } from './platform/registry';
+import { codeFromLocation, navigate, roomPath, startRouter, useRouter } from './platform/router';
+import { startRouteSync } from './platform/routeSync';
+import { GameHome } from './platform/screens/GameHome';
+import { Library } from './platform/screens/Library';
+import { Lobby } from './platform/screens/Lobby';
+import { selectIsHost } from './platform/store/selectors';
+import { usePlatformStore } from './platform/store/usePlatformStore';
 
-const BASE_TITLE = 'Skribble — draw & guess with friends';
+const THEME_COLORS = { light: '#6c5ce7', dark: '#15142b' } as const;
 
 function useTheme(): void {
-  const theme = useGameStore((s) => s.prefs.theme);
+  const theme = usePlatformStore((s) => s.prefs.theme);
   useEffect(() => {
-    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const mq = window.matchMedia(DARK_SCHEME_QUERY);
     const apply = () => {
       const resolved = theme ?? (mq.matches ? 'dark' : 'light');
       document.documentElement.dataset.theme = resolved;
-      document.querySelector('meta[name="theme-color"]')?.setAttribute('content', resolved === 'dark' ? '#15142b' : '#6c5ce7');
+      document.querySelector('meta[name="theme-color"]')?.setAttribute('content', THEME_COLORS[resolved]);
     };
     apply();
     if (theme !== null) return;
@@ -30,35 +36,22 @@ function useTheme(): void {
 }
 
 /**
- * Mirrors the room into the address bar and leaves the room when the user navigates away from it.
- * Leaving the URL behind is `resetRoom`'s job alone: it knows whether the code should survive
- * (a seat that expired while the room may still exist is re-joined with one click).
+ * Mirrors the room into the address bar ('/:slug/:CODE') and the title. The other direction
+ * (navigating away leaves the room) is routeSync's; moving the URL after a leave is resetRoom's.
  */
 function useUrlSync(): void {
-  const code = useGameStore((s) => s.room?.code ?? null);
+  const code = usePlatformStore((s) => s.room?.code ?? null);
+  const gameId = usePlatformStore((s) => s.room?.gameId ?? null);
   useEffect(() => {
-    if (code) {
-      pushRoomUrl(code);
-      document.title = `Skribble — room ${code}`;
-    } else {
-      document.title = BASE_TITLE;
-    }
-  }, [code]);
-
-  useEffect(() => {
-    const onPop = () => {
-      const room = useGameStore.getState().room;
-      if (room && codeFromLocation() !== room.code) leaveRoom();
-    };
-    window.addEventListener('popstate', onPop);
-    return () => window.removeEventListener('popstate', onPop);
-  }, []);
+    if (!code || !gameId) return;
+    navigate(roomPath(gameId, code), { replace: codeFromLocation() === code });
+    document.title = `${gameById(gameId).name} · room ${code}`;
+  }, [code, gameId]);
 }
 
-function useSoundEffects(): void {
-  const sound = useGameStore((s) => s.prefs.sound);
+function useSound(): void {
+  const sound = usePlatformStore((s) => s.prefs.sound);
   useEffect(() => setSoundEnabled(sound), [sound]);
-
   useEffect(() => {
     const unlock = () => unlockAudio();
     window.addEventListener('pointerdown', unlock, { passive: true });
@@ -68,49 +61,86 @@ function useSoundEffects(): void {
       window.removeEventListener('keydown', unlock);
     };
   }, []);
+}
 
-  useEffect(
-    () =>
-      useGameStore.subscribe((state, prev) => {
-        const phase = state.room?.phase;
-        const prevPhase = prev.room?.phase;
-        if (phase && phase.kind === 'choosing' && phase.drawerId === state.playerId) {
-          const wasMyChoosing = prevPhase?.kind === 'choosing' && prevPhase.drawerId === phase.drawerId;
-          if (!wasMyChoosing) playCue('yourTurn');
+/** A legacy bare-code link: the preview says which game the room runs, then the URL becomes '/:slug/:CODE'. */
+function LegacyCode({ code }: { code: string }) {
+  const addToast = usePlatformStore((s) => s.addToast);
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchPreview(code, controller.signal)
+      .then((preview) => {
+        if (controller.signal.aborted) return;
+        if (preview?.exists) {
+          navigate(roomPath(preview.gameId, code), { replace: true });
+          return;
         }
-        if (phase?.kind === 'turnEnd' && prevPhase?.kind !== 'turnEnd') playCue('turnEnd');
-        // Only a freshly appended line is news; a welcome replaces the whole log with history.
-        if (state.chat !== prev.chat && isChatAppend(prev.chat, state.chat)) {
-          const last = state.chat[state.chat.length - 1];
-          if (last.kind === 'correct') playCue('correct');
-        }
-        // A little buzz when this player cracks the word (the drawer is marked as guessed too; skip them).
-        if (
-          phase?.kind === 'drawing' &&
-          prevPhase?.kind === 'drawing' &&
-          !selectIsDrawer(state) &&
-          selectMe(state)?.guessedThisTurn &&
-          !selectMe(prev)?.guessedThisTurn
-        ) {
-          vibrate(30);
-        }
-      }),
-    [],
+        addToast('warning', `There is no room with code ${code} right now.`);
+        navigate('/', { replace: true });
+      })
+      .catch(() => {
+        if (controller.signal.aborted) return;
+        addToast('error', "Couldn't look up that room code. Check your connection and try again.");
+        navigate('/', { replace: true });
+      });
+    return () => controller.abort();
+  }, [code, addToast]);
+  return <Library resolvingCode={code} />;
+}
+
+function UnknownRoute() {
+  const addToast = usePlatformStore((s) => s.addToast);
+  useEffect(() => {
+    addToast('warning', 'That page does not exist; here is the library instead.');
+    navigate('/', { replace: true });
+  }, [addToast]);
+  return <Library />;
+}
+
+/** Inside a room: the platform lobby, or the game's own screen with the platform podium once it ended. */
+function RoomScreen({ room }: { room: RoomState }) {
+  const meId = usePlatformStore((s) => s.playerId);
+  const isHost = usePlatformStore(selectIsHost);
+  const game = registeredGame(room.gameId);
+  if (!game) return null;
+  if (room.phase === 'lobby') return <Lobby room={room} game={game} />;
+  const Screen = game.Screen;
+  return (
+    <>
+      <Screen key={room.code} room={room} meId={meId ?? ''} isHost={isHost} />
+      {room.phase === 'ended' && <PodiumOverlay room={room} isHost={isHost} />}
+    </>
   );
 }
 
 export function App() {
-  useEffect(() => socket.start(), []);
+  useEffect(() => {
+    socket.start();
+    const stopRouter = startRouter();
+    const stopSync = startRouteSync();
+    return () => {
+      stopRouter();
+      stopSync();
+    };
+  }, []);
   useTheme();
   useViewport();
   useUrlSync();
-  useSoundEffects();
+  useSound();
 
-  const room = useGameStore((s) => s.room);
+  const room = usePlatformStore((s) => s.room);
+  const route = useRouter((s) => s.route);
+
+  let screen;
+  if (room) screen = <RoomScreen room={room} />;
+  else if (route.kind === 'game') screen = <GameHome key={route.game.id} game={route.game} code={route.code} />;
+  else if (route.kind === 'code') screen = <LegacyCode code={route.code} />;
+  else if (route.kind === 'unknown') screen = <UnknownRoute />;
+  else screen = <Library />;
 
   return (
     <>
-      {room === null ? <Home /> : room.phase.kind === 'lobby' ? <Lobby room={room} /> : <Game room={room} />}
+      {screen}
       <Toasts />
     </>
   );
