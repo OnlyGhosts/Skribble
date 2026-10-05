@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CHAT_HISTORY_LENGTH, EMPTY_ROOM_TTL_MS, LOW_PLAYERS_GRACE_MS, RECONNECT_GRACE_MS } from '../../../shared/platform/constants.js';
 import { GAME_IDS, gameById, type GameId } from '../../../shared/platform/games.js';
 import { GAMES } from '../../games/index.js';
-import { GAME_TEST_FIXTURES } from '../../games/testFixtures.js';
+import { GAME_TEST_FIXTURES, enoughNames } from '../../games/testFixtures.js';
 import { AVATAR, createHarness, startGame, type Harness } from './testUtils.js';
 
 const START = new Date('2026-01-01T12:00:00Z').getTime();
@@ -23,6 +23,10 @@ afterEach(() => {
 describe.each(GAME_IDS)('platform room (%s)', (gameId: GameId) => {
   const harness = (): Harness => createHarness({ gameId });
   const meta = gameById(gameId);
+  /** The smallest room this game can run: scenarios written for two seats grow to the game's minimum. */
+  const smallest = Math.max(2, meta.minPlayers);
+  /** Seats filler players after `seated` names until the room holds `total`. */
+  const fill = (h: Harness, seated: number, total: number): string[] => Array.from({ length: Math.max(0, total - seated) }, (_, i) => h.join(`Guest${i + 1}`));
 
   describe('seats', () => {
     it('makes the first joiner host and sends welcome / snapshot / system message', () => {
@@ -61,8 +65,9 @@ describe.each(GAME_IDS)('platform room (%s)', (gameId: GameId) => {
     it('rejects joins when the room is full (counting players in grace)', () => {
       const h = harness();
       const alice = h.join('Alice');
-      h.send(alice, { t: 'updateSettings', settings: { maxPlayers: 2 } });
+      h.send(alice, { t: 'updateSettings', settings: { maxPlayers: smallest } });
       const bob = h.join('Bob');
+      fill(h, 2, smallest);
       expect(h.room.join('Carol', AVATAR, 'c')).toMatchObject({ ok: false, code: 'ROOM_FULL' });
       h.room.handleDisconnect(bob);
       expect(h.room.isFull).toBe(true);
@@ -129,6 +134,8 @@ describe.each(GAME_IDS)('platform room (%s)', (gameId: GameId) => {
       const alice = h.join('Alice');
       const bob = h.join('Bob');
       h.join('Carol');
+      // Enough guests stay connected to start once the host has dropped.
+      fill(h, 3, meta.minPlayers + 1);
       h.room.handleDisconnect(alice);
       expect(h.room.hostPlayerId).toBe(bob);
       h.send(bob, { t: 'start' });
@@ -144,6 +151,7 @@ describe.each(GAME_IDS)('platform room (%s)', (gameId: GameId) => {
       const eve = solo.join('Eve');
       expect(solo.room.hostPlayerId).toBe(eve);
       solo.join('Frank');
+      fill(solo, 2, meta.minPlayers);
       solo.send(eve, { t: 'start' });
       expect(solo.room.phase).toBe('playing');
       expect(solo.transport.errors(eve)).toEqual([]);
@@ -172,6 +180,7 @@ describe.each(GAME_IDS)('platform room (%s)', (gameId: GameId) => {
       const h = harness();
       const alice = h.join('Alice');
       const bob = h.join('Bob');
+      fill(h, 2, meta.minPlayers);
       h.send(bob, { t: 'start' });
       expect(h.transport.errors(bob)).toEqual(['NOT_ALLOWED']);
       expect(h.room.phase).toBe('lobby');
@@ -250,13 +259,16 @@ describe.each(GAME_IDS)('platform room (%s)', (gameId: GameId) => {
   describe('reconnection', () => {
     it('keeps the seat and score through a disconnect and restores it on rejoin', () => {
       const h = harness();
-      // Long enough that the game is still running when the grace runs out.
-      const [alice, bob, carol] = startGame(h, ['Alice', 'Bob', 'Carol'], GAME_TEST_FIXTURES[gameId].longSettings);
+      // Long enough that the game is still running when the grace runs out, with one seat more than
+      // the minimum so Bob's absence does not end it.
+      const names = enoughNames(gameId, ['Alice', 'Bob', 'Carol']);
+      if (names.length < meta.minPlayers + 1) names.push('Guest1');
+      const [alice, bob, carol] = startGame(h, names, GAME_TEST_FIXTURES[gameId].longSettings);
       h.transport.clear();
 
       h.room.handleDisconnect(bob, 'conn-Bob');
       expect(h.player(bob).connected).toBe(false);
-      expect(h.room.playerCount).toBe(3);
+      expect(h.room.playerCount).toBe(names.length);
       expect(h.transport.last(alice, 'room').room.players.find((p) => p.id === bob)?.connected).toBe(false);
 
       vi.advanceTimersByTime(RECONNECT_GRACE_MS - 1);
@@ -273,7 +285,7 @@ describe.each(GAME_IDS)('platform room (%s)', (gameId: GameId) => {
       expect(h.transport.last(carol, 'room').room.players.find((p) => p.id === bob)?.connected).toBe(true);
       // The seat survives well past the original grace deadline.
       vi.advanceTimersByTime(RECONNECT_GRACE_MS);
-      expect(h.room.playerCount).toBe(3);
+      expect(h.room.playerCount).toBe(names.length);
     });
 
     it('fails rejoin with unknown, expired or kicked tokens', () => {
@@ -515,17 +527,18 @@ describe.each(GAME_IDS)('platform room (%s)', (gameId: GameId) => {
       expect(h.room.settings.maxPlayers).toBe(Math.min(12, meta.maxPlayers));
       h.transport.clear();
 
-      h.send(alice, { t: 'updateSettings', settings: { maxPlayers: 2, allowMidGameJoin: false } });
-      expect(h.room.settings).toMatchObject({ maxPlayers: 2, allowMidGameJoin: false });
+      h.send(alice, { t: 'updateSettings', settings: { maxPlayers: smallest, allowMidGameJoin: false } });
+      expect(h.room.settings).toMatchObject({ maxPlayers: smallest, allowMidGameJoin: false });
       expect(h.transport.ofType(bob, 'room')).toHaveLength(1);
-      expect(h.transport.last(bob, 'room').room.settings.maxPlayers).toBe(2);
+      expect(h.transport.last(bob, 'room').room.settings.maxPlayers).toBe(smallest);
+      fill(h, 2, smallest);
       expect(h.room.join('Carol', AVATAR, 'c')).toMatchObject({ ok: false, code: 'ROOM_FULL' });
 
-      // maxPlayers can never drop below the current occupancy, nor exceed the game's limit.
+      // maxPlayers can never drop below the current occupancy (or the game's minimum), nor exceed the game's limit.
       h.send(alice, { t: 'updateSettings', settings: { maxPlayers: 12 } });
       h.join('Carol');
       h.send(alice, { t: 'updateSettings', settings: { maxPlayers: 2 } });
-      expect(h.room.settings.maxPlayers).toBe(3);
+      expect(h.room.settings.maxPlayers).toBe(smallest + 1);
       expect(h.room.join('Dave', AVATAR, 'd')).toMatchObject({ ok: false, code: 'ROOM_FULL' });
       h.send(alice, { t: 'updateSettings', settings: { maxPlayers: 50 } });
       expect(h.room.settings.maxPlayers).toBe(meta.maxPlayers);
@@ -562,6 +575,7 @@ describe.each(GAME_IDS)('platform room (%s)', (gameId: GameId) => {
       const h = harness();
       const alice = h.join('Alice');
       const bob = h.join('Bob');
+      fill(h, 2, meta.minPlayers);
       h.transport.clear();
       h.send(bob, { t: 'updateProfile', name: 'Bobby', avatar: { color: 3, emoji: 4 } });
       expect(h.player(bob).name).toBe('Bobby');

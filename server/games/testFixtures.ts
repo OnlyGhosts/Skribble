@@ -27,9 +27,8 @@ export const GAME_TEST_FIXTURES: Readonly<Record<GameId, GameTestFixture>> = {
   spygame: {
     settings: { rounds: 1, roundMinutes: 3, voteSeconds: 15 },
     longSettings: { roundMinutes: 15 },
-    // With rng () => 0 the host is round one's spy and 'airplane' (the first location) is never the
-    // real one among the shuffled candidates it holds, so this is a wrong first guess.
-    validMessage: { t: 'guess', locationId: 'airplane' },
+    // With rng () => 0 the host is round one's spy, 'airplane' is the location and 'beach' a decoy: a wrong first guess.
+    validMessage: { t: 'guess', locationId: 'beach' },
   },
   template: {
     settings: {},
