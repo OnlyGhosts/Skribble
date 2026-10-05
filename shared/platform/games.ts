@@ -2,7 +2,7 @@
  * The game registry: every game the site offers, in library order. Adding a game means adding a
  * GameId, a GameMeta entry here, a server module (server/games) and a client module (client/src/games).
  */
-export type GameId = 'skribble' | 'spygame' | 'template';
+export type GameId = 'skribble' | 'spygame' | 'quipgame' | 'template';
 
 export type GameStatus = 'live' | 'soon' | 'hidden';
 
@@ -61,6 +61,25 @@ export const GAME_LIST: readonly GameMeta[] = [
     maxPlayers: 12,
     icon: '🕵️',
     accent: '#0f766e',
+    status: 'live',
+  },
+  {
+    id: 'quipgame',
+    slug: 'quipgame',
+    name: 'Quip Game',
+    tagline: 'Write the funniest answer. Win the room.',
+    description:
+      'Everyone gets two silly prompts and types the funniest answer they can. Answers go head to head, the room votes for the best one, and the biggest laughs score the most points. No TV needed: it all happens on your phones.',
+    howToPlay: [
+      'Each round you get two prompts; write a quick, funny answer to each on your phone.',
+      'Answers go head to head: everyone except the two writers votes for the funnier one.',
+      'Points follow the votes; take every vote in a matchup for a flawless bonus.',
+      'Round two counts double, and the final round pits everyone against one prompt.',
+    ],
+    minPlayers: 3,
+    maxPlayers: 8,
+    icon: '💬',
+    accent: '#f59e0b',
     status: 'live',
   },
   {

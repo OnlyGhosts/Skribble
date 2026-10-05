@@ -30,6 +30,12 @@ export const GAME_TEST_FIXTURES: Readonly<Record<GameId, GameTestFixture>> = {
     // With rng () => 0 the host is round one's spy, 'airplane' is the location and 'beach' a decoy: a wrong first guess.
     validMessage: { t: 'guess', locationId: 'beach' },
   },
+  quipgame: {
+    settings: { writeSeconds: 30, voteSeconds: 10, resultsSeconds: 4, finalRound: false },
+    longSettings: { writeSeconds: 180 },
+    // With rng () => 0 the shuffled writing order ends with the host, who therefore writes prompt r1-p0.
+    validMessage: { t: 'answer', promptId: 'r1-p0', text: 'banana' },
+  },
   template: {
     settings: {},
     longSettings: { timeLimit: 120 },

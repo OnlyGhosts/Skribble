@@ -1,0 +1,768 @@
+/* ---------- Quip Game: layout ---------- */
+.quip {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  justify-items: center;
+  gap: var(--space-4);
+  height: 100dvh;
+  padding: var(--space-4) var(--gutter);
+  width: min(1400px, 100%);
+  margin: 0 auto;
+}
+
+/* Wide desktops: the column stays centred in the first track, the chat takes a right column. */
+.quip--wide {
+  grid-template-columns: minmax(0, 1fr) 340px;
+}
+
+.quip__top {
+  grid-column: 1 / -1;
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+}
+
+.quip__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.quip__round {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+  min-width: 0;
+}
+
+.quip__round strong {
+  font-weight: 800;
+}
+
+.quip__round small {
+  color: var(--color-text-faint);
+  font-weight: 600;
+  font-size: 0.75rem;
+}
+
+.quip__clock {
+  justify-self: center;
+}
+
+.quip__side {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.quip__players-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 44px;
+  padding: 0 10px;
+  border-radius: var(--radius-pill);
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  font-weight: 800;
+  font-size: 0.9rem;
+}
+
+.quip__icon-btn {
+  width: 44px;
+  height: 44px;
+}
+
+/* The game is phone-first by design: one column, never wider than a phone and a half. */
+.quip__main {
+  grid-row: 2;
+  grid-column: 1;
+  width: min(720px, 100%);
+  min-height: 0;
+  min-width: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: 2px;
+  scrollbar-width: thin;
+}
+
+.quip__aside {
+  grid-row: 2;
+  grid-column: 2;
+  width: 100%;
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-3);
+}
+
+.quip__chat-sheet {
+  display: flex;
+  flex-direction: column;
+  height: min(60vh, 520px);
+}
+
+/* ---------- Shared pieces ---------- */
+.quip-prompt {
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  font-size: 1.35rem;
+  font-weight: 800;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+
+.quip-prompt--sm {
+  font-size: 1.05rem;
+  padding: var(--space-3) var(--space-4);
+}
+
+.quip-prompt--slide {
+  animation: quip-slide-in 0.25s ease;
+}
+
+@keyframes quip-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(28px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* The big tappable answer card: A/B in a matchup, every answer in the final. */
+.quip-answer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 64px;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  border: 2px solid var(--color-border-strong);
+  background: var(--color-surface);
+  color: var(--color-text);
+  text-align: left;
+  font: inherit;
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1.3;
+  transition:
+    background-color 0.12s ease,
+    border-color 0.12s ease,
+    transform 0.08s ease;
+}
+
+button.quip-answer {
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+button.quip-answer:hover:not(:disabled) {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+
+button.quip-answer:active:not(:disabled) {
+  transform: scale(0.99);
+}
+
+button.quip-answer:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.quip-answer--selected,
+button.quip-answer--selected:disabled {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+  color: var(--color-primary-text);
+  opacity: 1;
+}
+
+.quip-answer--static {
+  border-style: dashed;
+}
+
+.quip-answer__label {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--color-surface-3);
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  font-weight: 900;
+}
+
+.quip-answer--selected .quip-answer__label {
+  background: var(--color-primary);
+  color: var(--color-primary-contrast);
+}
+
+.quip-answer__text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Writing ---------- */
+.quip-write {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+.quip-write__title {
+  font-size: 1.3rem;
+  font-weight: 900;
+  letter-spacing: -0.01em;
+}
+
+.quip-write__text {
+  color: var(--color-text-muted);
+  font-size: 0.95rem;
+}
+
+.quip-write__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.quip-write__input {
+  font-size: max(1.1rem, 16px);
+}
+
+.quip-write__foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.quip-write__counter {
+  margin-right: auto;
+  color: var(--color-text-faint);
+  font-size: 0.8rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.quip-write__counter--full {
+  color: var(--color-warning-text);
+}
+
+.quip-write__submit {
+  min-width: 120px;
+}
+
+.quip-write__status {
+  color: var(--color-text-faint);
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.quip-write__sent {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.quip-write__sent-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-2);
+}
+
+.quip-write__sent-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.quip-write__sent-prompt {
+  color: var(--color-text-faint);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.quip-write__sent-answer {
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Announcer ---------- */
+.quip-announce {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-color: var(--color-secondary);
+  background: linear-gradient(135deg, var(--color-secondary-soft), var(--color-surface) 70%);
+}
+
+.quip-announce__kicker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-secondary-text);
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.quip-announce__prompt {
+  font-size: 1.5rem;
+  font-weight: 900;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+
+.quip-announce__answers {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  font-size: 1.35rem;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.quip-announce__answers li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.quip-announce__label {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin-top: 2px;
+  border-radius: 50%;
+  background: var(--color-secondary);
+  color: var(--color-secondary-contrast);
+  font-size: 0.85rem;
+}
+
+/* ---------- Voting ---------- */
+.quip-vote,
+.quip-final,
+.quip-result {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+.quip-vote__answers {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.quip-vote__author {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-warning-soft);
+  color: var(--color-warning-text);
+  text-align: center;
+}
+
+.quip-vote__author strong {
+  font-size: 1.05rem;
+  font-weight: 900;
+}
+
+.quip-vote__author span {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.quip-vote__note {
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+
+/* ---------- Result ---------- */
+.quip-result__headline {
+  font-size: 1.5rem;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  animation: fade-in 0.2s ease;
+}
+
+.quip-result__list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.quip-result__answer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  border: 2px solid var(--color-border);
+  background: var(--color-surface-2);
+}
+
+.quip-result__answer--won {
+  border-color: var(--color-success);
+  background: var(--color-success-soft);
+}
+
+.quip-result__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.quip-result__text {
+  flex: 1;
+  min-width: 0;
+  font-size: 1.1rem;
+  font-weight: 800;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.quip-result__who {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.quip-result__name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  font-size: 0.95rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quip-result__tag {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-faint);
+  background: var(--color-surface-3);
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+}
+
+.quip-result__flawless {
+  flex: none;
+  padding: 2px 10px;
+  border-radius: var(--radius-pill);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  animation: quip-pop 0.3s ease;
+}
+
+@keyframes quip-pop {
+  from {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+.quip-result__points {
+  flex: none;
+  font-weight: 900;
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-faint);
+}
+
+.quip-result__points--scored {
+  color: var(--color-success-text);
+}
+
+.quip-result__bar {
+  position: relative;
+  height: 24px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-3);
+  overflow: hidden;
+}
+
+.quip-result__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: var(--radius-pill);
+  background: var(--color-primary);
+  transition: width 0.4s ease;
+}
+
+.quip-result__answer--won .quip-result__fill {
+  background: var(--color-success);
+}
+
+.quip-result__votes {
+  position: relative;
+  display: block;
+  line-height: 24px;
+  padding: 0 10px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.quip-result__footer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 44px;
+}
+
+.quip-result__countdown {
+  color: var(--color-text-muted);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Final ---------- */
+.quip-final__hint {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+
+.quip-final__list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.quip-final__medal {
+  flex: none;
+  width: 32px;
+  text-align: center;
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+/* An empty medal slot: a hollow ring where the medal lands. */
+.quip-final__slot {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px dashed var(--color-border-strong);
+  vertical-align: middle;
+}
+
+.quip-final__answer--own,
+button.quip-final__answer--own:disabled {
+  border-style: dashed;
+  background: var(--color-surface-2);
+  opacity: 1;
+}
+
+.quip-final__own-tag {
+  flex: none;
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-primary-text);
+  background: var(--color-primary-soft);
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+}
+
+.quip-final__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  border: 2px solid var(--color-border);
+  background: var(--color-surface-2);
+}
+
+.quip-final__row--top {
+  border-color: var(--color-success);
+  background: var(--color-success-soft);
+}
+
+.quip-final__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.quip-final__who {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* ---------- Player-list badges ---------- */
+.player__badge--spectator {
+  background: var(--color-text-faint);
+}
+
+.player__badge--writing {
+  background: var(--color-warning);
+}
+
+.player__badge--done {
+  background: var(--color-success);
+}
+
+/* ---------- Phone layout: compact header, one scrolling column, sheets for players and chat ---------- */
+@media (max-width: 760px), (min-aspect-ratio: 3/2) and (max-height: 520px) {
+  .quip {
+    display: flex;
+    flex-direction: column;
+    height: var(--app-height, 100dvh);
+    min-height: 0;
+    width: 100%;
+    overflow: hidden;
+    gap: var(--space-2);
+    padding: calc(var(--space-2) + env(safe-area-inset-top)) calc(var(--space-2) + env(safe-area-inset-right)) calc(var(--space-2) + env(safe-area-inset-bottom))
+      calc(var(--space-2) + env(safe-area-inset-left));
+  }
+
+  .quip__top {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    border-radius: var(--radius-md);
+    min-height: 56px;
+  }
+
+  .quip__brand {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .quip__round {
+    flex: 1 1 0;
+    min-width: 0;
+    overflow: hidden;
+    line-height: 1.15;
+  }
+
+  .quip__round strong,
+  .quip__round small {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .quip__round strong {
+    font-size: 0.85rem;
+  }
+
+  .quip__round small {
+    font-size: 0.7rem;
+  }
+
+  .quip .timer--lg {
+    width: 44px;
+    height: 44px;
+    font-size: 0.82rem;
+    letter-spacing: -0.02em;
+  }
+
+  .quip__main {
+    flex: 1 1 0;
+    width: 100%;
+    min-height: 0;
+    gap: var(--space-2);
+  }
+
+  .quip__main > .card {
+    border-radius: var(--radius-md);
+  }
+
+  .quip-prompt {
+    font-size: 1.2rem;
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .quip-answer {
+    font-size: 1.05rem;
+  }
+
+  .quip-announce__prompt {
+    font-size: 1.3rem;
+  }
+
+  .quip-announce__answers {
+    font-size: 1.15rem;
+  }
+
+  .quip-result__headline {
+    font-size: 1.3rem;
+  }
+}
+
+/* The smallest phones: the header keeps "Round x/y" whole. */
+@media (max-width: 360px) {
+  .quip__round small {
+    display: none;
+  }
+
+  .quip__top {
+    gap: 4px;
+    padding: 6px;
+  }
+}
