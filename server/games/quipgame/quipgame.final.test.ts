@@ -119,6 +119,32 @@ describe('Quip Game: the final round', () => {
     expect(nextDeadline(s.data)).toBeNull();
   });
 
+  it('withdraws the ranking of a voter who leaves, so their picks pay nobody', () => {
+    const s = sim('quipgame');
+    const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol'], { finalRound: true });
+    reachFinal(s, alice);
+    s.apply({ type: 'join', name: 'Dave', avatar: AVATAR, connectionId: 'conn-Dave' });
+    const dave = s.playerId('Dave');
+    writeAll(s);
+    const [a, b, c] = [alice, bob, carol].map((id) => finalAnswerOf(s, id));
+    s.game(dave, { t: 'rank', answerIds: [a, b, c] });
+    s.game(alice, { t: 'rank', answerIds: [b, c] });
+    expect(view(s, bob).ranked).toBe(2);
+    s.apply({ type: 'leave', playerId: dave });
+    expect(data(s).phase).toBe('finalVoting');
+    expect(data(s).final?.rankings).toEqual({ [alice]: [b, c] });
+    expect(view(s, bob)).toMatchObject({ ranked: 1, voted: [alice] });
+    s.game(carol, { t: 'rank', answerIds: [b, a] });
+    s.game(bob, { t: 'rank', answerIds: [c, a] });
+    expect(data(s).phase).toBe('finalResult');
+    // Without Dave's 1500 / 1000 / 500 the totals are exactly the three remaining voters' picks.
+    expect(data(s).final?.result).toEqual([
+      { answerId: b, points: 3000, rank: 1 },
+      { answerId: c, points: 2500, rank: 2 },
+      { answerId: a, points: 2000, rank: 3 },
+    ]);
+  });
+
   it('resolves the ranking at the deadline with what was submitted, shares tied ranks, and lets the host skip the final result', () => {
     const s = sim('quipgame');
     const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol'], { finalRound: true });

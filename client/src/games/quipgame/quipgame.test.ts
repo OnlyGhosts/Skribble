@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { createElement } from 'react';
 import { renderToString } from 'react-dom/server';
 import { DEFAULT_QUIPGAME_SETTINGS, type QuipgameRoomState, type QuipgameView } from '@shared/games/quipgame/protocol';
+import { gameById } from '@shared/platform/games';
 import { installBrowserGlobals, setLocation } from '../../test/env';
 
 installBrowserGlobals();
@@ -150,6 +151,35 @@ describe('writing', () => {
     expect(attr(tagWith(editing, 'write-prompt'), 'data-prompt-id')).toBe('r1-p0');
     expect(tagWith(editing, 'write-cancel')).toBeTruthy();
     expect(editing).toContain('>Update<');
+    // The form mounts fresh after Edit, so it asks for focus; the next-prompt path keeps focus itself.
+    expect(tagWith(editing, 'write-input')).toContain('autofocus');
+    expect(tagWith(html, 'write-input')).not.toContain('autofocus');
+  });
+
+  it('drops the abandoned draft on Cancel, so the next Edit starts from the sent answer again', () => {
+    const store = useQuipgameStore.getState();
+    store.editPrompt('r1-p0');
+    store.setDraft('r1-p0', 'Pia one edited');
+    store.setDraft('r1-p2', 'kept');
+    store.cancelEdit();
+    expect(useQuipgameStore.getState()).toMatchObject({ editingPromptId: null, drafts: { 'r1-p2': 'kept' } });
+    // Nothing being edited: nothing to drop.
+    useQuipgameStore.getState().cancelEdit();
+    expect(useQuipgameStore.getState().drafts).toEqual({ 'r1-p2': 'kept' });
+  });
+
+  it('keeps the counter quiet for screen readers and announces the limit through a described-by live region', () => {
+    const html = render(quipRoom(view()), 'bob');
+    expect(tagWith(html, 'write-counter')).not.toContain('aria-live');
+    const limit = tagWith(html, 'write-limit');
+    expect(limit).toContain('sr-only');
+    expect(limit).toContain('aria-live="polite"');
+    expect(attr(tagWith(html, 'write-input'), 'aria-describedby')).toBe(attr(limit, 'id'));
+    expect(html).toContain('Up to 80 characters');
+    useQuipgameStore.getState().setDraft('r1-p0', 'x'.repeat(80));
+    const full = render(quipRoom(view()), 'bob');
+    expect(full).toContain('Answer is at the 80 character limit');
+    expect(tagWith(full, 'write-counter')).toContain('quip-write__counter--full');
   });
 
   it('tells a late joiner they are watching, and disables the field once the game has ended', () => {
@@ -177,7 +207,10 @@ describe('voting', () => {
     useQuipgameStore.getState().selectChoice('b');
     const tapped = render(voting(), 'host');
     expect(tagsWith(tapped, 'vote-answer').map((a) => attr(a, 'data-selected'))).toEqual(['false', 'true']);
-    // The server's echo wins over the local tap.
+    // A changed vote shows at once: the tap wins over the server's older echo until the step changes.
+    const changed = render(voting({ myVote: 'a' }), 'host');
+    expect(tagsWith(changed, 'vote-answer').map((a) => attr(a, 'data-selected'))).toEqual(['false', 'true']);
+    useQuipgameStore.getState().selectChoice(null);
     const echoed = render(voting({ myVote: 'a' }), 'host');
     expect(tagsWith(echoed, 'vote-answer').map((a) => attr(a, 'data-selected'))).toEqual(['true', 'false']);
   });
@@ -187,6 +220,8 @@ describe('voting', () => {
     expect(tagWith(author, 'vote-author')).toBeTruthy();
     expect(author).toContain('yours, sit tight');
     expect(tagsWith(author, 'vote-answer').every((a) => a.startsWith('<div'))).toBe(true);
+    // The letters are hidden from assistive tech, so the static cards carry them in their label.
+    expect(tagsWith(author, 'vote-answer').map((a) => attr(a, 'aria-label'))).toEqual([`A: ${MATCHUP.a}`, `B: ${MATCHUP.b}`]);
     const announcer = render(voting({ isAnnouncer: true, announcerId: 'host' }), 'host');
     expect(announcer.indexOf('data-testid="quip-announcer"')).toBeLessThan(announcer.indexOf('data-testid="quip-voting"'));
     expect(announcer).toContain('read this out');
@@ -204,6 +239,9 @@ describe('results', () => {
       ['carol', '0', '0', 'false'],
     ]);
     expect(tagsWith(host, 'result-flawless')).toHaveLength(1);
+    // The name truncates in a block of its own: a flex container never shows an ellipsis.
+    expect(tagsWith(host, 'result-author').every((t) => t.includes('quip-result__name-text'))).toBe(true);
+    expect(tagsWith(host, 'result-author')).toHaveLength(2);
     expect(host).toContain('+1250');
     expect(host).toContain('ran out of time');
     expect(tagWith(host, 'quip-next')).toBeTruthy();
@@ -230,6 +268,11 @@ describe('the final', () => {
       ['f-carol', 'false', false],
     ]);
     expect(tagWith(html, 'final-submit')).toContain('disabled');
+    // The hint promises only the medals on offer: two picks, two medals.
+    expect(html).toContain('Tap your top 2 in order: gold, silver. Tap again');
+    expect(html).not.toContain('bronze');
+    expect(render(finalVoting({ maxPicks: 1 }), 'host')).toContain('Tap your favourite answer for gold.');
+    expect(render(finalVoting({ myAnswerId: null, maxPicks: 3 }), 'host')).toContain('top 3 in order: gold, silver, bronze.');
     const store = useQuipgameStore.getState();
     store.togglePick('f-carol', 2);
     store.togglePick('f-bob', 2);
@@ -346,6 +389,31 @@ describe('the stylesheet', () => {
   it('makes the answer cards 64px targets and keeps the input at 16px or more', () => {
     expect(css).toMatch(/\.quip-answer \{[^}]*min-height: 64px/);
     expect(css).toMatch(/\.quip-write__input \{[^}]*max\(1\.1rem, 16px\)/);
+  });
+
+  it('lets the result name ellipsize in its own block, wraps the badge row and keeps the tag whole', () => {
+    expect(css).toMatch(/\.quip-result__name-text \{[^}]*display: block;[^}]*overflow: hidden;[^}]*text-overflow: ellipsis;[^}]*white-space: nowrap;/);
+    expect(css).not.toMatch(/\.quip-result__name \{[^}]*text-overflow/);
+    expect(css).toMatch(/\.quip-result__who \{[^}]*flex-wrap: wrap;/);
+    expect(css).toMatch(/\.quip-result__tag \{[^}]*flex: none;[^}]*white-space: nowrap;/);
+    const smallest = css.slice(css.indexOf('@media (max-width: 360px)'));
+    expect(smallest).toMatch(/\.quip-final__row \{[^}]*flex-wrap: wrap;/);
+    expect(smallest).toMatch(/\.quip-final__row \.quip-result__points \{[^}]*flex-basis: 100%;/);
+  });
+
+  it('inks the flawless badge dark enough to read on the accent (WCAG AA for small text)', () => {
+    const ink = css.match(/--quip-accent-ink: (#[0-9a-f]{6});/)?.[1];
+    expect(ink).toBeDefined();
+    expect(css).toMatch(/\.quip-result__flawless \{[^}]*color: var\(--quip-accent-ink\);/);
+    const luminance = (hex: string): number => {
+      const channel = (i: number) => {
+        const c = parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16) / 255;
+        return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+      };
+      return 0.2126 * channel(0) + 0.7152 * channel(1) + 0.0722 * channel(2);
+    };
+    const [light, dark] = [luminance(gameById('quipgame').accent), luminance(ink ?? '#ffffff')].sort((a, b) => b - a);
+    expect((light + 0.05) / (dark + 0.05)).toBeGreaterThanOrEqual(4.5);
   });
 
   it('prefixes platform overrides inside the phone media query with the root class', () => {

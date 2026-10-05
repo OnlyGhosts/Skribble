@@ -61,6 +61,12 @@ export function rank(gx: Gx, playerId: string, answerIds: string[]): void {
   if (!resolveIfRanked(gx)) snapshot(gx);
 }
 
+/** A seat emptied during the ranking: its picks pay nobody. */
+export function forgetRanker(gx: Gx, playerId: string): void {
+  const final = gx.data.final;
+  if (gx.data.phase === 'finalVoting' && final) delete final.rankings[playerId];
+}
+
 export function resolveIfRanked(gx: Gx): boolean {
   const { data, ctx } = gx;
   const final = data.final;

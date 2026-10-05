@@ -1,4 +1,4 @@
-import { useEffect, useRef, type FormEvent } from 'react';
+import { useEffect, useId, useRef, type FormEvent } from 'react';
 import { QUIPGAME_ANSWER_MAX_LENGTH, cleanText, type QuipgameView } from '@shared/games/quipgame/protocol';
 import { EditIcon } from '../../../platform/components/Icons';
 import { submitAnswer } from '../actions';
@@ -18,6 +18,7 @@ export function Writing({ view, open }: Props) {
   const drafts = useQuipgame((s) => s.drafts);
   const prompt = promptToWrite(view, editingPromptId);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const limitId = useId();
   const promptId = prompt?.id ?? null;
 
   // A prompt re-opened for editing starts from the answer the server holds.
@@ -66,6 +67,7 @@ export function Writing({ view, open }: Props) {
   const valid = clean.length > 0 && clean.length <= QUIPGAME_ANSWER_MAX_LENGTH;
   const number = promptNumber(view, prompt);
   const editing = view.myAnswers[prompt.id] !== undefined;
+  const atLimit = clean.length >= QUIPGAME_ANSWER_MAX_LENGTH;
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -98,15 +100,22 @@ export function Writing({ view, open }: Props) {
           autoCapitalize="sentences"
           spellCheck
           aria-label={`Your answer to: ${prompt.text}`}
+          aria-describedby={limitId}
+          // Edit comes from the waiting card, where the form mounts fresh: focus it so the keyboard opens without a second tap.
+          autoFocus={editing}
           disabled={!open}
           data-testid="write-input"
         />
+        {/* The visible counter changes on every keystroke; a screen reader hears the limit instead, and once when it is reached. */}
+        <span id={limitId} className="sr-only" aria-live="polite" data-testid="write-limit">
+          {atLimit ? `Answer is at the ${QUIPGAME_ANSWER_MAX_LENGTH} character limit` : `Up to ${QUIPGAME_ANSWER_MAX_LENGTH} characters`}
+        </span>
         <div className="quip-write__foot">
-          <span className={`quip-write__counter${clean.length >= QUIPGAME_ANSWER_MAX_LENGTH ? ' quip-write__counter--full' : ''}`} aria-live="polite" data-testid="write-counter">
+          <span className={`quip-write__counter${atLimit ? ' quip-write__counter--full' : ''}`} aria-hidden="true" data-testid="write-counter">
             {clean.length}/{QUIPGAME_ANSWER_MAX_LENGTH}
           </span>
           {editing && (
-            <button type="button" className="btn btn--ghost" onClick={() => useQuipgameStore.getState().editPrompt(null)} data-testid="write-cancel">
+            <button type="button" className="btn btn--ghost" onClick={() => useQuipgameStore.getState().cancelEdit()} data-testid="write-cancel">
               Cancel
             </button>
           )}

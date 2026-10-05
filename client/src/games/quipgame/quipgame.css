@@ -1,5 +1,7 @@
 /* ---------- Quip Game: layout ---------- */
 .quip {
+  /* Text colour that stays legible on the game's amber accent, which is the same in light and dark. */
+  --quip-accent-ink: #2a1a00;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr);
@@ -463,8 +465,9 @@ button.quip-answer--selected:disabled {
 
 .quip-result__who {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 6px 8px;
   min-width: 0;
 }
 
@@ -476,12 +479,20 @@ button.quip-answer--selected:disabled {
   gap: 6px;
   font-weight: 700;
   font-size: 0.95rem;
+}
+
+/* Ellipsis never applies to a flex container, so the name text gets a block of its own to truncate in. */
+.quip-result__name-text {
+  display: block;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .quip-result__tag {
+  flex: none;
+  white-space: nowrap;
   font-size: 0.68rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -496,7 +507,8 @@ button.quip-answer--selected:disabled {
   flex: none;
   padding: 2px 10px;
   border-radius: var(--radius-pill);
-  color: #fff;
+  /* Dark ink on the amber accent (the background is set inline from the game's meta): 7.9:1 in both themes. */
+  color: var(--quip-accent-ink);
   font-size: 0.75rem;
   font-weight: 900;
   text-transform: uppercase;
@@ -755,7 +767,7 @@ button.quip-final__answer--own:disabled {
   }
 }
 
-/* The smallest phones: the header keeps "Round x/y" whole. */
+/* The smallest phones: the header keeps "Round x/y" whole, and a final result row gives the points their own line. */
 @media (max-width: 360px) {
   .quip__round small {
     display: none;
@@ -764,5 +776,14 @@ button.quip-final__answer--own:disabled {
   .quip__top {
     gap: 4px;
     padding: 6px;
+  }
+
+  .quip-final__row {
+    flex-wrap: wrap;
+  }
+
+  .quip-final__row .quip-result__points {
+    flex-basis: 100%;
+    padding-left: calc(32px + var(--space-3));
   }
 }

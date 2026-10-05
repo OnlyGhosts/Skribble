@@ -271,6 +271,43 @@ describe('Quip Game: matchups and votes', () => {
     expect(data(s).phase).toBe('result');
   });
 
+  it('withdraws the vote of a voter who is kicked or leaves, so only people still in the room decide the points', () => {
+    const s = sim('quipgame', 'ABCD', START, lcg(21));
+    const [alice] = startGame(s, NAMES.slice(0, 5));
+    writeAll(s);
+    const [nameA] = authors(s).map((id) => nameOf(s, id));
+    const gone = voters(s).find((id) => id !== alice) ?? '';
+    const staying = voters(s).filter((id) => id !== gone);
+    expect(staying).toHaveLength(2);
+    s.game(gone, { t: 'vote', choice: 'b' });
+    expect(view(s, alice)).toMatchObject({ voted: [gone] });
+    expect(view(s, alice).matchup?.votes).toBe(1);
+    s.platform(alice, { t: 'kick', playerId: gone });
+    expect(data(s).phase).toBe('voting');
+    expect(matchup(s).votes).toEqual({});
+    expect(view(s, alice)).toMatchObject({ voted: [] });
+    expect(view(s, alice).matchup?.votes).toBe(0);
+    s.game(staying[0], { t: 'vote', choice: 'a' });
+    const effects = s.game(staying[1], { t: 'vote', choice: 'a' });
+    expect(data(s).phase).toBe('result');
+    // Without the kicked 'b' the sweep is flawless; with it the matchup would have been 2-1.
+    expect(matchup(s).result).toEqual({ votes: { a: 2, b: 0 }, points: { a: 1250, b: 0 }, flawless: 'a', outcome: 'a' });
+    expect(chatTexts(effects)).toEqual([`${nameA} took it 2-0 (+1250) — flawless!`]);
+
+    // Leaving on one's own withdraws the vote the same way; the resolved result above is untouched.
+    s.game(alice, { t: 'next' });
+    const [first, ...rest] = voters(s);
+    expect(rest.length).toBeGreaterThan(0);
+    s.game(first, { t: 'vote', choice: 'b' });
+    s.apply({ type: 'leave', playerId: first });
+    expect(data(s).phase).toBe('voting');
+    expect(matchup(s).votes).toEqual({});
+    for (const id of rest) s.game(id, { t: 'vote', choice: 'a' });
+    expect(data(s).phase).toBe('result');
+    expect(matchup(s).result?.votes).toEqual({ a: rest.length, b: 0 });
+    expect(data(s).matchups[0].result?.votes).toEqual({ a: 2, b: 0 });
+  });
+
   it('resolves at the deadline with the votes cast so far, and scores nothing without any', () => {
     const s = sim('quipgame');
     const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol', 'Dave']);

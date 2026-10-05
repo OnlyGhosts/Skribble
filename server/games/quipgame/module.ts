@@ -16,10 +16,10 @@ import {
 } from '../../../shared/games/quipgame/protocol.js';
 import { gameById } from '../../../shared/platform/games.js';
 import { defineSettings, withDraft, type GameEvent, type GameResult, type GameServerModule } from '../../platform/game.js';
-import { rank, replaceFinalAnnouncer, resolveFinal, resolveIfRanked } from './final.js';
+import { forgetRanker, rank, replaceFinalAnnouncer, resolveFinal, resolveIfRanked } from './final.js';
 import { advance, allWritten, answer, finishWriting, next, startRound } from './round.js';
 import { snapshot, type Ctx, type Gx, type QuipgameData } from './state.js';
-import { replaceAnnouncer, resolveIfComplete, resolveMatchup, vote } from './vote.js';
+import { forgetVoter, replaceAnnouncer, resolveIfComplete, resolveMatchup, vote } from './vote.js';
 import { viewFor } from './view.js';
 
 type Result = GameResult<QuipgameData, QuipgameServerMessage>;
@@ -77,9 +77,17 @@ function onMessage(gx: Gx, playerId: string, msg: QuipgameClientMessage): void {
   }
 }
 
-/** A socket dropped or a seat emptied: whoever everyone was waiting for may be gone, so re-check the phase. */
+/**
+ * A socket dropped or a seat emptied: whoever everyone was waiting for may be gone, so re-check the
+ * phase. A vote or ranking from a seat that emptied (left, kicked, grace expired) is withdrawn first:
+ * only people still in the room decide the points.
+ */
 function onPlayerAway(gx: Gx, playerId: string, left: boolean): void {
   const { data } = gx;
+  if (left) {
+    forgetVoter(gx, playerId);
+    forgetRanker(gx, playerId);
+  }
   switch (data.phase) {
     case 'writing':
     case 'finalWriting':

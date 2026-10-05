@@ -56,6 +56,14 @@ export function rankedLine(ranked: number, rankers: number): string {
 }
 
 const MEDALS = ['🥇', '🥈', '🥉'] as const;
+const MEDAL_NAMES = ['gold', 'silver', 'bronze'] as const;
+
+/** The final's instruction, naming only the medals this voter can hand out. */
+export function rankHint(maxPicks: number): string {
+  if (maxPicks <= 1) return 'Tap your favourite answer for gold. Tap again to take the medal back.';
+  const medals = MEDAL_NAMES.slice(0, Math.min(maxPicks, MEDAL_NAMES.length)).join(', ');
+  return `Tap your top ${maxPicks} in order: ${medals}. Tap again to take a medal back.`;
+}
 
 export function medalFor(rank: number): string {
   return MEDALS[rank - 1] ?? '';

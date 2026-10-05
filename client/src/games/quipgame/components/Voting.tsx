@@ -34,7 +34,8 @@ export function Announcer({ matchup }: { matchup: QuipgameMatchupView }) {
 /** A matchup: the prompt, answers A and B as big tappable cards, the live count. Authors sit tight. */
 export function Voting({ room, view, matchup }: Props) {
   const selected = useQuipgame((s) => s.selectedChoice);
-  const choice: QuipgameChoice | null = view.myVote ?? selected;
+  // The tap shows at once, even when changing a vote: the local pick is cleared when the step changes, so the server's echo takes over from there.
+  const choice: QuipgameChoice | null = selected ?? view.myVote;
   const voters = voterCount(room, matchup.votes);
   const canTap = view.canVote && room.phase === 'playing';
 
@@ -55,7 +56,7 @@ export function Voting({ room, view, matchup }: Props) {
     );
     if (view.isAuthor) {
       return (
-        <div className="quip-answer quip-answer--static" data-testid="vote-answer" data-choice={c}>
+        <div className="quip-answer quip-answer--static" role="group" aria-label={`${c.toUpperCase()}: ${text}`} data-testid="vote-answer" data-choice={c}>
           {content}
         </div>
       );

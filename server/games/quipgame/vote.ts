@@ -28,6 +28,12 @@ export function vote(gx: Gx, playerId: string, choice: QuipgameChoice): void {
   if (!resolveIfComplete(gx)) snapshot(gx);
 }
 
+/** A seat emptied mid-matchup: its vote no longer counts, so the tally, the live count and the badges all drop it. */
+export function forgetVoter(gx: Gx, playerId: string): void {
+  const m = currentMatchup(gx.data);
+  if (gx.data.phase === 'voting' && m) delete m.votes[playerId];
+}
+
 export function tally(m: MatchupData): { a: number; b: number } {
   let a = 0;
   let b = 0;

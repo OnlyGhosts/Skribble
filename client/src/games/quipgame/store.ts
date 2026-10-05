@@ -22,6 +22,8 @@ interface QuipgameActions {
   /** Forgets the draft once it was sent (the server copy is the truth from here). */
   clearDraft(promptId: string): void;
   editPrompt(promptId: string | null): void;
+  /** Leaves an edit without sending: the abandoned draft goes too, so the next Edit starts from the sent answer again. */
+  cancelEdit(): void;
   selectChoice(choice: 'a' | 'b' | null): void;
   setPicks(picks: string[]): void;
   /** Adds `answerId` as the next pick, or removes it when already picked; never past `max` picks. */
@@ -47,6 +49,13 @@ export const useQuipgameStore = create<QuipgameStore>()((set) => ({
       return { drafts };
     }),
   editPrompt: (editingPromptId) => set({ editingPromptId }),
+  cancelEdit: () =>
+    set((s) => {
+      if (!s.editingPromptId) return {};
+      const drafts = { ...s.drafts };
+      delete drafts[s.editingPromptId];
+      return { drafts, editingPromptId: null };
+    }),
   selectChoice: (selectedChoice) => set({ selectedChoice }),
   setPicks: (picks) => set({ picks }),
   togglePick: (answerId, max) =>

@@ -81,7 +81,9 @@ function AnswerRow({ room, side, answer, total, won }: { room: QuipgameRoomState
       <div className="quip-result__who">
         {player && <Avatar avatar={player.avatar} size="sm" dimmed={!player.connected} />}
         <span className="quip-result__name">
-          {answer.authorName}
+          <span className="quip-result__name-text" data-testid="result-author">
+            {answer.authorName}
+          </span>
           {answer.fallback && <span className="quip-result__tag">ran out of time</span>}
         </span>
         {answer.flawless && (

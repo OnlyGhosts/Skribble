@@ -4,7 +4,7 @@ import { Avatar } from '../../../platform/components/Avatar';
 import { formatPoints } from '../../../platform/lib/format';
 import { submitRanking } from '../actions';
 import { playerOf, rankerCount, sameRanking } from '../hooks';
-import { medalFor, rankedLine } from '../lib/text';
+import { medalFor, rankHint, rankedLine } from '../lib/text';
 import { useQuipgame, useQuipgameStore } from '../store';
 import { MegaphoneIcon } from './Icons';
 
@@ -45,7 +45,7 @@ export function FinalVoting({ room, view }: Props) {
           {prompt}
         </div>
         <p className="quip-final__hint" data-testid="final-hint">
-          {canRank ? `Tap your top ${view.maxPicks === 1 ? 'answer' : `${view.maxPicks} in order`}: gold, silver, bronze. Tap again to take a medal back.` : submitted ? 'Your ranking is in.' : 'Waiting for the rankings to come in.'}
+          {canRank ? rankHint(view.maxPicks) : submitted ? 'Your ranking is in.' : 'Waiting for the rankings to come in.'}
         </p>
         <ol className="quip-final__list" aria-label="Answers">
           {view.finalAnswers.map((a) => {
@@ -113,7 +113,7 @@ export function FinalResult({ room, view, footer }: Props & { footer: ReactNode 
                 <span className="quip-final__who">
                   {player && <Avatar avatar={player.avatar} size="sm" dimmed={!player.connected} />}
                   <span className="quip-result__name">
-                    {r.authorName}
+                    <span className="quip-result__name-text">{r.authorName}</span>
                     {r.fallback && <span className="quip-result__tag">ran out of time</span>}
                   </span>
                 </span>
