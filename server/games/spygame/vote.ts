@@ -36,10 +36,15 @@ export function vote(gx: Gx, playerId: string, yes: boolean): void {
   if (!resolveIfComplete(gx)) snapshot(gx);
 }
 
+/** Votes cast so far; voters who have not voted are in neither count until the vote resolves. */
 export function tally(vote: { eligible: string[]; votes: Record<string, boolean> }): { yes: number; no: number } {
   let yes = 0;
-  for (const id of vote.eligible) if (vote.votes[id] === true) yes++;
-  return { yes, no: vote.eligible.length - yes };
+  let no = 0;
+  for (const id of vote.eligible) {
+    if (vote.votes[id] === true) yes++;
+    else if (vote.votes[id] === false) no++;
+  }
+  return { yes, no };
 }
 
 /** Resolves as soon as every eligible voter has voted. Returns true when it did. */
@@ -55,7 +60,8 @@ export function resolveVote(gx: Gx): void {
   const { data, ctx } = gx;
   const v = data.vote;
   if (data.phase !== 'voting' || !v) return;
-  const { yes, no } = tally(v);
+  const { yes } = tally(v);
+  const no = v.eligible.length - yes; // a missing vote counts as No
   if (yes > no) {
     systemMessage(gx, `The vote passed (${yes}–${no}): ${nameOf(ctx, v.accusedId)} is accused.`);
     return endRound(gx, v.accusedId === data.current.spyId ? 'spyCaught' : 'wrongAccusation', { accuserId: v.accuserId, accusedId: v.accusedId });
