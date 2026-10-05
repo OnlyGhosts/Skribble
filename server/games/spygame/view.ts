@@ -1,7 +1,7 @@
 /** Per-recipient projection of SpygameData: the location reaches agents only (everyone once revealed), the spy's identity never before the reveal. */
-import type { SpygameClock, SpygamePlayerView, SpygameRole, SpygameSettings, SpygameView } from '../../../shared/games/spygame/protocol.js';
+import type { SpygameClock, SpygamePlayerView, SpygameRole, SpygameSettings, SpygameView, SpygameVoteView } from '../../../shared/games/spygame/protocol.js';
 import type { GameViewCtx } from '../../platform/game.js';
-import type { SpygameData } from './state.js';
+import type { SpygameData, VoteData } from './state.js';
 import { tally } from './vote.js';
 
 export function viewFor(data: SpygameData, viewerId: string | null, ctx: GameViewCtx<SpygameSettings>): SpygameView {
@@ -27,10 +27,27 @@ export function viewFor(data: SpygameData, viewerId: string | null, ctx: GameVie
     roundPlayers: [...current.playerIds],
     spectators,
     players,
-    vote: vote ? { accuserId: vote.accuserId, accusedId: vote.accusedId, ...tally(vote), eligible: [...vote.eligible], endsAt: vote.endsAt, myVote: viewerId !== null ? (vote.votes[viewerId] ?? null) : null } : null,
+    vote: vote ? voteViewFor(vote, viewerId) : null,
     reveal: reveal ? { ...reveal, points: { ...reveal.points } } : null,
     role,
     locationId: revealed || role === 'agent' ? current.locationId : null,
+  };
+}
+
+/**
+ * The eligible list stays on the server: it is the agents minus the accused, so its members (or
+ * its size) would tell everyone whether the accused is the spy. Each recipient learns only whether
+ * they themselves may vote.
+ */
+function voteViewFor(vote: VoteData, viewerId: string | null): SpygameVoteView {
+  const eligible = viewerId !== null && vote.eligible.includes(viewerId);
+  return {
+    accuserId: vote.accuserId,
+    accusedId: vote.accusedId,
+    ...tally(vote),
+    endsAt: vote.endsAt,
+    canVote: eligible && viewerId !== vote.accuserId,
+    myVote: eligible ? (vote.votes[viewerId] ?? null) : null,
   };
 }
 

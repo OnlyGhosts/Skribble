@@ -1597,6 +1597,11 @@ Run from the repository root; everything is green at HEAD.
 - **`renderToString` and text**: adjacent JSX text nodes come out separated by `<!-- -->`, so
   assert on attributes in unit tests (or build the string with a template literal); Playwright's
   `toHaveText` is unaffected.
+- **Static assets per game** (pictures, sounds) live under the game's client folder and are
+  loaded with `import.meta.glob` so a dropped-in file needs no code change: The Spy Game's
+  [`images.ts`](../client/src/games/spygame/images.ts) globs `assets/locations/*.{jpg,jpeg,png,webp,svg}`
+  and prefers a photo over the generated svg (`scripts/spygame-location-images.mjs` writes those).
+  Small files are inlined by Vite; keep photos a few hundred kilobytes at most.
 - **Cross-game records**: the only `Record<GameId, ...>` outside the registries is
   `server/games/testFixtures.ts`; if `npm run typecheck` names another one after you add an id,
   that file is a bug in the platform, not a step you missed.

@@ -15,6 +15,7 @@ is the copy-paste guide for the next one.
 | Game | URL | Players | Status | What it is |
 | --- | --- | --- | --- | --- |
 | **Skribble** | `/skribble` | 2–20 | live | A better skribbl.io: draw a word, everyone guesses, fast guesses and clear drawings score |
+| **The Spy Game** | `/spygame` | 3–12 | live | One player is the spy and does not know the location; ask questions out loud, vote the spy out before they guess where you are |
 | **Click Race** | `/template` | 1–20 | hidden | The template game: tap a button, first to the target wins. Not in the library; it proves the platform contract end to end and is the copy base for new games |
 
 The library at `/` shows every game whose status is `live`; `soon` games appear as muted cards;
@@ -59,6 +60,20 @@ lobby.
 Each round, every player draws once. The drawer picks one of three words, everyone else guesses in
 chat (or straight into the blanks on a phone), and the turn ends when time runs out or everyone has
 guessed.
+
+## The Spy Game
+
+Three to twelve players in the same room. Each round one player is secretly the spy; everyone
+else sees the location (one of 24 candidates drawn from the pack in `shared/games/spygame/locations.ts`).
+Questions are asked out loud; the spy has two guesses, the agents one group accusation each
+round (a vote that pauses the clock). Rounds, the round clock and the vote window are set in the lobby.
+
+**Location pictures.** Every location has a generated placeholder tile in
+`client/src/games/spygame/assets/locations/<id>.svg`, written by
+`node scripts/spygame-location-images.mjs` from the pack (re-run it after adding locations). To
+use a real picture, drop `<id>.jpg` (or `.jpeg`, `.png`, `.webp`) into that folder next to the
+svg, e.g. `beach.jpg`: the client prefers a photo over the svg and bundles whatever is there.
+Landscape pictures around 4:3 look best; the tiles crop to fit.
 
 ## Adding a game
 

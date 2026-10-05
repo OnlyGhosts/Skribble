@@ -8,6 +8,8 @@ export type ClockData = { kind: 'running'; endsAt: number } | { kind: 'paused'; 
 
 export interface RoundData {
   spyId: string;
+  /** Kept from the round start so the reveal can name a spy who has since left. */
+  spyName: string;
   locationId: string;
   /** SPYGAME_CANDIDATES location ids in the order everyone sees them. */
   candidates: string[];
@@ -35,6 +37,7 @@ export interface VoteData {
 export interface RevealData {
   outcome: SpygameOutcome;
   spyId: string;
+  spyName: string;
   locationId: string;
   points: Record<string, number>;
   endsAt: number;

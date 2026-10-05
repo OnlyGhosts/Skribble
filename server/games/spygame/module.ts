@@ -14,7 +14,7 @@ import {
 } from '../../../shared/games/spygame/protocol.js';
 import { gameById } from '../../../shared/platform/games.js';
 import { defineSettings, withDraft, type GameEvent, type GameResult, type GameServerModule } from '../../platform/game.js';
-import { advance, endRound, guess, nextRound, pauseClock, resumeClock, startRound } from './round.js';
+import { advance, endGame, endRound, guess, nextRound, pauseClock, resumeClock, startRound } from './round.js';
 import { snapshot, type Ctx, type Gx, type SpygameData } from './state.js';
 import { accuse, resolveVote, vote, voterLeft } from './vote.js';
 import { viewFor } from './view.js';
@@ -25,7 +25,7 @@ function start(ctx: Ctx): Result {
   const seed: SpygameData = {
     phase: 'playing',
     round: 1,
-    current: { spyId: '', locationId: '', candidates: [], playerIds: [], guessesLeft: 0, guessed: [], accusers: [], clock: { kind: 'paused', remainingMs: 0 }, spyAway: false },
+    current: { spyId: '', spyName: '', locationId: '', candidates: [], playerIds: [], guessesLeft: 0, guessed: [], accusers: [], clock: { kind: 'paused', remainingMs: 0 }, spyAway: false },
     vote: null,
     reveal: null,
     spyHistory: [],
@@ -68,6 +68,8 @@ function onMessage(gx: Gx, playerId: string, msg: SpygameClientMessage): void {
       return vote(gx, playerId, msg.yes);
     case 'nextRound':
       return nextRound(gx, playerId);
+    case 'endGame':
+      return endGame(gx, playerId);
   }
 }
 

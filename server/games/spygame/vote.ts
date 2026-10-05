@@ -66,20 +66,25 @@ export function resolveVote(gx: Gx): void {
     systemMessage(gx, `The vote passed (${yes}–${no}): ${nameOf(ctx, v.accusedId)} is accused.`);
     return endRound(gx, v.accusedId === data.current.spyId ? 'spyCaught' : 'wrongAccusation', { accuserId: v.accuserId, accusedId: v.accusedId });
   }
-  systemMessage(gx, `The vote failed (${yes}–${no}) — play on.`);
+  // Never print the padded count: yes + no is the eligible count, which differs by one when the accused is the spy.
+  systemMessage(gx, 'The vote failed — play on.');
   data.vote = null;
   data.phase = 'playing';
   resumeClock(gx);
   snapshot(gx);
 }
 
-/** Drops the vote when the accused leaves (the accuser gets their accusation back); a leaving voter stops counting. */
+/**
+ * Drops the vote when the accused or the accuser leaves (a vote is the accuser's single guess, so it
+ * does not outlive them; the accuser gets their accusation back when the accused goes); a leaving
+ * voter stops counting.
+ */
 export function voterLeft(gx: Gx, playerId: string): void {
   const { data } = gx;
   const v = data.vote;
   if (data.phase !== 'voting' || !v) return;
-  if (playerId === v.accusedId) {
-    systemMessage(gx, 'The accused left — the vote is off.');
+  if (playerId === v.accusedId || playerId === v.accuserId) {
+    systemMessage(gx, playerId === v.accusedId ? 'The accused left — the vote is off.' : 'The accuser left — the vote is off.');
     data.current.accusers = data.current.accusers.filter((id) => id !== v.accuserId);
     data.vote = null;
     data.phase = 'playing';

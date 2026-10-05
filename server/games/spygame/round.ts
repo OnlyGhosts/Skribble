@@ -30,6 +30,7 @@ export function buildRound(gx: Gx): RoundData {
   data.usedLocationIds.push(location.id);
   return {
     spyId,
+    spyName: nameOf(ctx, spyId),
     locationId: location.id,
     candidates: drawCandidates(location.id, SPYGAME_CANDIDATES, ctx.rng),
     playerIds,
@@ -111,7 +112,7 @@ function pointsFor(gx: Gx, outcome: SpygameOutcome, accuserId: string | null): R
 
 function outcomeLine(gx: Gx, outcome: SpygameOutcome, accusedId: string | null): string {
   const { current } = gx.data;
-  const spy = nameOf(gx.ctx, current.spyId);
+  const spy = current.spyName;
   const place = locationById(current.locationId)?.name ?? current.locationId;
   switch (outcome) {
     case 'spyGuessed':
@@ -138,7 +139,7 @@ export function endRound(gx: Gx, outcome: SpygameOutcome, vote: { accuserId: str
   pauseClock(gx);
   data.vote = null;
   data.phase = 'reveal';
-  data.reveal = { outcome, spyId: data.current.spyId, locationId: data.current.locationId, points, endsAt: ctx.now + SPYGAME_REVEAL_SECONDS * 1000 };
+  data.reveal = { outcome, spyId: data.current.spyId, spyName: data.current.spyName, locationId: data.current.locationId, points, endsAt: ctx.now + SPYGAME_REVEAL_SECONDS * 1000 };
   systemMessage(gx, outcomeLine(gx, outcome, vote?.accusedId ?? null));
   snapshot(gx);
 }
@@ -164,4 +165,11 @@ export function nextRound(gx: Gx, playerId: string): void {
   if (playerId !== gx.ctx.hostId) return fail(gx, playerId, 'Only the host can skip the reveal.');
   if (gx.data.phase !== 'reveal') return fail(gx, playerId, 'There is no reveal to skip.');
   advance(gx);
+}
+
+/** The host calls the game off from the reveal: the platform resets everyone to the lobby. */
+export function endGame(gx: Gx, playerId: string): void {
+  if (playerId !== gx.ctx.hostId) return fail(gx, playerId, 'Only the host can end the game.');
+  if (gx.data.phase !== 'reveal') return fail(gx, playerId, 'The game can only be ended from the reveal.');
+  gx.effects.push({ type: 'abort', reason: 'The host ended the game — back to the lobby.' });
 }

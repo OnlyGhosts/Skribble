@@ -67,6 +67,8 @@ export const spygameClientMessageSchema = z.discriminatedUnion('t', [
   z.object({ t: z.literal('vote'), yes: z.boolean() }),
   /** Host only, during the reveal: skip the rest of the reveal timer. */
   z.object({ t: z.literal('nextRound') }),
+  /** Host only, during the reveal: abandon the game and take everyone back to the lobby. */
+  z.object({ t: z.literal('endGame') }),
 ]);
 
 export type SpygameClientMessage = z.infer<typeof spygameClientMessageSchema>;
@@ -114,12 +116,13 @@ export interface SpygamePlayerView {
 export interface SpygameVoteView {
   accuserId: string;
   accusedId: string;
+  /** Votes cast so far. Who may vote is never listed: the voters are the agents, so the list would name the spy. */
   yes: number;
   no: number;
-  /** Everyone whose vote counts (the accuser included, auto-counted as Yes). */
-  eligible: string[];
   /** Epoch ms (server clock) when missing votes count as No. */
   endsAt: number;
+  /** This recipient may cast (and change) a vote: an agent in the round who is neither the accuser nor the accused. */
+  canVote: boolean;
   /** This recipient's vote, null when they have not voted (or cannot). */
   myVote: boolean | null;
 }
@@ -127,6 +130,8 @@ export interface SpygameVoteView {
 export interface SpygameRevealView {
   outcome: SpygameOutcome;
   spyId: string;
+  /** The spy's name as of the round start: they may have left the room by the reveal. */
+  spyName: string;
   locationId: string;
   /** Points earned this round by player id (zero entries omitted). */
   points: Record<string, number>;

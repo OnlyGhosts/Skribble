@@ -1,4 +1,5 @@
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
+import { GAME_LIST } from '../shared/platform/games';
 
 /**
  * The library and the routing around it: the game cards, joining by code from the front page,
@@ -61,15 +62,20 @@ test.afterAll(async () => {
   for (const p of players) await p.context.close();
 });
 
-test('the library shows the live Skribble card and hides the template game', async () => {
+test('the library shows every live card, Skribble first, and hides the template game', async () => {
   await host.page.goto('/');
   await expect(host.page).toHaveTitle('Bored Games');
   await expect(host.page.getByTestId('site-header')).toContainText('Bored Games');
+  const live = GAME_LIST.filter((g) => g.status === 'live');
   const cards = host.page.getByTestId('game-card');
-  await expect(cards).toHaveCount(1);
+  await expect(cards).toHaveCount(live.length);
+  for (const [i, game] of live.entries()) {
+    await expect(cards.nth(i)).toHaveAttribute('data-game', game.id);
+    await expect(cards.nth(i)).toContainText(game.name);
+    await expect(cards.nth(i)).toContainText(`${game.minPlayers}-${game.maxPlayers} players`);
+  }
   await expect(cards.first()).toHaveAttribute('data-game', 'skribble');
-  await expect(cards.first()).toContainText('Skribble');
-  await expect(cards.first()).toContainText('2-20 players');
+  await expect(host.page.getByTestId('game-card').filter({ hasText: 'Click Race' })).toHaveCount(0);
   await expect(host.page.getByTestId('game-card-more')).toBeVisible();
   await expect(host.page.getByTestId('code-input-0')).toBeVisible();
 
