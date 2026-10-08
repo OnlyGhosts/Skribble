@@ -47,6 +47,20 @@ export interface PodiumEntry {
  * Snapshot for one recipient. `V` is the game's per-recipient view (null in the lobby) and `S`
  * the game's settings, which sit flat next to the platform settings.
  */
+/**
+ * A running game is holding at a boundary (next round / next turn) because too few players are
+ * connected, while enough still hold seats within the reconnect grace. The game resumes by itself
+ * when enough of them come back; the host may remove the missing players instead.
+ */
+export interface WaitingState {
+  reason: 'players';
+  /** Seated players currently disconnected whose return would let the game continue. */
+  missing: string[];
+  /** Connected players required to continue. */
+  needed: number;
+  connected: number;
+}
+
 export interface RoomState<V = unknown, S = Record<string, unknown>> {
   code: string;
   gameId: GameId;
@@ -57,6 +71,8 @@ export interface RoomState<V = unknown, S = Record<string, unknown>> {
   /** Final standings once the game ended; null otherwise. */
   podium: PodiumEntry[] | null;
   game: V | null;
+  /** Set while the game is paused waiting for disconnected players; null otherwise. */
+  waiting?: WaitingState | null;
   /** Server epoch ms when this snapshot was produced; clients use it to compute a clock offset. */
   serverTime: number;
 }
