@@ -2,13 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { CHOOSE_TIME_SECONDS, DRAWER_DISCONNECT_GRACE_MS, TURN_END_SECONDS } from '../../../shared/games/skribble/constants.js';
 import { hintRevealOrder, maskWord } from '../../../shared/games/skribble/hints.js';
 import type { SkribblePhase, SkribbleView } from '../../../shared/games/skribble/protocol.js';
-import { EMPTY_ROOM_TTL_MS, LOW_PLAYERS_GRACE_MS, RECONNECT_GRACE_MS } from '../../../shared/platform/constants.js';
+import { EMPTY_ROOM_TTL_MS, RECONNECT_GRACE_MS } from '../../../shared/platform/constants.js';
 import type { PlatformServerMessageOf } from '../../../shared/platform/protocol.js';
 import { canDraw, type SkribbleData } from '../../games/skribble/state.js';
 import type { Effect } from './effects.js';
 import { applyAction } from './reduce.js';
-import { nextDeadline } from './time.js';
+import { nextDeadline, pendingDeadlines } from './time.js';
 import { Ids, START, chatTexts, ctxAt, sim, startGame } from './testHarness.js';
+import { viewFor } from './view.js';
 
 /** The Skribble phases a player saw, in order, from the snapshot effects. */
 function phasesSeen(effects: Effect[], playerId: string): SkribblePhase[] {
@@ -64,7 +65,7 @@ describe('tick', () => {
     expect(s.tick()).toEqual([]);
   });
 
-  it('expires seats, abandons the game and finally destroys an empty room', () => {
+  it('plays on through a disconnect, holds at the turn boundary, expires the seat, abandons the game and finally destroys an empty room', () => {
     const s = sim();
     const [alice, bob] = startGame(s, ['Alice', 'Bob']);
     s.game(alice, { t: 'chooseWord', index: 0 });
@@ -72,22 +73,34 @@ describe('tick', () => {
     expect(canDraw(game(s), bob, s.now)).toBe(false);
     expect(canDraw(game(s), alice, s.now + 60_000)).toBe(false);
 
+    // A dropped socket schedules nothing of the platform's own beyond the seat expiry: the turn runs its course.
     const dropAt = s.now;
     s.apply({ type: 'connectionClosed', playerId: bob, connectionId: 'conn-Bob' });
-    expect(nextDeadline(s.data)).toBe(dropAt + LOW_PLAYERS_GRACE_MS);
-
-    // Low-player grace -> lobby; Bob's seat is still held.
-    s.now = dropAt + LOW_PLAYERS_GRACE_MS;
+    expect(s.data.phase).toBe('playing');
+    expect(pendingDeadlines(s.data).map((d) => d.kind)).toEqual(['game', 'reconnectExpiry']);
+    s.now = dropAt + 60_000;
     s.tick();
-    expect(s.data.phase).toBe('lobby');
-    expect(s.data.game).toBeNull();
-    expect(s.data.players).toHaveLength(2);
-    expect(nextDeadline(s.data)).toBe(dropAt + RECONNECT_GRACE_MS);
+    expect(game(s).phase).toMatchObject({ kind: 'turnEnd', reason: 'timeUp', held: false });
 
+    // The summary ends into a hold: Bob would draw next, so the game waits for him with no deadline of its own.
+    s.now += TURN_END_SECONDS * 1000;
+    const held = s.tick();
+    expect(game(s).phase).toMatchObject({ kind: 'turnEnd', held: true });
+    expect(chatTexts(held)).toEqual(['Waiting for Bob to reconnect…']);
+    expect(viewFor(s.data, alice, s.now).waiting).toEqual({ reason: 'players', missing: [bob], needed: 2, connected: 1 });
+    expect(pendingDeadlines(s.data).map((d) => d.kind)).toEqual(['reconnectExpiry']);
+    expect(nextDeadline(s.data)).toBe(dropAt + RECONNECT_GRACE_MS);
+    s.now = dropAt + RECONNECT_GRACE_MS - 1;
+    expect(s.tick()).toEqual([]);
+
+    // The seat expires: one player cannot carry on, so the game is abandoned.
     s.now = dropAt + RECONNECT_GRACE_MS;
     const expiry = s.tick();
     expect(s.data.players.map((p) => p.id)).toEqual([alice]);
-    expect(chatTexts(expiry)).toContain('Bob left');
+    expect(chatTexts(expiry)).toEqual(['Bob left', 'Not enough players — back to the lobby.']);
+    expect(s.data).toMatchObject({ phase: 'lobby', game: null, waiting: null });
+    expect(viewFor(s.data, alice, s.now).waiting).toBeNull();
+    expect(nextDeadline(s.data)).toBeNull();
 
     s.apply({ type: 'leave', playerId: alice });
     expect(s.data.players).toHaveLength(0);

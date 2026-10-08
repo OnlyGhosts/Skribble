@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CHOOSE_TIME_SECONDS, TURN_END_SECONDS } from '../../../shared/games/skribble/constants.js';
+import { DRAWER_DISCONNECT_GRACE_MS, TURN_END_SECONDS } from '../../../shared/games/skribble/constants.js';
 import { GAME_IDS } from '../../../shared/platform/games.js';
 import type { SkribbleData } from '../../games/skribble/state.js';
 import { createRoomData, type PlatformRoomData } from './state.js';
@@ -56,7 +56,7 @@ describe('room data serialisation (skribble)', () => {
     expect(s.data.votes).toHaveLength(1);
     expect(roundTrip(s.data)).toStrictEqual(s.data);
 
-    s.advance(CHOOSE_TIME_SECONDS * 1000);
+    s.advance(DRAWER_DISCONNECT_GRACE_MS);
     s.tick();
     expect((s.data.game as SkribbleData).phase.kind).toBe('turnEnd');
     expect(roundTrip(s.data)).toStrictEqual(s.data);

@@ -71,7 +71,7 @@ export function castVotes(s: Sim, choices: QuipgameChoice[]): Effect[] {
 /** Plays every matchup of the current round: everyone votes A, the host skips each result. */
 export function playRound(s: Sim, host: string): void {
   const round = data(s).round;
-  while (data(s).round === round && s.data.phase === 'playing' && data(s).phase !== 'finalWriting') {
+  while (data(s).round === round && s.data.phase === 'playing' && data(s).phase !== 'finalWriting' && data(s).phase !== 'waiting') {
     if (data(s).phase === 'voting') castVotes(s, voters(s).map(() => 'a'));
     if (data(s).phase === 'result') s.game(host, { t: 'next' });
   }

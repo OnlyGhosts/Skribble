@@ -51,8 +51,17 @@ export type GameEvent<CMsg> =
   | { type: 'chat'; playerId: string; text: string }
   /** A new player was seated mid-game (ctx.players already includes them). */
   | { type: 'playerJoined'; playerId: string }
-  /** The player left, was kicked or their reconnect grace ran out (ctx.players no longer includes them). */
+  /**
+   * The player left, was kicked or their reconnect grace ran out (ctx.players no longer includes
+   * them). Not delivered when the removal left fewer seats than `meta.minPlayers`: the platform
+   * abandoned the game first.
+   */
   | { type: 'playerLeft'; playerId: string }
+  /**
+   * A socket dropped / a disconnected player rejoined. The seat (and score) survives for
+   * RECONNECT_GRACE_MS, and the platform never abandons a game over a disconnect alone: a game
+   * that cannot go on without the player holds at its next boundary (see the 'waiting' effect).
+   */
   | { type: 'playerDisconnected'; playerId: string }
   | { type: 'playerReconnected'; playerId: string }
   /**
@@ -79,6 +88,12 @@ export type GameEffect<SMsg> =
   | { type: 'gameOver' }
   /** Abandon the game and return everyone to the lobby. */
   | { type: 'abort'; reason: string }
+  /**
+   * The game is holding at a boundary until the players in `missing` (seated, disconnected) come
+   * back; the platform shows it as RoomState.waiting. Emit it again when the list changes and
+   * `null` when the game goes on; abort, gameOver and the lobby clear it by themselves.
+   */
+  | { type: 'waiting'; missing: string[] | null }
   /**
    * For games with a side store: 'reset' empties it and stamps it with `payload.stamp`
    * (see GameSideStore). Other names are reserved.

@@ -19,14 +19,17 @@ import { defineSettings, withDraft, type GameEvent, type GameResult, type GameSe
 import { createCanvasStore } from './canvas.js';
 import { chat } from './chat.js';
 import { everyoneGuessed, findPlayer, isDrawer, type Ctx, type SkribbleData } from './state.js';
-import { beginNextTurn, chooseTimedOut, chooseWord, endTurn, rate, resumeHeldTurn, revealHint, systemMessageForDrawerGone, type Gx } from './turns.js';
+import { beginNextTurn, chooseTimedOut, chooseWord, endTurn, rate, resumeHeldTurn, revealHint, snapshot, systemMessageForDrawerGone, type Gx } from './turns.js';
 import { viewFor } from './view.js';
 
 type Result = GameResult<SkribbleData, SkribbleServerMessage>;
 
 function start(ctx: Ctx): Result {
+  // The seed phase is an empty summary: the first turn boundary is then held like any other
+  // should too few players be connected (the platform starts a game only with enough, so in
+  // practice the first turn begins at once).
   const initial: SkribbleData = {
-    phase: { kind: 'gameOver' },
+    phase: { kind: 'turnEnd', reason: 'noWordChosen', endsAt: ctx.now, points: {}, held: false },
     turn: null,
     canvasId: '',
     round: 1,
@@ -88,6 +91,8 @@ function onPlayerLeft(gx: Gx, playerId: string): void {
   }
   if (isDrawer(data, playerId) && (data.phase.kind === 'choosing' || data.phase.kind === 'drawing')) return endTurn(gx, 'drawerLeft');
   if (data.phase.kind === 'drawing' && everyoneGuessed(gx.ctx, data)) return endTurn(gx, 'allGuessed');
+  // A held boundary no longer waits for a seat that emptied (the platform aborts when too few remain).
+  resumeHeldTurn(gx);
 }
 
 function onPlayerDisconnected(gx: Gx, playerId: string): void {
@@ -96,6 +101,8 @@ function onPlayerDisconnected(gx: Gx, playerId: string): void {
   if (isDrawer(data, playerId) && (data.phase.kind === 'choosing' || data.phase.kind === 'drawing')) data.grace.drawerGoneAt = grace;
   // The last unsolved guesser gets the same grace before "everyone guessed" ends the turn.
   if (data.phase.kind === 'drawing' && everyoneGuessed(ctx, data) && data.grace.allGuessedAt === null) data.grace.allGuessedAt = grace;
+  // One more player to wait for: the hold's missing list grows.
+  resumeHeldTurn(gx);
 }
 
 function onPlayerReconnected(gx: Gx, playerId: string): void {
@@ -103,6 +110,11 @@ function onPlayerReconnected(gx: Gx, playerId: string): void {
   if (isDrawer(data, playerId)) data.grace.drawerGoneAt = null;
   if (data.phase.kind === 'drawing' && data.turn && data.turn.drawerId !== playerId && !data.turn.guesserIds.includes(playerId)) {
     data.turn.guesserIds.push(playerId);
+  }
+  // Only a skipped drawer is missing from the round's queue: they draw at its end rather than losing the round.
+  if (data.phase.kind !== 'gameOver' && !data.turnQueue.includes(playerId)) {
+    data.turnQueue.push(playerId);
+    snapshot(gx);
   }
   resumeHeldTurn(gx);
 }
@@ -131,12 +143,30 @@ function nextDeadline(data: SkribbleData): number | null {
   return best;
 }
 
-/** Fires the earliest due deadline; the platform calls again while more are due. */
-function onTick(gx: Gx): void {
-  const { data, ctx } = gx;
+/** The earliest deadline that is due (first in tie-break order among equals), or null. */
+function earliestDue(gx: Gx): Deadline | null {
   let due: Deadline | null = null;
-  for (const d of deadlines(data)) if (d.at <= ctx.now && (!due || d.at < due.at)) due = d;
-  if (!due) return;
+  for (const d of deadlines(gx.data)) if (d.at <= gx.ctx.now && (!due || d.at < due.at)) due = d;
+  return due;
+}
+
+/**
+ * Resolves every deadline that is due. Several can share an instant (a hint and the drawer's
+ * grace, say), and the platform expects each one it reported to be gone after the tick.
+ */
+function onTick(gx: Gx): void {
+  let due = earliestDue(gx);
+  while (due) {
+    fireDeadline(gx, due);
+    const next = earliestDue(gx);
+    // A handler that left its own deadline in place would spin here; hand it back to the platform, which reports it.
+    if (next && next.kind === due.kind && next.at === due.at) return;
+    due = next;
+  }
+}
+
+function fireDeadline(gx: Gx, due: Deadline): void {
+  const { data, ctx } = gx;
   switch (due.kind) {
     case 'choose':
       return chooseTimedOut(gx);

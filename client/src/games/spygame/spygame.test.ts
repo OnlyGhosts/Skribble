@@ -153,6 +153,15 @@ describe('the screen per role', () => {
 });
 
 describe('voting', () => {
+  it('renders under the platform hold with the clock frozen as paused', () => {
+    const waiting = { reason: 'players' as const, missing: ['dave'], needed: 3, connected: 2 };
+    const running = render(spyRoom(view(), { waiting, players: [player('host'), player('bob', { joinOrder: 1 }), player('carol', { joinOrder: 2 }), player('dave', { joinOrder: 3, connected: false })] }), 'bob');
+    expect(tagWith(running, 'timer')).toContain('data-paused="players"');
+    expect(running).toContain('data-testid="spygame-role"');
+    const reveal = render(spyRoom(view({ phase: 'reveal', reveal: { ...REVEAL, endsAt: NOW - 1000 }, clock: { endsAt: null, pausedRemainingMs: 0, pausedReason: 'reveal', waitingForId: null } }), { waiting }), 'bob');
+    expect(tagWith(reveal, 'timer')).toContain('data-paused="players"');
+  });
+
   const voting = (role: SpygameView['role'], myVote: boolean | null = null) => spyRoom(view({ phase: 'voting', role, locationId: role === 'spy' ? null : LOCATION, vote: { ...VOTE, canVote: role === 'agent', myVote } }));
 
   it('offers the sheet with Yes/No to an eligible voter (opened by the snapshot), the panel to everyone', () => {

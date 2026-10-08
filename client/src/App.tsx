@@ -3,10 +3,12 @@ import { gameById } from '@shared/platform/games';
 import type { RoomState } from '@shared/platform/protocol';
 import { PodiumOverlay } from './platform/components/PodiumOverlay';
 import { Toasts } from './platform/components/Toasts';
+import { WaitingOverlay } from './platform/components/WaitingOverlay';
 import { DARK_SCHEME_QUERY } from './platform/lib/media';
 import { setSoundEnabled, unlockAudio } from './platform/lib/sound';
 import { fetchPreview } from './platform/lib/useRoomPreview';
 import { useViewport } from './platform/lib/useViewport';
+import { wakeLock } from './platform/lib/wakeLock';
 import { socket } from './platform/net/socket';
 import { registeredGame } from './platform/registry';
 import { codeFromLocation, navigate, roomPath, startRouter, useRouter } from './platform/router';
@@ -63,6 +65,15 @@ function useSound(): void {
   }, []);
 }
 
+/** Keeps the screen awake while in a room (lobby, playing, ended): a locked phone drops its socket and misses its turn. */
+function useWakeLock(inRoom: boolean): void {
+  useEffect(() => {
+    if (!inRoom) return;
+    wakeLock.hold();
+    return () => wakeLock.release();
+  }, [inRoom]);
+}
+
 /** A legacy bare-code link: the preview says which game the room runs, then the URL becomes '/:slug/:CODE'. */
 function LegacyCode({ code }: { code: string }) {
   const addToast = usePlatformStore((s) => s.addToast);
@@ -108,6 +119,7 @@ function RoomScreen({ room }: { room: RoomState }) {
   return (
     <>
       <Screen key={room.code} room={room} meId={meId ?? ''} isHost={isHost} />
+      {room.phase === 'playing' && room.waiting && <WaitingOverlay room={room} waiting={room.waiting} isHost={isHost} />}
       {room.phase === 'ended' && <PodiumOverlay room={room} isHost={isHost} />}
     </>
   );
@@ -129,6 +141,7 @@ export function App() {
   useSound();
 
   const room = usePlatformStore((s) => s.room);
+  useWakeLock(room !== null);
   const route = useRouter((s) => s.route);
 
   let screen;

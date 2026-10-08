@@ -13,7 +13,7 @@ function findPlayer(room: SkribbleRoomState, id: string): PlayerPublic | undefin
   return room.players.find((p) => p.id === id);
 }
 
-export function ChoosingOverlay({ phase, room, isDrawer }: { phase: ChoosingPhase; room: SkribbleRoomState; isDrawer: boolean }) {
+export function ChoosingOverlay({ phase, room, isDrawer, paused = false }: { phase: ChoosingPhase; room: SkribbleRoomState; isDrawer: boolean; paused?: boolean }) {
   const drawer = findPlayer(room, phase.drawerId);
   return (
     <div className="overlay overlay--choosing" data-testid="overlay-choosing">
@@ -21,7 +21,7 @@ export function ChoosingOverlay({ phase, room, isDrawer }: { phase: ChoosingPhas
         {isDrawer ? (
           <>
             <h2 className="overlay__title">Pick a word to draw</h2>
-            <Timer endsAt={phase.endsAt} size="md" warnUnder={5} />
+            <Timer endsAt={phase.endsAt} size="md" warnUnder={5} paused={paused} />
             <div className="word-choices">
               {(phase.choices ?? []).map((word, i) => (
                 <button key={`${i}-${word}`} type="button" className="btn btn--choice" onClick={() => chooseWord(i)} data-testid="word-choice">
@@ -37,7 +37,7 @@ export function ChoosingOverlay({ phase, room, isDrawer }: { phase: ChoosingPhas
             <h2 className="overlay__title">
               {drawer?.name ?? 'Someone'} is choosing a word<span className="ellipsis" aria-hidden="true" />
             </h2>
-            <Timer endsAt={phase.endsAt} size="md" warnUnder={5} />
+            <Timer endsAt={phase.endsAt} size="md" warnUnder={5} paused={paused} />
           </>
         )}
       </div>
@@ -45,7 +45,7 @@ export function ChoosingOverlay({ phase, room, isDrawer }: { phase: ChoosingPhas
   );
 }
 
-export function TurnEndOverlay({ phase, room }: { phase: TurnEndPhase; room: SkribbleRoomState }) {
+export function TurnEndOverlay({ phase, room, paused = false }: { phase: TurnEndPhase; room: SkribbleRoomState; paused?: boolean }) {
   const drawerName = findPlayer(room, phase.drawerId)?.name ?? 'The drawer';
   const earners = Object.entries(phase.points)
     .filter(([, pts]) => pts > 0)
@@ -83,8 +83,8 @@ export function TurnEndOverlay({ phase, room }: { phase: TurnEndPhase; room: Skr
           <p className="overlay__hint">Nobody guessed it this time.</p>
         )}
         <div className="overlay__footer">
-          <span>Next turn in</span>
-          <Timer endsAt={phase.endsAt} size="md" warnUnder={0} />
+          <span>{paused ? 'Next turn is paused' : 'Next turn in'}</span>
+          <Timer endsAt={phase.endsAt} size="md" warnUnder={0} paused={paused} />
         </div>
       </div>
     </div>

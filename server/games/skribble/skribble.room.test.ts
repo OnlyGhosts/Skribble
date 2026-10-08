@@ -12,7 +12,7 @@ import {
 import { hintRevealOrder, hintSchedule, maskWord } from '../../../shared/games/skribble/hints.js';
 import type { DrawOp } from '../../../shared/games/skribble/protocol.js';
 import { drawerPoints, guesserPoints } from '../../../shared/games/skribble/scoring.js';
-import { LOW_PLAYERS_GRACE_MS, RECONNECT_GRACE_MS } from '../../../shared/platform/constants.js';
+import { RECONNECT_GRACE_MS } from '../../../shared/platform/constants.js';
 import { AVATAR, TEST_WORDS, createHarness, drawerOf, expectPhase, phaseOf, pick, skribbleView, startGame, type Harness } from '../../platform/drivers/testUtils.js';
 
 const START = new Date('2026-01-01T12:00:00Z').getTime();
@@ -186,19 +186,28 @@ describe('Skribble: turn lifecycle', () => {
     expect(skribbleView(h.room).turn).toBe(3);
   });
 
-  it('skips drawers who are disconnected when their turn begins and rebuilds the queue each round', () => {
+  it('announces a drawer skipped while away, gives them their turn back when they return within the round, and rebuilds the queue each round', () => {
     const h = createHarness();
     const players = startGame(h, ['Alice', 'Bob', 'Carol'], { rounds: 2 });
     const [alice, bob, carol] = players;
     pick(h, players);
     vi.advanceTimersByTime(10_000);
     h.room.handleDisconnect(bob);
+    h.transport.clear();
     vi.advanceTimersByTime(50_000 + TURN_END_SECONDS * 1000);
-    // Bob (still within his reconnect grace) is skipped; Carol draws turn 2 of 2 in round 1.
+    // Bob (still within his reconnect grace) is skipped and the room is told; Carol draws turn 2 of 2 in round 1.
     expect(drawerOf(h.room, players)).toBe(carol);
     expect(skribbleView(h.room)).toMatchObject({ round: 1, turn: 2, turnsInRound: 2 });
+    expect(h.transport.chats(alice)).toContainEqual({ kind: 'system', text: 'Bob is away — skipping their turn.' });
 
+    // Back during Carol's turn, Bob draws after her instead of losing the round.
     expect(h.room.rejoin(h.token(bob), 'conn-Bob-2').ok).toBe(true);
+    expect(skribbleView(h.room)).toMatchObject({ round: 1, turn: 2, turnsInRound: 3 });
+    expect(h.transport.last(alice, 'room').room.game?.turnsInRound).toBe(3);
+    pick(h, players);
+    vi.advanceTimersByTime(60_000 + TURN_END_SECONDS * 1000);
+    expect(drawerOf(h.room, players)).toBe(bob);
+    expect(skribbleView(h.room)).toMatchObject({ round: 1, turn: 3, turnsInRound: 3 });
     pick(h, players);
     vi.advanceTimersByTime(60_000 + TURN_END_SECONDS * 1000);
     // Round 2 includes everyone again in join order.
@@ -707,25 +716,46 @@ describe('Skribble: drawer and guesser grace periods', () => {
     expect(end.word).toBe(word);
   });
 
-  it('ends the turn when a disconnected drawer times out of choosing', () => {
+  it('keeps the turn of a drawer who is away past the choose deadline until their grace runs out', () => {
     const h = createHarness();
     const players = startGame(h, ['Alice', 'Bob', 'Carol']);
-    const [alice] = players;
+    const [alice, bob] = players;
+    const goneAt = Date.now() + DRAWER_DISCONNECT_GRACE_MS;
     h.room.handleDisconnect(alice);
-    vi.advanceTimersByTime(DRAWER_DISCONNECT_GRACE_MS);
+    h.transport.clear();
+    vi.advanceTimersByTime(CHOOSE_TIME_SECONDS * 1000);
+    // The choose deadline passed but the drawer's grace has not: the turn stays theirs until it does.
+    expect(expectPhase(h.room, 'choosing').endsAt).toBe(goneAt);
+    expect(h.transport.last(bob, 'room').room.game?.phase).toMatchObject({ kind: 'choosing', endsAt: goneAt });
+    vi.advanceTimersByTime(DRAWER_DISCONNECT_GRACE_MS - CHOOSE_TIME_SECONDS * 1000 - 1);
+    expect(phaseOf(h.room).kind).toBe('choosing');
+    vi.advanceTimersByTime(1);
     const end = expectPhase(h.room, 'turnEnd');
     expect(end.reason).toBe('drawerLeft');
     expect(end.word).toBe('');
-    expect(h.transport.chats(players[1]).some((c) => c.kind === 'hint')).toBe(false);
+    expect(h.transport.chats(bob).filter((c) => c.kind !== 'system')).toEqual([]);
+    expect(h.transport.chats(bob).map((c) => c.text)).toEqual(['Alice lost connection — skipping their turn.']);
+
+    // Back between the two deadlines, the drawer still has the turn and the first choice is picked for them at the moved deadline.
+    const g = createHarness();
+    const ps = startGame(g, ['Alice', 'Bob', 'Carol']);
+    g.room.handleDisconnect(ps[0]);
+    vi.advanceTimersByTime(CHOOSE_TIME_SECONDS * 1000 + 1000);
+    expect(g.room.rejoin(g.token(ps[0]), 'conn-Alice-2').ok).toBe(true);
+    expect(phaseOf(g.room).kind).toBe('choosing');
+    vi.advanceTimersByTime(DRAWER_DISCONNECT_GRACE_MS - CHOOSE_TIME_SECONDS * 1000 - 1000);
+    expect(expectPhase(g.room, 'drawing').drawerId).toBe(ps[0]);
   });
 
-  it('keeps the game running when the missing player rejoins within the grace and can still guess', () => {
+  it('keeps the turn going while the only guesser is away and lets them guess when they are back', () => {
     const h = createHarness();
     const players = startGame(h, ['Alice', 'Bob']);
     const [, bob] = players;
     const { word } = pick(h, players);
     h.room.handleDisconnect(bob);
-    vi.advanceTimersByTime(LOW_PLAYERS_GRACE_MS - 1);
+    vi.advanceTimersByTime(30_000);
+    expect(phaseOf(h.room).kind).toBe('drawing');
+    expect(h.room.getState(null).waiting).toBeNull();
     expect(h.room.rejoin(h.token(bob), 'bob-2').ok).toBe(true);
     vi.advanceTimersByTime(1_000);
     expect(phaseOf(h.room).kind).toBe('drawing');
@@ -734,7 +764,24 @@ describe('Skribble: drawer and guesser grace periods', () => {
     expect(phaseOf(h.room).kind).toBe('turnEnd');
   });
 
-  it('holds the turn boundary for a player in reconnect grace and abandons the game only when it expires', () => {
+  it('runs the turn to its end while the only guesser is away, then holds at the summary', () => {
+    const h = createHarness();
+    const players = startGame(h, ['Alice', 'Bob']);
+    const [alice, bob] = players;
+    pick(h, players);
+    h.room.handleDisconnect(bob);
+    vi.advanceTimersByTime(60_000 - 1);
+    expect(phaseOf(h.room).kind).toBe('drawing');
+    vi.advanceTimersByTime(1);
+    expect(expectPhase(h.room, 'turnEnd').reason).toBe('timeUp');
+    expect(h.room.getState(alice).waiting).toBeNull();
+    // The summary ends into a hold: Bob draws next, so the game waits for him.
+    vi.advanceTimersByTime(TURN_END_SECONDS * 1000);
+    expect(phaseOf(h.room).kind).toBe('turnEnd');
+    expect(h.room.getState(alice).waiting).toEqual({ reason: 'players', missing: [bob], needed: 2, connected: 1 });
+  });
+
+  it('holds the turn boundary for a player in reconnect grace and abandons the game only when their seat expires', () => {
     const h = createHarness();
     const players = startGame(h, ['Alice', 'Bob'], { rounds: 3 });
     const [alice, bob] = players;
@@ -744,19 +791,55 @@ describe('Skribble: drawer and guesser grace periods', () => {
     h.transport.clear();
     h.room.handleDisconnect(bob);
     expect(phaseOf(h.room).kind).toBe('turnEnd');
-    // The summary timer fires while Bob is still in grace: nothing is reset yet.
+    expect(h.transport.last(alice, 'room').room.waiting).toBeNull();
+    // The summary timer fires while Bob is still in grace: the game holds instead of moving on.
     vi.advanceTimersByTime(TURN_END_SECONDS * 1000);
     expect(phaseOf(h.room).kind).toBe('turnEnd');
     expect(h.transport.chats(alice)).toEqual([{ kind: 'system', text: 'Waiting for Bob to reconnect…' }]);
+    expect(h.transport.last(alice, 'room').room.waiting).toEqual({ reason: 'players', missing: [bob], needed: 2, connected: 1 });
     expect(h.score(alice)).toBeGreaterThan(0);
-    // The same 10 s grace a mid-turn drop gets, then back to the lobby.
-    vi.advanceTimersByTime(LOW_PLAYERS_GRACE_MS - TURN_END_SECONDS * 1000);
+    // Nothing of the game's own is scheduled: the hold lasts until Bob's seat expires.
+    vi.advanceTimersByTime(RECONNECT_GRACE_MS - TURN_END_SECONDS * 1000 - 1);
+    expect(h.room.phase).toBe('playing');
+    expect(phaseOf(h.room).kind).toBe('turnEnd');
+    vi.advanceTimersByTime(1);
     expect(h.room.phase).toBe('lobby');
-    expect(h.transport.chats(alice).at(-1)).toEqual({ kind: 'system', text: 'Not enough players — back to the lobby.' });
+    expect(h.room.getPlayer(bob)).toBeUndefined();
+    expect(h.transport.chats(alice).slice(-2)).toEqual([
+      { kind: 'system', text: 'Bob left' },
+      { kind: 'system', text: 'Not enough players — back to the lobby.' },
+    ]);
+    expect(h.transport.last(alice, 'room').room.waiting).toBeNull();
     expect(h.score(alice)).toBe(0);
-    // The pending low-player check was cancelled by the reset; only Bob's seat expiring follows.
-    vi.advanceTimersByTime(600_000);
-    expect(h.transport.chats(alice).at(-1)).toEqual({ kind: 'system', text: 'Bob left' });
+  });
+
+  it('ends the game with the podium when the last turn ends while the other player is away, instead of holding', () => {
+    const h = createHarness();
+    const players = startGame(h, ['Alice', 'Bob']);
+    const [alice, bob] = players;
+    const first = pick(h, players);
+    h.send(bob, { t: 'chat', text: first.word });
+    vi.advanceTimersByTime(TURN_END_SECONDS * 1000);
+    expect(drawerOf(h.room, players)).toBe(bob);
+    const last = pick(h, players);
+    h.send(alice, { t: 'chat', text: last.word });
+    expect(phaseOf(h.room).kind).toBe('turnEnd');
+    const scores = [h.score(alice), h.score(bob)];
+    expect(scores.every((n) => n > 0)).toBe(true);
+    h.transport.clear();
+    // Bob's phone locks during the last summary: there is no turn left to hold for, so the game ends.
+    h.room.handleDisconnect(bob);
+    vi.advanceTimersByTime(TURN_END_SECONDS * 1000);
+    expect(h.room.phase).toBe('ended');
+    expect(h.room.getState(alice).waiting).toBeNull();
+    expect(h.room.getState(alice).podium?.map((e) => e.playerId).sort()).toEqual([...players].sort());
+    expect(h.transport.chats(alice).some((c) => c.text.startsWith('Waiting for'))).toBe(false);
+    expect(h.transport.chats(alice).some((c) => c.text.startsWith('Game over!'))).toBe(true);
+    // Bob's seat expiring later leaves the finished game on the podium, scores intact.
+    vi.advanceTimersByTime(RECONNECT_GRACE_MS);
+    expect(h.room.phase).toBe('ended');
+    expect(h.room.getState(alice).podium).toHaveLength(2);
+    expect(h.score(alice)).toBe(scores[0]);
   });
 
   it('resumes the held turn boundary with scores intact when the player rejoins in time', () => {
@@ -771,16 +854,20 @@ describe('Skribble: drawer and guesser grace periods', () => {
     expect(phaseOf(h.room).kind).toBe('turnEnd');
     h.transport.clear();
     expect(h.room.rejoin(h.token(bob), 'conn-Bob-2').ok).toBe(true);
-    // Bob draws next; the welcome shows the summary, the snapshot right after it the new turn.
+    // Bob draws next; the welcome shows the held summary, the snapshot right after it the new turn.
     expect(drawerOf(h.room, players)).toBe(bob);
-    expect(h.transport.last(bob, 'welcome').room.game?.phase.kind).toBe('turnEnd');
+    const welcome = h.transport.last(bob, 'welcome');
+    expect(welcome.room.game?.phase.kind).toBe('turnEnd');
+    // Nobody is missing any more, so the welcome carries no hold even though the game has not resumed yet.
+    expect(welcome.room.waiting).toBeNull();
     expect(h.transport.last(bob, 'room').room.game?.phase.kind).toBe('choosing');
-    expect(h.transport.last(alice, 'room').room.game?.phase.kind).toBe('choosing');
+    expect(h.transport.last(alice, 'room').room).toMatchObject({ waiting: null, game: { phase: { kind: 'choosing' } } });
     expect([h.score(alice), h.score(bob)]).toEqual(scores);
     expect(skribbleView(h.room)).toMatchObject({ round: 1, turn: 2 });
-    // The grace timer that would have abandoned the game is gone.
-    vi.advanceTimersByTime(LOW_PLAYERS_GRACE_MS);
-    expect(phaseOf(h.room).kind).toBe('choosing');
+    // Bob's seat is no longer on a timer: the game simply goes on.
+    vi.advanceTimersByTime(RECONNECT_GRACE_MS);
+    expect(h.room.getPlayer(bob)).toBeDefined();
+    expect(h.room.phase).not.toBe('lobby');
   });
 
   it('resumes a held turn boundary when a new player joins instead', () => {
@@ -794,10 +881,41 @@ describe('Skribble: drawer and guesser grace periods', () => {
     expect(phaseOf(h.room).kind).toBe('turnEnd');
     const carol = h.join('Carol');
     expect(phaseOf(h.room).kind).toBe('choosing');
+    expect(h.transport.last(carol, 'room').room.waiting).toBeNull();
     // Bob is skipped while away; Carol is the only connected candidate.
     expect(drawerOf(h.room, [...players, carol])).toBe(carol);
-    vi.advanceTimersByTime(LOW_PLAYERS_GRACE_MS);
+    vi.advanceTimersByTime(1_000);
     expect(phaseOf(h.room).kind).toBe('choosing');
+  });
+
+  it('refreshes the hold as players drop or are removed, and the host removing the last missing player resolves it', () => {
+    const h = createHarness();
+    const players = startGame(h, ['Alice', 'Bob', 'Carol'], { rounds: 3 });
+    const [alice, bob, carol] = players;
+    const { word } = pick(h, players);
+    h.send(bob, { t: 'chat', text: word });
+    h.send(carol, { t: 'chat', text: word });
+    expect(phaseOf(h.room).kind).toBe('turnEnd');
+    h.room.handleDisconnect(bob);
+    h.transport.clear();
+    vi.advanceTimersByTime(TURN_END_SECONDS * 1000);
+    // Two connected: Bob is simply skipped and Carol draws.
+    expect(drawerOf(h.room, players)).toBe(carol);
+    expect(h.room.getState(alice).waiting).toBeNull();
+    h.room.handleDisconnect(carol);
+    vi.advanceTimersByTime(DRAWER_DISCONNECT_GRACE_MS);
+    expect(expectPhase(h.room, 'turnEnd').reason).toBe('drawerLeft');
+    vi.advanceTimersByTime(TURN_END_SECONDS * 1000);
+    expect(h.room.getState(alice).waiting).toEqual({ reason: 'players', missing: [bob, carol], needed: 2, connected: 1 });
+    expect(h.transport.chats(alice).filter((c) => c.text.startsWith('Waiting'))).toEqual([{ kind: 'system', text: 'Waiting for Bob, Carol to reconnect…' }]);
+    // Removing one missing player narrows the hold; removing the other leaves too few seats.
+    h.send(alice, { t: 'kick', playerId: bob });
+    expect(h.room.phase).toBe('playing');
+    expect(h.room.getState(alice).waiting).toEqual({ reason: 'players', missing: [carol], needed: 2, connected: 1 });
+    h.send(alice, { t: 'kick', playerId: carol });
+    expect(h.room.phase).toBe('lobby');
+    expect(h.room.getState(alice).waiting).toBeNull();
+    expect(h.transport.chats(alice).at(-1)).toEqual({ kind: 'system', text: 'Not enough players — back to the lobby.' });
   });
 
   it('gives the last unsolved guesser a grace before "everyone guessed" ends the turn', () => {

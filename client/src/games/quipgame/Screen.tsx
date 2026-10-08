@@ -42,7 +42,8 @@ export function QuipGameScreen({ room, meId, isHost }: GameScreenProps<QuipgameV
   const view = room.game;
   if (!view) return null;
   const playing = room.phase === 'playing';
-  const ticking = playing && (isWriting(view) || view.phase === 'voting' || view.phase === 'finalVoting');
+  const holding = Boolean(room.waiting);
+  const ticking = playing && !holding && (isWriting(view) || view.phase === 'voting' || view.phase === 'finalVoting');
 
   return (
     <div className={`quip${isPhone ? ' quip--phone' : ''}${wide ? ' quip--wide' : ''}`} data-phase={view.phase} data-round={view.round} data-testid="quipgame-screen">
@@ -59,7 +60,7 @@ export function QuipGameScreen({ room, meId, isHost }: GameScreenProps<QuipgameV
           </div>
         </div>
         <div className="quip__clock">
-          <Timer endsAt={playing ? view.endsAt : null} warnUnder={10} tickUnder={ticking ? 5 : undefined} />
+          <Timer endsAt={playing ? view.endsAt : null} paused={holding} warnUnder={10} tickUnder={ticking ? 5 : undefined} />
         </div>
         <div className="quip__side">
           <button type="button" className="quip__players-btn" onClick={() => openSheet('players')} aria-haspopup="dialog" aria-expanded={sheet === 'players'} aria-label={`Scores (${room.players.length} players)`} data-testid="players-toggle">

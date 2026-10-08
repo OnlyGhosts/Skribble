@@ -12,6 +12,7 @@ const { Chat } = await import('./Chat');
 const { SettingsPanel, maxPlayersMin } = await import('./SettingsPanel');
 const { Timer } = await import('./Timer');
 const { PodiumOverlay } = await import('./PodiumOverlay');
+const { WaitingOverlay, missingPlayers, waitingTitle } = await import('./WaitingOverlay');
 const { remainingMs } = await import('../lib/useCountdown');
 
 /** Attributes of the first tag carrying `data-testid="<id>"` in the markup. */
@@ -36,6 +37,61 @@ describe('Timer first render', () => {
     expect(remainingMs(10_000, 2_000, 5_000)).toBe(3_000);
     expect(remainingMs(10_000, 0, 12_000)).toBe(0);
     expect(remainingMs(null, 500)).toBe(0);
+  });
+});
+
+describe('Timer paused', () => {
+  it('freezes with a pause glyph instead of running out while the game holds', () => {
+    const html = renderToString(createElement(Timer, { endsAt: Date.now() - 5_000, warnUnder: 10, paused: true }));
+    const tag = tagWith(html, 'timer');
+    expect(tag).toContain('timer--paused');
+    expect(tag).not.toContain('timer--urgent');
+    expect(tag).toContain('aria-label="Paused"');
+    expect(tag).toContain('data-paused="players"');
+  });
+});
+
+describe('waiting overlay', () => {
+  const holding = room({
+    phase: 'playing',
+    players: [player('host'), player('bob', { joinOrder: 1, connected: false }), player('carol', { joinOrder: 2, connected: false })],
+    waiting: { reason: 'players', missing: ['bob', 'carol', 'gone'], needed: 3, connected: 1 },
+  });
+
+  it('names the missing players, counts the connected ones and offers Leave to everyone', () => {
+    expect(waitingTitle([])).toBe('Waiting for players to reconnect');
+    expect(waitingTitle(['Bob'])).toBe('Waiting for Bob to reconnect');
+    expect(waitingTitle(['Bob', 'Carol', 'Dan'])).toBe('Waiting for Bob, Carol and Dan to reconnect');
+    // A missing player who was removed in the meantime is no longer listed.
+    expect(missingPlayers(holding, holding.waiting!).map((p) => p.id)).toEqual(['bob', 'carol']);
+
+    const html = renderToString(createElement(WaitingOverlay, { room: holding, waiting: holding.waiting!, isHost: false }));
+    expect(html).toContain('Waiting for bob and carol to reconnect');
+    expect(html).toContain('1 of 3 players connected');
+    expect(html).toContain('data-testid="waiting-leave"');
+    expect(html).not.toContain('data-testid="waiting-remove"');
+    expect(html.match(/avatar--dimmed/g)).toHaveLength(2);
+  });
+
+  it('lets the host remove each missing player and explains what that does', () => {
+    const html = renderToString(createElement(WaitingOverlay, { room: holding, waiting: holding.waiting!, isHost: true }));
+    const buttons = html.match(/<button[^>]*data-testid="waiting-remove"[^>]*>/g) ?? [];
+    expect(buttons).toHaveLength(2);
+    expect(buttons[0]).toContain('data-player-id="bob"');
+    expect(html).toContain('Remove bob');
+    expect(html).toContain('Remove carol');
+    expect(html).toContain('data-testid="waiting-remove-hint"');
+  });
+
+  it('is a modal dialog whose card can take the focus away from the game screen behind it', () => {
+    const html = renderToString(createElement(WaitingOverlay, { room: holding, waiting: holding.waiting!, isHost: true }));
+    const dialog = tagWith(html, 'overlay-waiting');
+    expect(dialog).toContain('role="dialog"');
+    expect(dialog).toContain('aria-modal="true"');
+    expect(dialog).toContain('data-connected="1"');
+    expect(dialog).toContain('data-needed="3"');
+    const card = html.match(/<div class="overlay__card[^"]*"[^>]*>/)?.[0] ?? '';
+    expect(card).toContain('tabindex="-1"');
   });
 });
 

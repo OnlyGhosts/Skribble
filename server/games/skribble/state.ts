@@ -33,7 +33,11 @@ export type PhaseData =
       reason: TurnEndReason;
       endsAt: number;
       points: Record<string, number>;
-      /** True while the next turn waits for a player in reconnect grace (endsAt no longer fires). */
+      /**
+       * True while the next turn waits for disconnected players (endsAt no longer fires): fewer
+       * than two are connected but enough still hold seats. The platform shows RoomState.waiting
+       * over this summary; a reconnect or a join resumes the game.
+       */
       held: boolean;
     }
   | { kind: 'gameOver' };
@@ -66,6 +70,10 @@ export function findPlayer(ctx: Ctx, id: string): PlatformPlayer | undefined {
 
 export function connectedCount(ctx: Ctx): number {
   return ctx.players.filter((p) => p.connected).length;
+}
+
+export function isHeld(data: SkribbleData): boolean {
+  return data.phase.kind === 'turnEnd' && data.phase.held;
 }
 
 /** True when every connected non-drawer has guessed (and there is at least one). */

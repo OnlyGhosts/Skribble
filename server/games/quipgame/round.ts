@@ -1,6 +1,7 @@
 /** Regular rounds: prompt assignment, the writing phase (answers, resubmission, fallbacks) and moving on. */
 import { FALLBACK_ANSWERS } from '../../../shared/games/quipgame/prompts.js';
 import { QUIPGAME_REGULAR_ROUNDS } from '../../../shared/games/quipgame/protocol.js';
+import { RESUME_SETTLE_MS, holdEffects, resumeEffect } from '../waiting.js';
 import { startFinal, startFinalVoting } from './final.js';
 import { drawPrompts } from './prompts.js';
 import {
@@ -22,10 +23,54 @@ import {
 } from './state.js';
 import { startMatchup } from './vote.js';
 
-export function abortForLowPlayers(gx: Gx): boolean {
-  if (connectedCount(gx.ctx) >= MIN_PLAYERS) return false;
-  gx.effects.push({ type: 'abort', reason: 'Not enough players — back to the lobby.' });
-  return true;
+/**
+ * Starts the next round (or the final) once at least three players are connected. Otherwise the
+ * game holds (RoomState.waiting) until enough of them are back, and is abandoned only when fewer
+ * than three hold a seat at all. While holding, resumeIfHeld decides when it is called again.
+ */
+export function beginRound(gx: Gx): void {
+  const { data, ctx } = gx;
+  if (ctx.players.length < MIN_PLAYERS) {
+    gx.effects.push({ type: 'abort', reason: 'Not enough players — back to the lobby.' });
+    return;
+  }
+  if (connectedCount(ctx) < MIN_PLAYERS) return hold(gx);
+  if (data.phase === 'waiting') gx.effects.push(resumeEffect());
+  data.resumeAt = null;
+  data.round += 1;
+  if (isFinalRound(data)) return startFinal(gx);
+  startRound(gx);
+}
+
+/** Holds between rounds; the last result stays on screen under the platform's waiting state. */
+function hold(gx: Gx): void {
+  const { data, ctx } = gx;
+  const fresh = data.phase !== 'waiting';
+  data.phase = 'waiting';
+  data.resumeAt = null;
+  gx.effects.push(...holdEffects(ctx.players, fresh));
+}
+
+/**
+ * Re-evaluates a hold after the player list changed: the lobby or a refreshed hold while too few
+ * are connected; otherwise a settle before the next round, restarted by every further reconnect,
+ * so a group whose sockets were all cut at once is seated together rather than from the first
+ * one back (see RESUME_SETTLE_MS).
+ */
+export function resumeIfHeld(gx: Gx): void {
+  const { data, ctx } = gx;
+  if (data.phase !== 'waiting') return;
+  if (ctx.players.length < MIN_PLAYERS || connectedCount(ctx) < MIN_PLAYERS) return beginRound(gx);
+  data.resumeAt = ctx.now + RESUME_SETTLE_MS;
+  gx.effects.push(...holdEffects(ctx.players, false));
+}
+
+/** The settle ran out: the next round with everyone connected by now, or a fresh hold if someone dropped again. */
+export function settleDue(gx: Gx): void {
+  const { data, ctx } = gx;
+  if (data.phase !== 'waiting' || data.resumeAt === null || ctx.now < data.resumeAt) return;
+  data.resumeAt = null;
+  beginRound(gx);
 }
 
 /** Round players in join order; the prompt assignment is shuffled separately so the public list gives nothing away. */
@@ -114,7 +159,7 @@ export function finishWriting(gx: Gx, why: 'everyoneIn' | 'timeUp'): void {
   startMatchup(gx, 0);
 }
 
-/** Leaves a result: the next matchup, the next round, the final, or the podium; the lobby when too few are left. */
+/** Leaves a result: the next matchup, the next round or the final (holding for missing players), or the podium. */
 export function advance(gx: Gx): void {
   const { data } = gx;
   if (data.phase === 'finalResult') {
@@ -129,10 +174,7 @@ export function advance(gx: Gx): void {
     gx.effects.push({ type: 'gameOver' });
     return;
   }
-  if (abortForLowPlayers(gx)) return;
-  data.round += 1;
-  if (isFinalRound(data)) return startFinal(gx);
-  startRound(gx);
+  beginRound(gx);
 }
 
 export function next(gx: Gx, playerId: string): void {

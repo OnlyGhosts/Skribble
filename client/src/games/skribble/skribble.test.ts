@@ -14,6 +14,7 @@ const { DrawQueue } = await import('./net');
 const { GuessInput } = await import('./components/GuessInput');
 const { WordDisplay } = await import('./components/WordDisplay');
 const { SkribbleSettingsFields } = await import('./components/SettingsFields');
+const { SkribbleScreen } = await import('./Screen');
 const { placeholderFor } = await import('./lib/format');
 const { player, registryOf, resetStore, room, welcome } = await import('../../test/fixtures');
 const { drawingPhase, inTurn, resetSkribbleStore } = await import('./test/fixtures');
@@ -226,6 +227,17 @@ describe('guess tiles for assistive tech and narrow bars', () => {
     const tag = tagWith(html, 'word-mask');
     expect(tag).toContain('role="img"');
     expect(tag).toContain('aria-label="5 letters in 2 words."');
+  });
+});
+
+describe('platform hold', () => {
+  it('renders the screen with a neutral paused top bar and a frozen timer while the game waits for players', () => {
+    const holding = inTurn(drawingPhase('bob'), {}, { waiting: { reason: 'players', missing: ['bob'], needed: 2, connected: 1 } });
+    enter(holding, 'host');
+    const html = renderToString(createElement(SkribbleScreen, { room: holding, meId: 'host', isHost: true }));
+    expect(html).toContain('data-testid="skribble-paused"');
+    expect(tagWith(html, 'timer')).toContain('data-paused="players"');
+    expect(html).not.toContain('data-testid="word-mask"');
   });
 });
 

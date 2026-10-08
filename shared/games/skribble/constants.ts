@@ -10,8 +10,12 @@ export const CHOOSE_TIME_SECONDS = 15;
 /** Seconds the "turn over" summary is shown before the next turn starts. */
 export const TURN_END_SECONDS = 6;
 
-/** How long we wait for a disconnected drawer (or the last unsolved guesser) to come back before the turn moves on. */
-export const DRAWER_DISCONNECT_GRACE_MS = 10_000;
+/**
+ * How long we wait for a disconnected drawer (or the last unsolved guesser) to come back before
+ * the turn moves on: long enough for a reconnect after hosting cut the socket, short enough that
+ * the guessers are not left staring at a frozen canvas.
+ */
+export const DRAWER_DISCONNECT_GRACE_MS = 20_000;
 
 /**
  * Caps that bound memory per room. The whole canvas is re-sent to every joiner/rejoiner in

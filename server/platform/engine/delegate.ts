@@ -73,6 +73,9 @@ function applyEffect(cx: Cx, effect: GameEffect<unknown>, applied: Applied): voi
       systemMessage(cx, effect.reason);
       resetToLobby(cx);
       return;
+    case 'waiting':
+      cx.data.waiting = effect.missing === null ? null : [...effect.missing];
+      return;
     case 'side':
       cx.effects.push({ type: 'side', name: effect.name, stamp: effect.payload?.stamp ?? '' });
       return;

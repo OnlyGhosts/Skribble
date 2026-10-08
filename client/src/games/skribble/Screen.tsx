@@ -106,11 +106,18 @@ export function SkribbleScreen({ room, meId, isHost }: GameScreenProps<SkribbleV
   const canUndo = hasStrokes && connected;
   const endsAt = 'endsAt' in phase ? phase.endsAt : null;
   const turnKey = `${view.round}-${view.turn}-${drawerId ?? ''}`;
+  // The game holds at a turn boundary for players whose phones went dark (the platform overlay says so).
+  const holding = Boolean(room.waiting);
   // On a phone an unsolved guesser types into the tiles in the guess bar, so the header word
   // area only shows a word that is actually known (drawer, solved guesser, turn summary).
-  const wordKnown = (phase.kind === 'drawing' && (isDrawer || guessed)) || phase.kind === 'turnEnd';
+  const wordKnown = holding || (phase.kind === 'drawing' && (isDrawer || guessed)) || phase.kind === 'turnEnd';
 
-  const wordArea = (
+  const wordArea = holding ? (
+    <div className="word" data-testid="skribble-paused">
+      <span className="word__label">Paused</span>
+      <span className="word__text word__text--muted">Waiting for players</span>
+    </div>
+  ) : (
     <>
       {phase.kind === 'drawing' && <WordDisplay word={phase.word} mask={phase.mask} isDrawer={isDrawer} />}
       {phase.kind === 'turnEnd' && <WordDisplay word={phase.word} isDrawer={false} />}
@@ -129,8 +136,8 @@ export function SkribbleScreen({ room, meId, isHost }: GameScreenProps<SkribbleV
     </>
   );
 
-  const timer = endsAt !== null && (
-    <Timer endsAt={endsAt} warnUnder={phase.kind === 'turnEnd' ? 0 : phase.kind === 'choosing' ? 5 : 10} tickUnder={phase.kind === 'drawing' ? 5 : undefined} />
+  const timer = (endsAt !== null || holding) && (
+    <Timer endsAt={endsAt} paused={holding} warnUnder={phase.kind === 'turnEnd' ? 0 : phase.kind === 'choosing' ? 5 : 10} tickUnder={phase.kind === 'drawing' ? 5 : undefined} />
   );
 
   const players = <PlayerList room={room} meId={meId} isHost={isHost} mode="game" game={game} />;
@@ -217,8 +224,8 @@ export function SkribbleScreen({ room, meId, isHost }: GameScreenProps<SkribbleV
 
       <main className="game__center">
         <GameCanvas canDraw={canDraw} settings={tools} turnKey={turnKey} footer={canDraw ? <Toolbar settings={tools} onChange={setTools} canUndo={canUndo} /> : undefined}>
-          {phase.kind === 'choosing' && <ChoosingOverlay phase={phase} room={room} isDrawer={isDrawer} />}
-          {phase.kind === 'turnEnd' && <TurnEndOverlay phase={phase} room={room} />}
+          {phase.kind === 'choosing' && <ChoosingOverlay phase={phase} room={room} isDrawer={isDrawer} paused={holding} />}
+          {phase.kind === 'turnEnd' && <TurnEndOverlay phase={phase} room={room} paused={holding} />}
           {phase.kind === 'drawing' && !isDrawer && <DrawingCaption drawer={drawer} />}
         </GameCanvas>
       </main>

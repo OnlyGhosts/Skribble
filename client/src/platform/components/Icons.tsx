@@ -41,6 +41,7 @@ export const ChevronIcon = (p: IconProps) => <Icon {...p} paths="m6 9 6 6 6-6" /
 export const ArrowRightIcon = (p: IconProps) => <Icon {...p} paths={['M5 12h14', 'm13 6 6 6-6 6']} />;
 export const LogoutIcon = (p: IconProps) => <Icon {...p} paths={['M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4', 'm16 17 5-5-5-5', 'M21 12H9']} />;
 export const PlayIcon = (p: IconProps) => <Icon {...p} paths="m6 4 14 8-14 8V4Z" />;
+export const PauseIcon = (p: IconProps) => <Icon {...p} paths={['M9 5v14', 'M15 5v14']} strokeWidth={3} />;
 export const KickIcon = (p: IconProps) => <Icon {...p} paths={['M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2', 'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z', 'm17 8 5 5', 'm22 8-5 5']} />;
 export const SparkIcon = (p: IconProps) => <Icon {...p} paths="m12 3 1.9 5.6L19.5 10l-5.6 1.4L12 17l-1.9-5.6L4.5 10l5.6-1.4L12 3Z" />;
 export const EditIcon = (p: IconProps) => <Icon {...p} paths={['M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7', 'M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4Z']} />;

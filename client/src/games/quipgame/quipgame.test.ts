@@ -98,6 +98,16 @@ function tagsWith(html: string, testId: string): string[] {
 
 const attr = (tag: string, name: string): string | undefined => tag.match(new RegExp(`${name}="([^"]*)"`))?.[1];
 
+describe('platform hold', () => {
+  it('renders the result step with a paused timer while the game waits for players', () => {
+    const waiting = { reason: 'players' as const, missing: ['carol'], needed: 3, connected: 2 };
+    const html = render(quipRoom(view({ phase: 'writing', endsAt: NOW - 1000 }), { waiting }), 'bob');
+    expect(tagWith(html, 'timer')).toContain('data-paused="players"');
+    expect(tagWith(html, 'timer')).not.toContain('timer--urgent');
+    expect(html).toContain('data-testid="quipgame-main"');
+  });
+});
+
 /** Feeds a snapshot the way the socket does: store first, then the module hook. */
 function snapshot(state: QuipgameRoomState): void {
   const prev = usePlatformStore.getState().room as QuipgameRoomState | null;

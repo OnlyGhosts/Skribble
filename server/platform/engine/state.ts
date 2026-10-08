@@ -31,8 +31,6 @@ export interface PlatformPlayerData {
 }
 
 export interface GraceDeadlines {
-  /** Too few players are connected: the game is abandoned at this time unless someone comes back. */
-  lowPlayersAt: number | null;
   /** The room is empty: it is destroyed at this time unless someone joins. */
   emptyRoomAt: number | null;
 }
@@ -64,6 +62,8 @@ export interface PlatformRoomData {
   podium: PodiumEntry[] | null;
   /** The game module's state (its `D`); null in the lobby. */
   game: unknown;
+  /** Ids of the disconnected players a holding game waits for (its last 'waiting' effect); null while it runs. */
+  waiting: string[] | null;
   /** Public chat history (capped at CHAT_HISTORY_LENGTH), replayed to joiners. */
   chat: ChatMessage[];
   nextChatId: number;
@@ -90,10 +90,11 @@ export function createRoomData(code: string, gameId: GameId, now: number): Platf
     phase: 'lobby',
     podium: null,
     game: null,
+    waiting: null,
     chat: [],
     nextChatId: 1,
     votes: [],
-    grace: { lowPlayersAt: null, emptyRoomAt: null },
+    grace: { emptyRoomAt: null },
     nextJoinOrder: 0,
   };
 }

@@ -9,7 +9,7 @@ import {
   type StoredSession,
   type WireMessage,
 } from '@shared/platform/protocol';
-import { clearSession, loadSession, saveSession } from '../lib/storage';
+import { SEAT_REFRESH_MS, clearSeat, clearSession, loadSession, saveSeat, saveSession, seatToResume } from '../lib/storage';
 import { registeredGame } from '../registry';
 import { codeFromLocation } from '../router';
 import { usePlatformStore } from '../store/usePlatformStore';
@@ -22,6 +22,18 @@ export const PING_INTERVAL_MS = 20_000;
  * suspended server, a closed laptop lid): the socket is dropped so the usual reconnect runs.
  */
 export const PONG_TIMEOUT_MS = 10_000;
+/** After a wake-up (tab to the foreground, network back) an open socket gets this long to answer a probe. */
+export const PROBE_TIMEOUT_MS = 3_000;
+/**
+ * A connection that lived at least this long was healthy, so its close is not the server refusing
+ * us: the hosting cuts every socket at its function time limit, phones drop links in the
+ * background. Such a close is retried at once instead of after the backoff.
+ */
+export const LONG_LIVED_MS = 30_000;
+/** A reconnect still not through after this long is worth the one "connection lost" toast. */
+export const SLOW_RECONNECT_MS = 5_000;
+/** A pong this late answers a ping sent before a suspension; its round trip says nothing about latency. */
+const MAX_SANE_RTT_MS = 2_000;
 
 /** Application close codes the server uses; one definition for both sides. */
 export { CLOSE_REMOVED, CLOSE_REPLACED };
@@ -31,17 +43,26 @@ export function wsUrl(): string {
   return `${protocol}://${location.host}${WS_PATH}`;
 }
 
+interface Seat {
+  code: string;
+  token: string;
+}
+
 /**
  * The one WebSocket of the page. Platform messages update the platform store; anything else is a
  * game message for the module of the room we are in. Reconnects with backoff, keeps the seat
- * across reloads and tells the game module about welcomes, snapshots, chat lines and leaves.
+ * across reloads and discarded tabs, and tells the game module about welcomes, snapshots, chat
+ * lines and leaves.
  */
 export class GameSocket {
   private ws: WebSocket | null = null;
   private started = false;
   private everConnected = false;
+  /** When the current socket opened; 0 while none is open. */
+  private openedAt = 0;
   private backoff = BACKOFF_MIN_MS;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private slowReconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private pingTimer: ReturnType<typeof setInterval> | null = null;
   private pongTimer: ReturnType<typeof setTimeout> | null = null;
   private pingSentAt = 0;
@@ -52,6 +73,10 @@ export class GameSocket {
    * covers environments where storage is unavailable (private windows, blocked site data).
    */
   private session: StoredSession | null = null;
+  /** When the localStorage seat entry was last written. */
+  private seatSavedAt = 0;
+  /** The seat of the rejoin in flight; its code's entry goes when the server refuses it. */
+  private rejoinSeat: Seat | null = null;
   /** A leave the server never received (the socket was down); released on the next connection. */
   private pendingLeave: StoredSession | null = null;
   /** Token of the seat being released through rejoin + leave; its welcome must not enter the room. */
@@ -61,10 +86,15 @@ export class GameSocket {
   start(): void {
     if (this.started) return;
     this.started = true;
+    // Known before the socket opens, so the home screen shows "rejoining" rather than the join form.
+    if (this.resumableSeat() !== null) usePlatformStore.getState().setRejoining(true);
     this.connect();
-    window.addEventListener('online', () => this.reconnectNow());
+    const wake = () => this.wakeUp();
+    window.addEventListener('online', wake);
+    window.addEventListener('pageshow', wake);
+    window.addEventListener('focus', wake);
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') this.reconnectNow();
+      if (document.visibilityState === 'visible') wake();
     });
   }
 
@@ -92,14 +122,41 @@ export class GameSocket {
     return loadSession() ?? this.session;
   }
 
+  /** The seat to resume on this connection: ours for the room we are in, or one remembered for the room on the address bar. */
+  private resumableSeat(): Seat | null {
+    const code = usePlatformStore.getState().room?.code ?? codeFromLocation();
+    return seatToResume(code, this.currentSession(), Date.now());
+  }
+
   private rememberSession(session: StoredSession): void {
     this.session = session;
     saveSession(session);
+    this.saveSeatNow(session);
   }
 
-  private forgetSession(): void {
+  private saveSeatNow(session: StoredSession): void {
+    this.seatSavedAt = Date.now();
+    saveSeat({ code: session.code, token: session.token, playerId: session.playerId, savedAt: this.seatSavedAt });
+  }
+
+  /** Keeps the localStorage entry's age below the reconnect grace while we sit in the room. */
+  private refreshSeat(): void {
+    const session = this.currentSession();
+    if (session && Date.now() - this.seatSavedAt >= SEAT_REFRESH_MS) this.saveSeatNow(session);
+  }
+
+  /**
+   * Drops the seat from memory and storage. `keepSeat` leaves the localStorage entry alone when
+   * another tab of this browser holds the seat now.
+   */
+  private forgetSession(opts: { keepSeat?: boolean } = {}): void {
+    const codes = new Set<string>();
+    for (const s of [this.session, loadSession()]) if (s) codes.add(s.code);
+    if (this.rejoinSeat) codes.add(this.rejoinSeat.code);
     this.session = null;
+    this.rejoinSeat = null;
     clearSession();
+    if (!opts.keepSeat) for (const code of codes) clearSeat(code);
   }
 
   private connect(): void {
@@ -119,16 +176,17 @@ export class GameSocket {
     // 'error' is always followed by 'close', which drives the reconnect.
   }
 
-  private reconnectNow(): void {
-    if (this.ws && this.ws.readyState <= WebSocket.OPEN) {
-      // A tab back from the background may hold a socket whose ping was never answered (its
-      // timers were throttled); drop it instead of trusting it. A healthy one gets a fresh probe.
-      if (!this.pongOverdue()) {
-        this.ping();
-        return;
-      }
-      this.dropConnection(this.ws);
+  /**
+   * The page woke up (foreground, focus, bfcache, network back). A closed socket is reopened now,
+   * backoff reset; an open one is probed, since a background suspension can leave it dead without
+   * a close event.
+   */
+  private wakeUp(): void {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.probe();
+      return;
     }
+    if (this.ws && this.ws.readyState === WebSocket.CONNECTING) return;
     this.backoff = BACKOFF_MIN_MS;
     this.connect();
   }
@@ -138,6 +196,8 @@ export class GameSocket {
     const store = usePlatformStore.getState();
     this.backoff = BACKOFF_MIN_MS;
     this.everConnected = true;
+    this.openedAt = Date.now();
+    this.clearSlowReconnectTimer();
     store.setConnection('connected');
     if (this.lostToastShown) {
       store.addToast('success', 'Reconnected');
@@ -154,11 +214,11 @@ export class GameSocket {
       this.send({ t: 'leave' });
     }
 
-    const session = this.currentSession();
-    const code = store.room?.code ?? codeFromLocation();
-    if (session && code && session.code === code) {
+    const seat = this.resumableSeat();
+    if (seat) {
+      this.rejoinSeat = seat;
       store.setRejoining(true);
-      this.send({ t: 'rejoin', code: session.code, token: session.token });
+      this.send({ t: 'rejoin', code: seat.code, token: seat.token });
       return;
     }
     if (store.room) {
@@ -201,6 +261,7 @@ export class GameSocket {
           this.leavingToken = null;
           return;
         }
+        this.rejoinSeat = null;
         this.rememberSession({ code: msg.room.code, gameId: msg.room.gameId, token: msg.token, playerId: msg.playerId });
         // A welcome for another seat (or the first one) is a fresh entry, not a continuation.
         const prev = store.playerId === msg.playerId ? store.room : null;
@@ -213,6 +274,7 @@ export class GameSocket {
       case 'room': {
         const prev = store.room;
         if (prev === null) return;
+        this.refreshSeat();
         store.handleServerMessage(msg);
         registeredGame(msg.room.gameId)?.onRoom?.(msg.room, prev);
         return;
@@ -243,7 +305,7 @@ export class GameSocket {
         // The server stamped the pong roughly half a round-trip after our ping left.
         const now = Date.now();
         const rtt = this.pingSentAt > 0 ? now - this.pingSentAt : 0;
-        store.setClockOffset(msg.serverTime - (now - rtt / 2));
+        if (rtt <= MAX_SANE_RTT_MS) store.setClockOffset(msg.serverTime - (now - rtt / 2));
         return;
       }
     }
@@ -254,10 +316,12 @@ export class GameSocket {
     if (ws !== this.ws) return;
     this.ws = null;
     this.stopPing();
+    const lived = this.openedAt > 0 ? Date.now() - this.openedAt : 0;
+    this.openedAt = 0;
     if (code === CLOSE_REPLACED) {
       // Another tab (a duplicated tab shares sessionStorage) took this seat over. Rejoining from
       // here would only steal it back and the two tabs would bounce the seat forever.
-      this.forgetSession();
+      this.forgetSession({ keepSeat: true });
       this.pendingLeave = null;
       const store = usePlatformStore.getState();
       if (store.room) {
@@ -267,11 +331,13 @@ export class GameSocket {
     }
     const store = usePlatformStore.getState();
     store.setConnection(this.everConnected ? 'reconnecting' : 'connecting');
-    if (store.room && !this.lostToastShown) {
-      store.addToast('warning', 'Connection lost — reconnecting…');
-      this.lostToastShown = true;
+    if (store.room) this.armSlowReconnectToast();
+    if (lived >= LONG_LIVED_MS) {
+      this.backoff = BACKOFF_MIN_MS;
+      this.connect();
+    } else {
+      this.scheduleReconnect();
     }
-    this.scheduleReconnect();
   }
 
   /** Treats a socket as gone right away: closing a half-open socket can take the browser a long time. */
@@ -299,6 +365,25 @@ export class GameSocket {
     }
   }
 
+  /** The pill shows every reconnect; a toast only when one drags on (the routine hosting cuts never do). */
+  private armSlowReconnectToast(): void {
+    if (this.slowReconnectTimer !== null || this.lostToastShown) return;
+    this.slowReconnectTimer = setTimeout(() => {
+      this.slowReconnectTimer = null;
+      const store = usePlatformStore.getState();
+      if (this.isOpen() || !store.room || this.lostToastShown) return;
+      store.addToast('warning', 'Connection lost — reconnecting…');
+      this.lostToastShown = true;
+    }, SLOW_RECONNECT_MS);
+  }
+
+  private clearSlowReconnectTimer(): void {
+    if (this.slowReconnectTimer !== null) {
+      clearTimeout(this.slowReconnectTimer);
+      this.slowReconnectTimer = null;
+    }
+  }
+
   private startPing(): void {
     this.stopPing();
     this.pingTimer = setInterval(() => this.ping(), PING_INTERVAL_MS);
@@ -313,13 +398,33 @@ export class GameSocket {
       if (this.pongOverdue()) this.dropConnection(ws);
       return;
     }
+    this.sendPing(ws, PONG_TIMEOUT_MS);
+  }
+
+  /** A wake-up probe: one short deadline, so a socket killed during a suspension is replaced now. */
+  private probe(): void {
+    const ws = this.ws;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    if (!this.pongPending) {
+      this.sendPing(ws, PROBE_TIMEOUT_MS);
+      return;
+    }
+    if (this.pongOverdue()) this.dropConnection(ws);
+    else this.armPongTimer(ws, PROBE_TIMEOUT_MS);
+  }
+
+  private sendPing(ws: WebSocket, timeoutMs: number): void {
     this.pingSentAt = Date.now();
     this.pongPending = true;
     this.send({ t: 'ping' });
+    this.armPongTimer(ws, timeoutMs);
+  }
+
+  private armPongTimer(ws: WebSocket, timeoutMs: number): void {
     this.clearPongTimer();
     this.pongTimer = setTimeout(() => {
       if (this.pongPending) this.dropConnection(ws);
-    }, PONG_TIMEOUT_MS);
+    }, timeoutMs);
   }
 
   private pongOverdue(): boolean {

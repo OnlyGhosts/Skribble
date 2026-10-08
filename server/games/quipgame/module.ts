@@ -17,7 +17,7 @@ import {
 import { gameById } from '../../../shared/platform/games.js';
 import { defineSettings, withDraft, type GameEvent, type GameResult, type GameServerModule } from '../../platform/game.js';
 import { forgetRanker, rank, replaceFinalAnnouncer, resolveFinal, resolveIfRanked } from './final.js';
-import { advance, allWritten, answer, finishWriting, next, startRound } from './round.js';
+import { advance, allWritten, answer, beginRound, finishWriting, next, resumeIfHeld, settleDue } from './round.js';
 import { snapshot, type Ctx, type Gx, type QuipgameData } from './state.js';
 import { forgetVoter, replaceAnnouncer, resolveIfComplete, resolveMatchup, vote } from './vote.js';
 import { viewFor } from './view.js';
@@ -25,9 +25,11 @@ import { viewFor } from './view.js';
 type Result = GameResult<QuipgameData, QuipgameServerMessage>;
 
 function start(ctx: Ctx): Result {
+  // The seed sits "between rounds" so beginRound starts round one like any other.
   const seed: QuipgameData = {
-    phase: 'writing',
-    round: 1,
+    phase: 'result',
+    resumeAt: null,
+    round: 0,
     totalRounds: QUIPGAME_REGULAR_ROUNDS + (ctx.settings.finalRound ? 1 : 0),
     roundPlayers: [],
     prompts: [],
@@ -39,7 +41,7 @@ function start(ctx: Ctx): Result {
     announcerCursor: 0,
     final: null,
   };
-  return withDraft(seed, (data, effects) => startRound({ ctx, data, effects }));
+  return withDraft(seed, (data, effects) => beginRound({ ctx, data, effects }));
 }
 
 function handle(ctx: Ctx, data: QuipgameData, event: GameEvent<QuipgameClientMessage>): Result {
@@ -54,11 +56,13 @@ function handle(ctx: Ctx, data: QuipgameData, event: GameEvent<QuipgameClientMes
         return onPlayerAway(gx, event.playerId, event.type === 'playerLeft');
       case 'tick':
         return onTick(gx);
-      case 'chat':
       case 'playerJoined':
       case 'playerReconnected':
-        // Chat is just chat; a mid-round joiner spectates (they are not among the round's players) and a
-        // returning player simply resumes with the next snapshot.
+        // A mid-round joiner spectates (they are not among the round's players) and a returning player
+        // simply resumes with the next snapshot; between rounds, either may end a hold.
+        return resumeIfHeld(gx);
+      case 'chat':
+        // Chat is just chat.
         return;
     }
   });
@@ -80,7 +84,8 @@ function onMessage(gx: Gx, playerId: string, msg: QuipgameClientMessage): void {
 /**
  * A socket dropped or a seat emptied: whoever everyone was waiting for may be gone, so re-check the
  * phase. A vote or ranking from a seat that emptied (left, kicked, grace expired) is withdrawn first:
- * only people still in the room decide the points.
+ * only people still in the room decide the points. A dropped socket alone changes nothing about
+ * who is waited for: the player keeps their seat, and their vote stays open until the deadline.
  */
 function onPlayerAway(gx: Gx, playerId: string, left: boolean): void {
   const { data } = gx;
@@ -95,13 +100,16 @@ function onPlayerAway(gx: Gx, playerId: string, left: boolean): void {
       if (left && allWritten(gx)) finishWriting(gx, 'everyoneIn');
       return;
     case 'voting':
-      if (resolveIfComplete(gx)) return;
+      if (left && resolveIfComplete(gx)) return;
       if (replaceAnnouncer(gx, playerId)) snapshot(gx);
       return;
     case 'finalVoting':
-      if (resolveIfRanked(gx)) return;
+      if (left && resolveIfRanked(gx)) return;
       if (replaceFinalAnnouncer(gx, playerId)) snapshot(gx);
       return;
+    case 'waiting':
+      // The missing list changed (one more away, or a seat emptied); the platform aborts when too few remain.
+      return resumeIfHeld(gx);
     case 'result':
     case 'finalResult':
     case 'over':
@@ -111,6 +119,7 @@ function onPlayerAway(gx: Gx, playerId: string, left: boolean): void {
 
 function onTick(gx: Gx): void {
   const { data, ctx } = gx;
+  if (data.phase === 'waiting') return settleDue(gx);
   if (ctx.now < data.endsAt) return;
   switch (data.phase) {
     case 'writing':
@@ -129,7 +138,8 @@ function onTick(gx: Gx): void {
 }
 
 function nextDeadline(data: QuipgameData): number | null {
-  return data.phase === 'over' ? null : data.endsAt;
+  if (data.phase === 'over') return null;
+  return data.phase === 'waiting' ? data.resumeAt : data.endsAt;
 }
 
 export const quipgameModule: GameServerModule<QuipgameSettings, QuipgameData, QuipgameView, QuipgameClientMessage, QuipgameServerMessage> = {

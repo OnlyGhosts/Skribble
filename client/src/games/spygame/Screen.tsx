@@ -45,6 +45,7 @@ export function SpyGameScreen({ room, meId, isHost }: GameScreenProps<SpygameVie
   const view = room.game;
   if (!view) return null;
   const playing = room.phase === 'playing';
+  const holding = Boolean(room.waiting);
   const waitingFor = view.clock.waitingForId ? nameOf(room, view.clock.waitingForId) : null;
   const wrongGuesses = view.spyGuessed.length > 0 && view.phase !== 'reveal';
   const players = <PlayerList room={room} meId={meId} isHost={isHost} mode="game" game={game} />;
@@ -68,7 +69,7 @@ export function SpyGameScreen({ room, meId, isHost }: GameScreenProps<SpygameVie
               </strong>
               <small>{meta.name}</small>
             </div>
-            <RoundClock clock={view.clock} />
+            <RoundClock clock={view.clock} holding={holding} />
             {playersButton}
             <button type="button" className="icon-btn spy__icon-btn" onClick={() => openSheet('chat')} aria-haspopup="dialog" aria-expanded={chatOpen} aria-label="Chat" data-testid="chat-toggle">
               <ChatIcon size={20} />
@@ -91,7 +92,7 @@ export function SpyGameScreen({ room, meId, isHost }: GameScreenProps<SpygameVie
               </div>
             </div>
             <div className="spy__center">
-              <RoundClock clock={view.clock} />
+              <RoundClock clock={view.clock} holding={holding} />
             </div>
             <div className="spy__side">
               {playersButton}

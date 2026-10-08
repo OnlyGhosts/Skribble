@@ -41,16 +41,19 @@ Open http://localhost:5173. The Vite dev server proxies `/ws` and `/api` to the 
    name and avatar.
 3. The host adjusts the settings and hits **Start** once enough players are in (two for Skribble).
 
-Reload or drop off Wi-Fi and you come back to the same seat with the same name and score. If a
-game runs out of players it waits ten seconds for them to come back, then returns everyone to the
-lobby.
+Reload, lock your phone or drop off Wi-Fi and you come back to the same seat with the same name
+and score: a seat survives ten minutes without a connection. A running game never ends over a
+dropped connection: when too few players are connected to go on, it holds at its next round or
+turn boundary with a "Waiting for … to reconnect" overlay (the host can remove a player who is not
+coming back) and resumes as soon as enough are back. Only when fewer seats remain than the game
+needs does it return everyone to the lobby.
 
 ## Skribble
 
 - **Friend codes that are actually readable.** Codes use letters and digits but never `I`, `L`, `O`, `0` or `1`, so nothing gets misread over voice chat. Paste a code or a whole invite link into the join box and it just works.
 - **Type into the blanks.** On your turn to guess, the word-length tiles *are* your input: each letter you type lands in the next slot, spaces and hyphens in the word are skipped for you, revealed hint letters show faintly until you type over them, Enter submits. Uses your phone's normal keyboard, never a custom on-screen one.
 - **Built for phones.** A non-scrolling game layout that keeps the canvas, the chat and the guess bar above the keyboard, a players sheet, landscape support, 44px tap targets, safe-area aware.
-- **Reconnect without losing your seat.** Come back with the same name, score and the drawing so far. If the drawer drops, the turn waits 10 seconds before moving on.
+- **Reconnect without losing your seat.** Come back with the same name, score and the drawing so far. If the drawer drops, the turn waits 20 seconds for them before moving on; if the room is short of players, the game holds at the turn summary until they are back.
 - **Hints that help.** Letters are revealed on a schedule spread over the turn; "close" guesses are flagged privately so you know you're nearly there; `icecream` counts for `ice cream`.
 - **Fair scoring.** Guessers earn 50–400 points by speed. The drawer earns up to 300 points scaled by how many people got it, so drawing clearly for everyone beats racing one fast friend.
 - **Real drawing tools.** Smooth strokes, five brush sizes, 24 colours plus a colour picker, eraser, flood fill, undo and clear, with keyboard shortcuts (`B`, `E`, `F`, `Ctrl+Z`, `[` and `]`).
@@ -106,7 +109,7 @@ Vercel serves the client from its CDN and runs the game server as one Vercel Fun
 
 Good to know:
 
-- WebSockets on Vercel Functions are in public beta. A connection is cut when the function reaches its max duration (5 minutes on Hobby, close code 1006). The client reconnects with backoff and rejoins with its seat token (Skribble resends any strokes drawn while offline), so players see at most a brief "reconnecting" toast. Nothing to configure.
+- WebSockets on Vercel Functions are in public beta. A connection is cut when the function reaches its max duration (5 minutes on Hobby, close code 1006). The client reconnects at once and rejoins with its seat token (Skribble resends any strokes drawn while offline); the seat survives ten minutes without a connection and a game short of players holds at its next boundary instead of ending, so the routine cut passes with no more than a flicker of the connection pill (a "Connection lost" toast appears only when a reconnect drags past five seconds). Nothing to configure.
 - The production domain follows the production branch (`main` by default). Change it under **Settings → Git → Production Branch**; every other branch gets a preview URL.
 - Custom domain: once `boredgames.io` is registered, add it under **Settings → Domains** in the Vercel project and create the DNS records Vercel shows at the registrar. Share links use whatever origin the site is served from, so nothing in the code changes.
 - `/api/health` reports `driver: "redis"` and an approximate room count once the store is connected.

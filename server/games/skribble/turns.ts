@@ -6,7 +6,8 @@ import { drawerPoints } from '../../../shared/games/skribble/scoring.js';
 import { buildWordPool, pickWords } from '../../../shared/games/skribble/words/index.js';
 import { gameById } from '../../../shared/platform/games.js';
 import type { GameEffect, PlatformPlayer } from '../../platform/game.js';
-import { connectedCount, findPlayer, type Ctx, type SkribbleData } from './state.js';
+import { holdEffects, resumeEffect } from '../waiting.js';
+import { connectedCount, findPlayer, isHeld, type Ctx, type SkribbleData } from './state.js';
 
 /** The module's working context: a private copy of the state plus the effects produced so far. */
 export interface Gx {
@@ -42,21 +43,23 @@ export function resetCanvas(gx: Gx): void {
   gx.effects.push({ type: 'send', to: 'all', msg: { t: 'clear' } });
 }
 
+/**
+ * The turn boundary: the next turn, the next round or the end of the game. With fewer than two
+ * players connected it holds at the summary instead (a reconnect or a join calls it again), and
+ * it abandons the game only when fewer than two hold a seat at all.
+ */
 export function beginNextTurn(gx: Gx): void {
   const { data, ctx } = gx;
   clearTurnGrace(gx);
-  if (connectedCount(ctx) < MIN_PLAYERS) {
-    if (data.phase.kind === 'turnEnd') {
-      // Someone is in their reconnect grace: hold at the summary. A join or rejoin resumes the
-      // game; the platform's low-player grace sends everyone back to the lobby otherwise.
-      data.phase.held = true;
-      const away = ctx.players.filter((p) => !p.connected).map((p) => p.name);
-      systemMessage(gx, `Waiting for ${away.join(', ')} to reconnect…`);
-      return;
-    }
+  if (ctx.players.length < MIN_PLAYERS) {
     gx.effects.push({ type: 'abort', reason: 'Not enough players — back to the lobby.' });
     return;
   }
+  // A game with no turn left is over whoever is connected: the podium neither waits for an absent
+  // player nor is lost to their seat expiring during a hold.
+  if (data.turnIndex + 1 >= data.turnQueue.length && data.round >= ctx.settings.rounds) return finishGame(gx);
+  if (connectedCount(ctx) < MIN_PLAYERS) return holdTurnBoundary(gx);
+  if (isHeld(data)) gx.effects.push(resumeEffect());
   for (;;) {
     data.turnIndex += 1;
     if (data.turnIndex >= data.turnQueue.length) {
@@ -68,7 +71,8 @@ export function beginNextTurn(gx: Gx): void {
     }
     const drawer = findPlayer(ctx, data.turnQueue[data.turnIndex]);
     if (!drawer || !drawer.connected) {
-      // Skipped drawers leave the schedule so turn/turnsInRound stay accurate.
+      // Skipped drawers leave the schedule so turn/turnsInRound stay accurate (and get back in on return).
+      if (drawer) systemMessage(gx, `${drawer.name} is away — skipping their turn.`);
       data.turnQueue.splice(data.turnIndex, 1);
       data.turnIndex -= 1;
       continue;
@@ -115,13 +119,24 @@ export function chooseWord(gx: Gx, playerId: string, index: number): void {
   startDrawing(gx, word);
 }
 
-/** The choose deadline passed: auto-pick the first choice, or skip a drawer who is away. */
+/**
+ * The choose deadline passed: auto-pick the first choice. A drawer who is away keeps the turn
+ * until their reconnect grace runs out (the deadline moves out to it, and picks for them on it
+ * should they be back by then); only then are they skipped.
+ */
 export function chooseTimedOut(gx: Gx): void {
-  const turn = gx.data.turn;
-  if (!turn) return;
-  const drawer = findPlayer(gx.ctx, turn.drawerId);
-  if (!drawer || !drawer.connected) return endTurn(gx, 'drawerLeft');
-  startDrawing(gx, turn.choices[0]);
+  const { data, ctx } = gx;
+  const turn = data.turn;
+  if (!turn || data.phase.kind !== 'choosing') return;
+  const drawer = findPlayer(ctx, turn.drawerId);
+  if (drawer?.connected) return startDrawing(gx, turn.choices[0]);
+  const goneAt = data.grace.drawerGoneAt;
+  if (goneAt !== null && goneAt > ctx.now) {
+    data.phase.endsAt = goneAt;
+    return snapshot(gx);
+  }
+  systemMessageForDrawerGone(gx);
+  endTurn(gx, 'drawerLeft');
 }
 
 function startDrawing(gx: Gx, word: string): void {
@@ -187,9 +202,22 @@ export function systemMessageForDrawerGone(gx: Gx): void {
   if (drawer) systemMessage(gx, `${drawer.name} lost connection — skipping their turn.`);
 }
 
-/** Continues a turn boundary that beginNextTurn held while a player was in reconnect grace. */
+/**
+ * Holds at the summary: the next turn starts once two players are connected again. Called again
+ * while held whenever the player list changes, so the platform's missing list stays current; the
+ * chat line goes out once.
+ */
+function holdTurnBoundary(gx: Gx): void {
+  const { data, ctx } = gx;
+  const fresh = !isHeld(data);
+  // Every turn boundary passes through a summary (start seeds one), so there is always one to hold at.
+  if (data.phase.kind === 'turnEnd') data.phase.held = true;
+  gx.effects.push(...holdEffects(ctx.players, fresh));
+}
+
+/** Re-evaluates a held turn boundary after the player list changed: resume, or refresh the hold. */
 export function resumeHeldTurn(gx: Gx): void {
-  if (gx.data.phase.kind === 'turnEnd' && gx.data.phase.held) beginNextTurn(gx);
+  if (isHeld(gx.data)) beginNextTurn(gx);
 }
 
 export function rate(gx: Gx, playerId: string, value: 'like' | 'dislike'): void {

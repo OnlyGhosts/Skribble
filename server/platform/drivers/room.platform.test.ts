@@ -3,7 +3,7 @@
  * settings, profiles, chat, reconnects and the lobby. Every scenario runs against both game modules.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { CHAT_HISTORY_LENGTH, EMPTY_ROOM_TTL_MS, LOW_PLAYERS_GRACE_MS, RECONNECT_GRACE_MS } from '../../../shared/platform/constants.js';
+import { CHAT_HISTORY_LENGTH, EMPTY_ROOM_TTL_MS, RECONNECT_GRACE_MS } from '../../../shared/platform/constants.js';
 import { GAME_IDS, gameById, type GameId } from '../../../shared/platform/games.js';
 import { GAMES } from '../../games/index.js';
 import { GAME_TEST_FIXTURES, enoughNames } from '../../games/testFixtures.js';
@@ -259,8 +259,8 @@ describe.each(GAME_IDS)('platform room (%s)', (gameId: GameId) => {
   describe('reconnection', () => {
     it('keeps the seat and score through a disconnect and restores it on rejoin', () => {
       const h = harness();
-      // Long enough that the game is still running when the grace runs out, with one seat more than
-      // the minimum so Bob's absence does not end it.
+      // The longest game there is, with one seat more than the minimum so Bob's absence never
+      // holds it up; the seat must survive the whole grace whatever the game is doing by then.
       const names = enoughNames(gameId, ['Alice', 'Bob', 'Carol']);
       if (names.length < meta.minPlayers + 1) names.push('Guest1');
       const [alice, bob, carol] = startGame(h, names, GAME_TEST_FIXTURES[gameId].longSettings);
@@ -272,13 +272,15 @@ describe.each(GAME_IDS)('platform room (%s)', (gameId: GameId) => {
       expect(h.transport.last(alice, 'room').room.players.find((p) => p.id === bob)?.connected).toBe(false);
 
       vi.advanceTimersByTime(RECONNECT_GRACE_MS - 1);
+      expect(h.room.playerCount).toBe(names.length);
+      expect(h.room.phase).not.toBe('lobby');
       h.transport.clear();
       const result = h.room.rejoin(h.token(bob), 'conn-Bob-2');
       expect(result).toEqual({ ok: true, playerId: bob });
       expect(h.player(bob)).toMatchObject({ connected: true, connectionId: 'conn-Bob-2' });
       const welcome = h.transport.last(bob, 'welcome');
       expect(welcome.playerId).toBe(bob);
-      expect(welcome.room.phase).toBe('playing');
+      expect(welcome.room.phase).toBe(h.room.phase);
       expect(welcome.room.players.find((p) => p.id === bob)).toMatchObject({ connected: true });
       expect(welcome.chat.length).toBeGreaterThan(0);
       expect(h.transport.chats(carol)).toEqual([{ kind: 'system', text: 'Bob reconnected' }]);
@@ -323,21 +325,28 @@ describe.each(GAME_IDS)('platform room (%s)', (gameId: GameId) => {
     });
 
     if (meta.minPlayers > 1) {
-      it('returns to the lobby when connected players stay below the minimum after a short grace', () => {
+      it('keeps the game through a disconnect and abandons it only when the missing seat expires', () => {
         const h = harness();
-        const [alice, bob] = startGame(h, ['Alice', 'Bob']);
+        const [alice, bob] = startGame(h, ['Alice', 'Bob'], GAME_TEST_FIXTURES[gameId].longSettings);
         h.transport.clear();
         h.room.handleDisconnect(bob);
-        // A dropped socket gets a short grace (reloads are common) before the game is abandoned.
+        // A phone that locks or an app switch must never cost the room its game: the seat is held
+        // for the whole grace and the game plays on or holds at its next boundary.
         expect(h.room.phase).toBe('playing');
         expect(h.transport.last(alice, 'room').room.players.find((p) => p.id === bob)?.connected).toBe(false);
-        vi.advanceTimersByTime(LOW_PLAYERS_GRACE_MS - 1);
+        vi.advanceTimersByTime(RECONNECT_GRACE_MS - 1);
         expect(h.room.phase).toBe('playing');
+        expect(h.room.getPlayer(bob)).toBeDefined();
         vi.advanceTimersByTime(1);
         expect(h.room.phase).toBe('lobby');
-        expect(h.transport.chats(alice).at(-1)).toEqual({ kind: 'system', text: 'Not enough players — back to the lobby.' });
+        expect(h.room.getPlayer(bob)).toBeUndefined();
+        expect(h.transport.chats(alice).slice(-2)).toEqual([
+          { kind: 'system', text: 'Bob left' },
+          { kind: 'system', text: 'Not enough players — back to the lobby.' },
+        ]);
         const state = h.transport.last(alice, 'room').room;
         expect(state.game).toBeNull();
+        expect(state.waiting).toBeNull();
         expect(state.players.every((p) => p.score === 0)).toBe(true);
         // Timers were cancelled: nothing changes later.
         vi.advanceTimersByTime(600_000);
@@ -346,12 +355,15 @@ describe.each(GAME_IDS)('platform room (%s)', (gameId: GameId) => {
 
       it('keeps the game running when the missing player rejoins within the grace', () => {
         const h = harness();
-        const [, bob] = startGame(h, ['Alice', 'Bob']);
+        const [, bob] = startGame(h, ['Alice', 'Bob'], GAME_TEST_FIXTURES[gameId].longSettings);
         h.room.handleDisconnect(bob);
-        vi.advanceTimersByTime(LOW_PLAYERS_GRACE_MS - 1);
-        expect(h.room.rejoin(h.token(bob), 'bob-2').ok).toBe(true);
-        vi.advanceTimersByTime(LOW_PLAYERS_GRACE_MS);
+        vi.advanceTimersByTime(RECONNECT_GRACE_MS - 1);
         expect(h.room.phase).toBe('playing');
+        expect(h.room.rejoin(h.token(bob), 'bob-2').ok).toBe(true);
+        // The seat is no longer on a timer.
+        vi.advanceTimersByTime(RECONNECT_GRACE_MS);
+        expect(h.room.getPlayer(bob)).toBeDefined();
+        expect(h.room.phase).not.toBe('lobby');
       });
 
       it('abandons the game at once when a player leaves and too few remain', () => {

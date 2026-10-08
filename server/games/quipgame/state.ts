@@ -54,9 +54,15 @@ export interface FinalData {
 }
 
 export interface QuipgameData {
-  /** 'over' once the last result ended and the platform took over with the podium. */
-  phase: QuipgamePhase | 'over';
-  /** 1-based current round; the final is round QUIPGAME_REGULAR_ROUNDS + 1 when enabled. */
+  /**
+   * 'waiting': holding between rounds because fewer than three players are connected while
+   * enough still hold seats (the last result stays up under RoomState.waiting). 'over' once the
+   * last result ended and the platform took over with the podium.
+   */
+  phase: QuipgamePhase | 'waiting' | 'over';
+  /** While 'waiting' with enough players connected again: when the next round starts (the settle); null otherwise. */
+  resumeAt: number | null;
+  /** 1-based current round (0 before the first starts); the final is round QUIPGAME_REGULAR_ROUNDS + 1 when enabled. */
   round: number;
   totalRounds: number;
   /** Players seated and connected when the round started, in join order; everyone else spectates until the next round. */

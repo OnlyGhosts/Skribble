@@ -1445,6 +1445,59 @@
   }
 }
 
+/* ---------- Waiting overlay (platform: the game holds for players whose phones went dark) ---------- */
+.waiting-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  padding: calc(var(--space-4) + env(safe-area-inset-top)) var(--gutter) calc(var(--space-4) + env(safe-area-inset-bottom));
+  background: var(--overlay-bg);
+  backdrop-filter: blur(3px);
+  animation: fade-in 0.2s ease;
+  overflow-y: auto;
+}
+
+.waiting__avatars {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.waiting__count {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+}
+
+.waiting__remove {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  width: 100%;
+  padding-top: var(--space-2);
+  border-top: 1px dashed var(--color-border);
+}
+
+.waiting__remove .btn {
+  min-height: 44px;
+}
+
+.timer--paused .timer__value {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+}
+
 /* ---------- Podium overlay (platform, over any game's screen) ---------- */
 .podium-overlay {
   position: fixed;

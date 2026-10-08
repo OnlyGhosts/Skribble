@@ -44,9 +44,15 @@ export interface RevealData {
 }
 
 export interface SpygameData {
-  /** 'over' once the last reveal ended and the platform took over with the podium. */
-  phase: 'playing' | 'voting' | 'reveal' | 'over';
-  /** 1-based current round. */
+  /**
+   * 'waiting': holding between rounds because fewer than three players are connected while
+   * enough still hold seats (the last reveal stays up under RoomState.waiting; no round clock,
+   * no spy chosen yet). 'over' once the last reveal ended and the platform took over with the podium.
+   */
+  phase: 'playing' | 'voting' | 'reveal' | 'waiting' | 'over';
+  /** While 'waiting' with enough players connected again: when the next round starts (the settle); null otherwise. */
+  resumeAt: number | null;
+  /** 1-based current round; 0 before the first one starts. */
   round: number;
   current: RoundData;
   vote: VoteData | null;

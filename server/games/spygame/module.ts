@@ -14,8 +14,8 @@ import {
 } from '../../../shared/games/spygame/protocol.js';
 import { gameById } from '../../../shared/platform/games.js';
 import { defineSettings, withDraft, type GameEvent, type GameResult, type GameServerModule } from '../../platform/game.js';
-import { advance, endGame, endRound, guess, nextRound, pauseClock, resumeClock, startRound } from './round.js';
-import { snapshot, type Ctx, type Gx, type SpygameData } from './state.js';
+import { advance, beginRound, endGame, endRound, guess, nextRound, pauseClock, resumeClock, resumeIfHeld, settleDue } from './round.js';
+import { nameOf, snapshot, systemMessage, type Ctx, type Gx, type SpygameData } from './state.js';
 import { accuse, resolveVote, vote, voterLeft } from './vote.js';
 import { viewFor } from './view.js';
 
@@ -23,16 +23,17 @@ type Result = GameResult<SpygameData, SpygameServerMessage>;
 
 function start(ctx: Ctx): Result {
   const seed: SpygameData = {
-    phase: 'playing',
-    round: 1,
+    phase: 'reveal',
+    resumeAt: null,
+    round: 0,
     current: { spyId: '', spyName: '', locationId: '', candidates: [], playerIds: [], guessesLeft: 0, guessed: [], accusers: [], clock: { kind: 'paused', remainingMs: 0 }, spyAway: false },
     vote: null,
     reveal: null,
     spyHistory: [],
     usedLocationIds: [],
   };
-  // The seed only exists so buildRound has a draft to write the rotation into; startRound replaces `current`.
-  return withDraft(seed, (data, effects) => startRound({ ctx, data, effects }));
+  // The seed only exists so buildRound has a draft to write the rotation into; beginRound replaces `current`.
+  return withDraft(seed, (data, effects) => beginRound({ ctx, data, effects }));
 }
 
 function handle(ctx: Ctx, data: SpygameData, event: GameEvent<SpygameClientMessage>): Result {
@@ -50,9 +51,11 @@ function handle(ctx: Ctx, data: SpygameData, event: GameEvent<SpygameClientMessa
         return onPlayerReconnected(gx, event.playerId);
       case 'tick':
         return onTick(gx);
-      case 'chat':
       case 'playerJoined':
-        // Chat is just chat here; a mid-round joiner spectates (they are simply not among the round's players).
+        // A mid-round joiner spectates (they are simply not among the round's players); between rounds they may end a hold.
+        return resumeIfHeld(gx);
+      case 'chat':
+        // Chat is just chat here.
         return;
     }
   });
@@ -78,6 +81,7 @@ function onPlayerLeft(gx: Gx, playerId: string): void {
   const { current } = data;
   if (!current.playerIds.includes(playerId)) return;
   current.playerIds = current.playerIds.filter((id) => id !== playerId);
+  if (data.phase === 'waiting') return resumeIfHeld(gx);
   if (data.phase !== 'playing' && data.phase !== 'voting') return;
   if (playerId === current.spyId) return endRound(gx, 'spyLeft');
   if (data.phase === 'voting') return voterLeft(gx, playerId);
@@ -85,15 +89,19 @@ function onPlayerLeft(gx: Gx, playerId: string): void {
 }
 
 function onPlayerDisconnected(gx: Gx, playerId: string): void {
-  const { data } = gx;
+  const { data, ctx } = gx;
+  if (data.phase === 'waiting') return resumeIfHeld(gx);
   if (playerId !== data.current.spyId || (data.phase !== 'playing' && data.phase !== 'voting')) return;
   data.current.spyAway = true;
   pauseClock(gx);
+  // The pause can last the whole reconnect grace (10 min), so say how to end it sooner.
+  systemMessage(gx, `${nameOf(ctx, playerId)} lost connection — the clock is paused until they are back. The host can remove them from the players list.`);
   snapshot(gx);
 }
 
 function onPlayerReconnected(gx: Gx, playerId: string): void {
   const { data } = gx;
+  if (data.phase === 'waiting') return resumeIfHeld(gx);
   if (playerId !== data.current.spyId || !data.current.spyAway) return;
   data.current.spyAway = false;
   resumeClock(gx);
@@ -112,6 +120,8 @@ function onTick(gx: Gx): void {
     case 'reveal':
       if (data.reveal && ctx.now >= data.reveal.endsAt) advance(gx);
       return;
+    case 'waiting':
+      return settleDue(gx);
     case 'over':
       return;
   }
@@ -125,6 +135,8 @@ function nextDeadline(data: SpygameData): number | null {
       return data.vote?.endsAt ?? null;
     case 'reveal':
       return data.reveal?.endsAt ?? null;
+    case 'waiting':
+      return data.resumeAt;
     case 'over':
       return null;
   }

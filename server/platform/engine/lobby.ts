@@ -6,7 +6,7 @@ import { clampMaxPlayers, platformSettingsPatchSchema } from '../../../shared/pl
 import { applyGameResult, gameCtx } from './delegate.js';
 import { broadcastSnapshot, fail, requireHost, requirePhase, systemMessage, type Cx } from './messaging.js';
 import { moduleFor } from './module.js';
-import { connectedCount, findPlayer, minPlayers } from './players.js';
+import { connectedCount, findPlayer, hasEnoughSeated, minPlayers } from './players.js';
 import type { RoomSettingsData } from './state.js';
 
 export function updateSettings(cx: Cx, playerId: string, patch: Record<string, unknown>): void {
@@ -73,7 +73,7 @@ export function podiumOf(players: Array<{ id: string; score: number; joinOrder: 
 /** The game declared itself over: rank everyone, announce the result and keep the room on the podium until the host returns to the lobby. */
 export function finishGame(cx: Cx): void {
   const { data } = cx;
-  data.grace.lowPlayersAt = null;
+  data.waiting = null;
   data.podium = podiumOf(data.players);
   data.phase = 'ended';
   const top = data.podium[0]?.score;
@@ -87,19 +87,23 @@ export function finishGame(cx: Cx): void {
 /** Drops the game (and its side store) and resets scores; votes do not survive either. */
 export function resetToLobby(cx: Cx): void {
   const { data } = cx;
-  data.grace.lowPlayersAt = null;
   data.phase = 'lobby';
   data.podium = null;
   data.game = null;
+  data.waiting = null;
   data.votes = [];
   for (const p of data.players) p.score = 0;
   if (moduleFor(data.gameId).createSideStore) cx.effects.push({ type: 'side', name: 'reset', stamp: '' });
   broadcastSnapshot(cx);
 }
 
-/** Abandons a running game for lack of players. Returns true when it did. */
-export function ensureEnoughPlayers(cx: Cx): boolean {
-  if (cx.data.phase !== 'playing' || connectedCount(cx.data) >= minPlayers(cx.data)) return false;
+/**
+ * Abandons a running game when fewer seats than the game needs remain (after a leave, a kick or a
+ * seat expiry). A disconnected player still holds a seat, so a dropped socket never ends a game
+ * here: the game holds for them instead. Returns true when it abandoned the game.
+ */
+export function ensureEnoughSeated(cx: Cx): boolean {
+  if (cx.data.phase !== 'playing' || hasEnoughSeated(cx.data)) return false;
   systemMessage(cx, 'Not enough players — back to the lobby.');
   resetToLobby(cx);
   return true;

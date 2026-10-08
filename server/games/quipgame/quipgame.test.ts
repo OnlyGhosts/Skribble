@@ -6,7 +6,7 @@ import { nextDeadline } from '../../platform/engine/time.js';
 import { AVATAR, START, chatTexts, sim, startGame } from '../../platform/engine/testHarness.js';
 import { drawPrompts, promptPool } from './prompts.js';
 import type { Gx } from './state.js';
-import { answerText, authors, castVotes, data, disconnect, errorCodes, errors, lcg, matchup, nameOf, playRound, score, view, voters, writeAll } from './testHarness.js';
+import { answerText, authors, castVotes, data, disconnect, errorCodes, errors, lcg, matchup, nameOf, playRound, reconnect, score, view, voters, writeAll } from './testHarness.js';
 
 const WRITE_MS = 30_000; // the fixture's writeSeconds
 const VOTE_MS = 10_000; // the fixture's voteSeconds
@@ -60,7 +60,7 @@ describe('Quip Game: round setup', () => {
 describe('Quip Game: the prompt pool', () => {
   const gx = (settings: Partial<typeof DEFAULT_QUIPGAME_SETTINGS>, rng: () => number = lcg(1)): Gx => ({
     ctx: { now: 0, rng, newId: () => 'x', settings: { ...DEFAULT_QUIPGAME_SETTINGS, ...settings }, players: [], hostId: 'a' },
-    data: { phase: 'writing', round: 1, totalRounds: 2, roundPlayers: [], prompts: [], answers: [], matchups: [], matchupIndex: 0, endsAt: 0, usedPrompts: [], announcerCursor: 0, final: null },
+    data: { phase: 'writing', resumeAt: null, round: 1, totalRounds: 2, roundPlayers: [], prompts: [], answers: [], matchups: [], matchupIndex: 0, endsAt: 0, usedPrompts: [], announcerCursor: 0, final: null },
     effects: [],
   });
   const custom = Array.from({ length: 10 }, (_, i) => `Custom prompt ${i}`);
@@ -246,29 +246,85 @@ describe('Quip Game: matchups and votes', () => {
     expect(errors(s.game(carol, { t: 'vote', choice: 'a' }))).toEqual(['There is no matchup to vote on.']);
   });
 
-  it('ignores disconnected voters in the all-voted check and resolves when the last connected voter leaves', () => {
+  it('keeps the vote of a voter whose socket dropped open until the deadline, and resolves once every pending voter has left', () => {
     const s = sim('quipgame');
-    const [, , carol, dave] = startGame(s, ['Alice', 'Bob', 'Carol', 'Dave', 'Erin']);
+    const [alice, , carol, dave] = startGame(s, ['Alice', 'Bob', 'Carol', 'Dave', 'Erin', 'Fay']);
     const erin = s.playerId('Erin');
+    const fay = s.playerId('Fay');
     writeAll(s);
-    expect(voters(s)).toEqual([carol, dave, erin]);
+    expect(voters(s)).toEqual([carol, dave, erin, fay]);
+    const votingStart = s.now;
     s.game(carol, { t: 'vote', choice: 'a' });
     disconnect(s, erin);
     expect(data(s).phase).toBe('voting');
     expect(view(s, erin).canVote).toBe(false);
-    // Dave is the last connected voter: his vote resolves the matchup without Erin.
+    // Erin keeps her seat, so the others' votes do not close the matchup without her: the deadline does.
     s.game(dave, { t: 'vote', choice: 'a' });
+    s.game(fay, { t: 'vote', choice: 'a' });
+    expect(data(s).phase).toBe('voting');
+    expect(nextDeadline(s.data)).toBe(votingStart + VOTE_MS);
+    s.now = votingStart + VOTE_MS;
+    s.tick();
     expect(data(s).phase).toBe('result');
-    expect(matchup(s).result?.votes).toEqual({ a: 2, b: 0 });
+    expect(matchup(s).result?.votes).toEqual({ a: 3, b: 0 });
 
-    // Next matchup: Carol votes, Dave leaves, so Carol is the only connected voter left and the matchup resolves.
-    s.game(s.playerId('Alice'), { t: 'next' });
+    // Next matchup: one voter votes, the other connected ones leave, and only Erin's empty-handed seat keeps it open until the host removes her.
+    s.game(alice, { t: 'next' });
     expect(data(s).phase).toBe('voting');
     const pending = voters(s);
     expect(pending).not.toContain(erin);
     s.game(pending[0], { t: 'vote', choice: 'b' });
     for (const id of pending.slice(1)) s.apply({ type: 'leave', playerId: id });
+    expect(data(s).phase).toBe('voting');
+    s.platform(s.data.hostId, { t: 'kick', playerId: erin });
     expect(data(s).phase).toBe('result');
+    expect(matchup(s).result?.votes).toEqual({ a: 0, b: 1 });
+  });
+
+  it('never decides a matchup on a disconnect: a simultaneous cut leaves the vote open for everyone to come back to', () => {
+    const s = sim('quipgame');
+    const [alice, bob, carol, dave] = startGame(s, ['Alice', 'Bob', 'Carol', 'Dave']);
+    writeAll(s);
+    const [first, second] = voters(s);
+    expect(voters(s)).toHaveLength(2);
+    const votingStart = s.now;
+    s.game(first, { t: 'vote', choice: 'a' });
+    for (const id of [alice, bob, carol, dave]) disconnect(s, id);
+    expect(data(s).phase).toBe('voting');
+    expect(matchup(s).result).toBeNull();
+    expect(nextDeadline(s.data)).toBe(votingStart + VOTE_MS);
+    for (const id of [alice, bob, carol, dave]) reconnect(s, id);
+    expect(data(s).phase).toBe('voting');
+    expect(view(s, second).canVote).toBe(true);
+    s.game(second, { t: 'vote', choice: 'b' });
+    expect(data(s).phase).toBe('result');
+    expect(matchup(s).result?.votes).toEqual({ a: 1, b: 1 });
+  });
+
+  it('keeps a matchup open when its only voter is away as it starts, so they can vote once back instead of the authors getting nothing', () => {
+    const s = sim('quipgame');
+    const [alice, , carol] = startGame(s, ['Alice', 'Bob', 'Carol']);
+    const writingStart = s.now;
+    writeAll(s, [carol]);
+    disconnect(s, carol);
+    s.now = writingStart + WRITE_MS;
+    s.tick();
+    expect(data(s)).toMatchObject({ phase: 'voting', matchupIndex: 0 });
+    // The matchups Carol wrote for play out normally; the one she alone judges waits for her (or its deadline).
+    while (authors(s).includes(carol)) {
+      castVotes(s, voters(s).map(() => 'a'));
+      expect(data(s).phase).toBe('result');
+      s.game(alice, { t: 'next' });
+    }
+    expect(data(s).phase).toBe('voting');
+    expect(voters(s)).toEqual([]);
+    expect(matchup(s).result).toBeNull();
+    expect(nextDeadline(s.data)).toBe(s.now + VOTE_MS);
+    reconnect(s, carol);
+    expect(data(s).phase).toBe('voting');
+    s.game(carol, { t: 'vote', choice: 'b' });
+    expect(data(s).phase).toBe('result');
+    expect(matchup(s).result).toMatchObject({ votes: { a: 0, b: 1 }, points: { a: 0, b: 1000 }, outcome: 'b' });
   });
 
   it('withdraws the vote of a voter who is kicked or leaves, so only people still in the room decide the points', () => {

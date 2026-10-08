@@ -8,7 +8,7 @@ import type { Action, ActionResult, Ctx } from './actions.js';
 import { chat } from './chat.js';
 import { runGame } from './delegate.js';
 import type { Effect } from './effects.js';
-import { returnToLobby, start, updateProfile, updateSettings, ensureEnoughPlayers } from './lobby.js';
+import { returnToLobby, start, updateProfile, updateSettings } from './lobby.js';
 import { deepEqual } from '../json.js';
 import { fail, type Cx } from './messaging.js';
 import { moduleFor } from './module.js';
@@ -111,10 +111,6 @@ function fire(cx: Cx, due: Deadline): void {
       if (next !== null && next <= due.at) throw new Error(`${data.gameId}: tick left its deadline at ${next} unresolved`);
       return;
     }
-    case 'lowPlayers':
-      data.grace.lowPlayersAt = null;
-      ensureEnoughPlayers(cx);
-      return;
     case 'reconnectExpiry':
       return expireSeat(cx, due.playerId);
     case 'emptyRoom':

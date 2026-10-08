@@ -54,7 +54,7 @@ describe('nextDeadline', () => {
     expectAgreement(s); // Bob has not guessed, so no all-guessed grace: still the hint
 
     s.apply({ type: 'connectionClosed', playerId: alice });
-    expectAgreement(s); // drawer-gone grace, 10 s, beats the hint at 40 s
+    expectAgreement(s); // drawer-gone grace, 20 s, beats the hint at 40 s
 
     s.apply({ type: 'rejoin', token: 'token-1', connectionId: 'a2' });
     s.apply({ type: 'rejoin', token: 'token-3', connectionId: 'c2' });
@@ -67,7 +67,7 @@ describe('nextDeadline', () => {
 
     s.apply({ type: 'connectionClosed', playerId: bob });
     s.apply({ type: 'connectionClosed', playerId: carol });
-    // Summary ends (held), low-player grace (lobby), both seats expire in one tick.
+    // Summary ends (held); then both seats expire in one tick: the first leaves two seats (still held), the second abandons the game.
     const steps: string[] = [];
     while (s.data.players.length > 1) {
       expectAgreement(s);
@@ -75,7 +75,7 @@ describe('nextDeadline', () => {
       s.tick();
       steps.push(s.data.game ? (s.data.game as SkribbleData).phase.kind : s.data.phase);
     }
-    expect(steps).toEqual(['turnEnd', 'lobby', 'lobby']);
+    expect(steps).toEqual(['turnEnd', 'lobby']);
     expectAgreement(s); // nothing left but the lobby: null
 
     s.apply({ type: 'leave', playerId: alice });
@@ -92,7 +92,7 @@ describe('nextDeadline', () => {
     s.now = nextDeadline(s.data) ?? s.now; // the summary ends while Bob is in grace
     s.tick();
     expect((s.data.game as SkribbleData).phase).toMatchObject({ kind: 'turnEnd', held: true });
-    expect(pendingDeadlines(s.data).map((d) => d.kind)).toEqual(['lowPlayers', 'reconnectExpiry']);
+    expect(pendingDeadlines(s.data).map((d) => d.kind)).toEqual(['reconnectExpiry']);
     expectAgreement(s);
 
     const join: Action = { type: 'join', name: 'Carol', avatar: AVATAR, connectionId: 'c' };
@@ -107,9 +107,9 @@ describe('nextDeadline', () => {
     const [alice, bob] = startGame(s, ['Alice', 'Bob'], { timeLimit: 20 });
     expectAgreement(s); // the race deadline
     s.apply({ type: 'connectionClosed', playerId: bob });
-    expectAgreement(s); // low-player grace (10 s) beats the race (20 s)
+    expectAgreement(s); // a disconnect schedules nothing before the race (the seat expiry is far later)
     s.apply({ type: 'rejoin', token: 'token-2', connectionId: 'b2' });
-    expectAgreement(s); // back to the race deadline
+    expectAgreement(s); // still the race deadline
     s.game(alice, { t: 'click' });
     s.now = nextDeadline(s.data) ?? s.now;
     s.tick();

@@ -1,5 +1,5 @@
 import { avatarSchema, type Avatar } from '@shared/platform/avatar';
-import { NAME_MAX_LENGTH } from '@shared/platform/constants';
+import { NAME_MAX_LENGTH, RECONNECT_GRACE_MS } from '@shared/platform/constants';
 import { isGameId } from '@shared/platform/games';
 import { SESSION_STORAGE_KEY, type StoredSession } from '@shared/platform/protocol';
 
@@ -12,6 +12,10 @@ export interface Prefs {
 }
 
 const NAME_KEY = 'boredgames.name';
+/** Prefix of the per-room seat entries (`${SEAT_KEY_PREFIX}${code}`). */
+export const SEAT_KEY_PREFIX = 'boredgames.seat.';
+/** A seat entry is refreshed by snapshots at most this often. */
+export const SEAT_REFRESH_MS = 60_000;
 const AVATAR_KEY = 'boredgames.avatar';
 /** Also read by the inline script in index.html that applies the theme before first paint. */
 export const PREFS_KEY = 'boredgames.prefs';
@@ -106,4 +110,52 @@ export function saveSession(session: StoredSession): void {
 
 export function clearSession(): void {
   writeRaw('session', SESSION_STORAGE_KEY, null);
+}
+
+/**
+ * A seat remembered in localStorage, keyed by room code. sessionStorage only survives reloads;
+ * when a phone discards the tab (iOS does so freely in the background) and the player opens the
+ * room link again, this entry gets them back into their seat as long as the server still holds it.
+ */
+export interface StoredSeat {
+  code: string;
+  token: string;
+  playerId: string;
+  /** Epoch ms of the last write; the server forgets the seat RECONNECT_GRACE_MS after a disconnect. */
+  savedAt: number;
+}
+
+function seatKey(code: string): string {
+  return `${SEAT_KEY_PREFIX}${code}`;
+}
+
+export function loadSeat(code: string): StoredSeat | null {
+  const v = readJson('local', seatKey(code));
+  if (!isRecord(v)) return null;
+  if (typeof v.token !== 'string' || typeof v.playerId !== 'string' || typeof v.savedAt !== 'number' || !Number.isFinite(v.savedAt)) return null;
+  return { code, token: v.token, playerId: v.playerId, savedAt: v.savedAt };
+}
+
+export function saveSeat(seat: StoredSeat): void {
+  writeRaw('local', seatKey(seat.code), JSON.stringify(seat));
+}
+
+export function clearSeat(code: string): void {
+  writeRaw('local', seatKey(code), null);
+}
+
+/** Whether a stored seat may still be held by the server; a clock set back in time counts as fresh too. */
+export function isSeatFresh(seat: StoredSeat, now: number): boolean {
+  return now - seat.savedAt < RECONNECT_GRACE_MS;
+}
+
+/**
+ * The seat to resume for the room the page landed on: the session's own seat when it names that
+ * room, else a fresh localStorage seat for the code (the tab was discarded). Null means "join form".
+ */
+export function seatToResume(code: string | null, session: StoredSession | null, now: number): { code: string; token: string } | null {
+  if (!code) return null;
+  if (session && session.code === code) return { code, token: session.token };
+  const seat = loadSeat(code);
+  return seat && isSeatFresh(seat, now) ? { code, token: seat.token } : null;
 }

@@ -13,10 +13,14 @@ export function startMatchup(gx: Gx, index: number): void {
   if (!resolveIfComplete(gx)) snapshot(gx);
 }
 
-/** Everyone seated and connected except the two authors: spectators included, players in reconnect grace not. */
+/**
+ * Everyone seated except the two authors, spectators included. A player in reconnect grace counts
+ * too: their vote stays open until the deadline, so a dropped socket (a locked phone, a hosting
+ * cut) never decides a matchup early with the votes cast so far.
+ */
 export function eligibleVoters(gx: Gx, m: MatchupData): string[] {
   const authors = matchupAuthors(gx.data, m);
-  return gx.ctx.players.filter((p) => p.connected && !authors.includes(p.id)).map((p) => p.id);
+  return gx.ctx.players.filter((p) => !authors.includes(p.id)).map((p) => p.id);
 }
 
 export function vote(gx: Gx, playerId: string, choice: QuipgameChoice): void {
@@ -44,11 +48,12 @@ export function tally(m: MatchupData): { a: number; b: number } {
   return { a, b };
 }
 
-/** Resolves as soon as every eligible connected voter has voted. Returns true when it did. */
+/** Resolves as soon as every eligible voter has voted; with nobody eligible only the deadline does. Returns true when it did. */
 export function resolveIfComplete(gx: Gx): boolean {
   const m = currentMatchup(gx.data);
   if (gx.data.phase !== 'voting' || !m) return false;
-  if (eligibleVoters(gx, m).some((id) => m.votes[id] === undefined)) return false;
+  const voters = eligibleVoters(gx, m);
+  if (voters.length === 0 || voters.some((id) => m.votes[id] === undefined)) return false;
   resolveMatchup(gx);
   return true;
 }

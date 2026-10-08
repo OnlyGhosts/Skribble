@@ -1,6 +1,7 @@
 /** Round lifecycle: start -> playing (guesses, pauses) -> reveal -> next round / game over. */
 import { SPY_LOCATIONS, drawCandidates, locationById, pickLocation } from '../../../shared/games/spygame/locations.js';
 import { SPYGAME_CANDIDATES, SPYGAME_GUESSES, SPYGAME_POINTS, SPYGAME_REVEAL_SECONDS, type SpygameOutcome } from '../../../shared/games/spygame/protocol.js';
+import { RESUME_SETTLE_MS, holdEffects, resumeEffect } from '../waiting.js';
 import { MIN_PLAYERS, agentIds, connectedCount, fail, findPlayer, nameOf, snapshot, systemMessage, type Gx, type RoundData } from './state.js';
 
 /** Uniform pick from a non-empty list. */
@@ -42,14 +43,59 @@ export function buildRound(gx: Gx): RoundData {
   };
 }
 
-export function startRound(gx: Gx): void {
+/**
+ * Starts the next round once at least three players are connected. Otherwise the game holds
+ * (RoomState.waiting) until enough of them are back, and is abandoned only when fewer than three
+ * hold a seat at all. While holding, resumeIfHeld decides when it is called again.
+ */
+export function beginRound(gx: Gx): void {
   const { data, ctx } = gx;
+  if (ctx.players.length < MIN_PLAYERS) {
+    gx.effects.push({ type: 'abort', reason: 'Not enough players — back to the lobby.' });
+    return;
+  }
+  if (connectedCount(ctx) < MIN_PLAYERS) return hold(gx);
+  if (data.phase === 'waiting') gx.effects.push(resumeEffect());
+  data.resumeAt = null;
+  data.round += 1;
   data.current = buildRound(gx);
   data.phase = 'playing';
   data.vote = null;
   data.reveal = null;
   systemMessage(gx, `Round ${data.round} of ${ctx.settings.rounds} — look at your phone`);
   snapshot(gx);
+}
+
+/** Holds between rounds; the previous reveal stays on screen under the platform's waiting state. */
+function hold(gx: Gx): void {
+  const { data, ctx } = gx;
+  const fresh = data.phase !== 'waiting';
+  data.phase = 'waiting';
+  data.vote = null;
+  data.resumeAt = null;
+  gx.effects.push(...holdEffects(ctx.players, fresh));
+}
+
+/**
+ * Re-evaluates a hold after the player list changed: the lobby or a refreshed hold while too few
+ * are connected; otherwise a settle before the next round, restarted by every further reconnect,
+ * so a group whose sockets were all cut at once is seated together rather than from the first
+ * one back (see RESUME_SETTLE_MS).
+ */
+export function resumeIfHeld(gx: Gx): void {
+  const { data, ctx } = gx;
+  if (data.phase !== 'waiting') return;
+  if (ctx.players.length < MIN_PLAYERS || connectedCount(ctx) < MIN_PLAYERS) return beginRound(gx);
+  data.resumeAt = ctx.now + RESUME_SETTLE_MS;
+  gx.effects.push(...holdEffects(ctx.players, false));
+}
+
+/** The settle ran out: the next round with everyone connected by now, or a fresh hold if someone dropped again. */
+export function settleDue(gx: Gx): void {
+  const { data, ctx } = gx;
+  if (data.phase !== 'waiting' || data.resumeAt === null || ctx.now < data.resumeAt) return;
+  data.resumeAt = null;
+  beginRound(gx);
 }
 
 /** Freezes the round clock, keeping what is left of it. */
@@ -144,7 +190,7 @@ export function endRound(gx: Gx, outcome: SpygameOutcome, vote: { accuserId: str
   snapshot(gx);
 }
 
-/** Leaves the reveal: the podium after the last round, the lobby when too few are left, otherwise the next round. */
+/** Leaves the reveal: the podium after the last round, otherwise the next round (or a hold for missing players). */
 export function advance(gx: Gx): void {
   const { data, ctx } = gx;
   if (data.phase !== 'reveal') return;
@@ -153,12 +199,7 @@ export function advance(gx: Gx): void {
     gx.effects.push({ type: 'gameOver' });
     return;
   }
-  if (connectedCount(ctx) < MIN_PLAYERS) {
-    gx.effects.push({ type: 'abort', reason: 'Not enough players — back to the lobby.' });
-    return;
-  }
-  data.round += 1;
-  startRound(gx);
+  beginRound(gx);
 }
 
 export function nextRound(gx: Gx, playerId: string): void {
@@ -167,9 +208,9 @@ export function nextRound(gx: Gx, playerId: string): void {
   advance(gx);
 }
 
-/** The host calls the game off from the reveal: the platform resets everyone to the lobby. */
+/** The host calls the game off from the reveal (or the hold that keeps it on screen): the platform resets everyone to the lobby. */
 export function endGame(gx: Gx, playerId: string): void {
   if (playerId !== gx.ctx.hostId) return fail(gx, playerId, 'Only the host can end the game.');
-  if (gx.data.phase !== 'reveal') return fail(gx, playerId, 'The game can only be ended from the reveal.');
+  if (gx.data.phase !== 'reveal' && gx.data.phase !== 'waiting') return fail(gx, playerId, 'The game can only be ended from the reveal.');
   gx.effects.push({ type: 'abort', reason: 'The host ended the game — back to the lobby.' });
 }

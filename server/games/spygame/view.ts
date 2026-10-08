@@ -6,7 +6,8 @@ import { tally } from './vote.js';
 
 export function viewFor(data: SpygameData, viewerId: string | null, ctx: GameViewCtx<SpygameSettings>): SpygameView {
   const { current, vote, reveal } = data;
-  const revealed = data.phase === 'reveal' || data.phase === 'over';
+  // A hold between rounds keeps the last reveal on screen (the platform's waiting state sits over it).
+  const revealed = data.phase === 'reveal' || data.phase === 'waiting' || data.phase === 'over';
   const phase = data.phase === 'playing' || data.phase === 'voting' ? data.phase : 'reveal';
   const role: SpygameRole = viewerId === null ? 'spectator' : viewerId === current.spyId ? 'spy' : current.playerIds.includes(viewerId) ? 'agent' : 'spectator';
   const players: Record<string, SpygamePlayerView> = {};
@@ -53,7 +54,7 @@ function voteViewFor(vote: VoteData, viewerId: string | null): SpygameVoteView {
 
 function clockFor(data: SpygameData, fullRoundMs: number): SpygameClock {
   const { current } = data;
-  if (data.phase === 'reveal' || data.phase === 'over') return { endsAt: null, pausedRemainingMs: fullRoundMs, pausedReason: 'reveal', waitingForId: null };
+  if (data.phase === 'reveal' || data.phase === 'waiting' || data.phase === 'over') return { endsAt: null, pausedRemainingMs: fullRoundMs, pausedReason: 'reveal', waitingForId: null };
   if (current.clock.kind === 'running') return { endsAt: current.clock.endsAt, pausedRemainingMs: null, pausedReason: null, waitingForId: null };
   return {
     endsAt: null,

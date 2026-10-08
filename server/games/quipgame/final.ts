@@ -43,9 +43,9 @@ export function maxPicks(data: QuipgameData, final: FinalData, voterId: string):
   return Math.min(QUIPGAME_MAX_PICKS, pickable(data, final, voterId).length);
 }
 
-/** Seated, connected and with something to pick: spectators included, players in reconnect grace not. */
+/** Seated with something to pick: spectators included, and players in reconnect grace too (their ranking stays open until the deadline). */
 export function eligibleRankers(data: QuipgameData, final: FinalData, players: PlatformPlayer[]): string[] {
-  return players.filter((p) => p.connected && maxPicks(data, final, p.id) > 0).map((p) => p.id);
+  return players.filter((p) => maxPicks(data, final, p.id) > 0).map((p) => p.id);
 }
 
 export function rank(gx: Gx, playerId: string, answerIds: string[]): void {
@@ -71,7 +71,8 @@ export function resolveIfRanked(gx: Gx): boolean {
   const { data, ctx } = gx;
   const final = data.final;
   if (data.phase !== 'finalVoting' || !final) return false;
-  if (eligibleRankers(data, final, ctx.players).some((id) => final.rankings[id] === undefined)) return false;
+  const rankers = eligibleRankers(data, final, ctx.players);
+  if (rankers.length === 0 || rankers.some((id) => final.rankings[id] === undefined)) return false;
   resolveFinal(gx);
   return true;
 }

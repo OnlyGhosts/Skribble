@@ -4,6 +4,45 @@
  * router's address bar, media queries (nothing matches), toasts' timers and the (absent) web
  * storage. Nothing here renders a DOM; components render through react-dom/server.
  */
+type Listener = (ev: unknown) => void;
+
+const listeners = { window: new Map<string, Listener[]>(), document: new Map<string, Listener[]>() };
+
+function listenerApi(target: 'window' | 'document') {
+  const map = listeners[target];
+  return {
+    addEventListener(type: string, fn: Listener) {
+      map.set(type, [...(map.get(type) ?? []), fn]);
+    },
+    removeEventListener(type: string, fn: Listener) {
+      map.set(type, (map.get(type) ?? []).filter((l) => l !== fn));
+    },
+  };
+}
+
+/** An in-memory web storage for tests that need one (the globals install none). */
+export class FakeStorage {
+  private map = new Map<string, string>();
+  getItem(key: string): string | null {
+    return this.map.get(key) ?? null;
+  }
+  setItem(key: string, value: string): void {
+    this.map.set(key, String(value));
+  }
+  removeItem(key: string): void {
+    this.map.delete(key);
+  }
+  clear(): void {
+    this.map.clear();
+  }
+  get length(): number {
+    return this.map.size;
+  }
+  keys(): string[] {
+    return [...this.map.keys()];
+  }
+}
+
 export function installBrowserGlobals(): void {
   const g = globalThis as Record<string, unknown>;
   if (g.window === globalThis) return;
@@ -25,10 +64,17 @@ export function installBrowserGlobals(): void {
     location,
     history,
     matchMedia,
-    document: { visibilityState: 'visible', addEventListener: noop, removeEventListener: noop },
-    addEventListener: noop,
-    removeEventListener: noop,
+    document: { visibilityState: 'visible', ...listenerApi('document') },
+    ...listenerApi('window'),
   });
+}
+
+/** Installs fresh in-memory localStorage and sessionStorage; returns them for inspection. */
+export function installFakeStorage(): { local: FakeStorage; session: FakeStorage } {
+  const local = new FakeStorage();
+  const session = new FakeStorage();
+  Object.assign(globalThis as Record<string, unknown>, { localStorage: local, sessionStorage: session });
+  return { local, session };
 }
 
 /** Points the fake address bar at a path such as "/skribble/ABCD". */
@@ -36,4 +82,13 @@ export function setLocation(pathname: string, search = ''): void {
   const location = (globalThis as { location: { pathname: string; search: string } }).location;
   location.pathname = pathname;
   location.search = search;
+}
+
+/** Fires an event registered through the fake window/document (`online`, `visibilitychange`, ...). */
+export function fireEvent(target: 'window' | 'document', type: string): void {
+  for (const fn of listeners[target].get(type) ?? []) fn({ type });
+}
+
+export function setVisibility(state: 'visible' | 'hidden'): void {
+  (globalThis as { document: { visibilityState: string } }).document.visibilityState = state;
 }

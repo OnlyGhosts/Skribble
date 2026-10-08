@@ -6,7 +6,8 @@ import { finishedWriters, writerCounts } from './round.js';
 import { answerById, currentMatchup, findPlayer, matchupAuthors, multiplierFor, promptById, type AnswerData, type MatchupResultData, type QuipgameData } from './state.js';
 
 export function viewFor(data: QuipgameData, viewerId: string | null, ctx: GameViewCtx<QuipgameSettings>): QuipgameView {
-  const phase: QuipgamePhase = data.phase === 'over' ? (data.final ? 'finalResult' : 'result') : data.phase;
+  // A hold between rounds keeps the last result on screen (the platform's waiting state sits over it).
+  const phase: QuipgamePhase = data.phase === 'over' ? (data.final ? 'finalResult' : 'result') : data.phase === 'waiting' ? 'result' : data.phase;
   const viewer = viewerId === null ? undefined : findPlayer(ctx.players, viewerId);
   const isRoundPlayer = viewerId !== null && data.roundPlayers.includes(viewerId);
   const m = currentMatchup(data);
@@ -57,7 +58,7 @@ export function viewFor(data: QuipgameData, viewerId: string | null, ctx: GameVi
     finalResult: phase === 'finalResult' && final?.result ? final.result.map((e) => finalEntry(answerById(data, e.answerId), e)) : null,
     announcerId,
     isAnnouncer: viewerId !== null && announcerId === viewerId,
-    canSkip: viewerId === ctx.hostId && data.phase !== 'over' && (phase === 'result' || phase === 'finalResult'),
+    canSkip: viewerId === ctx.hostId && (data.phase === 'result' || data.phase === 'finalResult'),
   };
 }
 

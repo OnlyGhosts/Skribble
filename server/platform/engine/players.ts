@@ -43,8 +43,9 @@ export function minPlayers(data: PlatformRoomData): number {
   return gameById(data.gameId).minPlayers;
 }
 
-export function hasEnoughPlayers(data: PlatformRoomData): boolean {
-  return connectedCount(data) >= minPlayers(data);
+/** Enough seats (connected or in reconnect grace) for the game to go on; connections alone never decide that. */
+export function hasEnoughSeated(data: PlatformRoomData): boolean {
+  return data.players.length >= minPlayers(data);
 }
 
 export function othersConnected(data: PlatformRoomData, targetId: string): number {

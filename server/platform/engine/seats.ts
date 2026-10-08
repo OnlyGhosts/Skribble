@@ -1,14 +1,14 @@
 /** Seats: join / rejoin / disconnect / leave, host transfer, kicks and vote-kicks. */
 import type { Avatar } from '../../../shared/platform/avatar.js';
-import { EMPTY_ROOM_TTL_MS, LOW_PLAYERS_GRACE_MS } from '../../../shared/platform/constants.js';
+import { EMPTY_ROOM_TTL_MS } from '../../../shared/platform/constants.js';
 import type { GameId } from '../../../shared/platform/games.js';
 import { CLOSE_REMOVED } from '../../../shared/platform/protocol.js';
 import type { ActionResult } from './actions.js';
 import { runGame } from './delegate.js';
-import { ensureEnoughPlayers } from './lobby.js';
+import { ensureEnoughSeated } from './lobby.js';
 import { broadcastSnapshot, fail, requireHost, sendTo, sendWelcome, systemMessage, type Cx } from './messaging.js';
 import { moduleFor } from './module.js';
-import { connectedCount, findByToken, findPlayer, hasEnoughPlayers, inProgress, isFull, othersConnected, votesNeeded } from './players.js';
+import { connectedCount, findByToken, findPlayer, inProgress, isFull, othersConnected, votesNeeded } from './players.js';
 import { MAX_KICKED_TOKENS, type PlatformPlayerData } from './state.js';
 
 type Seat = { ok: true; playerId: string } | { ok: false; code: 'ROOM_FULL' | 'GAME_IN_PROGRESS' | 'REJOIN_FAILED' | 'INTERNAL'; message: string };
@@ -43,7 +43,6 @@ export function join(cx: Cx, name: string, avatar: Avatar, connectionId: string)
   data.players.push(player);
   if (!data.hostId) data.hostId = player.id;
   if (wasEmpty) data.grace.emptyRoomAt = null;
-  if (hasEnoughPlayers(data)) data.grace.lowPlayersAt = null;
   standInForAbsentHost(cx);
 
   // The game learns about the seat first (so the welcome reflects it), but its reactions follow the welcome.
@@ -68,7 +67,6 @@ export function rejoin(cx: Cx, token: string, connectionId: string): Seat {
   player.disconnectedAt = null;
   // Replacing a live socket keeps the original connection time (host seniority).
   if (!wasConnected) player.connectedAt = cx.now;
-  if (hasEnoughPlayers(data)) data.grace.lowPlayersAt = null;
   if (data.returningHostId === player.id) {
     data.returningHostId = null;
     if (data.hostId !== player.id) {
@@ -86,7 +84,11 @@ export function rejoin(cx: Cx, token: string, connectionId: string): Seat {
   return { ok: true, playerId: player.id };
 }
 
-/** The player's socket went away. The seat is kept for RECONNECT_GRACE_MS. */
+/**
+ * The player's socket went away. The seat is kept for RECONNECT_GRACE_MS and a running game goes
+ * on (or holds at its next boundary): phones lock and hosting cuts connections, so a dropped
+ * socket alone never abandons a game. Only an empty seat (leave, kick, expiry) can.
+ */
 export function connectionClosed(cx: Cx, playerId: string, connectionId: string | undefined): void {
   const { data } = cx;
   const player = findPlayer(data, playerId);
@@ -105,11 +107,6 @@ export function connectionClosed(cx: Cx, playerId: string, connectionId: string 
   // role is handed back when the host rejoins.
   if (player.id === data.hostId) standInForAbsentHost(cx);
 
-  // A dropped socket is usually a reload or a flaky network: give the player a moment to come
-  // back before abandoning the game (an explicit leave or kick abandons it immediately).
-  if (data.phase === 'playing' && !hasEnoughPlayers(data) && data.grace.lowPlayersAt === null) {
-    data.grace.lowPlayersAt = cx.now + LOW_PLAYERS_GRACE_MS;
-  }
   runGame(cx, { type: 'playerDisconnected', playerId: player.id });
   if (resolveVotes(cx)) return;
   broadcastSnapshot(cx);
@@ -210,7 +207,7 @@ function removePlayer(cx: Cx, playerId: string, how: 'left' | 'kicked', kickReas
   }
   // One player fewer can lower a pending vote's threshold to what is already tallied.
   resolveVotes(cx);
-  if (ensureEnoughPlayers(cx)) return;
+  if (ensureEnoughSeated(cx)) return;
   runGame(cx, { type: 'playerLeft', playerId: player.id });
   broadcastSnapshot(cx);
 }
@@ -218,10 +215,10 @@ function removePlayer(cx: Cx, playerId: string, how: 'left' | 'kicked', kickReas
 /** The next group to pick up this code must not inherit anything: a clean lobby with a TTL. */
 function resetEmptyRoom(cx: Cx): void {
   const { data } = cx;
-  data.grace.lowPlayersAt = null;
   data.phase = 'lobby';
   data.podium = null;
   data.game = null;
+  data.waiting = null;
   data.votes = [];
   data.kickedTokens = [];
   data.returningHostId = null;

@@ -65,7 +65,7 @@ tells the client which game a code belongs to, so a code typed anywhere lands in
 Empty rooms are deleted after `EMPTY_ROOM_TTL_MS` (60 s).
 
 **Seats, tokens, reconnects.** `create` / `join` / `rejoin` / `leave`, a secret seat token per
-player, a 60 s reconnect grace (`RECONNECT_GRACE_MS`) during which the seat and score survive,
+player, a 10 min reconnect grace (`RECONNECT_GRACE_MS`) during which the seat and score survive,
 presence (`connected` on every player), a stand-in host while the host's socket is down and the
 role handed back on rejoin ([`server/platform/engine/seats.ts`](../server/platform/engine/seats.ts)).
 
@@ -89,9 +89,12 @@ shows the `PodiumOverlay` with the host's Back-to-lobby button.
 **Kicks and vote-kicks.** Host kick, majority vote-kick (at least two other connected players,
 never a single voter), kicked tokens refused on rejoin.
 
-**Low-player handling.** A running game with fewer connected players than `meta.minPlayers` is
-sent back to the lobby: immediately on a leave or kick, after `LOW_PLAYERS_GRACE_MS` (10 s) on a
-dropped socket.
+**Low-player handling.** A running game is sent back to the lobby only when fewer *seats* than
+`meta.minPlayers` remain: on a leave, a kick or a reconnect-grace expiry. A dropped socket never
+ends a game; the player keeps their seat for the grace and your game decides what to do
+meanwhile. A game that cannot go on without them holds at its next boundary and says so with a
+`waiting` effect, which the platform shows as `RoomState.waiting` (the client's waiting overlay
+names the missing players and lets the host remove them).
 
 **Time.** A deadline-driven tick: you return epoch-ms deadlines from `nextDeadline(data)`, the
 driver arms one timer at the earliest platform-or-game deadline and calls your `handle` with
@@ -238,8 +241,17 @@ export type GameEvent<CMsg> =
   | { type: 'chat'; playerId: string; text: string }
   /** A new player was seated mid-game (ctx.players already includes them). */
   | { type: 'playerJoined'; playerId: string }
-  /** The player left, was kicked or their reconnect grace ran out (ctx.players no longer includes them). */
+  /**
+   * The player left, was kicked or their reconnect grace ran out (ctx.players no longer includes
+   * them). Not delivered when the removal left fewer seats than `meta.minPlayers`: the platform
+   * abandoned the game first.
+   */
   | { type: 'playerLeft'; playerId: string }
+  /**
+   * A socket dropped / a disconnected player rejoined. The seat (and score) survives for
+   * RECONNECT_GRACE_MS, and the platform never abandons a game over a disconnect alone: a game
+   * that cannot go on without the player holds at its next boundary (see the 'waiting' effect).
+   */
   | { type: 'playerDisconnected'; playerId: string }
   | { type: 'playerReconnected'; playerId: string }
   /**
@@ -266,6 +278,12 @@ export type GameEffect<SMsg> =
   | { type: 'gameOver' }
   /** Abandon the game and return everyone to the lobby. */
   | { type: 'abort'; reason: string }
+  /**
+   * The game is holding at a boundary until the players in `missing` (seated, disconnected) come
+   * back; the platform shows it as RoomState.waiting. Emit it again when the list changes and
+   * `null` when the game goes on; abort, gameOver and the lobby clear it by themselves.
+   */
+  | { type: 'waiting'; missing: string[] | null }
   /** For games with a side store: 'reset' empties it and stamps it with `payload.stamp`. */
   | { type: 'side'; name: 'reset'; payload?: { stamp: string } };
 
@@ -323,8 +341,9 @@ messages. The registry erases them to `AnyGameServerModule`.
 | `chatHandled` | Marks the triggering `'chat'` event as consumed: the platform does not broadcast the player's line. Only meaningful while handling a `'chat'` event. |
 | `error` | `{ t: 'error', code, message }` to that player (if connected). |
 | `score` | `player.score += delta`. **No snapshot is sent for you**; add one (or end the game) so the player list updates. Negative deltas are allowed and totals are not clamped: the podium prints `-50 pts` as it is. |
-| `gameOver` | Ignored unless the room is `'playing'`. Clears the low-player grace, builds the podium (score desc, then join order; rank = 1 + number of players with a higher score), sets `phase: 'ended'`, posts "Game over! Alice wins with 100 points." (or a tie line), broadcasts a snapshot. After this `nextDeadline` is no longer consulted and `handle` is not called again; game messages are refused. |
-| `abort` | Posts `reason` as a system line, then `resetToLobby`: phase `'lobby'`, `podium` and `game` null, votes cleared, every score reset to 0, the side store reset (when the module has one), a snapshot. **Any effects after `abort` in the same list are skipped.** |
+| `gameOver` | Ignored unless the room is `'playing'`. Clears any `waiting` state, builds the podium (score desc, then join order; rank = 1 + number of players with a higher score), sets `phase: 'ended'`, posts "Game over! Alice wins with 100 points." (or a tie line), broadcasts a snapshot. After this `nextDeadline` is no longer consulted and `handle` is not called again; game messages are refused. |
+| `abort` | Posts `reason` as a system line, then `resetToLobby`: phase `'lobby'`, `podium` and `game` null, any `waiting` state cleared, votes cleared, every score reset to 0, the side store reset (when the module has one), a snapshot. **Any effects after `abort` in the same list are skipped.** |
+| `waiting` | Stores `missing` as the room's hold. Every later snapshot carries `RoomState.waiting = { reason: 'players', missing, needed: meta.minPlayers, connected }` with the live connected count, `missing` narrowed to players still seated and disconnected; `missing: null` clears it, as do `abort`, `gameOver` and the return to the lobby. **No snapshot is sent for you**; add one so everyone sees the hold (a tick carries none). A holding game returns `null` from `nextDeadline` while too few are connected (only the seat expiries are pending then); once enough are back it waits a short settle (`RESUME_SETTLE_MS`, restarted by every further reconnect) before going on, so a group whose sockets were all cut at once is seated together rather than from the first one back. See `server/games/waiting.ts` for the shared helpers the three games use. |
 | `side` | Forwarded to the driver, which resets the side store with the given stamp (section 7). |
 
 Around your module the platform also does: a system line "The game has started!" before
@@ -347,8 +366,11 @@ Around your module the platform also does: a system line "The game has started!"
 - `playerDisconnected` / `playerReconnected`: a socket dropped / a disconnected player rejoined
   (a socket merely replaced by a reload on the same seat does not fire `playerReconnected`). A
   disconnected player **stays in `ctx.players`** with `connected: false` until the reconnect grace
-  (60 s) runs out, so anything that picks a player (the next one to act, a random holder) must
-  filter on `connected`; the template never picks and so never shows this.
+  (10 min) runs out, so anything that picks a player (the next one to act, a random holder) must
+  filter on `connected`; the template never picks and so never shows this. The platform never
+  abandons a game over a disconnect: if yours needs `meta.minPlayers` connected to go on, hold at
+  your next boundary with a `waiting` effect (`ctx.players.length` tells you whether enough seats
+  remain at all; `abort` only when they do not) and resume on `playerReconnected` / `playerJoined`.
 - `tick`: `nextDeadline(data) <= now`. `ctx.now` is the deadline's own time while the platform
   catches up on several overdue deadlines, so chained deadlines stay anchored.
 
@@ -559,7 +581,7 @@ harnesses and the cross-game suites read:
 ```ts
 wordle: {
   settings: { rounds: 1 },                 // applied by startGame before 'start': deterministic and short
-  longSettings: { rounds: 10 },            // a three-player game must still be running 60 s after it started
+  longSettings: { rounds: 10 },            // the longest game the settings allow (ideally still running 10 min in)
   validMessage: { t: 'guess', word: 'crane' },  // accepted from the host right after 'start'
 },
 ```

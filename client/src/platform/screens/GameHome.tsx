@@ -16,6 +16,9 @@ import { usePlatformStore } from '../store/usePlatformStore';
 
 type Intent = 'create' | 'join';
 
+/** A rejoin still not answered after this long (server unreachable) gives the join form back. */
+export const REJOIN_FORM_DELAY_MS = 15_000;
+
 interface Props {
   game: GameMeta;
   /** A code from the URL (join link): prefilled, with the invite banner. */
@@ -38,6 +41,15 @@ export function GameHome({ game, code: invitedCode }: Props) {
   const [intent, setIntent] = useState<Intent | null>(null);
   const nameRef = useRef<HTMLInputElement | null>(null);
   const preview = useRoomPreview(code);
+  // A seat we can resume is tried first; the form only shows when that fails (or drags on).
+  const [rejoinStale, setRejoinStale] = useState(false);
+  useEffect(() => {
+    setRejoinStale(false);
+    if (!rejoining) return;
+    const timer = window.setTimeout(() => setRejoinStale(true), REJOIN_FORM_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [rejoining]);
+  const showForm = !rejoining || rejoinStale;
 
   useEffect(() => saveName(name), [name]);
   useEffect(() => saveAvatar(avatar), [avatar]);
@@ -107,144 +119,148 @@ export function GameHome({ game, code: invitedCode }: Props) {
             <span className="spinner" aria-hidden="true" /> Rejoining your room<span className="ellipsis" aria-hidden="true" />
           </div>
         )}
-        {!rejoining && invitedCode && (
+        {showForm && !rejoining && invitedCode && (
           <div className="banner banner--invite" role="status" data-testid="invite-banner">
             <LinkIcon size={16} /> You've been invited to room <strong>{invitedCode}</strong>. Pick a name and jump in!
           </div>
         )}
       </section>
 
-      <section className="card profile" aria-labelledby="profile-heading">
-        <h2 className="card__title" id="profile-heading">
-          Your look
-        </h2>
-        <div className="profile__grid">
-          <div className="field">
-            <label className="field__label" htmlFor="home-name">
-              Name
-            </label>
-            <input
-              id="home-name"
-              ref={nameRef}
-              className={`input input--lg${nameError ? ' is-invalid' : ''}`}
-              data-testid="home-name"
-              type="text"
-              value={name}
-              maxLength={NAME_MAX_LENGTH}
-              placeholder="What should we call you?"
-              autoComplete="nickname"
-              autoCorrect="off"
-              enterKeyHint="done"
-              aria-invalid={nameError ? true : undefined}
-              aria-describedby={nameError ? 'home-name-error' : 'home-name-hint'}
-              onChange={(e) => {
-                setName(e.target.value);
-                if (nameError) setNameError(null);
-              }}
-            />
-            {nameError ? (
-              <p className="field__error" id="home-name-error" role="alert">
-                {nameError}
-              </p>
-            ) : (
-              <p className="field__hint" id="home-name-hint">
-                Up to {NAME_MAX_LENGTH} characters. Remembered on this device.
-              </p>
-            )}
-          </div>
-          <AvatarPicker value={avatar} onChange={setAvatar} />
-        </div>
-      </section>
+      {showForm && (
+        <>
+          <section className="card profile" aria-labelledby="profile-heading">
+            <h2 className="card__title" id="profile-heading">
+              Your look
+            </h2>
+            <div className="profile__grid">
+              <div className="field">
+                <label className="field__label" htmlFor="home-name">
+                  Name
+                </label>
+                <input
+                  id="home-name"
+                  ref={nameRef}
+                  className={`input input--lg${nameError ? ' is-invalid' : ''}`}
+                  data-testid="home-name"
+                  type="text"
+                  value={name}
+                  maxLength={NAME_MAX_LENGTH}
+                  placeholder="What should we call you?"
+                  autoComplete="nickname"
+                  autoCorrect="off"
+                  enterKeyHint="done"
+                  aria-invalid={nameError ? true : undefined}
+                  aria-describedby={nameError ? 'home-name-error' : 'home-name-hint'}
+                  onChange={(e) => {
+                    setName(e.target.value);
+                    if (nameError) setNameError(null);
+                  }}
+                />
+                {nameError ? (
+                  <p className="field__error" id="home-name-error" role="alert">
+                    {nameError}
+                  </p>
+                ) : (
+                  <p className="field__hint" id="home-name-hint">
+                    Up to {NAME_MAX_LENGTH} characters. Remembered on this device.
+                  </p>
+                )}
+              </div>
+              <AvatarPicker value={avatar} onChange={setAvatar} />
+            </div>
+          </section>
 
-      <div className="home__actions">
-        <section className="card action-card" aria-labelledby="create-heading">
-          <div className="action-card__icon action-card__icon--create" aria-hidden="true">
-            <SparkIcon size={22} />
-          </div>
-          <h2 className="card__title" id="create-heading">
-            Create a private room
-          </h2>
-          <p className="card__text">You become the host: tweak the settings, then share the code or the link.</p>
-          <ul className="feature-list" aria-label="What you get">
-            <li>Up to {game.maxPlayers} players, private by default</li>
-            <li>A 4-character code that is easy to read out loud</li>
-            <li>Rejoin automatically after a dropped connection</li>
-          </ul>
-          <button
-            type="button"
-            className="btn btn--primary btn--lg btn--block"
-            data-testid="home-create"
-            onClick={onCreate}
-            disabled={joinPending}
-            aria-busy={joinPending && intent === 'create'}
-          >
-            {joinPending && intent === 'create' ? (
-              <>
-                <span className="spinner spinner--light" aria-hidden="true" /> {pendingLabel ?? 'Creating…'}
-              </>
-            ) : (
-              'Create private room'
-            )}
-          </button>
-          {errorFor('create') && (
-            <p className="field__error" role="alert" data-testid="create-error">
-              {errorFor('create')}
-            </p>
-          )}
-        </section>
+          <div className="home__actions">
+            <section className="card action-card" aria-labelledby="create-heading">
+              <div className="action-card__icon action-card__icon--create" aria-hidden="true">
+                <SparkIcon size={22} />
+              </div>
+              <h2 className="card__title" id="create-heading">
+                Create a private room
+              </h2>
+              <p className="card__text">You become the host: tweak the settings, then share the code or the link.</p>
+              <ul className="feature-list" aria-label="What you get">
+                <li>Up to {game.maxPlayers} players, private by default</li>
+                <li>A 4-character code that is easy to read out loud</li>
+                <li>Rejoin automatically after a dropped connection</li>
+              </ul>
+              <button
+                type="button"
+                className="btn btn--primary btn--lg btn--block"
+                data-testid="home-create"
+                onClick={onCreate}
+                disabled={joinPending}
+                aria-busy={joinPending && intent === 'create'}
+              >
+                {joinPending && intent === 'create' ? (
+                  <>
+                    <span className="spinner spinner--light" aria-hidden="true" /> {pendingLabel ?? 'Creating…'}
+                  </>
+                ) : (
+                  'Create private room'
+                )}
+              </button>
+              {errorFor('create') && (
+                <p className="field__error" role="alert" data-testid="create-error">
+                  {errorFor('create')}
+                </p>
+              )}
+            </section>
 
-        <section className="card action-card" aria-labelledby="join-heading">
-          <div className="action-card__icon action-card__icon--join" aria-hidden="true">
-            <UsersIcon size={22} />
+            <section className="card action-card" aria-labelledby="join-heading">
+              <div className="action-card__icon action-card__icon--join" aria-hidden="true">
+                <UsersIcon size={22} />
+              </div>
+              <h2 className="card__title" id="join-heading">
+                Join with a code
+              </h2>
+              <p className="card__text">Type the 4 characters your friend shared, or paste their invite link.</p>
+              <CodeInput
+                value={code}
+                onChange={onCodeChange}
+                onSubmit={onJoin}
+                onInvalidChar={() => setCodeHint(roomCodeHint())}
+                disabled={joinPending}
+                invalid={Boolean(codeHint) || Boolean(errorFor('join'))}
+              />
+              <div className="code-preview" aria-live="polite" data-testid="room-preview">
+                {codeHint ? (
+                  <span className="field__error" data-testid="code-hint">
+                    {codeHint}
+                  </span>
+                ) : preview.status === 'ok' ? (
+                  <PreviewText preview={preview.preview} game={game} />
+                ) : preview.status === 'loading' ? (
+                  <span className="field__hint">Looking up room…</span>
+                ) : (
+                  <span className="field__hint">Codes use letters A–Z (never I, L or O) and digits 2–9.</span>
+                )}
+              </div>
+              <button
+                type="button"
+                className="btn btn--secondary btn--lg btn--block"
+                data-testid="home-join"
+                onClick={onJoin}
+                disabled={joinPending}
+                aria-busy={joinPending && intent === 'join'}
+              >
+                {joinPending && intent === 'join' ? (
+                  <>
+                    <span className="spinner spinner--light" aria-hidden="true" /> {pendingLabel ?? 'Joining…'}
+                  </>
+                ) : (
+                  'Join room'
+                )}
+              </button>
+              {errorFor('join') && (
+                <p className="field__error" role="alert" data-testid="join-error">
+                  {errorFor('join')}
+                </p>
+              )}
+            </section>
           </div>
-          <h2 className="card__title" id="join-heading">
-            Join with a code
-          </h2>
-          <p className="card__text">Type the 4 characters your friend shared, or paste their invite link.</p>
-          <CodeInput
-            value={code}
-            onChange={onCodeChange}
-            onSubmit={onJoin}
-            onInvalidChar={() => setCodeHint(roomCodeHint())}
-            disabled={joinPending}
-            invalid={Boolean(codeHint) || Boolean(errorFor('join'))}
-          />
-          <div className="code-preview" aria-live="polite" data-testid="room-preview">
-            {codeHint ? (
-              <span className="field__error" data-testid="code-hint">
-                {codeHint}
-              </span>
-            ) : preview.status === 'ok' ? (
-              <PreviewText preview={preview.preview} game={game} />
-            ) : preview.status === 'loading' ? (
-              <span className="field__hint">Looking up room…</span>
-            ) : (
-              <span className="field__hint">Codes use letters A–Z (never I, L or O) and digits 2–9.</span>
-            )}
-          </div>
-          <button
-            type="button"
-            className="btn btn--secondary btn--lg btn--block"
-            data-testid="home-join"
-            onClick={onJoin}
-            disabled={joinPending}
-            aria-busy={joinPending && intent === 'join'}
-          >
-            {joinPending && intent === 'join' ? (
-              <>
-                <span className="spinner spinner--light" aria-hidden="true" /> {pendingLabel ?? 'Joining…'}
-              </>
-            ) : (
-              'Join room'
-            )}
-          </button>
-          {errorFor('join') && (
-            <p className="field__error" role="alert" data-testid="join-error">
-              {errorFor('join')}
-            </p>
-          )}
-        </section>
-      </div>
+        </>
+      )}
 
       <section className="howto" aria-labelledby="howto-heading">
         <h2 className="howto__title" id="howto-heading">

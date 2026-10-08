@@ -9,7 +9,11 @@ import type { WireMessage } from '../../shared/platform/protocol.js';
 export interface GameTestFixture {
   /** Settings that make the game deterministic and short; the harnesses apply them before `start`. */
   settings: Record<string, unknown>;
-  /** Settings under which a three-player game is still running RECONNECT_GRACE_MS (60 s) after it started. */
+  /**
+   * The longest game the settings allow: with two seats above the minimum it is still running
+   * RECONNECT_GRACE_MS (10 min) after it started, where the game's limits permit that at all
+   * (Click Race caps out at two minutes).
+   */
   longSettings: Record<string, unknown>;
   /** A message the game accepts from the host (the first player) right after `start`. */
   validMessage: WireMessage;
@@ -21,18 +25,18 @@ export const TEST_WORDS = ['apple', 'banana', 'cherry', 'dragon', 'eagle', 'falc
 export const GAME_TEST_FIXTURES: Readonly<Record<GameId, GameTestFixture>> = {
   skribble: {
     settings: { customWords: TEST_WORDS, customWordsOnly: true, rounds: 1, drawTime: 60, hints: 2, wordChoices: 3 },
-    longSettings: { drawTime: 180 },
+    longSettings: { drawTime: 180, rounds: 10 },
     validMessage: { t: 'chooseWord', index: 0 },
   },
   spygame: {
     settings: { rounds: 1, roundMinutes: 3, voteSeconds: 15 },
-    longSettings: { roundMinutes: 15 },
+    longSettings: { rounds: 10, roundMinutes: 15 },
     // With rng () => 0 the host is round one's spy, 'airplane' is the location and 'beach' a decoy: a wrong first guess.
     validMessage: { t: 'guess', locationId: 'beach' },
   },
   quipgame: {
     settings: { writeSeconds: 30, voteSeconds: 10, resultsSeconds: 4, finalRound: false },
-    longSettings: { writeSeconds: 180 },
+    longSettings: { writeSeconds: 180, voteSeconds: 60, resultsSeconds: 20 },
     // With rng () => 0 the shuffled writing order ends with the host, who therefore writes prompt r1-p0.
     validMessage: { t: 'answer', promptId: 'r1-p0', text: 'banana' },
   },
