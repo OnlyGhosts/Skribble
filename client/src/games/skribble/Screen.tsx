@@ -9,6 +9,7 @@ import { SoundToggle, ThemeToggle } from '../../platform/components/ThemeToggle'
 import { Timer } from '../../platform/components/Timer';
 import type { GameScreenProps } from '../../platform/game';
 import { PHONE_QUERY, useMediaQuery } from '../../platform/lib/media';
+import { useCountdownSeconds } from '../../platform/lib/useCountdown';
 import { useAppMode } from '../../platform/lib/useViewport';
 import { leaveRoom } from '../../platform/net/actions';
 import { useActiveGame } from '../../platform/store/selectors';
@@ -96,6 +97,12 @@ export function SkribbleScreen({ room, meId, isHost }: GameScreenProps<SkribbleV
   }, [isPhone]);
 
   const view = room.game;
+  // The game holds at a turn boundary for players whose phones went dark (the platform overlay says so).
+  const holding = Boolean(room.waiting);
+  // A turn summary whose time ran out waits on the server's next turn: the header clock must not sit on a red "0".
+  const summaryEndsAt = view?.phase.kind === 'turnEnd' && !holding ? view.phase.endsAt : null;
+  const summarySeconds = useCountdownSeconds(summaryEndsAt);
+  const summarySettling = summaryEndsAt !== null && summarySeconds <= 0;
   if (!view) return null;
   const phase = view.phase;
   const drawerId = drawerIdOf(view);
@@ -106,8 +113,6 @@ export function SkribbleScreen({ room, meId, isHost }: GameScreenProps<SkribbleV
   const canUndo = hasStrokes && connected;
   const endsAt = 'endsAt' in phase ? phase.endsAt : null;
   const turnKey = `${view.round}-${view.turn}-${drawerId ?? ''}`;
-  // The game holds at a turn boundary for players whose phones went dark (the platform overlay says so).
-  const holding = Boolean(room.waiting);
   // On a phone an unsolved guesser types into the tiles in the guess bar, so the header word
   // area only shows a word that is actually known (drawer, solved guesser, turn summary).
   const wordKnown = holding || (phase.kind === 'drawing' && (isDrawer || guessed)) || phase.kind === 'turnEnd';
@@ -137,7 +142,7 @@ export function SkribbleScreen({ room, meId, isHost }: GameScreenProps<SkribbleV
   );
 
   const timer = (endsAt !== null || holding) && (
-    <Timer endsAt={endsAt} paused={holding} warnUnder={phase.kind === 'turnEnd' ? 0 : phase.kind === 'choosing' ? 5 : 10} tickUnder={phase.kind === 'drawing' ? 5 : undefined} />
+    <Timer endsAt={endsAt} paused={holding} settling={summarySettling} warnUnder={phase.kind === 'turnEnd' ? 0 : phase.kind === 'choosing' ? 5 : 10} tickUnder={phase.kind === 'drawing' ? 5 : undefined} />
   );
 
   const players = <PlayerList room={room} meId={meId} isHost={isHost} mode="game" game={game} />;

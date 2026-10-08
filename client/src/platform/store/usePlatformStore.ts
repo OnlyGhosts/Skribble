@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { ChatMessage, ErrorCode, PlatformClientMessageOf, PlatformServerMessage, RoomState } from '@shared/platform/protocol';
-import { friendlyError, type JoinErrorCode } from '../lib/format';
+import { friendlyError, rejoinFailureText, type JoinErrorCode } from '../lib/format';
 import { loadPrefs, savePrefs, type Prefs, type Theme } from '../lib/storage';
 import { registeredGame } from '../registry';
 import { codeFromLocation, gamePath, navigate } from '../router';
@@ -128,7 +128,7 @@ export const usePlatformStore = create<PlatformStore>()((set, get) => ({
       case 'error': {
         if (msg.code === 'REJOIN_FAILED') {
           get().resetRoom({ keepUrl: true });
-          get().addToast('warning', friendlyError('REJOIN_FAILED'));
+          get().addToast('warning', rejoinFailureText(msg.message));
           break;
         }
         if (JOIN_ERROR_CODES.has(msg.code) || get().joinPending) {

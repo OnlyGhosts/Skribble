@@ -16,19 +16,30 @@ interface Props {
   view: SpygameView;
   reveal: SpygameRevealView;
   isHost: boolean;
+  /** The platform holds at this round boundary for players whose phones went dark: nothing counts down. */
+  holding?: boolean;
 }
 
-/** The end of a round: who the spy was, where everyone was, how it ended and what it paid. */
-export function RevealOverlay({ room, view, reveal, isHost }: Props) {
+/**
+ * The end of a round: who the spy was, where everyone was, how it ended and what it paid. The
+ * countdown to the next round freezes while the game holds for missing players, and once it has
+ * run out (the server settles for a moment after a hold, or its tick is a beat away) it shows the
+ * round as starting rather than a red "0".
+ */
+export function RevealOverlay({ room, view, reveal, isHost, holding = false }: Props) {
   const cardRef = useRef<HTMLDivElement | null>(null);
   useModalFocus(cardRef, true);
-  const seconds = useCountdownSeconds(reveal.endsAt);
+  const seconds = useCountdownSeconds(holding ? null : reveal.endsAt);
+  const settling = !holding && seconds <= 0;
   const spy = playerOf(room, reveal.spyId);
   // The name travels with the reveal: a spy who left for good has no seat to look up any more.
   const spyName = reveal.spyName;
   const location = locationById(reveal.locationId);
   const isLast = view.round >= view.totalRounds;
   const nextLabel = isLast ? 'Show results' : 'Next round';
+  const nextNoun = isLast ? 'Results' : 'Next round';
+  const countdownLabel = holding ? `${nextNoun} paused` : settling ? `${nextNoun} starting` : `${nextNoun} in`;
+  const countdownState = holding ? 'paused' : settling ? 'settling' : 'running';
   const earners = room.players
     .map((p) => ({ player: p, points: reveal.points[p.id] ?? 0 }))
     .filter((e) => e.points > 0)
@@ -73,8 +84,8 @@ export function RevealOverlay({ room, view, reveal, isHost }: Props) {
         <div className="overlay__footer spy-reveal__footer">
           {isHost ? (
             <>
-              <button type="button" className="btn btn--primary" onClick={skipReveal} data-testid="spygame-next-round">
-                {nextLabel} ({seconds})
+              <button type="button" className="btn btn--primary" onClick={skipReveal} disabled={holding} data-testid="spygame-next-round" data-countdown={countdownState}>
+                {holding ? `${nextLabel} (paused)` : settling ? `${nextLabel}…` : `${nextLabel} (${seconds})`}
               </button>
               <button type="button" className="btn btn--ghost" onClick={endGame} data-testid="spygame-end-game">
                 Back to lobby
@@ -82,8 +93,10 @@ export function RevealOverlay({ room, view, reveal, isHost }: Props) {
             </>
           ) : (
             <>
-              <span data-testid="reveal-countdown">{isLast ? 'Results in' : 'Next round in'}</span>
-              <Timer endsAt={reveal.endsAt} size="md" warnUnder={0} />
+              <span data-testid="reveal-countdown" data-countdown={countdownState}>
+                {countdownLabel}
+              </span>
+              <Timer endsAt={reveal.endsAt} size="md" warnUnder={0} paused={holding} settling={settling} />
             </>
           )}
         </div>

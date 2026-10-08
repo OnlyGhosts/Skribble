@@ -261,6 +261,43 @@ describe('the reveal', () => {
     expect(guest).not.toContain('data-testid="spygame-wrong-guess"');
   });
 
+  it('freezes the countdown under a hold and shows the round as starting, not a red "0", once the time ran out', () => {
+    const revealRoom = (endsAt: number, meId: string, waiting: SpygameRoomState['waiting'] = null) =>
+      spyRoom(
+        view({ phase: 'reveal', role: meId === 'host' ? 'spy' : 'agent', clock: { endsAt: null, pausedRemainingMs: 180_000, pausedReason: 'reveal', waitingForId: null }, reveal: { ...REVEAL, endsAt } }),
+        { waiting },
+      );
+    const hold = { reason: 'players' as const, missing: ['carol'], needed: 3, connected: 2 };
+
+    const heldGuest = render(revealRoom(NOW - 3_000, 'bob', hold), 'bob');
+    expect(tagWith(heldGuest, 'reveal-countdown')).toContain('data-countdown="paused"');
+    expect(heldGuest).toContain('Next round paused');
+    const heldTimer = heldGuest.slice(heldGuest.indexOf('data-testid="spygame-reveal"'));
+    expect(tagWith(heldTimer, 'timer')).toContain('data-paused="players"');
+    expect(heldTimer).not.toContain('timer--urgent');
+    const heldHost = render(revealRoom(NOW - 3_000, 'host', hold), 'host');
+    expect(tagWith(heldHost, 'spygame-next-round')).toContain('disabled');
+    expect(heldHost).toContain('(paused)');
+
+    // The settle after a hold (or the beat before the server's tick): the deadline is in the past, nothing holds.
+    const settlingGuest = render(revealRoom(NOW - 3_000, 'bob'), 'bob');
+    expect(tagWith(settlingGuest, 'reveal-countdown')).toContain('data-countdown="settling"');
+    expect(settlingGuest).toContain('Next round starting');
+    const settlingTimer = settlingGuest.slice(settlingGuest.indexOf('data-testid="spygame-reveal"'));
+    expect(tagWith(settlingTimer, 'timer')).toContain('data-face="settling"');
+    expect(settlingTimer).not.toContain('timer--urgent');
+    expect(settlingTimer).not.toMatch(/timer__value">0</);
+    const settlingHost = render(revealRoom(NOW - 3_000, 'host'), 'host');
+    expect(tagWith(settlingHost, 'spygame-next-round')).not.toContain('disabled');
+    expect(settlingHost).toContain('Next round…');
+    expect(settlingHost).not.toContain('(0)');
+
+    // Still counting: the plain countdown.
+    const running = render(revealRoom(NOW + 15_000, 'bob'), 'bob');
+    expect(tagWith(running, 'reveal-countdown')).toContain('data-countdown="running"');
+    expect(running).toContain('Next round in');
+  });
+
   it('names a spy who has left the room from the reveal itself and styles the points with game-owned classes', () => {
     const left = spyRoom(view({ phase: 'reveal', roundPlayers: ['bob', 'carol', 'dave'], reveal: { ...REVEAL, outcome: 'spyLeft', spyName: 'Hana', points: { bob: 1, carol: 1, dave: 1 } } }), {
       players: [player('bob', { joinOrder: 1 }), player('carol', { joinOrder: 2 }), player('dave', { joinOrder: 3 })],

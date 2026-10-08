@@ -139,7 +139,7 @@ export class GameSocket {
     saveSeat({ code: session.code, token: session.token, playerId: session.playerId, savedAt: this.seatSavedAt });
   }
 
-  /** Keeps the localStorage entry's age below the reconnect grace while we sit in the room. */
+  /** Keeps the localStorage entry's age below the reconnect grace while we sit in the room (snapshots and pongs call it). */
   private refreshSeat(): void {
     const session = this.currentSession();
     if (session && Date.now() - this.seatSavedAt >= SEAT_REFRESH_MS) this.saveSeatNow(session);
@@ -302,6 +302,10 @@ export class GameSocket {
       case 'pong': {
         this.pongPending = false;
         this.clearPongTimer();
+        // The seat is live: its localStorage entry's age restarts even when no snapshot has come
+        // for a while (a quiet reveal, a long round), so a tab discarded after an idle stretch
+        // still finds a fresh entry on the way back.
+        this.refreshSeat();
         // The server stamped the pong roughly half a round-trip after our ping left.
         const now = Date.now();
         const rtt = this.pingSentAt > 0 ? now - this.pingSentAt : 0;

@@ -354,6 +354,23 @@ describe('seat recovery from localStorage', () => {
     expect(loadSeat('ABCD')?.savedAt).toBe((first?.savedAt ?? 0) + 60_000);
   });
 
+  it('refreshes the seat from the pongs too, so a quiet stretch without snapshots does not let it go stale', () => {
+    const { ws } = startSocket();
+    ws.receive(welcome('bob', room(), 'tok-1'));
+    const first = loadSeat('ABCD')?.savedAt ?? 0;
+    // Nothing but pings for a while: no snapshot comes during a long reveal or a quiet round.
+    vi.advanceTimersByTime(PING_INTERVAL_MS * 3);
+    ws.receive({ t: 'pong', serverTime: Date.now() });
+    expect(loadSeat('ABCD')?.savedAt).toBe(first + PING_INTERVAL_MS * 3);
+    vi.advanceTimersByTime(PING_INTERVAL_MS);
+    ws.receive({ t: 'pong', serverTime: Date.now() });
+    // Still at most once a minute.
+    expect(loadSeat('ABCD')?.savedAt).toBe(first + PING_INTERVAL_MS * 3);
+    vi.advanceTimersByTime(PING_INTERVAL_MS * 2);
+    ws.receive({ t: 'pong', serverTime: Date.now() });
+    expect(loadSeat('ABCD')?.savedAt).toBe(first + PING_INTERVAL_MS * 6);
+  });
+
   it('rejoins from the localStorage seat when the tab was discarded (no session seat)', () => {
     saveSeat({ code: 'ABCD', token: 'tok-old', playerId: 'bob', savedAt: Date.now() - 120_000 });
     setLocation('/skribble/ABCD');

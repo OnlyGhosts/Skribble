@@ -13,10 +13,15 @@ interface Props {
   size?: 'md' | 'lg';
   /** The game is holding (waiting for players): a frozen face instead of a countdown that runs out. */
   paused?: boolean;
+  /**
+   * The deadline has passed and the next step is the server's (it settles for a moment after a
+   * hold, or its tick is a beat away): a waiting glyph instead of a red "0" that sits there.
+   */
+  settling?: boolean;
 }
 
-export function Timer({ endsAt: deadline, warnUnder = 10, tickUnder, size = 'lg', paused = false }: Props) {
-  const endsAt = paused ? null : deadline;
+export function Timer({ endsAt: deadline, warnUnder = 10, tickUnder, size = 'lg', paused = false, settling = false }: Props) {
+  const endsAt = paused || settling ? null : deadline;
   const seconds = useCountdownSeconds(endsAt);
   const lastTicked = useRef<number | null>(null);
 
@@ -29,19 +34,23 @@ export function Timer({ endsAt: deadline, warnUnder = 10, tickUnder, size = 'lg'
   }, [seconds, tickUnder, endsAt]);
 
   const urgent = endsAt != null && seconds <= warnUnder;
+  const face = paused ? 'paused' : settling ? 'settling' : 'running';
   return (
     <div
-      className={`timer timer--${size}${urgent ? ' timer--urgent' : ''}${paused ? ' timer--paused' : ''}`}
+      className={`timer timer--${size}${urgent ? ' timer--urgent' : ''}${paused ? ' timer--paused' : ''}${settling && !paused ? ' timer--settling' : ''}`}
       role="timer"
-      aria-label={paused ? 'Paused' : `${seconds} seconds left`}
+      aria-label={paused ? 'Paused' : settling ? 'Starting soon' : `${seconds} seconds left`}
       data-testid="timer"
       data-seconds={seconds}
       data-paused={paused ? 'players' : undefined}
+      data-face={face}
     >
       <svg className="timer__ring" viewBox="0 0 36 36" aria-hidden="true">
         <circle cx="18" cy="18" r="15.5" />
       </svg>
-      <span className="timer__value">{paused ? <PauseIcon size={size === 'lg' ? 18 : 14} /> : endsAt == null ? '–' : formatSeconds(seconds)}</span>
+      <span className="timer__value">
+        {paused ? <PauseIcon size={size === 'lg' ? 18 : 14} /> : settling ? <span className="spinner" aria-hidden="true" /> : endsAt == null ? '–' : formatSeconds(seconds)}
+      </span>
     </div>
   );
 }

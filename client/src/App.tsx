@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { gameById } from '@shared/platform/games';
 import type { RoomState } from '@shared/platform/protocol';
 import { PodiumOverlay } from './platform/components/PodiumOverlay';
+import { ReconnectingBanner } from './platform/components/ReconnectingBanner';
 import { Toasts } from './platform/components/Toasts';
 import { WaitingOverlay } from './platform/components/WaitingOverlay';
 import { DARK_SCHEME_QUERY } from './platform/lib/media';
@@ -119,8 +120,9 @@ function RoomScreen({ room }: { room: RoomState }) {
   return (
     <>
       <Screen key={room.code} room={room} meId={meId ?? ''} isHost={isHost} />
-      {room.phase === 'playing' && room.waiting && <WaitingOverlay room={room} waiting={room.waiting} isHost={isHost} />}
+      {room.phase === 'playing' && room.waiting && <WaitingOverlay room={room} waiting={room.waiting} isHost={isHost} meId={meId} />}
       {room.phase === 'ended' && <PodiumOverlay room={room} isHost={isHost} />}
+      <ReconnectingBanner />
     </>
   );
 }

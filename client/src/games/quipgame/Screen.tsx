@@ -92,9 +92,11 @@ export function QuipGameScreen({ room, meId, isHost }: GameScreenProps<QuipgameV
       <main className="quip__main" data-testid="quipgame-main">
         {isWriting(view) && (view.isSpectator ? <Spectating view={view} /> : <Writing view={view} open={playing} />)}
         {view.phase === 'voting' && view.matchup && <Voting room={room} view={view} matchup={view.matchup} />}
-        {view.phase === 'result' && view.result && <Result room={room} view={view} result={view.result} isHost={isHost} playing={playing} />}
+        {view.phase === 'result' && view.result && <Result room={room} view={view} result={view.result} isHost={isHost} playing={playing} holding={holding} />}
         {view.phase === 'finalVoting' && <FinalVoting room={room} view={view} />}
-        {view.phase === 'finalResult' && view.finalResult && <FinalResult room={room} view={view} footer={<ResultFooter view={view} isHost={isHost} label="Show results" playing={playing} />} />}
+        {view.phase === 'finalResult' && view.finalResult && (
+          <FinalResult room={room} view={view} footer={<ResultFooter view={view} isHost={isHost} label="Show results" playing={playing} holding={holding} />} />
+        )}
       </main>
 
       {wide && (

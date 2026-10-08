@@ -21,6 +21,17 @@ export function friendlyError(code: JoinErrorCode, fallback?: string): string {
   return FRIENDLY_ERRORS[code] ?? fallback ?? 'Something went wrong.';
 }
 
+/**
+ * The toast for a REJOIN_FAILED. The server says why in its message ("You were removed from this
+ * room.", "Your seat in this room has expired.", "This room no longer exists."): a removed player
+ * must not read that the room may have closed. Without a reason, the generic line.
+ */
+export function rejoinFailureText(reason: string): string {
+  const why = reason.trim();
+  if (!why) return friendlyError('REJOIN_FAILED');
+  return `Couldn't rejoin your previous seat. ${/[.!?]$/.test(why) ? why : `${why}.`}`;
+}
+
 /** "45" below a minute, "1:20" above. */
 export function formatSeconds(totalSeconds: number): string {
   const s = Math.max(0, Math.floor(totalSeconds));

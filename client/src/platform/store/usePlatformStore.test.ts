@@ -70,6 +70,28 @@ describe('leaving a room', () => {
     expect(state().toasts.map((t) => t.text)).toEqual([expect.stringMatching(/rejoin/i)]);
   });
 
+  it('tells a removed player so, and an expired seat so, instead of guessing that the room closed', () => {
+    setLocation('/skribble/ABCD');
+    state().handleServerMessage(welcome('bob', room()));
+    state().handleServerMessage({ t: 'error', code: 'REJOIN_FAILED', message: 'You were removed from this room.' });
+    expect(state().room).toBeNull();
+    expect(state().toasts.map((t) => t.text)).toEqual(["Couldn't rejoin your previous seat. You were removed from this room."]);
+    expect(state().toasts[0]?.text).not.toMatch(/closed/);
+
+    state().handleServerMessage(welcome('bob', room()));
+    state().handleServerMessage({ t: 'error', code: 'REJOIN_FAILED', message: 'Your seat in this room has expired.' });
+    expect(state().toasts.at(-1)?.text).toBe("Couldn't rejoin your previous seat. Your seat in this room has expired.");
+
+    state().handleServerMessage(welcome('bob', room()));
+    state().handleServerMessage({ t: 'error', code: 'REJOIN_FAILED', message: 'This room no longer exists.' });
+    expect(state().toasts.at(-1)?.text).toBe("Couldn't rejoin your previous seat. This room no longer exists.");
+
+    // No reason given: the generic line.
+    state().handleServerMessage(welcome('bob', room()));
+    state().handleServerMessage({ t: 'error', code: 'REJOIN_FAILED', message: '' });
+    expect(state().toasts.at(-1)?.text).toBe("Couldn't rejoin your previous seat — the room may have closed.");
+  });
+
   it('a kick clears the room with a toast', () => {
     state().handleServerMessage(welcome('bob', room()));
     state().handleServerMessage({ t: 'kicked', reason: 'host decision' });

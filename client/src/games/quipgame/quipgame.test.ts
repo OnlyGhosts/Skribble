@@ -265,6 +265,37 @@ describe('results', () => {
   });
 });
 
+describe('result countdowns under a hold', () => {
+  const hold = { reason: 'players' as const, missing: ['carol'], needed: 3, connected: 2 };
+
+  it('reads as paused while the game holds and as starting, not "0", once the time ran out', () => {
+    const held = render(quipRoom(view({ phase: 'result', result: RESULT, canSkip: false, endsAt: NOW - 2_000 }), { waiting: hold }), 'host');
+    expect(tagWith(held, 'result-countdown')).toContain('data-countdown="paused"');
+    expect(held).toContain('Next is paused');
+    expect(held).not.toContain('data-testid="quip-next"');
+    expect(tagWith(held, 'timer')).toContain('data-paused="players"');
+
+    const settlingGuest = render(quipRoom(view({ phase: 'result', result: RESULT, canSkip: false, endsAt: NOW - 2_000 })), 'bob');
+    expect(tagWith(settlingGuest, 'result-countdown')).toContain('data-countdown="settling"');
+    expect(settlingGuest).toContain('Next starting…');
+    expect(settlingGuest).not.toContain('Next in 0');
+    const settlingHost = render(quipRoom(view({ phase: 'result', result: RESULT, canSkip: true, endsAt: NOW - 2_000 })), 'host');
+    expect(tagWith(settlingHost, 'quip-next')).toContain('data-countdown="settling"');
+    expect(settlingHost).not.toContain('(0)');
+
+    const running = render(quipRoom(view({ phase: 'result', result: RESULT, canSkip: false, endsAt: NOW + 8_000 })), 'bob');
+    expect(tagWith(running, 'result-countdown')).toContain('data-countdown="running"');
+    expect(running).toMatch(/Next in [1-8]/);
+
+    // The final result's footer behaves the same.
+    const finalHeld = render(
+      quipRoom(view({ phase: 'finalResult', round: 3, finalPrompt: 'The final prompt', finalResult: [], canSkip: false, endsAt: NOW - 2_000 }), { waiting: hold }),
+      'bob',
+    );
+    expect(tagWith(finalHeld, 'result-countdown')).toContain('data-countdown="paused"');
+  });
+});
+
 describe('the final', () => {
   const finalVoting = (overrides: Partial<QuipgameView> = {}) =>
     quipRoom(view({ phase: 'finalVoting', round: 3, finalPrompt: 'The final prompt', finalAnswers: FINAL_ANSWERS, myAnswerId: 'f-host', maxPicks: 2, ...overrides }));

@@ -77,7 +77,7 @@ async function routeLink(page: Page): Promise<Link> {
 async function goOffline(p: Player, link: Link): Promise<void> {
   link.down = true;
   await p.context.setOffline(true);
-  link.upstream?.close();
+  await link.upstream?.close();
 }
 
 async function goOnline(p: Player, link: Link): Promise<void> {
@@ -187,6 +187,10 @@ test.describe('Skribble keeps going through a dropped link and a discarded tab',
     await goOffline(offline, links.get(offline) as Link);
     await expect(other.page.locator(`[data-testid="player-item"][data-name="${offline.name}"]`)).toHaveClass(/player--offline/);
     await expect(offline.page.getByTestId('connection-status')).toHaveAttribute('data-status', 'reconnecting');
+    // The game screen itself says so, persistently (the toast comes later and goes again).
+    await expect(offline.page.getByTestId('reconnecting-banner')).toBeVisible();
+    await expect(offline.page.getByTestId('reconnecting-banner')).toHaveAttribute('data-status', 'reconnecting');
+    await expect(other.page.getByTestId('reconnecting-banner')).toHaveCount(0);
 
     // The game holds at the next boundary rather than returning to the lobby.
     await expect(other.page.getByTestId('overlay-waiting')).toBeVisible({ timeout: 60_000 });
@@ -206,7 +210,10 @@ test.describe('Skribble keeps going through a dropped link and a discarded tab',
     await goOnline(offline, links.get(offline) as Link);
 
     await expect(offline.page.getByTestId('connection-status')).toHaveAttribute('data-status', 'connected', { timeout: 15_000 });
+    await expect(offline.page.getByTestId('reconnecting-banner')).toHaveCount(0);
     await expect(other.page.getByTestId('overlay-waiting')).toHaveCount(0, { timeout: 15_000 });
+    // The player who came back never saw a nameless "waiting for players" of their own.
+    await expect(offline.page.getByTestId('overlay-waiting')).toHaveCount(0);
     await expect(other.page.getByTestId('chat-log')).toContainText(`${offline.name} reconnected`);
     for (const p of [host, guest]) {
       await expect(p.page.getByTestId('player-item')).toHaveCount(2);
@@ -301,22 +308,50 @@ test.describe('Spy Game holds for a dropped phone and the host may remove it', (
     for (const p of players()) await expect(p.page.getByTestId('spygame-screen')).toHaveAttribute('data-phase', 'reveal');
   });
 
-  test('a phone drops during the reveal: the others see the waiting overlay at the round boundary', async () => {
+  test('a phone drops during the reveal: the others see the waiting overlay at the round boundary, above an open sheet', async () => {
     test.setTimeout(90_000);
-    await goOffline(offline, links.get(offline) as Link);
     const others = players().filter((p) => p !== offline);
+    const guest = others.find((p) => p !== host) ?? pia;
+    // The other phone is looking at the scores when the hold starts.
+    await guest.page.getByTestId('players-toggle').click();
+    await expect(guest.page.getByTestId('players-sheet')).toBeVisible();
+
+    await goOffline(offline, links.get(offline) as Link);
+    await expect(offline.page.getByTestId('reconnecting-banner')).toBeVisible();
     for (const p of others) {
       await expect(p.page.getByTestId('overlay-waiting')).toBeVisible({ timeout: 45_000 });
       await expect(p.page.getByTestId('overlay-waiting')).toContainText(`Waiting for ${offline.name} to reconnect`);
       await expect(p.page.getByTestId('overlay-waiting')).toContainText('2 of 3 players connected');
       await expect(p.page.getByTestId('room-code')).toHaveCount(0);
       await expect(p.page.getByTestId('spygame-header').getByTestId('timer')).toHaveAttribute('data-paused', 'players');
+      // The reveal's own countdown reads as paused too (the host's Next is disabled meanwhile).
+      if (p === host) {
+        await expect(p.page.getByTestId('spygame-next-round')).toHaveAttribute('data-countdown', 'paused');
+        await expect(p.page.getByTestId('spygame-next-round')).toBeDisabled();
+      } else {
+        await expect(p.page.getByTestId('reveal-countdown')).toHaveAttribute('data-countdown', 'paused');
+      }
     }
     await expect(host.page.getByTestId('waiting-remove')).toHaveCount(1);
     await expect(host.page.getByTestId('waiting-remove')).toHaveAttribute('data-player-id', /.+/);
-    const guest = others.find((p) => p !== host) ?? pia;
     await expect(guest.page.getByTestId('waiting-remove')).toHaveCount(0);
     await expect(guest.page.getByTestId('waiting-leave')).toBeVisible();
+
+    // The overlay sits on top of the sheet that was open and is the dialog that holds the focus.
+    const box = await guest.page.getByTestId('waiting-title').boundingBox();
+    expect(box).not.toBeNull();
+    const onTop = await guest.page.evaluate(
+      ([x, y]) => {
+        const hit = document.elementFromPoint(x, y);
+        const overlay = document.querySelector('[data-testid="overlay-waiting"]');
+        return { overlay: Boolean(overlay && hit && overlay.contains(hit)), sheet: Boolean(hit?.closest('.sheet')), focused: Boolean(overlay && document.activeElement && overlay.contains(document.activeElement)) };
+      },
+      [(box?.x ?? 0) + (box?.width ?? 0) / 2, (box?.y ?? 0) + (box?.height ?? 0) / 2],
+    );
+    expect(onTop).toEqual({ overlay: true, sheet: false, focused: true });
+    // Tab stays inside the overlay, not the sheet underneath.
+    await guest.page.keyboard.press('Tab');
+    expect(await guest.page.evaluate(() => document.activeElement?.closest('[data-testid="overlay-waiting"]') !== null)).toBe(true);
   });
 
   test('the host removes the missing player: below three seats the game returns to the lobby with a message', async () => {
@@ -334,10 +369,132 @@ test.describe('Spy Game holds for a dropped phone and the host may remove it', (
     await goOnline(offline, links.get(offline) as Link);
     await expect(offline.page.getByTestId('home-join')).toBeVisible({ timeout: 15_000 });
     await expect(offline.page).toHaveURL(new RegExp(`/spygame/${code}$`));
-    await expect(offline.page.getByTestId('toast').filter({ hasText: /rejoin|removed/i })).toBeVisible();
+    // ...and is told why: removed, not "the room may have closed".
+    await expect(offline.page.getByTestId('toast').filter({ hasText: /removed from this room/i })).toBeVisible();
+    await expect(offline.page.getByTestId('toast').filter({ hasText: /closed/i })).toHaveCount(0);
   });
 
   test('no page errors were raised in any browser', async () => {
     expect(players().flatMap((p) => p.errors)).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Part three: the waiting overlay on a small phone, three long names to remove
+// ---------------------------------------------------------------------------
+
+test.describe('the waiting overlay fits a small phone with three long names', () => {
+  const SMALL = { width: 320, height: 568 };
+  let host: Player;
+  let guests: Player[] = [];
+
+  test.beforeAll(async ({ browser }) => {
+    host = await newPlayer(browser, 'Wolfgang Amadeus', { viewport: SMALL, isMobile: true, hasTouch: true });
+    guests = [];
+    for (const name of ['Maximiliano Wolf', 'Bartholomew Quin', 'Christopher Long']) guests.push(await newPlayer(browser, name, { viewport: PORTRAIT, isMobile: true, hasTouch: true }));
+  });
+
+  test.afterAll(async () => {
+    for (const p of [host, ...guests]) await p.context.close();
+  });
+
+  test('three phones drop during the reveal: the host sees every name and a 44px Remove for each, nothing overflows', async () => {
+    test.setTimeout(120_000);
+    await host.page.goto('/spygame');
+    await host.page.getByTestId('home-name').fill(host.name);
+    await host.page.getByTestId('home-create').click();
+    const code = await readCode(host.page);
+    for (const g of guests) await joinByCode(g, 'spygame', code);
+    await expect(host.page.getByTestId('player-item')).toHaveCount(4);
+    await host.page.getByTestId('settings-rounds').fill('2');
+    await host.page.getByTestId('settings-roundMinutes').fill('3');
+    await host.page.getByTestId('start-game').click();
+    const all = [host, ...guests];
+    for (const p of all) await expect(p.page.getByTestId('spygame-role')).toBeVisible();
+    const roles = await Promise.all(all.map(async (p) => (await p.page.getByTestId('spygame-role').getAttribute('data-role')) ?? ''));
+    const spy = all[roles.indexOf('spy')];
+    const agent = all[roles.indexOf('agent')];
+    const locationId = (await agent.page.getByTestId('spygame-location').getAttribute('data-location-id')) ?? '';
+    const tile = spy.page.locator(`[data-testid="guess-tile"][data-location-id="${locationId}"]`);
+    await tile.click();
+    await tile.click();
+    for (const p of all) await expect(p.page.getByTestId('spygame-screen')).toHaveAttribute('data-phase', 'reveal');
+
+    // Three tabs discarded at once (the seats stay for the reconnect grace).
+    for (const g of guests) await g.page.close();
+    // The phone host keeps the player list in a sheet: every drop must have reached the server before the boundary.
+    await host.page.getByTestId('players-toggle').click();
+    for (const g of guests) await expect(host.page.locator(`[data-testid="player-item"][data-name="${g.name}"]`)).toHaveClass(/player--offline/, { timeout: 20_000 });
+    await host.page.getByTestId('players-sheet-close').click();
+    const overlay = host.page.getByTestId('overlay-waiting');
+    await expect(overlay).toBeVisible({ timeout: 45_000 });
+    for (const g of guests) await expect(overlay.getByTestId('waiting-title')).toContainText(g.name);
+    await expect(overlay).toContainText('1 of 3 players connected');
+    await expect(host.page.getByTestId('waiting-remove')).toHaveCount(3);
+
+    const check = async (width: number) => {
+      const metrics = await host.page.evaluate(() => {
+        const card = document.querySelector('[data-testid="overlay-waiting"] .overlay__card') as HTMLElement;
+        return { pageOverflow: document.documentElement.scrollWidth > window.innerWidth, cardOverflow: card.scrollWidth > card.clientWidth + 1, cardWidth: card.getBoundingClientRect().width };
+      });
+      expect(metrics.pageOverflow, `page overflows at ${width}`).toBe(false);
+      expect(metrics.cardOverflow, `card overflows at ${width}`).toBe(false);
+      expect(metrics.cardWidth).toBeLessThanOrEqual(width);
+      const buttons = [...(await host.page.getByTestId('waiting-remove').all()), host.page.getByTestId('waiting-leave')];
+      for (const button of buttons) {
+        await button.scrollIntoViewIfNeeded();
+        const box = await button.boundingBox();
+        expect(box, `button box at ${width}`).not.toBeNull();
+        expect(box?.height ?? 0, `button height at ${width}`).toBeGreaterThanOrEqual(44);
+        expect(box?.x ?? -1).toBeGreaterThanOrEqual(0);
+        expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(width + 0.5);
+      }
+      await host.page.screenshot({ path: test.info().outputPath(`waiting-overlay-${width}.png`) });
+    };
+    await check(SMALL.width);
+    await host.page.setViewportSize(PORTRAIT);
+    await check(PORTRAIT.width);
+  });
+
+  test('no page errors were raised in any browser', async () => {
+    expect([host, ...guests].flatMap((p) => p.errors)).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Part four: a rejoin nobody answers gives the join form back, without the spinner
+// ---------------------------------------------------------------------------
+
+test.describe('a rejoin that never gets an answer', () => {
+  test('shows the join form alone after the safety valve, not next to the rejoining spinner', async ({ browser }) => {
+    test.setTimeout(60_000);
+    const player = await newPlayer(browser, 'Lost');
+    try {
+      // The server never sees the rejoin: whatever it would answer, the client waits in vain.
+      await player.page.routeWebSocket(/\/ws$/, (route) => {
+        const server = route.connectToServer();
+        route.onMessage((m) => {
+          if (typeof m === 'string' && (JSON.parse(m) as { t?: string }).t === 'rejoin') return;
+          server.send(m);
+        });
+        server.onMessage((m) => route.send(m));
+        route.onClose(() => server.close());
+        server.onClose((code, reason) => route.close({ code, reason }));
+      });
+      await player.page.goto('/');
+      await player.page.evaluate(() => {
+        localStorage.setItem('boredgames.seat.ABCD', JSON.stringify({ code: 'ABCD', token: 'stale-token', playerId: 'p1', savedAt: Date.now() }));
+      });
+      await player.page.goto('/skribble/ABCD');
+      await expect(player.page.getByTestId('rejoining-banner')).toBeVisible();
+      await expect(player.page.getByTestId('home-join')).toHaveCount(0);
+      await expect(player.page.getByTestId('home-join')).toBeVisible({ timeout: 25_000 });
+      await expect(player.page.getByTestId('rejoining-banner')).toHaveCount(0);
+      await expect(player.page.getByTestId('rejoin-stale-banner')).toBeVisible();
+      await expect(player.page.getByTestId('rejoin-stale-banner')).toContainText('ABCD');
+      expect(player.errors).toEqual([]);
+    } finally {
+      await player.context.close();
+    }
   });
 });

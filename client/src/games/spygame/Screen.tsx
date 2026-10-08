@@ -124,7 +124,7 @@ export function SpyGameScreen({ room, meId, isHost }: GameScreenProps<SpygameVie
           {view.role === 'spy' ? <GuessGrid view={view} /> : <CandidateGrid view={view} />}
           {isPhone && <section className="card spy__accuse-card">{accuse}</section>}
         </main>
-        {playing && view.reveal && <RevealOverlay room={room} view={view} reveal={view.reveal} isHost={isHost} />}
+        {playing && view.reveal && <RevealOverlay room={room} view={view} reveal={view.reveal} isHost={isHost} holding={holding} />}
       </div>
 
       {!isPhone && (

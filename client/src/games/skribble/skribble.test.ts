@@ -239,6 +239,36 @@ describe('platform hold', () => {
     expect(tagWith(html, 'timer')).toContain('data-paused="players"');
     expect(html).not.toContain('data-testid="word-mask"');
   });
+
+  it('shows the turn summary as paused under a hold and as starting, never a red "0", once its time ran out', () => {
+    const summary = (endsAt: number, waiting: SkribbleRoomState['waiting'] = null) =>
+      inTurn({ kind: 'turnEnd', word: 'cat', drawerId: 'bob', points: { host: 10 }, reason: 'allGuessed', endsAt }, {}, { waiting });
+    const held = summary(Date.now() - 2_000, { reason: 'players', missing: ['bob'], needed: 2, connected: 1 });
+    enter(held, 'host');
+    const heldHtml = renderToString(createElement(SkribbleScreen, { room: held, meId: 'host', isHost: true }));
+    expect(tagWith(heldHtml, 'turn-end-countdown')).toContain('data-countdown="paused"');
+    expect(heldHtml).toContain('Next turn is paused');
+    expect(heldHtml).not.toContain('timer--urgent');
+
+    const settling = summary(Date.now() - 2_000);
+    enter(settling, 'host');
+    const settlingHtml = renderToString(createElement(SkribbleScreen, { room: settling, meId: 'host', isHost: true }));
+    expect(tagWith(settlingHtml, 'turn-end-countdown')).toContain('data-countdown="settling"');
+    expect(settlingHtml).toContain('Next turn is starting');
+    // Both the header clock and the summary's own timer wait rather than sit on "0".
+    const timers = settlingHtml.match(/<div class="timer[^"]*"[^>]*>/g) ?? [];
+    expect(timers.length).toBeGreaterThanOrEqual(2);
+    for (const t of timers) {
+      expect(t).toContain('data-face="settling"');
+      expect(t).not.toContain('timer--urgent');
+    }
+
+    const running = summary(Date.now() + 5_000);
+    enter(running, 'host');
+    const runningHtml = renderToString(createElement(SkribbleScreen, { room: running, meId: 'host', isHost: true }));
+    expect(tagWith(runningHtml, 'turn-end-countdown')).toContain('data-countdown="running"');
+    expect(runningHtml).toContain('Next turn in');
+  });
 });
 
 describe('settings rows', () => {

@@ -14,6 +14,8 @@ interface Props {
   result: QuipgameMatchupResultView;
   isHost: boolean;
   playing: boolean;
+  /** The platform holds at this boundary for players whose phones went dark: nothing counts down. */
+  holding?: boolean;
 }
 
 function headline(result: QuipgameMatchupResultView): string {
@@ -35,20 +37,28 @@ interface FooterProps {
   label: string;
   /** False once the game has ended: the platform's podium is up and nothing counts down any more. */
   playing: boolean;
+  /** The platform holds here for missing players (the host cannot skip either; the server says so through canSkip). */
+  holding?: boolean;
 }
 
-/** The footer every result shares: the countdown, and the host's Next. */
-export function ResultFooter({ view, isHost, label, playing }: FooterProps) {
-  const seconds = useCountdownSeconds(view.endsAt);
+/**
+ * The footer every result shares: the countdown, and the host's Next. The countdown freezes
+ * while the game holds for missing players; once it has run out (the server settles for a moment
+ * after a hold, or its tick is a beat away) the next step reads as coming rather than a "0".
+ */
+export function ResultFooter({ view, isHost, label, playing, holding = false }: FooterProps) {
+  const seconds = useCountdownSeconds(playing && !holding ? view.endsAt : null);
+  const settling = playing && !holding && seconds <= 0;
+  const state = !playing ? 'over' : holding ? 'paused' : settling ? 'settling' : 'running';
   return (
     <div className="quip-result__footer">
-      {isHost && view.canSkip ? (
-        <button type="button" className="btn btn--primary btn--lg" onClick={skipResult} data-testid="quip-next">
-          {label} ({seconds})
+      {isHost && view.canSkip && playing && !holding ? (
+        <button type="button" className="btn btn--primary btn--lg" onClick={skipResult} data-testid="quip-next" data-countdown={state}>
+          {settling ? `${label}…` : <>{label} ({seconds})</>}
         </button>
       ) : (
-        <span className="quip-result__countdown" role="status" data-testid="result-countdown" data-seconds={seconds}>
-          {playing ? `${label} in ${seconds}` : 'Game over'}
+        <span className="quip-result__countdown" role="status" data-testid="result-countdown" data-seconds={seconds} data-countdown={state}>
+          {!playing ? 'Game over' : holding ? `${label} is paused` : settling ? `${label} starting…` : `${label} in ${seconds}`}
         </span>
       )}
     </div>
@@ -106,7 +116,7 @@ function AnswerRow({ room, side, answer, total, won }: { room: QuipgameRoomState
 }
 
 /** A resolved matchup: both answers with their authors, the vote bars, the points and the flawless badge. */
-export function Result({ room, view, result, isHost, playing }: Props) {
+export function Result({ room, view, result, isHost, playing, holding = false }: Props) {
   const total = result.a.votes + result.b.votes;
   const last = result.index + 1 >= result.total;
   const label = !last ? 'Next' : view.round >= view.totalRounds ? 'Show results' : view.round + 1 >= view.totalRounds ? 'Final round' : 'Next round';
@@ -125,7 +135,7 @@ export function Result({ room, view, result, isHost, playing }: Props) {
         <AnswerRow room={room} side="a" answer={result.a} total={total} won={result.outcome === 'a'} />
         <AnswerRow room={room} side="b" answer={result.b} total={total} won={result.outcome === 'b'} />
       </ol>
-      <ResultFooter view={view} isHost={isHost} label={label} playing={playing} />
+      <ResultFooter view={view} isHost={isHost} label={label} playing={playing} holding={holding} />
     </section>
   );
 }

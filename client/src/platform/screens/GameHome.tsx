@@ -19,6 +19,16 @@ type Intent = 'create' | 'join';
 /** A rejoin still not answered after this long (server unreachable) gives the join form back. */
 export const REJOIN_FORM_DELAY_MS = 15_000;
 
+/**
+ * What the front door shows: the rejoining spinner while a resumable seat is being tried, the
+ * form with a note once that has dragged on past REJOIN_FORM_DELAY_MS (the spinner goes: one or
+ * the other, never both), or the plain form.
+ */
+export function homeView(rejoining: boolean, rejoinStale: boolean): 'rejoining' | 'stale' | 'form' {
+  if (!rejoining) return 'form';
+  return rejoinStale ? 'stale' : 'rejoining';
+}
+
 interface Props {
   game: GameMeta;
   /** A code from the URL (join link): prefilled, with the invite banner. */
@@ -49,7 +59,8 @@ export function GameHome({ game, code: invitedCode }: Props) {
     const timer = window.setTimeout(() => setRejoinStale(true), REJOIN_FORM_DELAY_MS);
     return () => window.clearTimeout(timer);
   }, [rejoining]);
-  const showForm = !rejoining || rejoinStale;
+  const home = homeView(rejoining, rejoinStale);
+  const showForm = home !== 'rejoining';
 
   useEffect(() => saveName(name), [name]);
   useEffect(() => saveAvatar(avatar), [avatar]);
@@ -114,12 +125,17 @@ export function GameHome({ game, code: invitedCode }: Props) {
         <h1 className="hero__title">{game.name}</h1>
         <p className="hero__lead">{game.tagline}</p>
         <p className="hero__tagline">{game.description}</p>
-        {rejoining && (
+        {home === 'rejoining' && (
           <div className="banner banner--info" role="status" data-testid="rejoining-banner">
             <span className="spinner" aria-hidden="true" /> Rejoining your room<span className="ellipsis" aria-hidden="true" />
           </div>
         )}
-        {showForm && !rejoining && invitedCode && (
+        {home === 'stale' && (
+          <div className="banner banner--info" role="status" data-testid="rejoin-stale-banner">
+            <LinkIcon size={16} /> Your old seat is not answering. You can join {invitedCode ? <strong>{invitedCode}</strong> : 'the room'} again below.
+          </div>
+        )}
+        {home === 'form' && invitedCode && (
           <div className="banner banner--invite" role="status" data-testid="invite-banner">
             <LinkIcon size={16} /> You've been invited to room <strong>{invitedCode}</strong>. Pick a name and jump in!
           </div>

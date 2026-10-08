@@ -3,6 +3,7 @@ import type { PlayerPublic } from '@shared/platform/protocol';
 import { Avatar } from '../../../platform/components/Avatar';
 import { Timer } from '../../../platform/components/Timer';
 import { formatPoints } from '../../../platform/lib/format';
+import { useCountdownSeconds } from '../../../platform/lib/useCountdown';
 import { chooseWord } from '../actions';
 import { turnEndReasonText } from '../lib/format';
 
@@ -47,6 +48,9 @@ export function ChoosingOverlay({ phase, room, isDrawer, paused = false }: { pha
 
 export function TurnEndOverlay({ phase, room, paused = false }: { phase: TurnEndPhase; room: SkribbleRoomState; paused?: boolean }) {
   const drawerName = findPlayer(room, phase.drawerId)?.name ?? 'The drawer';
+  // The summary's time ran out and the server's next turn is a beat away: no red "0" meanwhile.
+  const seconds = useCountdownSeconds(paused ? null : phase.endsAt);
+  const settling = !paused && seconds <= 0;
   const earners = Object.entries(phase.points)
     .filter(([, pts]) => pts > 0)
     .sort((a, b) => b[1] - a[1]);
@@ -83,8 +87,10 @@ export function TurnEndOverlay({ phase, room, paused = false }: { phase: TurnEnd
           <p className="overlay__hint">Nobody guessed it this time.</p>
         )}
         <div className="overlay__footer">
-          <span>{paused ? 'Next turn is paused' : 'Next turn in'}</span>
-          <Timer endsAt={phase.endsAt} size="md" warnUnder={0} paused={paused} />
+          <span data-testid="turn-end-countdown" data-countdown={paused ? 'paused' : settling ? 'settling' : 'running'}>
+            {paused ? 'Next turn is paused' : settling ? 'Next turn is starting' : 'Next turn in'}
+          </span>
+          <Timer endsAt={phase.endsAt} size="md" warnUnder={0} paused={paused} settling={settling} />
         </div>
       </div>
     </div>

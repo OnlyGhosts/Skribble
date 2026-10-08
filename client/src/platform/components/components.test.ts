@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createElement } from 'react';
 import { renderToString } from 'react-dom/server';
@@ -13,7 +15,17 @@ const { SettingsPanel, maxPlayersMin } = await import('./SettingsPanel');
 const { Timer } = await import('./Timer');
 const { PodiumOverlay } = await import('./PodiumOverlay');
 const { WaitingOverlay, missingPlayers, waitingTitle } = await import('./WaitingOverlay');
+const { ReconnectingBanner, reconnectLabel } = await import('./ReconnectingBanner');
+const { homeView } = await import('../screens/GameHome');
 const { remainingMs } = await import('../lib/useCountdown');
+
+/** The z-index of the first rule whose selector list starts with `selector`. */
+function zIndexOf(css: string, selector: string): number {
+  const block = css.match(new RegExp(`\n${selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^{]*\{([^}]*)\}`))?.[1] ?? '';
+  const z = block.match(/z-index:\s*(-?\d+)/)?.[1];
+  if (z === undefined) throw new Error(`no z-index on ${selector}`);
+  return Number(z);
+}
 
 /** Attributes of the first tag carrying `data-testid="<id>"` in the markup. */
 function tagWith(html: string, testId: string): string {
@@ -48,6 +60,24 @@ describe('Timer paused', () => {
     expect(tag).not.toContain('timer--urgent');
     expect(tag).toContain('aria-label="Paused"');
     expect(tag).toContain('data-paused="players"');
+    expect(tag).toContain('data-face="paused"');
+  });
+
+  it('shows a waiting face, never a red "0", while the server settles after a deadline', () => {
+    const html = renderToString(createElement(Timer, { endsAt: Date.now() - 1_000, warnUnder: 0, settling: true }));
+    const tag = tagWith(html, 'timer');
+    expect(tag).toContain('timer--settling');
+    expect(tag).not.toContain('timer--urgent');
+    expect(tag).not.toContain('timer--paused');
+    expect(tag).toContain('aria-label="Starting soon"');
+    expect(tag).toContain('data-face="settling"');
+    expect(tag).not.toContain('data-paused=');
+    expect(html).toContain('class="spinner"');
+    expect(html).not.toMatch(/timer__value">0</);
+    // A hold outranks a settle: the pause glyph stays.
+    const both = tagWith(renderToString(createElement(Timer, { endsAt: Date.now() - 1_000, paused: true, settling: true })), 'timer');
+    expect(both).toContain('data-face="paused"');
+    expect(both).not.toContain('timer--settling');
   });
 });
 
@@ -92,6 +122,64 @@ describe('waiting overlay', () => {
     expect(dialog).toContain('data-needed="3"');
     const card = html.match(/<div class="overlay__card[^"]*"[^>]*>/)?.[0] ?? '';
     expect(card).toContain('tabindex="-1"');
+  });
+
+  it('never renders without a name: a stale list naming only the viewer or players already back is no hold to show', () => {
+    // The welcome of the player who just came back: the hold still names them, the list shows them connected.
+    const stale = room({
+      phase: 'playing',
+      players: [player('host'), player('bob', { joinOrder: 1, connected: true })],
+      waiting: { reason: 'players', missing: ['bob'], needed: 2, connected: 2 },
+    });
+    expect(missingPlayers(stale, stale.waiting!)).toEqual([]);
+    expect(renderToString(createElement(WaitingOverlay, { room: stale, waiting: stale.waiting!, isHost: true, meId: 'host' }))).toBe('');
+    // A frame built just before the viewer's own reconnect was folded in.
+    const mine = room({
+      phase: 'playing',
+      players: [player('host'), player('bob', { joinOrder: 1, connected: false })],
+      waiting: { reason: 'players', missing: ['bob'], needed: 2, connected: 1 },
+    });
+    expect(missingPlayers(mine, mine.waiting!, 'bob')).toEqual([]);
+    expect(renderToString(createElement(WaitingOverlay, { room: mine, waiting: mine.waiting!, isHost: false, meId: 'bob' }))).toBe('');
+    expect(renderToString(createElement(WaitingOverlay, { room: mine, waiting: mine.waiting!, isHost: true, meId: 'host' }))).toContain('Waiting for bob to reconnect');
+    // An empty list, whatever the server meant by it.
+    const empty = { ...mine, waiting: { reason: 'players' as const, missing: [], needed: 2, connected: 1 } };
+    expect(renderToString(createElement(WaitingOverlay, { room: empty, waiting: empty.waiting, isHost: true, meId: 'host' }))).toBe('');
+  });
+
+  it('stacks above the phone bottom sheets (the hold can start while one is open) and below the toasts', () => {
+    const css = readFileSync(fileURLToPath(new URL('../styles/components.css', import.meta.url)), 'utf8');
+    const sheet = zIndexOf(css, '.sheet');
+    expect(zIndexOf(css, '.waiting-overlay')).toBeGreaterThan(sheet);
+    expect(zIndexOf(css, '.podium-overlay')).toBeGreaterThan(sheet);
+    expect(zIndexOf(css, '.waiting-overlay')).toBeLessThan(zIndexOf(css, '.toasts'));
+    // The remove buttons keep a 44px target and let a long name wrap instead of overflowing the card.
+    const remove = css.slice(css.indexOf('.waiting__remove .btn {'));
+    expect(remove.slice(0, remove.indexOf('}'))).toMatch(/min-height: 44px/);
+    expect(remove.slice(0, remove.indexOf('}'))).toMatch(/white-space: normal/);
+  });
+});
+
+describe('reconnecting banner', () => {
+  it('shows over the game screen while the socket is down and not at all while connected', () => {
+    expect(reconnectLabel('reconnecting')).toBe('Reconnecting…');
+    expect(reconnectLabel('connecting')).toBe('Connecting…');
+    expect(reconnectLabel('connected')).toBeNull();
+    // The store starts out connecting (react-dom/server reads the store's initial state).
+    const html = renderToString(createElement(ReconnectingBanner));
+    const tag = tagWith(html, 'reconnecting-banner');
+    expect(tag).toContain('data-status="connecting"');
+    expect(tag).toContain('role="status"');
+    expect(html).toContain('Connecting…');
+  });
+});
+
+describe('game home while rejoining', () => {
+  it('shows the rejoining spinner or the join form, never both once the rejoin has dragged on', () => {
+    expect(homeView(false, false)).toBe('form');
+    expect(homeView(false, true)).toBe('form');
+    expect(homeView(true, false)).toBe('rejoining');
+    expect(homeView(true, true)).toBe('stale');
   });
 });
 

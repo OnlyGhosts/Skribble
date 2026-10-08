@@ -12,34 +12,41 @@ export function waitingTitle(names: string[]): string {
   return `Waiting for ${list} to reconnect`;
 }
 
-/** The missing players that still hold a seat (a removed one simply drops off the list). */
-export function missingPlayers(room: RoomState, waiting: WaitingState): PlayerPublic[] {
-  return waiting.missing.map((id) => room.players.find((p) => p.id === id)).filter((p): p is PlayerPublic => p !== undefined);
+/**
+ * The missing players worth naming: seated and still disconnected (a removed one simply drops
+ * off the list), and never the viewer, who is plainly connected. A snapshot can carry a stale
+ * list for a frame: the welcome of the reconnecting player, built just before their own
+ * reconnect was folded in, or a hold narrowed by the comeback the player list already shows.
+ */
+export function missingPlayers(room: RoomState, waiting: WaitingState, meId: string | null = null): PlayerPublic[] {
+  return waiting.missing
+    .map((id) => room.players.find((p) => p.id === id))
+    .filter((p): p is PlayerPublic => p !== undefined && !p.connected && p.id !== meId);
 }
 
 /**
  * Shown by the platform over any game's screen while the game holds at a boundary for players
  * whose phones went dark (`room.waiting`). The game picks up on its own when they are back; the
  * host may remove them instead. A modal dialog like the podium: it takes the focus away from the
- * screen it covers and keeps Tab inside until it goes away.
+ * screen it covers and keeps Tab inside until it goes away. Nothing renders while there is nobody
+ * to name: a nameless "waiting for players" would only flash at the player who just came back.
  */
-export function WaitingOverlay({ room, waiting, isHost }: { room: RoomState; waiting: WaitingState; isHost: boolean }) {
+export function WaitingOverlay({ room, waiting, isHost, meId = null }: { room: RoomState; waiting: WaitingState; isHost: boolean; meId?: string | null }) {
   const cardRef = useRef<HTMLDivElement | null>(null);
-  useModalFocus(cardRef, true);
-  const missing = missingPlayers(room, waiting);
+  const missing = missingPlayers(room, waiting, meId);
+  useModalFocus(cardRef, missing.length > 0);
+  if (missing.length === 0) return null;
   return (
     <div className="waiting-overlay" role="dialog" aria-modal="true" aria-label="Game paused" data-testid="overlay-waiting" data-connected={waiting.connected} data-needed={waiting.needed}>
       <div className="overlay__card" ref={cardRef} tabIndex={-1}>
         <p className="overlay__kicker">Game paused</p>
-        {missing.length > 0 && (
-          <ul className="waiting__avatars" aria-hidden="true">
-            {missing.map((p) => (
-              <li key={p.id} className="waiting__avatar">
-                <Avatar avatar={p.avatar} size="lg" dimmed />
-              </li>
-            ))}
-          </ul>
-        )}
+        <ul className="waiting__avatars" aria-hidden="true">
+          {missing.map((p) => (
+            <li key={p.id} className="waiting__avatar">
+              <Avatar avatar={p.avatar} size="lg" dimmed />
+            </li>
+          ))}
+        </ul>
         <h2 className="overlay__title" data-testid="waiting-title">
           {waitingTitle(missing.map((p) => p.name))}
         </h2>
@@ -47,7 +54,7 @@ export function WaitingOverlay({ room, waiting, isHost }: { room: RoomState; wai
           <span className="spinner" aria-hidden="true" /> {`${waiting.connected} of ${waiting.needed} players connected`}
         </p>
         <p className="overlay__hint">The game carries on by itself as soon as they are back.</p>
-        {isHost && missing.length > 0 && (
+        {isHost && (
           <div className="waiting__remove">
             {missing.map((p) => (
               <button key={p.id} type="button" className="btn btn--secondary btn--sm" onClick={() => kickPlayer(p.id)} data-testid="waiting-remove" data-player-id={p.id}>

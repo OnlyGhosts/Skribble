@@ -1446,10 +1446,14 @@
 }
 
 /* ---------- Waiting overlay (platform: the game holds for players whose phones went dark) ---------- */
+/*
+ * Above the phone bottom sheets (z-index 80): a hold can start while the players, chat or menu
+ * sheet is up, and the dialog that took the focus must be the one on top. Below the toasts.
+ */
 .waiting-overlay {
   position: fixed;
   inset: 0;
-  z-index: 70;
+  z-index: 90;
   display: grid;
   place-items: center;
   padding: calc(var(--space-4) + env(safe-area-inset-top)) var(--gutter) calc(var(--space-4) + env(safe-area-inset-bottom));
@@ -1489,20 +1493,72 @@
 
 .waiting__remove .btn {
   min-height: 44px;
+  /* A long name wraps onto a second line rather than pushing the button past the card. */
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: center;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  line-height: 1.2;
 }
 
-.timer--paused .timer__value {
+.waiting-overlay .overlay__title {
+  /* "Waiting for <long name>, <long name> and <long name> to reconnect" on a 320px phone. */
+  overflow-wrap: anywhere;
+  max-width: 100%;
+}
+
+.waiting-overlay .overlay__footer .btn {
+  min-height: 44px;
+}
+
+/* ---------- Reconnecting banner (over a game screen while the socket is down) ---------- */
+.reconnect-banner {
+  position: fixed;
+  top: calc(var(--space-3) + env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 101;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100vw - 2 * var(--gutter));
+  padding: 8px 14px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  color: var(--color-warning-text);
+  font-size: 0.85rem;
+  font-weight: 700;
+  box-shadow: var(--shadow-lg);
+  white-space: nowrap;
+  pointer-events: none;
+  animation: toast-in 0.2s ease;
+}
+
+/* The toasts queue below the banner instead of under it. */
+:root:has(.reconnect-banner) .toasts {
+  top: calc(var(--space-4) + env(safe-area-inset-top) + 44px);
+}
+
+.timer--paused .timer__value,
+.timer--settling .timer__value {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: var(--color-text-muted);
 }
 
-/* ---------- Podium overlay (platform, over any game's screen) ---------- */
+.timer--settling .spinner {
+  width: 14px;
+  height: 14px;
+}
+
+/* ---------- Podium overlay (platform, over any game's screen; above the sheets like the waiting overlay) ---------- */
 .podium-overlay {
   position: fixed;
   inset: 0;
-  z-index: 70;
+  z-index: 90;
   display: grid;
   place-items: center;
   padding: calc(var(--space-4) + env(safe-area-inset-top)) var(--gutter) calc(var(--space-4) + env(safe-area-inset-bottom));
