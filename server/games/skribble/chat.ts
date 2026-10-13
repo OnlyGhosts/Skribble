@@ -7,10 +7,15 @@ import { endTurn, snapshot, type Gx } from './turns.js';
 /** Returns true when the line was consumed (the platform must not broadcast it as plain chat). */
 export function chat(gx: Gx, playerId: string, text: string): boolean {
   const { data, ctx } = gx;
-  const player = findPlayer(ctx, playerId);
-  if (!player) return false;
   const turn = data.turn;
   if (!turn || (data.phase.kind !== 'drawing' && data.phase.kind !== 'choosing')) return false;
+  const player = findPlayer(ctx, playerId);
+  if (!player) {
+    // A spectator's line is plain chat that never scores, so the word must not slip through it to the guessers.
+    if (data.phase.kind !== 'drawing' || !containsWord(text, turn.word)) return false;
+    gx.effects.push({ type: 'chat', to: [playerId], kind: 'system', text: "You can't give away the word!" });
+    return true;
+  }
   if (player.id === turn.drawerId) {
     // While choosing, the drawer already knows every candidate: none of them may reach the guessers.
     const secrets = data.phase.kind === 'choosing' ? turn.choices : [turn.word];

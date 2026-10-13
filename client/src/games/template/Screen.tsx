@@ -11,14 +11,20 @@ import { socket } from '../../platform/net/socket';
 
 const meta = gameById('template');
 
-/** One big button, a live ranking and the clock. The platform draws the podium when the race ends. */
+/**
+ * One big button, a live ranking and the clock. The platform draws the podium when the race ends.
+ * A player sitting this one out watches: their button is off and the standings list racers only.
+ */
 export function ClickRaceScreen({ room, meId }: GameScreenProps<TemplateView, TemplateSettings>) {
   const view = room.game;
   if (!view) return null;
   const target = room.settings.targetClicks;
   const mine = view.clicks[meId] ?? 0;
-  const racing = room.phase === 'playing';
-  const ranking = room.players.slice().sort((a, b) => (view.clicks[b.id] ?? 0) - (view.clicks[a.id] ?? 0) || a.joinOrder - b.joinOrder);
+  const spectating = !room.players.find((p) => p.id === meId)?.participating;
+  const racing = room.phase === 'playing' && !spectating;
+  const racers = room.players.filter((p) => p.participating);
+  const ranking = racers.slice().sort((a, b) => (view.clicks[b.id] ?? 0) - (view.clicks[a.id] ?? 0) || a.joinOrder - b.joinOrder);
+  const watching = room.players.filter((p) => !p.participating);
 
   return (
     <div className="race">
@@ -42,14 +48,26 @@ export function ClickRaceScreen({ room, meId }: GameScreenProps<TemplateView, Te
             style={{ background: meta.accent }}
             onClick={() => socket.send({ t: 'click' })}
             disabled={!racing}
-            aria-label={`Tap! ${mine} of ${target}`}
+            aria-label={spectating ? "You're sitting this one out" : `Tap! ${mine} of ${target}`}
             data-testid="click-button"
+            data-spectating={spectating}
           >
-            <span className="race__count" data-testid="click-count">
-              {mine}
-            </span>
-            <span className="race__target">/ {target}</span>
+            {spectating ? (
+              <span className="race__watching">Sitting out</span>
+            ) : (
+              <>
+                <span className="race__count" data-testid="click-count">
+                  {mine}
+                </span>
+                <span className="race__target">/ {target}</span>
+              </>
+            )}
           </button>
+          {spectating && (
+            <p className="race__note" data-testid="race-spectating">
+              You're sitting this one out — the race goes on without you.
+            </p>
+          )}
           <ol className="race__list" aria-label="Progress" data-testid="race-list">
             {ranking.map((p) => {
               const clicks = view.clicks[p.id] ?? 0;
@@ -63,6 +81,11 @@ export function ClickRaceScreen({ room, meId }: GameScreenProps<TemplateView, Te
               );
             })}
           </ol>
+          {watching.length > 0 && (
+            <p className="race__note player__status--sitting-out" data-testid="race-watching">
+              {`Watching: ${watching.map((p) => p.name).join(', ')}`}
+            </p>
+          )}
         </main>
         <aside className="card race__chat" aria-label="Chat">
           <Chat />

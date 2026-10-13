@@ -1618,6 +1618,19 @@
 /* ---------- Podium celebration ---------- */
 .podium-card {
   position: relative;
+  /* The card never scrolls as a whole: its standings do, and the actions below them stay in view. */
+  overflow: hidden;
+}
+
+.podium-card__scroll {
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
 }
 
 .podium-card__menu {
@@ -1656,10 +1669,16 @@
 
 .podium-next {
   width: 100%;
+  flex: 0 0 auto;
+  /* A very short screen scrolls the actions themselves rather than losing them. */
+  max-height: 70%;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 8px;
   margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border);
 }
 
 .podium-next .ready-controls {

@@ -53,56 +53,59 @@ export function PodiumOverlay({ room, meId, isHost }: { room: RoomState; meId: s
     <div className="podium-overlay" role="dialog" aria-modal="true" aria-label="Final scores" data-testid="overlay-game-end" data-winner={iWon}>
       <Confetti />
       <div className="overlay__card overlay__card--wide podium-card" ref={cardRef} tabIndex={-1} data-testid="podium-card">
-        <p className="overlay__kicker">Game over</p>
+        {/* Only the standings scroll on a small phone: Ready and the host's buttons below never leave the screen. */}
+        <div className="podium-card__scroll" data-testid="podium-standings">
+          <p className="overlay__kicker">Game over</p>
 
-        <div className={`podium-hero${iWon ? ' podium-hero--won' : ''}`}>
-          <div className="podium-hero__avatars" aria-hidden="true">
-            {champions.map((entry) => {
-              const player = findPlayer(room, entry.playerId);
-              return player ? <Avatar key={entry.playerId} avatar={player.avatar} size="xl" /> : <span key={entry.playerId} className="avatar avatar--xl avatar--placeholder" />;
-            })}
+          <div className={`podium-hero${iWon ? ' podium-hero--won' : ''}`}>
+            <div className="podium-hero__avatars" aria-hidden="true">
+              {champions.map((entry) => {
+                const player = findPlayer(room, entry.playerId);
+                return player ? <Avatar key={entry.playerId} avatar={player.avatar} size="xl" /> : <span key={entry.playerId} className="avatar avatar--xl avatar--placeholder" />;
+              })}
+            </div>
+            <h2 className="overlay__title podium-hero__title" data-testid="podium-headline">
+              {winnerHeadline(room)}
+            </h2>
+            {me && (
+              <p className={`podium-place${iWon ? ' podium-place--won' : ''}`} data-testid="podium-place">
+                {place ?? 'You sat this one out'}
+              </p>
+            )}
           </div>
-          <h2 className="overlay__title podium-hero__title" data-testid="podium-headline">
-            {winnerHeadline(room)}
-          </h2>
-          {me && (
-            <p className={`podium-place${iWon ? ' podium-place--won' : ''}`} data-testid="podium-place">
-              {place ?? 'You sat this one out'}
-            </p>
-          )}
-        </div>
 
-        <ol className="podium" aria-label="Podium">
-          {visual.map((entry) => {
-            const player = findPlayer(room, entry.playerId);
-            return (
-              <li key={entry.playerId} className={`podium__step podium__step--${entry.rank}`} data-rank={entry.rank} data-testid="podium-entry">
-                <span className="podium__medal" aria-hidden="true">
-                  {MEDALS[entry.rank - 1] ?? ''}
-                </span>
-                {player ? <Avatar avatar={player.avatar} size="lg" /> : <span className="avatar avatar--lg avatar--placeholder" />}
-                <span className="podium__name">{player?.name ?? 'Left the game'}</span>
-                <span className="podium__score">{entry.score} pts</span>
-                <span className="podium__block" aria-hidden="true" />
-              </li>
-            );
-          })}
-        </ol>
-        {rest.length > 0 && (
-          <ol className="podium-rest" start={4} aria-label="Other players">
-            {rest.map((entry) => {
+          <ol className="podium" aria-label="Podium">
+            {visual.map((entry) => {
               const player = findPlayer(room, entry.playerId);
               return (
-                <li key={entry.playerId} className="podium-rest__row" data-testid="podium-entry" data-rank={entry.rank}>
-                  <span className="podium-rest__rank">#{entry.rank}</span>
-                  {player && <Avatar avatar={player.avatar} size="sm" />}
-                  <span className="podium-rest__name">{player?.name ?? 'Left the game'}</span>
-                  <span className="podium-rest__score">{entry.score} pts</span>
+                <li key={entry.playerId} className={`podium__step podium__step--${entry.rank}`} data-rank={entry.rank} data-testid="podium-entry">
+                  <span className="podium__medal" aria-hidden="true">
+                    {MEDALS[entry.rank - 1] ?? ''}
+                  </span>
+                  {player ? <Avatar avatar={player.avatar} size="lg" /> : <span className="avatar avatar--lg avatar--placeholder" />}
+                  <span className="podium__name">{player?.name ?? 'Left the game'}</span>
+                  <span className="podium__score">{entry.score} pts</span>
+                  <span className="podium__block" aria-hidden="true" />
                 </li>
               );
             })}
           </ol>
-        )}
+          {rest.length > 0 && (
+            <ol className="podium-rest" start={4} aria-label="Other players">
+              {rest.map((entry) => {
+                const player = findPlayer(room, entry.playerId);
+                return (
+                  <li key={entry.playerId} className="podium-rest__row" data-testid="podium-entry" data-rank={entry.rank}>
+                    <span className="podium-rest__rank">#{entry.rank}</span>
+                    {player && <Avatar avatar={player.avatar} size="sm" />}
+                    <span className="podium-rest__name">{player?.name ?? 'Left the game'}</span>
+                    <span className="podium-rest__score">{entry.score} pts</span>
+                  </li>
+                );
+              })}
+            </ol>
+          )}
+        </div>
 
         <div className="podium-next" data-testid="podium-next">
           {me && <ReadyControls me={me} context="podium" />}

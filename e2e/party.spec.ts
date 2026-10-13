@@ -14,6 +14,9 @@ test.describe.configure({ mode: 'serial' });
 
 const ROOM_CODE_RE = /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{4}$/;
 const PORTRAIT = { width: 390, height: 844 };
+const SMALL = { width: 320, height: 568 };
+/** playwright.config's default viewport, restored after a small-screen check. */
+const DESKTOP = { width: 1280, height: 800 };
 const MIN_TARGET = 44;
 
 interface Player {
@@ -160,6 +163,12 @@ test('the race is played to the podium: the winner is celebrated, Enter changes 
   await expectInsideViewport(pia.page, 'podium-card', PORTRAIT);
   const readyBox = await pia.page.getByTestId('overlay-game-end').getByTestId('ready-toggle').boundingBox();
   expect(readyBox?.height ?? 0).toBeGreaterThanOrEqual(MIN_TARGET);
+
+  // On a small phone the standings scroll inside the card while Ready and the host's buttons stay on screen, untouched.
+  await host.page.setViewportSize(SMALL);
+  await expect(host.page.getByTestId('overlay-game-end')).toBeVisible();
+  for (const id of ['ready-toggle', 'sitout-toggle', 'play-again', 'back-to-lobby']) await expectInsideViewport(host.page, id, SMALL);
+  await host.page.setViewportSize(DESKTOP);
 
   // The regression: Enter after the podium (the thumb still on the keyboard's send key) leaves nobody.
   for (const p of players) {

@@ -194,10 +194,14 @@ describe('player list and chat hooks', () => {
     expect(placeholderFor('drawing', false, false)).toBe('Type your guess...');
     expect(placeholderFor('drawing', false, true)).toBe('You guessed it! Chat with others who know...');
     expect(placeholderFor('lobby', true, false)).toBe('Chat...');
-    const state = inTurn(drawingPhase('host'), { players: { bob: { guessedThisTurn: true, turnPoints: 0 } } });
+    expect(placeholderFor('drawing', false, false, false)).toBe("You're watching this one. Chat...");
+    const state = inTurn(drawingPhase('host'), { players: { bob: { guessedThisTurn: true, turnPoints: 0 } } }, { players: [player('host'), player('bob', { joinOrder: 1 }), player('carol', { joinOrder: 2 })] });
     expect(skribbleClient.chatPlaceholder?.(state, 'host')).toBe('Chat with players who guessed...');
     expect(skribbleClient.chatPlaceholder?.(state, 'bob')).toMatch(/you guessed it/i);
     expect(skribbleClient.chatPlaceholder?.(state, 'carol')).toBe('Type your guess...');
+    const spectated = inTurn(drawingPhase('host'), {}, { players: [player('host'), player('bob', { joinOrder: 1 }), player('rae', { joinOrder: 2, participating: false, sittingOut: true })] });
+    expect(skribbleClient.chatPlaceholder?.(spectated, 'rae')).toBe("You're watching this one. Chat...");
+    expect(skribbleClient.chatPlaceholder?.(spectated, 'bob')).toBe('Type your guess...');
   });
 });
 
@@ -229,6 +233,20 @@ describe('guess tiles for assistive tech and narrow bars', () => {
     const tag = tagWith(html, 'word-mask');
     expect(tag).toContain('role="img"');
     expect(tag).toContain('aria-label="5 letters in 2 words."');
+  });
+});
+
+describe('spectators', () => {
+  it('shows a player sitting the game out the rating tally without live buttons', () => {
+    const state = inTurn(drawingPhase('host', { likes: 2 }), {}, { players: [player('host'), player('bob', { joinOrder: 1 }), player('rae', { joinOrder: 2, participating: false, sittingOut: true })] });
+    enter(state, 'rae');
+    const spectator = renderToString(createElement(SkribbleScreen, { room: state, meId: 'rae', isHost: false }));
+    expect(tagWith(spectator, 'rate-like')).toContain('disabled');
+    expect(tagWith(spectator, 'rate-dislike')).toContain('disabled');
+    expect(tagWith(spectator, 'rate-like')).toContain('(2)');
+    enter(state, 'bob');
+    const guesser = renderToString(createElement(SkribbleScreen, { room: state, meId: 'bob', isHost: false }));
+    expect(tagWith(guesser, 'rate-like')).not.toContain('disabled');
   });
 });
 

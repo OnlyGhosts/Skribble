@@ -80,12 +80,19 @@ export interface PlatformRoomData {
 
 export const MAX_KICKED_TOKENS = 50;
 
-/** Rooms stored before the party fields existed load with them filled in (a running game counts every seat as playing). */
+/**
+ * Rooms stored before the party fields existed load with them filled in: a running game counts
+ * every seat as playing, and a settings record from before content modes reads as a family room
+ * (the games index their content packs by it, so it must never be missing).
+ */
 export function upgradeRoomData(data: PlatformRoomData): PlatformRoomData {
   const players = data.players as Array<Partial<PlatformPlayerData> & PlatformPlayerData>;
-  if (players.every((p) => typeof p.ready === 'boolean' && typeof p.sittingOut === 'boolean' && typeof p.participating === 'boolean')) return data;
+  const settings = data.settings as Partial<RoomSettingsData> & Record<string, unknown>;
+  const playersCurrent = players.every((p) => typeof p.ready === 'boolean' && typeof p.sittingOut === 'boolean' && typeof p.participating === 'boolean');
+  if (playersCurrent && typeof settings.contentMode === 'string') return data;
   return {
     ...data,
+    settings: { ...data.settings, contentMode: settings.contentMode ?? 'family' },
     players: players.map((p) => ({
       ...p,
       ready: p.ready ?? false,

@@ -1,4 +1,5 @@
 import type { PlayerPublic } from '@shared/platform/protocol';
+import { isReady } from '../lib/party';
 import { setReady, setSitOut } from '../net/actions';
 import { CheckIcon, EyeIcon } from './Icons';
 
@@ -10,23 +11,30 @@ interface Props {
 
 /**
  * The two choices everyone makes between games: ready up for the next one, or sit it out while
- * staying in the party. Sitting out clears the ready state (the server does the same).
+ * staying in the party. Sitting out clears the ready state (the server does the same). The host
+ * is in by pressing Start, so their toggle shows as ready and says so instead of asking.
  */
 export function ReadyControls({ me, context }: Props) {
   const readyLabel = context === 'podium' ? 'Ready for the next game' : "I'm ready";
+  const ready = isReady(me);
+  const hostStarts = me.isHost && !me.sittingOut;
   return (
-    <div className="ready-controls" data-testid="ready-controls" data-ready={me.ready} data-sitting-out={me.sittingOut}>
+    <div className="ready-controls" data-testid="ready-controls" data-ready={ready} data-sitting-out={me.sittingOut}>
       <button
         type="button"
-        className={`btn btn--lg btn--block ready-toggle${me.ready ? ' is-ready' : ' btn--primary'}`}
-        aria-pressed={me.ready}
-        disabled={me.sittingOut}
+        className={`btn btn--lg btn--block ready-toggle${hostStarts ? ' ready-toggle--host' : ''}${ready ? ' is-ready' : ' btn--primary'}`}
+        aria-pressed={ready}
+        disabled={me.sittingOut || hostStarts}
         onClick={() => setReady(!me.ready)}
         data-testid="ready-toggle"
       >
-        {me.ready ? (
+        {hostStarts ? (
           <>
-            <CheckIcon size={18} /> {context === 'podium' ? "You're ready" : "You're ready"}
+            <CheckIcon size={18} /> You're in — you start the game
+          </>
+        ) : ready ? (
+          <>
+            <CheckIcon size={18} /> You're ready
           </>
         ) : (
           readyLabel

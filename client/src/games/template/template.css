@@ -73,6 +73,18 @@
   opacity: 0.85;
 }
 
+.race__watching {
+  font-size: 1.3rem;
+  font-weight: 800;
+}
+
+.race__note {
+  width: 100%;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
 .race__list {
   width: 100%;
   display: flex;

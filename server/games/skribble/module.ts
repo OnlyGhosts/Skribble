@@ -57,9 +57,12 @@ function handle(ctx: Ctx, data: SkribbleData, event: GameEvent<SkribbleClientMes
       case 'playerLeft':
         return onPlayerLeft(gx, event.playerId);
       case 'playerDisconnected':
-        return onPlayerDisconnected(gx, event.playerId);
+        // A spectator's socket is none of the turn's business: they neither draw nor guess.
+        if (findPlayer(ctx, event.playerId)) onPlayerDisconnected(gx, event.playerId);
+        return;
       case 'playerReconnected':
-        return onPlayerReconnected(gx, event.playerId);
+        if (findPlayer(ctx, event.playerId)) onPlayerReconnected(gx, event.playerId);
+        return;
       case 'tick':
         return onTick(gx);
     }
@@ -82,6 +85,8 @@ function onMessage(gx: Gx, playerId: string, msg: SkribbleClientMessage): void {
 
 function onPlayerLeft(gx: Gx, playerId: string): void {
   const { data } = gx;
+  // A spectator leaving changes nothing about the turn (a held boundary still re-checks its list).
+  if (!wasParticipant(data, playerId)) return resumeHeldTurn(gx);
   const queued = data.turnQueue.indexOf(playerId);
   if (queued > data.turnIndex) data.turnQueue.splice(queued, 1);
   // Their guess still counts for the drawer (turn.correct / guesserIds); the summary and the rating tally forget them.
@@ -117,6 +122,11 @@ function onPlayerReconnected(gx: Gx, playerId: string): void {
     snapshot(gx);
   }
   resumeHeldTurn(gx);
+}
+
+/** The platform has already dropped a leaver from ctx.players: the turn's own records say whether they played. */
+function wasParticipant(data: SkribbleData, playerId: string): boolean {
+  return data.turnQueue.includes(playerId) || data.turn?.drawerId === playerId || data.turn?.guesserIds.includes(playerId) === true;
 }
 
 type Deadline = { kind: 'choose' | 'hint' | 'drawEnd' | 'turnEnd' | 'drawerGone' | 'allGuessed'; at: number };

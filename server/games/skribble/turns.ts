@@ -223,6 +223,7 @@ export function resumeHeldTurn(gx: Gx): void {
 export function rate(gx: Gx, playerId: string, value: 'like' | 'dislike'): void {
   const { data } = gx;
   if (data.phase.kind !== 'drawing' || !data.turn) return fail(gx, playerId, 'There is nothing to rate right now.');
+  if (!findPlayer(gx.ctx, playerId)) return fail(gx, playerId, 'Only the players in the game rate drawings.');
   if (data.turn.drawerId === playerId) return fail(gx, playerId, "You can't rate your own drawing.");
   if (data.turn.ratings[playerId] === value) delete data.turn.ratings[playerId];
   else data.turn.ratings[playerId] = value;

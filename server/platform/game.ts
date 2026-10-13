@@ -149,6 +149,11 @@ export interface GameServerModule<S = unknown, D = unknown, V = unknown, CMsg = 
    */
   sideMessages?: ReadonlySet<string>;
   createSideStore?(storage: GameStorage): GameSideStore<D, CMsg, SMsg>;
+  /**
+   * Message types (`msg.t`) the host may send even while sitting the game out, such as "next
+   * round" or "end game". A spectator's other messages never reach `handle`.
+   */
+  hostMessages?: ReadonlySet<string>;
 }
 
 /** The erased module type the registry and the engine work with. */

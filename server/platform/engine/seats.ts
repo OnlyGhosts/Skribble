@@ -8,7 +8,7 @@ import { runGame } from './delegate.js';
 import { ensureEnoughSeated } from './lobby.js';
 import { broadcastSnapshot, fail, requireHost, sendTo, sendWelcome, systemMessage, type Cx } from './messaging.js';
 import { moduleFor } from './module.js';
-import { connectedCount, electorate, findByToken, findPlayer, inProgress, isFull, othersConnected, votesNeeded } from './players.js';
+import { connectedCount, electorate, findByToken, findPlayer, isFull, isJoinable, othersConnected, votesNeeded } from './players.js';
 import { MAX_KICKED_TOKENS, type PlatformPlayerData } from './state.js';
 
 type Seat = { ok: true; playerId: string } | { ok: false; code: 'ROOM_FULL' | 'GAME_IN_PROGRESS' | 'REJOIN_FAILED' | 'INTERNAL'; message: string };
@@ -24,7 +24,7 @@ export function create(cx: Cx, gameId: GameId, name: string, avatar: Avatar, con
 export function join(cx: Cx, name: string, avatar: Avatar, connectionId: string): Seat {
   const { data } = cx;
   if (isFull(data)) return { ok: false, code: 'ROOM_FULL', message: 'This room is full.' };
-  if (inProgress(data) && !data.settings.allowMidGameJoin) {
+  if (!isJoinable(data)) {
     return { ok: false, code: 'GAME_IN_PROGRESS', message: 'A game is in progress and the host disabled mid-game joins.' };
   }
   const wasEmpty = data.players.length === 0;

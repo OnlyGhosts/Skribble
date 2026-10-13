@@ -62,7 +62,8 @@ export const skribbleClient = defineGameClient<SkribbleView, SkribbleSettings>({
 
   chatPlaceholder(room, meId) {
     const kind = room.game?.phase.kind;
-    return placeholderFor(kind, meId !== null && drawerIdOf(room.game) === meId, hasGuessed(room.game, meId));
+    const participating = room.players.find((p) => p.id === meId)?.participating ?? false;
+    return placeholderFor(kind, meId !== null && drawerIdOf(room.game) === meId, hasGuessed(room.game, meId), participating);
   },
 
   /** The drawing stream is the platform canvas's. */

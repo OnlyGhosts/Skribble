@@ -150,6 +150,7 @@ export const quipgameModule: GameServerModule<QuipgameSettings, QuipgameData, Qu
   handle,
   nextDeadline,
   view: viewFor,
+  hostMessages: new Set(['next']),
 };
 
 export type { QuipgameData };

@@ -22,8 +22,10 @@ export function letterCounts(mask: string): string {
     .join(' ');
 }
 
-export function placeholderFor(phaseKind: string | undefined, isDrawer: boolean, hasGuessed: boolean): string {
+export function placeholderFor(phaseKind: string | undefined, isDrawer: boolean, hasGuessed: boolean, participating = true): string {
   if (phaseKind !== 'drawing') return 'Chat...';
+  // A spectator's lines are plain chat, never guesses.
+  if (!participating) return "You're watching this one. Chat...";
   // The server delivers the drawer's lines to players who already know the word only.
   if (isDrawer) return 'Chat with players who guessed...';
   return hasGuessed ? 'You guessed it! Chat with others who know...' : 'Type your guess...';

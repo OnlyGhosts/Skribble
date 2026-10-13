@@ -15,7 +15,8 @@ import { drawerPoints, guesserPoints } from '../../../shared/games/skribble/scor
 import { getWordList } from '../../../shared/games/skribble/words/index.js';
 import { UNHINGED_WORDS } from '../../../shared/games/skribble/words/unhinged.js';
 import { RECONNECT_GRACE_MS } from '../../../shared/platform/constants.js';
-import { AVATAR, TEST_WORDS, createHarness, drawerOf, expectPhase, phaseOf, pick, skribbleView, startGame, type Harness } from '../../platform/drivers/testUtils.js';
+import { AVATAR, TEST_WORDS, createHarness, drawerOf, expectPhase, phaseOf, pick, readyUp, skribbleView, startGame, type Harness } from '../../platform/drivers/testUtils.js';
+import { GAME_TEST_FIXTURES } from '../testFixtures.js';
 
 const START = new Date('2026-01-01T12:00:00Z').getTime();
 
@@ -1090,5 +1091,45 @@ describe('Skribble: ratings and snapshots', () => {
     expect(h.transport.errors(alice)).toEqual(['INVALID_MESSAGE']);
     expect(h.room.settings.rounds).toBe(5);
     expect(h.room.join('Bob', AVATAR, 'b').ok).toBe(true);
+  });
+});
+
+describe('Skribble: spectators', () => {
+  /** Alice and Bob play, Carol sits out; Alice is drawing 'apple'. */
+  function spectated(): { h: Harness; alice: string; bob: string; carol: string } {
+    const h = createHarness();
+    const alice = h.join('Alice');
+    const bob = h.join('Bob');
+    const carol = h.join('Carol');
+    h.send(alice, { t: 'updateSettings', settings: GAME_TEST_FIXTURES.skribble.settings });
+    h.send(carol, { t: 'sitOut', sitOut: true });
+    readyUp(h, [bob]);
+    h.send(alice, { t: 'start' });
+    pick(h, [alice, bob]);
+    return { h, alice, bob, carol };
+  }
+
+  it('keeps a spectator who drops and rejoins mid-drawing out of the turn: no guesser seat, no queued turn, full drawer points', () => {
+    const { h, alice, bob, carol } = spectated();
+    expect(skribbleView(h.room)).toMatchObject({ turn: 1, turnsInRound: 2 });
+    h.room.handleDisconnect(carol);
+    expect(h.room.rejoin(h.token(carol), 'conn-Carol-2').ok).toBe(true);
+    expect(skribbleView(h.room)).toMatchObject({ turn: 1, turnsInRound: 2 });
+    vi.advanceTimersByTime(10_000);
+    h.send(bob, { t: 'chat', text: 'apple' });
+    // Bob was the only guesser, so the turn ends with the drawer's full score.
+    expect(phaseOf(h.room).kind).toBe('turnEnd');
+    expect(h.score(alice)).toBe(drawerPoints(1, 1));
+  });
+
+  it("keeps the word out of a spectator's chat and lets their other lines through", () => {
+    const { h, bob, carol } = spectated();
+    h.transport.clear();
+    h.send(carol, { t: 'chat', text: 'hello players' });
+    expect(h.transport.chats(bob)).toContainEqual({ kind: 'chat', text: 'hello players' });
+    h.send(carol, { t: 'chat', text: 'it is an APPLE' });
+    expect(h.transport.chats(carol)).toContainEqual({ kind: 'system', text: "You can't give away the word!" });
+    expect(h.transport.chats(bob).some((c) => c.text.includes('APPLE'))).toBe(false);
+    expect(h.score(carol)).toBe(0);
   });
 });

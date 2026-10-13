@@ -1,7 +1,7 @@
 /** Per-recipient projections of PlatformRoomData onto the wire protocol. */
 import type { PlayerPublic, RoomPreview, RoomState, WaitingState, WelcomeMessage } from '../../../shared/platform/protocol.js';
 import { moduleFor } from './module.js';
-import { connectedCount, findPlayer, gameSeatLimit, inProgress, isJoinable, minPlayers, platformPlayers, platformSpectators, sortedPlayers } from './players.js';
+import { findPlayer, gameSeatLimit, inProgress, isJoinable, minPlayers, participants, platformPlayers, platformSpectators, sortedPlayers } from './players.js';
 import type { PlatformPlayerData, PlatformRoomData } from './state.js';
 
 export function publicPlayer(p: PlatformPlayerData, hostId: string): PlayerPublic {
@@ -50,7 +50,8 @@ function waitingFor(data: PlatformRoomData): WaitingState | null {
   if (!data.waiting || data.phase !== 'playing') return null;
   const missing = data.waiting.filter((id) => findPlayer(data, id)?.connected === false);
   if (missing.length === 0) return null;
-  return { reason: 'players', missing, needed: minPlayers(data), connected: connectedCount(data) };
+  // `needed` is a participant count, so `connected` counts participants too (spectators never fill a seat).
+  return { reason: 'players', missing, needed: minPlayers(data), connected: participants(data).filter((p) => p.connected).length };
 }
 
 /** What the home screen shows about a room before joining it. */

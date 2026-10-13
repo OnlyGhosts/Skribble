@@ -82,9 +82,11 @@ reset to 0 on start, and `returnToLobby` after a game ends (the host's "play aga
 in [`server/platform/engine/lobby.ts`](../server/platform/engine/lobby.ts).
 
 **Who plays.** `start` needs at least `meta.minPlayers` *ready* players: connected, `ready` and
-not `sittingOut` (the host counts as ready by pressing start unless they sit out). Those become
-the game's participants; everyone else stays seated in the party as a spectator ("Carol and Dave
-sit this one out"). A game with a seat limit (`meta.maxPlayers`, `null` for no limit) takes the
+not `sittingOut` (the host counts as ready by pressing start unless they sit out). Every ready
+player becomes a participant, a readied player whose socket happens to be down at that moment
+included (they are in reconnect grace, so the game holds for them like for any participant; only
+connected ones count towards the minimum, so a game never starts straight into a hold). Everyone
+else stays seated in the party as a spectator ("Carol and Dave sit this one out"). A game with a seat limit (`meta.maxPlayers`, `null` for no limit) takes the
 first ready players by join order and benches the rest with a line. Every `ready` flag resets
 when the game starts. Mid-game joiners (`allowMidGameJoin`) are participants at once; your game
 decides when they actually take part (all three games seat them from the next round or turn).
@@ -92,7 +94,11 @@ decides when they actually take part (all three games seat them from the next ro
 this; your module only ever sees the participants (`GameCtx.players`) and, separately, the
 spectators (`GameCtx.spectators`). Spectators get snapshots and chat, but their game messages are
 refused with `NOT_ALLOWED` before your module sees them, and they neither vote-kick nor count
-towards a vote-kick majority while a game runs.
+towards a vote-kick majority while a game runs. The one exception is the host's own controls: a
+module lists the message types the host may send while sitting out in `hostMessages` (Spy Game:
+`nextRound` and `endGame`, Quip Game: `next`), and those reach `handle` whoever the host is. A
+newcomer can join between games (lobby and podium alike) whatever `allowMidGameJoin` says; the
+setting only governs joins while the room is `'playing'`.
 
 **Content modes.** `settings.contentMode` is the room's single switch for what the packs contain:
 `family` is clean, `cheeky` adds rude-but-harmless content, `unhinged` is adults only. Every game
@@ -361,6 +367,8 @@ export interface GameServerModule<S = unknown, D = unknown, V = unknown, CMsg = 
   /** Advanced: message types the driver hands to the side store instead of the reducer. Requires `createSideStore`. */
   sideMessages?: ReadonlySet<string>;
   createSideStore?(storage: GameStorage): GameSideStore<D, CMsg, SMsg>;
+  /** Message types (`msg.t`) the host may send even while sitting the game out, such as "next round" or "end game". */
+  hostMessages?: ReadonlySet<string>;
 }
 
 /** Builds a settings spec from a zod object schema. */
@@ -398,8 +406,9 @@ is exactly the set of participants: ready, not sitting out, connected, within th
 **When each event arrives** ([`seats.ts`](../server/platform/engine/seats.ts), [`chat.ts`](../server/platform/engine/chat.ts), [`reduce.ts`](../server/platform/engine/reduce.ts)):
 
 - `message`: after `clientMessageSchema.safeParse` succeeded, only while `'playing'` and only
-  from a participant (a spectator gets `NOT_ALLOWED` "You are sitting this game out."). Invalid
-  messages get `INVALID_MESSAGE` with the first zod issue and path.
+  from a participant (a spectator gets `NOT_ALLOWED` "You are sitting this game out."), or from
+  the host for a type in `hostMessages` whether they play or not. Invalid messages get
+  `INVALID_MESSAGE` with the first zod issue and path.
 - `chat`: for every chat line while `'playing'`. If you do **not** return `chatHandled`, the
   platform inserts the player's line **before** your effects, so a reaction ("close!") follows
   the line it reacts to.

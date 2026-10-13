@@ -83,15 +83,16 @@ function requireBetweenGames(cx: Cx, playerId: string, message: string): boolean
  * Starts the game with the players who readied up (the host counts as ready by pressing start,
  * unless they sit out). Everyone else stays in the party as a spectator; a game with a seat
  * limit takes the first ready players by join order. Ready flags reset, sit-out choices persist.
+ * A readied player whose socket is down at that moment is seated all the same (the game holds
+ * for them like for any participant), but only connected ones count towards the minimum, so a
+ * game never starts straight into a hold.
  */
 export function start(cx: Cx, playerId: string): void {
   const { data } = cx;
   if (!requireHost(cx, playerId) || !requirePhase(cx, playerId, 'lobby', 'The game has already started.')) return;
-  const host = findPlayer(data, playerId);
-  if (host && !host.sittingOut) host.ready = true;
   const ready = readyPlayers(data);
   const needed = minPlayers(data);
-  if (ready.length < needed) {
+  if (ready.filter((p) => p.connected).length < needed) {
     return fail(cx, playerId, 'NOT_ALLOWED', `You need at least ${needed} player${needed === 1 ? '' : 's'} ready to start.`);
   }
   const limit = gameSeatLimit(data);

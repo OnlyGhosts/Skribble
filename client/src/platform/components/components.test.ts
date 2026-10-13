@@ -26,6 +26,17 @@ function zIndexOf(css: string, selector: string): number {
   return Number(z);
 }
 
+/** The declarations of the first rule whose selector list starts with `selector`. */
+function ruleOf(css: string, selector: string): string {
+  const block = css.match(new RegExp(`\n${selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^{]*\{([^}]*)\}`))?.[1];
+  if (block === undefined) throw new Error(`no rule for ${selector}`);
+  return block;
+}
+
+function stylesheet(name: string): string {
+  return readFileSync(fileURLToPath(new URL(`../styles/${name}`, import.meta.url)), 'utf8');
+}
+
 /** Attributes of the first tag carrying `data-testid="<id>"` in the markup. */
 function tagWith(html: string, testId: string): string {
   const match = html.match(new RegExp(`<[^>]*data-testid="${testId}"[^>]*>`));
@@ -205,6 +216,15 @@ describe('platform settings', () => {
     expect(tagWith(html, 'settings-allowMidGameJoin')).not.toContain('disabled');
   });
 
+  it('keeps the adults-only tag legible in both themes and leaves read-only cards undimmed', () => {
+    const css = stylesheet('lobby.css');
+    const tag = ruleOf(css, '.content-mode__age');
+    expect(tag).toContain('color: var(--color-danger-text)');
+    expect(tag).toContain('background: var(--color-danger-soft)');
+    expect(tag).not.toContain('#fff');
+    expect(ruleOf(css, '.content-mode:disabled')).not.toContain('opacity');
+  });
+
   it('renders read-only values for non-hosts', () => {
     const unhinged = room({ settings: { ...room().settings, contentMode: 'unhinged' } });
     const html = renderToString(createElement(SettingsPanel, { room: unhinged, isHost: false, game: null }));
@@ -275,6 +295,26 @@ describe('podium overlay', () => {
     const host = renderToString(createElement(PodiumOverlay, { ...ended('host'), isHost: true }));
     expect(host).toContain('data-testid="back-to-lobby"');
     expect(host).toContain('data-testid="play-again"');
+    // The host is counted as ready (Play again starts the game), and their toggle says so rather than asking.
+    expect(tagWith(host, 'ready-toggle')).toContain('aria-pressed="true"');
+    expect(tagWith(host, 'ready-toggle')).toContain('disabled');
+    expect(host).toContain('you start the game');
+    expect(host).toContain('1 of 3 ready');
+    expect(tagWith(host, 'sitout-toggle')).not.toContain('disabled');
+  });
+
+  it('keeps Ready and the host buttons out of the scrolling standings, so a small phone never hides them below the fold', () => {
+    const html = renderToString(createElement(PodiumOverlay, { ...ended('host'), isHost: true }));
+    const standings = html.indexOf('data-testid="podium-standings"');
+    const standingsEnd = html.indexOf('data-testid="podium-next"');
+    expect(standings).toBeGreaterThan(-1);
+    expect(html.slice(standings, standingsEnd)).toContain('data-testid="podium-entry"');
+    for (const id of ['ready-toggle', 'sitout-toggle', 'play-again', 'back-to-lobby']) expect(html.indexOf(`data-testid="${id}"`)).toBeGreaterThan(standingsEnd);
+    const css = stylesheet('components.css');
+    expect(ruleOf(css, '.podium-card')).toContain('overflow: hidden');
+    expect(ruleOf(css, '.podium-card__scroll')).toContain('overflow-y: auto');
+    expect(ruleOf(css, '.podium-card__scroll')).toContain('min-height: 0');
+    expect(ruleOf(css, '.podium-next')).toContain('flex: 0 0 auto');
   });
 
   it('keeps Leave out of reach: no leave button on the card, only in the closed options sheet behind a confirmation', () => {

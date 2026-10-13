@@ -150,6 +150,7 @@ export const spygameModule: GameServerModule<SpygameSettings, SpygameData, Spyga
   handle,
   nextDeadline,
   view: viewFor,
+  hostMessages: new Set(['nextRound', 'endGame']),
 };
 
 export type { SpygameData };

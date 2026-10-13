@@ -87,16 +87,23 @@ function handlePlatformMessage(cx: Cx, playerId: string, msg: PlatformRoomMessag
 }
 
 function handleGameMessage(cx: Cx, playerId: string, raw: unknown): void {
-  const parsed = moduleFor(cx.data.gameId).clientMessageSchema.safeParse(raw);
+  const game = moduleFor(cx.data.gameId);
+  const parsed = game.clientMessageSchema.safeParse(raw);
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
     const where = issue && issue.path.length > 0 ? ` at ${issue.path.join('.')}` : '';
     return fail(cx, playerId, 'INVALID_MESSAGE', `${issue?.message ?? 'Invalid message'}${where}`);
   }
   if (cx.data.phase !== 'playing') return fail(cx, playerId, 'NOT_ALLOWED', 'The game is not running.');
-  // The game only knows its participants (GameCtx.players); a spectator's move has nobody to act for.
-  if (!findPlayer(cx.data, playerId)?.participating) return fail(cx, playerId, 'NOT_ALLOWED', 'You are sitting this game out.');
+  // The game only knows its participants (GameCtx.players): a spectator's move has nobody to act
+  // for, except the host's own controls (skip, end game), which the module declares.
+  const hostControl = playerId === cx.data.hostId && game.hostMessages?.has(messageType(parsed.data)) === true;
+  if (!findPlayer(cx.data, playerId)?.participating && !hostControl) return fail(cx, playerId, 'NOT_ALLOWED', 'You are sitting this game out.');
   runGame(cx, { type: 'message', playerId, msg: parsed.data });
+}
+
+function messageType(msg: unknown): string {
+  return typeof msg === 'object' && msg !== null && 't' in msg && typeof msg.t === 'string' ? msg.t : '';
 }
 
 /** Fires every deadline that is due, oldest first, each at the time it was due. */

@@ -244,6 +244,12 @@ button.game-tile:hover {
   border: 2px solid var(--color-success);
 }
 
+/* The host's toggle is a statement, not a disabled control. */
+.ready-toggle--host:disabled {
+  opacity: 1;
+  cursor: default;
+}
+
 .sitout-toggle.is-sitting-out {
   background: var(--color-surface-3);
 }
@@ -290,9 +296,9 @@ button.game-tile:hover {
   text-align: left;
 }
 
+/* Read-only for guests (the note says only the host changes settings), not unavailable: no dimming. */
 .content-mode:disabled {
   cursor: default;
-  opacity: 0.75;
 }
 
 .content-mode.is-selected {
@@ -317,9 +323,11 @@ button.game-tile:hover {
   font-weight: 800;
 }
 
+/* Soft background with the dark/light danger text reads at ~5:1 in both themes, unlike white on the bright red. */
 .content-mode__age {
-  background: var(--color-danger);
-  color: #fff;
+  background: var(--color-danger-soft);
+  color: var(--color-danger-text);
+  border: 1px solid currentColor;
   font-size: 0.65rem;
   padding: 1px 6px;
 }

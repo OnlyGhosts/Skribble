@@ -101,6 +101,11 @@ export function startGame(s: Sim, names: string[], settings: Record<string, unkn
   return ids;
 }
 
+/** The error messages a set of effects carries, in order. */
+export function errorsOf(effects: Effect[]): string[] {
+  return effects.flatMap((e) => (e.type === 'send' && e.msg.t === 'error' ? [(e.msg as { message: string }).message] : []));
+}
+
 /** The chat texts a set of effects carries, in order. */
 export function chatTexts(effects: Effect[]): string[] {
   return effects.flatMap((e) => (e.type === 'send' && e.msg.t === 'chat' ? [(e.msg as { message: { text: string } }).message.text] : []));

@@ -52,6 +52,25 @@ describe('Click Race screen', () => {
     expect(tagWith(html, 'timer')).toMatch(/data-seconds="(19|20)"/);
   });
 
+  it('sits a spectator out: no live button, no row in the standings, listed as watching', () => {
+    const state = race({ players: [player('host'), player('bob', { joinOrder: 1 }), player('rae', { joinOrder: 2, participating: false, sittingOut: true })] });
+    usePlatformStore.getState().handleServerMessage(welcome('rae', state));
+    const html = renderToString(createElement(templateClient.Screen, { room: state, meId: 'rae', isHost: false }));
+    const button = tagWith(html, 'click-button');
+    expect(button).toContain('disabled');
+    expect(button).toContain('data-spectating="true"');
+    expect(button).toContain("sitting this one out");
+    expect(html).toContain('data-testid="race-spectating"');
+    const rows = html.match(/<li[^>]*data-testid="race-row"[^>]*>/g) ?? [];
+    expect(rows.map((r) => r.match(/data-name="([^"]+)"/)?.[1])).toEqual(['host', 'bob']);
+    expect(tagWith(html, 'race-watching')).toContain('player__status--sitting-out');
+    expect(html).toContain('Watching: rae');
+    // The racers keep their live button and see who is watching.
+    const racer = renderToString(createElement(templateClient.Screen, { room: state, meId: 'bob', isHost: false }));
+    expect(tagWith(racer, 'click-button')).not.toContain('disabled');
+    expect(racer).not.toContain('data-testid="race-spectating"');
+  });
+
   it('disables the button once the race ended (the platform shows the podium over it)', () => {
     const state = race({ phase: 'ended', podium: [{ playerId: 'host', score: 100, rank: 1 }] });
     usePlatformStore.getState().handleServerMessage(welcome('host', state));

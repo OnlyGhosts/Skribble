@@ -33,12 +33,14 @@ export function isFull(data: PlatformRoomData): boolean {
   return data.players.length >= ROOM_HARD_CAP;
 }
 
+/** A game is running or its podium is up (the preview badge); joins care only about 'playing', see isJoinable. */
 export function inProgress(data: PlatformRoomData): boolean {
   return data.phase !== 'lobby';
 }
 
+/** Mid-game joins can be switched off; between games (lobby and podium alike) anyone with a seat to spare may join. */
 export function isJoinable(data: PlatformRoomData): boolean {
-  return !isFull(data) && (!inProgress(data) || data.settings.allowMidGameJoin);
+  return !isFull(data) && (data.phase !== 'playing' || data.settings.allowMidGameJoin);
 }
 
 export function minPlayers(data: PlatformRoomData): number {
@@ -60,9 +62,12 @@ export function spectatorPlayers(data: PlatformRoomData): PlatformPlayerData[] {
   return sortedPlayers(data).filter((p) => !p.participating);
 }
 
-/** Connected players who readied up and are not sitting out: the ones a start seats, in join order. */
+/**
+ * Players who readied up and are not sitting out, in join order: the ones a start seats. A dropped
+ * socket does not undo a ready-up (phones lock); the host counts as ready by pressing start.
+ */
 export function readyPlayers(data: PlatformRoomData): PlatformPlayerData[] {
-  return sortedPlayers(data).filter((p) => p.connected && p.ready && !p.sittingOut);
+  return sortedPlayers(data).filter((p) => (p.ready || p.id === data.hostId) && !p.sittingOut);
 }
 
 /** Enough participating seats (connected or in reconnect grace) for the game to go on; connections alone never decide that. */

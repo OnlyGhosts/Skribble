@@ -24,7 +24,8 @@ import { drawerIdOf, hasGuessed } from './hooks';
 
 type DrawingPhase = Extract<SkribblePhase, { kind: 'drawing' }>;
 
-function Rating({ phase, isDrawer, compact }: { phase: DrawingPhase; isDrawer: boolean; compact?: boolean }) {
+/** Guessers rate the drawing; the drawer and anyone sitting the game out only see the tally. */
+function Rating({ phase, canRate, compact }: { phase: DrawingPhase; canRate: boolean; compact?: boolean }) {
   const iconSize = compact ? 15 : 16;
   return (
     <div className={`rating${compact ? ' rating--compact' : ''}`} role="group" aria-label="Rate the drawing">
@@ -32,7 +33,7 @@ function Rating({ phase, isDrawer, compact }: { phase: DrawingPhase; isDrawer: b
         type="button"
         className={`rating__btn${phase.myRating === 'like' ? ' is-active' : ''}`}
         onClick={() => rateDrawing('like')}
-        disabled={isDrawer}
+        disabled={!canRate}
         aria-pressed={phase.myRating === 'like'}
         aria-label={`Like this drawing (${phase.likes})`}
         data-testid="rate-like"
@@ -43,7 +44,7 @@ function Rating({ phase, isDrawer, compact }: { phase: DrawingPhase; isDrawer: b
         type="button"
         className={`rating__btn rating__btn--down${phase.myRating === 'dislike' ? ' is-active' : ''}`}
         onClick={() => rateDrawing('dislike')}
-        disabled={isDrawer}
+        disabled={!canRate}
         aria-pressed={phase.myRating === 'dislike'}
         aria-label={`Dislike this drawing (${phase.dislikes})`}
         data-testid="rate-dislike"
@@ -104,6 +105,8 @@ export function SkribbleScreen({ room, meId, isHost }: GameScreenProps<SkribbleV
   const drawerId = drawerIdOf(view);
   const drawer = drawerId ? (room.players.find((p) => p.id === drawerId) ?? null) : null;
   const isDrawer = drawerId !== null && drawerId === meId;
+  const participating = room.players.find((p) => p.id === meId)?.participating ?? false;
+  const canRate = participating && !isDrawer;
   const guessed = hasGuessed(view, meId);
   const canDraw = isDrawer && phase.kind === 'drawing';
   const canUndo = hasStrokes && connected;
@@ -157,7 +160,7 @@ export function SkribbleScreen({ room, meId, isHost }: GameScreenProps<SkribbleV
               </small>
             </div>
             {timer}
-            {phase.kind === 'drawing' && <Rating phase={phase} isDrawer={isDrawer} compact />}
+            {phase.kind === 'drawing' && <Rating phase={phase} canRate={canRate} compact />}
             <button
               type="button"
               className="players-btn"
@@ -202,7 +205,7 @@ export function SkribbleScreen({ room, meId, isHost }: GameScreenProps<SkribbleV
             <div className="game__word">{wordArea}</div>
 
             <div className="game__side">
-              {phase.kind === 'drawing' && <Rating phase={phase} isDrawer={isDrawer} />}
+              {phase.kind === 'drawing' && <Rating phase={phase} canRate={canRate} />}
               {timer}
               <div className="game__controls">
                 <ConnectionPill />
