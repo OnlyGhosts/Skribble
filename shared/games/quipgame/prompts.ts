@@ -1,9 +1,13 @@
 /**
- * Original prompt pack for Quip Game. Two tiers: 'clean' is safe for any table, 'cheeky' is adult
- * humour (innuendo and embarrassment, never slurs). The host enables cheeky prompts in the lobby.
- * Prompts are written as the start of a sentence or a short question the player completes.
+ * Original prompt pack for Quip Game. Three tiers: 'clean' is safe for any table, 'cheeky' is adult
+ * humour (innuendo and embarrassment, never slurs), 'unhinged' is crude, drunk and gross-out
+ * humour (never slurs, hate or minors). The room's content mode picks the tiers in play (see
+ * tiersForContentMode). Prompts are written as the start of a sentence or a short question the
+ * player completes.
  */
-export type PromptTier = 'clean' | 'cheeky';
+import type { ContentMode } from '../../platform/settings.js';
+
+export type PromptTier = 'clean' | 'cheeky' | 'unhinged';
 
 export interface Prompt {
   text: string;
@@ -12,6 +16,7 @@ export interface Prompt {
 
 const clean = (text: string): Prompt => ({ text, tier: 'clean' });
 const cheeky = (text: string): Prompt => ({ text, tier: 'cheeky' });
+const unhinged = (text: string): Prompt => ({ text, tier: 'unhinged' });
 
 export const PROMPTS: readonly Prompt[] = [
   clean("The worst thing to hear from your dentist"),
@@ -349,9 +354,145 @@ export const PROMPTS: readonly Prompt[] = [
   cheeky("The worst thing to say when the waiter asks if you'd like dessert"),
   cheeky("The most embarrassing thing to leave in a rental car"),
   cheeky("A terrible name for a honeymoon suite"),
+  unhinged("The worst thing to say during sex"),
+  unhinged("A terrible name for a sex position"),
+  unhinged("The worst thing to find in your one-night stand's bathroom"),
+  unhinged("A rejected name for a strip club"),
+  unhinged("The worst thing to text your mum by accident after a night out"),
+  unhinged("A terrible excuse for being caught watching porn at work"),
+  unhinged("The worst thing to find in your partner's bedside drawer"),
+  unhinged("A bad name for a dating app for people who are already in relationships"),
+  unhinged("The worst thing to say to a stripper"),
+  unhinged("The worst thing to discover about your partner after the wedding"),
+  unhinged("A terrible caption for a nude selfie"),
+  unhinged("The worst thing to yell during a threesome"),
+  unhinged("A bad name for a brand of lube"),
+  unhinged("The worst thing to hear from your gynaecologist"),
+  unhinged("The worst thing to say when your partner's parents walk in on you"),
+  unhinged("The most embarrassing thing to buy at the pharmacy"),
+  unhinged("The worst reply to \"are you coming?\""),
+  unhinged("The worst thing to find in the sheets of a cheap motel"),
+  unhinged("A terrible name for a vibrator"),
+  unhinged("The worst thing to say to a sex worker"),
+  unhinged("The worst thing to shout in a sex shop"),
+  unhinged("The worst place to have a wank"),
+  unhinged("A terrible pickup line for a nudist beach"),
+  unhinged("The worst thing to find in your dad's browser history"),
+  unhinged("The worst thing to say at an orgy"),
+  unhinged("The worst thing to moan by accident"),
+  unhinged("A bad name for a porn parody of a children's film"),
+  unhinged("The worst thing to say right after you finish"),
+  unhinged("The worst thing to read on a condom wrapper"),
+  unhinged("The worst thing to catch your grandparents doing"),
+  unhinged("A terrible name for an STD clinic"),
+  unhinged("The worst thing to say to someone who just farted during sex"),
+  unhinged("A terrible tattoo to get just above your bum"),
+  unhinged("The worst drunk text to send your boss"),
+  unhinged("The worst thing to vomit into"),
+  unhinged("A bad name for a drinking game"),
+  unhinged("The worst thing to wake up next to after a stag do"),
+  unhinged("The most embarrassing place to pass out drunk"),
+  unhinged("The worst thing to find in your pocket after a night out"),
+  unhinged("The worst reason to miss your own wedding"),
+  unhinged("A terrible name for a hangover smoothie"),
+  unhinged("The worst thing to say to the cop who pulled you over drunk"),
+  unhinged("The worst thing to do on a stripper's stage"),
+  unhinged("The worst thing to hear from the person you woke up next to"),
+  unhinged("The worst thing to find on your bank statement after a night out"),
+  unhinged("A terrible name for a brand of weed gummies"),
+  unhinged("The worst thing to say when you're far too high"),
+  unhinged("The worst thing to do while hotboxing a car"),
+  unhinged("The worst thing to find in your friend's freezer"),
+  unhinged("The worst thing to say to your proctologist"),
+  unhinged("The worst thing to hear during a colonoscopy"),
+  unhinged("The most embarrassing thing to clog a toilet with"),
+  unhinged("The worst place to get explosive diarrhoea"),
+  unhinged("A terrible name for a brand of toilet paper"),
+  unhinged("The worst thing to say after a loud fart in a meeting"),
+  unhinged("The worst thing to find floating in a hot tub"),
+  unhinged("The worst thing to sneeze out"),
+  unhinged("The worst thing to discover about your own body at thirty"),
+  unhinged("The worst thing to use as toilet paper in an emergency"),
+  unhinged("The worst thing to say at the funeral of someone you hated"),
+  unhinged("The worst thing to put in your will"),
+  unhinged("The worst thing to say to a cult leader"),
+  unhinged("A terrible name for a cult"),
+  unhinged("The worst thing to inherit from your weird uncle"),
+  unhinged("The worst thing to say to a priest in confession"),
+  unhinged("The most unhinged thing to do with a Ouija board"),
+  unhinged("The worst thing to find in a serial killer's fridge"),
+  unhinged("The worst thing to say to someone holding you hostage"),
+  unhinged("A terrible name for a doomsday bunker"),
+  unhinged("The worst thing to shout in a crowded cinema"),
+  unhinged("The worst thing to say to the person next to you on a fourteen-hour flight"),
+  unhinged("The worst thing to say to your therapist in the first session"),
+  unhinged("The worst thing to confess to your partner at 2 a.m."),
+  unhinged("The worst thing to say in a job interview at a sex shop"),
+  unhinged("The worst way to find out you're adopted"),
+  unhinged("The worst thing to find in your parents' bedside drawer"),
+  unhinged("The worst thing to say to your sibling's new partner"),
+  unhinged("A terrible thing to put in a time capsule for your future kids"),
+  unhinged("The worst thing to catch your flatmate doing with your toothbrush"),
+  unhinged("The worst thing to find in a hostel's communal fridge"),
+  unhinged("The worst thing to say on a hot mic at a wedding"),
+  unhinged("The worst thing to do at an open casket"),
+  unhinged("The worst thing to find in your Airbnb's wardrobe"),
+  unhinged("The worst thing to find out about your date halfway through dinner"),
+  unhinged("The worst thing to say to someone with a black eye"),
+  unhinged("The worst thing to say to a nun"),
+  unhinged("The worst thing to shout at a nudist volleyball game"),
+  unhinged("The worst thing to say to someone on their deathbed"),
+  unhinged("The worst thing to have tattooed on your inner lip"),
+  unhinged("The worst thing to say at a swingers' party"),
+  unhinged("The worst thing to send to the family group chat"),
+  unhinged("The worst thing to do with your ex's belongings"),
+  unhinged("The worst thing to find on your partner's phone at 3 a.m."),
+  unhinged("The most unhinged thing to do when you win the lottery"),
+  unhinged("The worst thing to do when you see your ex at the supermarket"),
+  unhinged("The worst thing to say to a bride who has clearly made a mistake"),
+  unhinged("The worst thing to say to a doctor about your erection"),
+  unhinged("The worst thing to put in a sandwich at a stag do"),
+  unhinged("The worst thing to hear from a stranger in a dark alley"),
+  unhinged("The worst thing to find in a 3 a.m. kebab"),
+  unhinged("The worst thing to say to someone who just got out of prison"),
+  unhinged("The worst reason to get banned from a casino"),
+  unhinged("The worst reason to get banned from a strip club"),
+  unhinged("The worst thing to say to your weed dealer"),
+  unhinged("The worst thing to bring to a nudist colony potluck"),
+  unhinged("The worst thing to hear from your doctor about your situation down there"),
+  unhinged("The worst thing to say to the pharmacist handing you the morning-after pill"),
+  unhinged("The worst thing to find in the sex toy drawer during a house viewing"),
+  unhinged("The worst thing for autocorrect to change in a sext"),
+  unhinged("The worst thing to shout when the stripper turns out to be your cousin"),
+  unhinged("The worst thing to do with a stolen traffic cone"),
+  unhinged("The worst thing to find in a stranger's bed the morning after"),
+  unhinged("The worst thing to hear your Uber driver say at 4 a.m."),
+  unhinged("A terrible name for a brand of hangover pills"),
+  unhinged("The worst thing to do in a karaoke bar after seven shots"),
 ];
 
 /** Used when a player runs out of time; chosen at random so the matchup still works. */
+/**
+ * The tiers a content mode plays: family keeps it clean, cheeky adds the cheeky tier, unhinged
+ * swaps the clean tier out for the unhinged one (cheeky stays in so the pool keeps its range).
+ */
+export function tiersForContentMode(mode: ContentMode): readonly PromptTier[] {
+  switch (mode) {
+    case 'family':
+      return ['clean'];
+    case 'cheeky':
+      return ['clean', 'cheeky'];
+    case 'unhinged':
+      return ['cheeky', 'unhinged'];
+  }
+}
+
+/** The pack's prompts for a content mode, in pack order. */
+export function promptsForContentMode(mode: ContentMode): Prompt[] {
+  const tiers = tiersForContentMode(mode);
+  return PROMPTS.filter((p) => tiers.includes(p.tier));
+}
+
 export const FALLBACK_ANSWERS: readonly string[] = [
   'I got nothing',
   '...',

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { SPY_LOCATIONS, drawCandidates, isLocationId, locationById, pickLocation } from './locations.js';
+import { CONTENT_MODES } from '../../platform/settings.js';
+import { CHEEKY_LOCATIONS, UNHINGED_LOCATIONS } from './locationTiers.js';
+import { ALL_SPY_LOCATIONS, SPY_LOCATIONS, drawCandidates, isLocationId, locationById, locationsForMode, pickLocation } from './locations.js';
 import { SPYGAME_CANDIDATES } from './protocol.js';
 
 /** A deterministic [0, 1) sequence so shuffles are reproducible but not degenerate. */
@@ -25,6 +27,40 @@ describe('the location pack', () => {
     }
     expect(locationById('beach')).toMatchObject({ name: 'Beach' });
     expect(isLocationId('nowhere')).toBe(false);
+  });
+
+  it('adds the cheeky and unhinged tiers by content mode, with unique ids and names across every tier', () => {
+    expect(locationsForMode('family')).toEqual(SPY_LOCATIONS);
+    expect(locationsForMode('cheeky')).toEqual([...SPY_LOCATIONS, ...CHEEKY_LOCATIONS]);
+    expect(locationsForMode('unhinged')).toEqual([...SPY_LOCATIONS, ...CHEEKY_LOCATIONS, ...UNHINGED_LOCATIONS]);
+    expect(CHEEKY_LOCATIONS.length).toBeGreaterThanOrEqual(10);
+    expect(UNHINGED_LOCATIONS.length).toBeGreaterThanOrEqual(10);
+    expect(new Set(ALL_SPY_LOCATIONS.map((l) => l.id)).size).toBe(ALL_SPY_LOCATIONS.length);
+    expect(new Set(ALL_SPY_LOCATIONS.map((l) => l.name)).size).toBe(ALL_SPY_LOCATIONS.length);
+    for (const l of ALL_SPY_LOCATIONS) {
+      expect(l.id).toMatch(/^[a-z]+(-[a-z]+)*$/);
+      expect(l.hue).toBeGreaterThanOrEqual(0);
+      expect(l.hue).toBeLessThan(360);
+      // Every tier's location resolves by id (the client names candidates that way).
+      expect(locationById(l.id)).toBe(l);
+    }
+    for (const mode of CONTENT_MODES) expect(locationsForMode(mode).length).toBeGreaterThanOrEqual(SPYGAME_CANDIDATES);
+    expect(isLocationId('strip-club')).toBe(true);
+    expect(SPY_LOCATIONS.some((l) => l.id === 'strip-club')).toBe(false);
+  });
+
+  it('draws candidates and picks locations from the pool it is given', () => {
+    const pool = locationsForMode('unhinged');
+    const rng = lcg(5);
+    const seen = new Set<string>();
+    for (let i = 0; i < 60; i++) for (const id of drawCandidates('strip-club', SPYGAME_CANDIDATES, rng, pool)) seen.add(id);
+    expect(seen.has('sex-shop')).toBe(true);
+    // The family pool never draws a tier location, as a decoy or as the pick.
+    for (let i = 0; i < 20; i++) {
+      for (const id of drawCandidates('beach', SPYGAME_CANDIDATES, rng)) expect(SPY_LOCATIONS.some((l) => l.id === id)).toBe(true);
+      expect(SPY_LOCATIONS).toContain(pickLocation([], rng));
+    }
+    expect(pickLocation(SPY_LOCATIONS.map((l) => l.id), () => 0, pool).id).toBe(CHEEKY_LOCATIONS[0].id);
   });
 
   it('draws 24 unique candidates that always include the real location, from any rng', () => {

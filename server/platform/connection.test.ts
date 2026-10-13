@@ -40,6 +40,8 @@ function pair(w: World, host: FakeSocket, guest: FakeSocket): string {
   host.receive({ t: 'create', gameId: 'skribble', name: 'Alice', avatar: AVATAR });
   const code = host.last('welcome').room.code;
   guest.receive({ t: 'join', code, name: 'Bob', avatar: AVATAR });
+  // The guest readies up so the host's start seats them (the host is ready by pressing start).
+  guest.receive({ t: 'ready', ready: true });
   return code;
 }
 
@@ -259,6 +261,7 @@ describe('handleConnection', () => {
     expect(welcome.extra).toBeUndefined();
     guest.receive({ t: 'join', code: welcome.room.code, name: 'Bob', avatar: AVATAR });
     expect(guest.last('welcome').room.gameId).toBe('template');
+    guest.receive({ t: 'ready', ready: true });
     // Another game's fields are ignored, the race's own apply.
     host.receive({ t: 'updateSettings', settings: { targetClicks: 10, rounds: 5 } });
     expect(host.errors()).toEqual([]);

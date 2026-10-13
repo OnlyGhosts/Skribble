@@ -12,6 +12,8 @@ import {
 import { hintRevealOrder, hintSchedule, maskWord } from '../../../shared/games/skribble/hints.js';
 import type { DrawOp } from '../../../shared/games/skribble/protocol.js';
 import { drawerPoints, guesserPoints } from '../../../shared/games/skribble/scoring.js';
+import { getWordList } from '../../../shared/games/skribble/words/index.js';
+import { UNHINGED_WORDS } from '../../../shared/games/skribble/words/unhinged.js';
 import { RECONNECT_GRACE_MS } from '../../../shared/platform/constants.js';
 import { AVATAR, TEST_WORDS, createHarness, drawerOf, expectPhase, phaseOf, pick, skribbleView, startGame, type Harness } from '../../platform/drivers/testUtils.js';
 
@@ -32,7 +34,7 @@ describe('Skribble: turn lifecycle', () => {
     const [alice, bob, carol] = startGame(h, ['Alice', 'Bob', 'Carol']);
     const state = skribbleView(h.room);
     expect(state).toMatchObject({ round: 1, totalRounds: 1, turn: 1, turnsInRound: 3 });
-    expect(h.room.getState(null).settings).toMatchObject({ rounds: 1, drawTime: 60, maxPlayers: 12 });
+    expect(h.room.getState(null).settings).toMatchObject({ rounds: 1, drawTime: 60, contentMode: 'family', allowMidGameJoin: true });
 
     // Turn 1: Alice draws (joinOrder 0), only Bob guesses.
     let choosing = expectPhase(h.room, 'choosing', alice);
@@ -230,6 +232,24 @@ describe('Skribble: turn lifecycle', () => {
     expect(phaseOf(h.room).kind).toBe('choosing');
     expect(h.canvas()).toHaveLength(0);
     for (const p of players) expect(h.transport.ofType(p, 'clear')).toHaveLength(1);
+  });
+});
+
+describe('Skribble: the word pool follows the room content mode', () => {
+  it('offers only language-list words in a family room and tier words in an unhinged one', () => {
+    const lower = (list: readonly string[]): Set<string> => new Set(list.map((w) => w.toLowerCase()));
+    // An rng of 0.999 picks from the end of the pool, where the tiers sit.
+    const family = createHarness({ rng: () => 0.999 });
+    const [alice] = startGame(family, ['Alice', 'Bob'], { customWordsOnly: false, customWords: [] });
+    for (const w of expectPhase(family.room, 'choosing', alice).choices ?? []) expect(lower(getWordList('en')).has(w.toLowerCase())).toBe(true);
+
+    const unhinged = createHarness({ rng: () => 0.999 });
+    const [host] = startGame(unhinged, ['Alice', 'Bob'], { customWordsOnly: false, customWords: [], contentMode: 'unhinged' });
+    const choices = expectPhase(unhinged.room, 'choosing', host).choices ?? [];
+    expect(choices).toHaveLength(3);
+    // The partial shuffle lands on the end of the pool first: the unhinged tier.
+    expect(lower(UNHINGED_WORDS).has(choices[0].toLowerCase())).toBe(true);
+    expect(lower(getWordList('en')).has(choices[0].toLowerCase())).toBe(false);
   });
 });
 

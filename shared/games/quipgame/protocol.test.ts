@@ -22,7 +22,9 @@ describe('quipgame settings schema', () => {
     expect(patchSchema.safeParse({ voteSeconds: 9 }).success).toBe(false);
     expect(patchSchema.safeParse({ resultsSeconds: 21 }).success).toBe(false);
     expect(patchSchema.safeParse({ resultsSeconds: 4.5 }).success).toBe(false);
-    expect(patchSchema.safeParse({ cheeky: 'yes' }).success).toBe(false);
+    expect(patchSchema.safeParse({ announcer: 'yes' }).success).toBe(false);
+    // The retired per-game cheeky switch is an unknown key now: stripped, not refused (stored rooms may still carry it).
+    expect(patchSchema.safeParse({ cheeky: true })).toMatchObject({ success: true, data: {} });
     expect(patchSchema.safeParse({ customPrompts: ['x'.repeat(QUIPGAME_SETTINGS_LIMITS.customPrompts.maxLength + 1)] }).success).toBe(false);
     expect(patchSchema.safeParse({ customPrompts: Array.from({ length: 201 }, (_, i) => `p${i}`) }).success).toBe(false);
     expect(patchSchema.safeParse({ maxPlayers: 3 })).toMatchObject({ success: true, data: {} });

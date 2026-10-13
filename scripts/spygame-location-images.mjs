@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Generates one placeholder tile per Spy Game location into
+ * Generates one placeholder tile per Spy Game location (every content tier) into
  * client/src/games/spygame/assets/locations/<id>.svg: a gradient from the location's hue, a
  * subtle dot pattern and the emoji, large and centred, no text. Re-run it after editing the pack
  * (`node scripts/spygame-location-images.mjs`); drop a <id>.jpg / .png / .webp next to a tile to
@@ -12,15 +12,22 @@ import { fileURLToPath } from 'node:url';
 import { transform } from 'esbuild';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const packFile = join(root, 'shared/games/spygame/locations.ts');
+const packDir = join(root, 'shared/games/spygame');
 const outDir = join(root, 'client/src/games/spygame/assets/locations');
 
-/** The pack is TypeScript without imports: strip the types and load it as a module from a data URL. */
-async function loadPack() {
-  const source = await readFile(packFile, 'utf8');
+/** Strips the types from one pack file and makes it importable from a data URL. */
+async function moduleUrl(file, rewrite = (code) => code) {
+  const source = await readFile(join(packDir, file), 'utf8');
   const { code } = await transform(source, { loader: 'ts', format: 'esm' });
-  const mod = await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`);
-  return mod.SPY_LOCATIONS;
+  return `data:text/javascript;base64,${Buffer.from(rewrite(code)).toString('base64')}`;
+}
+
+/** Every tier: the family pack (locations.ts) imports the tiers (locationTiers.ts), so the tiers load first and the import is pointed at them. */
+async function loadPack() {
+  const tiers = await moduleUrl('locationTiers.ts');
+  const locations = await moduleUrl('locations.ts', (code) => code.replace(/from\s+["']\.\/locationTiers\.js["']/g, `from "${tiers}"`));
+  const mod = await import(locations);
+  return mod.ALL_SPY_LOCATIONS;
 }
 
 function tile({ id, emoji, hue }) {

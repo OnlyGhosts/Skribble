@@ -37,11 +37,11 @@ type Timer = ReturnType<typeof setTimeout>;
  */
 export class Room {
   readonly code: string;
-  readonly gameId: GameId;
   readonly createdAt: number;
 
   private data: PlatformRoomData;
-  private readonly sideStore: AnyGameSideStore | null;
+  /** One side store per game the party has played, built on first use over the shared storage. */
+  private readonly sideStores = new Map<GameId, AnyGameSideStore | null>();
   private readonly storage: GameStorage;
   private readonly transport: Transport;
   private readonly clock: Clock;
@@ -56,7 +56,6 @@ export class Room {
 
   constructor(code: string, gameId: GameId, deps: RoomDeps) {
     this.code = code;
-    this.gameId = gameId;
     this.transport = deps.transport;
     this.storage = deps.storage;
     this.clock = deps.clock ?? systemClock;
@@ -66,7 +65,21 @@ export class Room {
     this.log = deps.log ?? (() => undefined);
     this.createdAt = this.clock.now();
     this.data = createRoomData(code, gameId, this.createdAt);
-    this.sideStore = moduleFor(gameId).createSideStore?.(deps.storage) ?? null;
+  }
+
+  /** The game the party currently plays (the host may switch it in the lobby). */
+  get gameId(): GameId {
+    return this.data.gameId;
+  }
+
+  private get sideStore(): AnyGameSideStore | null {
+    const gameId = this.data.gameId;
+    let store = this.sideStores.get(gameId);
+    if (store === undefined) {
+      store = moduleFor(gameId).createSideStore?.(this.storage) ?? null;
+      this.sideStores.set(gameId, store);
+    }
+    return store;
   }
 
   // ---------------------------------------------------------------------------
@@ -130,7 +143,7 @@ export class Room {
 
   /** Seats the first player of a brand-new room. */
   create(name: string, avatar: Avatar, connectionId: string): JoinResult {
-    return this.seat({ type: 'create', gameId: this.gameId, name, avatar, connectionId }, connectionId);
+    return this.seat({ type: 'create', gameId: this.data.gameId, name, avatar, connectionId }, connectionId);
   }
 
   join(name: string, avatar: Avatar, connectionId: string): JoinResult {
@@ -160,7 +173,7 @@ export class Room {
   handleMessage(playerId: string, inbound: RoomInbound): void {
     if (this.destroyed || !findPlayer(this.data, playerId)) return;
     if (inbound.kind === 'platform') return void this.dispatch({ type: 'platformMessage', playerId, msg: inbound.msg });
-    if (this.sideStore && moduleFor(this.gameId).sideMessages?.has(inbound.msg.t)) return this.sideMessage(playerId, inbound.msg);
+    if (this.sideStore && moduleFor(this.data.gameId).sideMessages?.has(inbound.msg.t)) return this.sideMessage(playerId, inbound.msg);
     this.dispatch({ type: 'gameMessage', playerId, msg: inbound.msg });
   }
 
@@ -223,7 +236,8 @@ export class Room {
           this.transport.close(effect.playerId, effect.code, effect.reason);
           break;
         case 'side':
-          if (this.sideStore) after(this.storage.reset(this.code, null, effect.stamp), () => undefined);
+          // Reset whatever game the effect belongs to (a game switch resets the previous game's store).
+          after(this.storage.reset(this.code, null, effect.stamp), () => undefined);
           break;
         case 'destroy':
           destroy = true;
@@ -260,7 +274,7 @@ export class Room {
   private sideMessage(playerId: string, raw: { t: string }): void {
     const store = this.sideStore;
     if (!store) return;
-    const parsed = moduleFor(this.gameId).clientMessageSchema.safeParse(raw);
+    const parsed = moduleFor(this.data.gameId).clientMessageSchema.safeParse(raw);
     if (!parsed.success) {
       this.transport.send(playerId, { t: 'error', code: 'INVALID_MESSAGE', message: parsed.error.issues[0]?.message ?? 'Invalid message' });
       return;

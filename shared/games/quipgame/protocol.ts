@@ -54,8 +54,6 @@ export const quipgameSettingsSchema = z.object({
   voteSeconds: z.number().int().min(QUIPGAME_SETTINGS_LIMITS.voteSeconds.min).max(QUIPGAME_SETTINGS_LIMITS.voteSeconds.max),
   /** Seconds a result stays up before the next matchup starts on its own. */
   resultsSeconds: z.number().int().min(QUIPGAME_SETTINGS_LIMITS.resultsSeconds.min).max(QUIPGAME_SETTINGS_LIMITS.resultsSeconds.max),
-  /** Include the 'cheeky' prompt tier. */
-  cheeky: z.boolean(),
   /** Play a final round where everyone answers one prompt and ranks the answers. */
   finalRound: z.boolean(),
   /** Pick a player per matchup to read the prompt and answers out loud. */
@@ -74,7 +72,6 @@ export const DEFAULT_QUIPGAME_SETTINGS: QuipgameSettings = {
   writeSeconds: 90,
   voteSeconds: 30,
   resultsSeconds: 8,
-  cheeky: false,
   finalRound: true,
   announcer: false,
   customPrompts: [],

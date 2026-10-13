@@ -7,7 +7,7 @@ import { isSkribbleWelcomeExtra, type CanvasAction, type DrawOp, type SkribbleCl
 import type { TemplateClientMessage } from '../../../shared/games/template/protocol.js';
 import { EMPTY_ROOM_TTL_MS } from '../../../shared/platform/constants.js';
 import { CLOSE_REPLACED } from '../../../shared/platform/protocol.js';
-import { CanvasHistory } from '../../games/skribble/canvas.js';
+import { CanvasHistory } from '../sideStores/canvas.js';
 import type { SkribbleData } from '../../games/skribble/state.js';
 import { handleConnection } from '../connection.js';
 import type { PlatformRoomData } from '../engine/state.js';
@@ -130,6 +130,9 @@ describe.skipIf(!hasRedisServer)('RedisDriver across two instances', () => {
     const guest = await join(b, code, 'Bob');
     await a.handle(host.seat, msg({ t: 'updateSettings', settings: { customWords: TEST_WORDS, customWordsOnly: true, rounds: 1, drawTime, hints: 2, wordChoices: 3 } }));
     await vi.waitFor(() => expect(guest.ws.last('room').room.settings.rounds).toBe(1), WAIT);
+    // The guest readies up for the game (the host is ready by pressing start).
+    await b.handle(guest.seat, msg({ t: 'ready', ready: true }));
+    await vi.waitFor(() => expect(host.ws.last('room').room.players.find((p) => p.id === guest.seat.playerId)?.ready).toBe(true), WAIT);
     return { host, guest, code };
   }
 
@@ -538,6 +541,57 @@ describe.skipIf(!hasRedisServer)('RedisDriver across two instances', () => {
     expect(guest.ws.errors()).toEqual(['REJOIN_FAILED']);
     expect(b.holds(guest.seat, guest.connectionId)).toBe(false);
   });
+
+  it('refuses a game switch while a game runs and keeps every instance on the running game', async () => {
+    const a = instance();
+    const b = instance();
+    const { host, guest, code } = await pair(a, b);
+    const word = await startAndChoose(host, guest);
+    await a.handle(host.seat, msg({ t: 'draw', ops: [stroke(1)] }));
+    await vi.waitFor(() => expect(guest.ws.ofType('draw')).toHaveLength(1), WAIT);
+    expect(await admin.llen(sideListKey(code))).toBe(1);
+    // Nobody can switch mid-game; the host ends it the quick way (everyone leaves the turn to run out) and goes back to the lobby.
+    await a.handle(host.seat, msg({ t: 'selectGame', gameId: 'template' }));
+    await vi.waitFor(() => expect(host.ws.errors()).toEqual(['NOT_ALLOWED']), WAIT);
+    await b.handle(guest.seat, msg({ t: 'chat', text: word }));
+    await vi.waitFor(() => expect(guest.ws.last('room').room.game?.phase.kind).toBe('turnEnd'), WAIT);
+
+    const fresh = instance();
+    const back = await rejoin(fresh, code, host.token, 'Alice');
+    expect(back.ws.last('welcome').room.gameId).toBe('skribble');
+    // Still Skribble while the game runs; the preview says so too.
+    expect(await b.preview(code)).toMatchObject({ gameId: 'skribble', inProgress: true });
+  });
+
+  it('runs a party through the lobby: ready across instances, a game switch everyone sees, a start that seats only the ready', async () => {
+    const a = instance();
+    const b = instance();
+    const host = await create(a, 'Alice');
+    const code = host.seat.code;
+    const guest = await join(b, code, 'Bob');
+    const third = await join(b, code, 'Carol');
+    await b.handle(guest.seat, msg({ t: 'ready', ready: true }));
+    await b.handle(third.seat, msg({ t: 'sitOut', sitOut: true }));
+    await vi.waitFor(() => {
+      const players = host.ws.last('room').room.players;
+      expect(players.find((p) => p.id === guest.seat.playerId)?.ready).toBe(true);
+      expect(players.find((p) => p.id === third.seat.playerId)?.sittingOut).toBe(true);
+    }, WAIT);
+    await a.handle(host.seat, msg({ t: 'selectGame', gameId: 'template' }));
+    await vi.waitFor(() => expect(third.ws.last('room').room.gameId).toBe('template'), WAIT);
+    expect(third.ws.last('chat').message.text).toBe('Host switched the party to Click Race');
+    expect(guest.ws.last('room').room.players.find((p) => p.id === guest.seat.playerId)?.ready).toBe(true);
+    expect(await b.preview(code)).toMatchObject({ gameId: 'template', players: 3 });
+    await a.handle(host.seat, msg({ t: 'start' }));
+    await vi.waitFor(() => expect(third.ws.last('room').room.phase).toBe('playing'), WAIT);
+    const players = third.ws.last('room').room.players;
+    expect(players.map((p) => p.participating)).toEqual([true, true, false]);
+    expect(players.every((p) => !p.ready)).toBe(true);
+    expect(third.ws.chats().map((c) => c.text)).toContain('Carol sits this one out');
+    // The spectator keeps the welcome stream (snapshots) but cannot play.
+    await b.handle(third.seat, msg({ t: 'click' }));
+    await vi.waitFor(() => expect(third.ws.errors()).toEqual(['NOT_ALLOWED']), WAIT);
+  });
 });
 
 describe.skipIf(!hasRedisServer)('RedisDriver with the template game', () => {
@@ -568,14 +622,36 @@ describe.skipIf(!hasRedisServer)('RedisDriver with the template game', () => {
     const joined = await b.join(created.seat.code, 'Bob', AVATAR, 'conn-g');
     if (!joined.ok) throw new Error(joined.code);
     await a.handle(created.seat, msg({ t: 'updateSettings', settings: { targetClicks: 10 } }));
+    await b.handle(joined.seat, msg({ t: 'ready', ready: true }));
+    await vi.waitFor(() => expect(hostWs.last('room').room.players.find((p) => p.id === joined.seat.playerId)?.ready).toBe(true), WAIT);
     await a.handle(created.seat, msg({ t: 'start' }));
     await vi.waitFor(() => expect(guestWs.last('room').room.phase).toBe('playing'), WAIT);
     for (let i = 0; i < 10; i++) await b.handle(joined.seat, msg({ t: 'click' }));
     await vi.waitFor(() => expect(hostWs.last('room').room.phase).toBe('ended'), WAIT);
-    expect(hostWs.last('room').room.podium?.[0]).toMatchObject({ playerId: joined.seat.playerId, score: 100, rank: 1 });
+    await vi.waitFor(() => expect(guestWs.last('room').room.phase).toBe('ended'), WAIT);
+    // The winner's last click ends the game: the podium reaches both instances, nobody is closed, kicked or told the room is gone, and every seat stays.
+    for (const ws of [hostWs, guestWs]) {
+      expect(ws.last('room').room.podium).toEqual([
+        { playerId: joined.seat.playerId, score: 100, rank: 1 },
+        { playerId: created.seat.playerId, score: 0, rank: 2 },
+      ]);
+      expect(ws.last('room').room.players.map((p) => p.connected)).toEqual([true, true]);
+      expect(ws.closes).toEqual([]);
+      expect(ws.ofType('kicked')).toEqual([]);
+      expect(ws.errors()).toEqual([]);
+    }
+    const stored = JSON.parse((await admin.get(roomKey(created.seat.code))) ?? 'null') as PlatformRoomData | null;
+    expect(stored?.players).toHaveLength(2);
+    expect(stored?.phase).toBe('ended');
+    expect(await admin.exists(roomKey(created.seat.code))).toBe(1);
     // No side store: the room's keys are just the record and the presence keys.
     expect((await admin.keys('*')).filter((k) => k.includes(':side'))).toEqual([]);
+    // The podium stays until the host brings the party back to the lobby, where everyone keeps their seat.
+    await a.handle(created.seat, msg({ t: 'returnToLobby' }));
+    await vi.waitFor(() => expect(guestWs.last('room').room).toMatchObject({ phase: 'lobby', podium: null, gameId: 'template' }), WAIT);
+    expect(guestWs.last('room').room.players).toHaveLength(2);
   });
+
 });
 
 describe.skipIf(!hasRedisServer || !hasRedisCli)('RedisRooms compare-and-set', () => {

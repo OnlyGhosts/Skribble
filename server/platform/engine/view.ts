@@ -1,7 +1,7 @@
 /** Per-recipient projections of PlatformRoomData onto the wire protocol. */
 import type { PlayerPublic, RoomPreview, RoomState, WaitingState, WelcomeMessage } from '../../../shared/platform/protocol.js';
 import { moduleFor } from './module.js';
-import { connectedCount, findPlayer, inProgress, isJoinable, minPlayers, platformPlayers, sortedPlayers } from './players.js';
+import { connectedCount, findPlayer, gameSeatLimit, inProgress, isJoinable, minPlayers, platformPlayers, platformSpectators, sortedPlayers } from './players.js';
 import type { PlatformPlayerData, PlatformRoomData } from './state.js';
 
 export function publicPlayer(p: PlatformPlayerData, hostId: string): PlayerPublic {
@@ -13,6 +13,9 @@ export function publicPlayer(p: PlatformPlayerData, hostId: string): PlayerPubli
     isHost: p.id === hostId,
     connected: p.connected,
     joinOrder: p.joinOrder,
+    ready: p.ready,
+    sittingOut: p.sittingOut,
+    participating: p.participating,
   };
 }
 
@@ -20,6 +23,7 @@ export function publicPlayer(p: PlatformPlayerData, hostId: string): PlayerPubli
 export function viewFor(data: PlatformRoomData, playerId: string | null, now: number): RoomState {
   const game = moduleFor(data.gameId);
   const players = platformPlayers(data);
+  const spectators = platformSpectators(data);
   return {
     code: data.code,
     gameId: data.gameId,
@@ -28,7 +32,7 @@ export function viewFor(data: PlatformRoomData, playerId: string | null, now: nu
     players: sortedPlayers(data).map((p) => publicPlayer(p, data.hostId)),
     phase: data.phase,
     podium: data.podium ? data.podium.map((e) => ({ ...e })) : null,
-    game: data.game === null ? null : game.view(data.game, playerId !== null && findPlayer(data, playerId) ? playerId : null, { settings: data.settings, players, hostId: data.hostId, now }),
+    game: data.game === null ? null : game.view(data.game, playerId !== null && findPlayer(data, playerId) ? playerId : null, { settings: data.settings, players, spectators, hostId: data.hostId, now }),
     waiting: waitingFor(data),
     serverTime: now,
   };
@@ -56,7 +60,7 @@ export function previewOf(data: PlatformRoomData): RoomPreview {
     code: data.code,
     gameId: data.gameId,
     players: data.players.length,
-    maxPlayers: data.settings.maxPlayers,
+    maxPlayers: gameSeatLimit(data),
     inProgress: inProgress(data),
     joinable: isJoinable(data),
   };

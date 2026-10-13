@@ -6,6 +6,7 @@ import { CodeInput } from '../components/CodeInput';
 import { ArrowRightIcon, SparkIcon, UsersIcon } from '../components/Icons';
 import { SiteHeader } from '../components/SiteHeader';
 import { enteredLength } from '../lib/codeInput';
+import { playerCountLabel } from '../lib/party';
 import { useRoomPreview } from '../lib/useRoomPreview';
 import { gamePath, navigate, roomPath } from '../router';
 import { usePlatformStore } from '../store/usePlatformStore';
@@ -26,7 +27,7 @@ function GameCard({ game }: { game: GameMeta }) {
         <span className="game-card__name">{game.name}</span>
         <span className="game-card__tagline">{game.tagline}</span>
         <span className="game-card__meta">
-          <UsersIcon size={14} /> {game.minPlayers === game.maxPlayers ? game.minPlayers : `${game.minPlayers}-${game.maxPlayers}`} players
+          <UsersIcon size={14} /> {playerCountLabel(game)}
           {!live && <span className="pill game-card__soon">Coming soon</span>}
         </span>
       </span>

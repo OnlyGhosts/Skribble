@@ -3,6 +3,7 @@
  * per-recipient view the platform embeds in `RoomState.game`.
  */
 import { z } from 'zod';
+import { CANVAS_SIDE_MESSAGE_TYPES, canvasClientMessageOptions, isCanvasWelcomeExtra, type CanvasServerMessage, type CanvasWelcomeExtra } from '../../platform/canvas.js';
 import type { RoomState, WelcomeMessage } from '../../platform/protocol.js';
 
 // ---------------------------------------------------------------------------
@@ -74,54 +75,11 @@ export function normalizeSkribbleSettings(s: SkribbleSettings): SkribbleSettings
 }
 
 // ---------------------------------------------------------------------------
-// Drawing
+// Drawing: the platform's shared canvas (shared/platform/canvas.ts), re-exported for Skribble's imports
 // ---------------------------------------------------------------------------
 
-export const hexColorSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'expected #rrggbb');
-
-export const toolSchema = z.enum(['brush', 'eraser']);
-export type Tool = z.infer<typeof toolSchema>;
-
-/**
- * Streaming drawing operations. Coordinates are logical canvas pixels
- * (0..CANVAS_WIDTH, 0..CANVAS_HEIGHT) and may be fractional. Stroke `id`s are
- * assigned by the drawer and must be unique within a turn (an incrementing counter).
- */
-export const drawOpSchema = z.discriminatedUnion('k', [
-  z.object({
-    k: z.literal('start'),
-    id: z.number().int().nonnegative(),
-    tool: toolSchema,
-    color: hexColorSchema,
-    size: z.number().min(1).max(100),
-    x: z.number().finite(),
-    y: z.number().finite(),
-  }),
-  /** Append points to the stroke `id`; `pts` is flat: [x0, y0, x1, y1, ...]. */
-  z.object({
-    k: z.literal('move'),
-    id: z.number().int().nonnegative(),
-    pts: z.array(z.number().finite()).min(2).max(2000).refine((a) => a.length % 2 === 0, 'pts must be pairs'),
-  }),
-  z.object({ k: z.literal('end'), id: z.number().int().nonnegative() }),
-  /** Flood fill at (x, y) with `color`. */
-  z.object({ k: z.literal('fill'), x: z.number().finite(), y: z.number().finite(), color: hexColorSchema }),
-]);
-export type DrawOp = z.infer<typeof drawOpSchema>;
-
-/** Canvas history as kept by the server and replayed by late joiners. Undo removes the last action. */
-export type CanvasAction =
-  | {
-      kind: 'stroke';
-      id: number;
-      tool: Tool;
-      color: string;
-      size: number;
-      points: number[];
-      /** Set once the drawer's 'end' op arrived; absent while the stroke may still receive points. */
-      done?: boolean;
-    }
-  | { kind: 'fill'; x: number; y: number; color: string };
+export { drawOpSchema, hexColorSchema, toolSchema } from '../../platform/canvas.js';
+export type { CanvasAction, DrawOp, Tool } from '../../platform/canvas.js';
 
 // ---------------------------------------------------------------------------
 // Messages
@@ -130,10 +88,8 @@ export type CanvasAction =
 export const skribbleClientMessageSchema = z.discriminatedUnion('t', [
   /** Drawer only, during `choosing`. */
   z.object({ t: z.literal('chooseWord'), index: z.number().int().min(0).max(9) }),
-  /** Drawer only, during `drawing`. Ops are batched by the client (~every 30ms). Handled by the canvas side store. */
-  z.object({ t: z.literal('draw'), ops: z.array(drawOpSchema).min(1).max(200) }),
-  z.object({ t: z.literal('undo') }),
-  z.object({ t: z.literal('clear') }),
+  /** Drawer only, during `drawing`: the shared canvas messages, handled by the canvas side store. */
+  ...canvasClientMessageOptions,
   /** Non-drawers during `drawing`: rate the drawing. Sending the same value again clears it. */
   z.object({ t: z.literal('rate'), value: z.enum(['like', 'dislike']) }),
 ]);
@@ -141,23 +97,15 @@ export const skribbleClientMessageSchema = z.discriminatedUnion('t', [
 export type SkribbleClientMessage = z.infer<typeof skribbleClientMessageSchema>;
 
 /** Message types the canvas side store handles outside the pure reducer. */
-export const SKRIBBLE_SIDE_MESSAGE_TYPES: ReadonlySet<string> = new Set(['draw', 'undo', 'clear']);
+export const SKRIBBLE_SIDE_MESSAGE_TYPES: ReadonlySet<string> = CANVAS_SIDE_MESSAGE_TYPES;
 
-export type SkribbleServerMessage =
-  | { t: 'draw'; ops: DrawOp[] }
-  | { t: 'undo' }
-  | { t: 'clear' }
-  /** Full canvas resync (e.g. after the drawer's ops were truncated by the caps). */
-  | { t: 'canvas'; actions: CanvasAction[] };
+/** Skribble's server stream is the shared canvas stream. */
+export type SkribbleServerMessage = CanvasServerMessage;
 
 /** What Skribble puts in `welcome.extra`. */
-export interface SkribbleWelcomeExtra {
-  canvas: CanvasAction[];
-}
+export type SkribbleWelcomeExtra = CanvasWelcomeExtra;
 
-export function isSkribbleWelcomeExtra(x: unknown): x is SkribbleWelcomeExtra {
-  return typeof x === 'object' && x !== null && Array.isArray((x as { canvas?: unknown }).canvas);
-}
+export const isSkribbleWelcomeExtra: (x: unknown) => x is SkribbleWelcomeExtra = isCanvasWelcomeExtra;
 
 // ---------------------------------------------------------------------------
 // View

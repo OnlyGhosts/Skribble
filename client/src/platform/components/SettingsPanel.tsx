@@ -1,8 +1,8 @@
-import { gameById, type GameMeta } from '@shared/platform/games';
 import type { RoomState } from '@shared/platform/protocol';
 import type { AnyGameClientModule } from '../game';
 import { updateSettings } from '../net/actions';
-import { RangeSetting, ToggleSetting } from './SettingControls';
+import { ContentModeSetting } from './ContentModeSetting';
+import { ToggleSetting } from './SettingControls';
 
 interface Props {
   room: RoomState;
@@ -10,14 +10,8 @@ interface Props {
   game: AnyGameClientModule | null;
 }
 
-/** The slider cannot ask for fewer seats than are taken: the server would clamp the patch and the thumb would lie. */
-export function maxPlayersMin(playerCount: number, meta: GameMeta): number {
-  return Math.min(meta.maxPlayers, Math.max(meta.minPlayers, playerCount));
-}
-
-/** The platform's own settings, then the game's `SettingsFields` under them. Only the host sends patches. */
+/** The platform's own settings (content mode, mid-game joins), then the game's `SettingsFields` under them. Only the host sends patches. */
 export function SettingsPanel({ room, isHost, game }: Props) {
-  const meta = gameById(room.gameId);
   const settings = room.settings;
   const send = (patch: Record<string, unknown>) => {
     if (isHost) updateSettings(patch);
@@ -27,17 +21,7 @@ export function SettingsPanel({ room, isHost, game }: Props) {
   return (
     <div className={`settings${isHost ? '' : ' settings--readonly'}`} data-testid="settings-panel">
       {!isHost && <p className="settings__note">Only the host can change settings.</p>}
-      <RangeSetting
-        id="maxPlayers"
-        label="Maximum players"
-        rowLabel="Max players"
-        canEdit={isHost}
-        value={settings.maxPlayers}
-        min={maxPlayersMin(room.players.length, meta)}
-        max={meta.maxPlayers}
-        onCommit={(v) => send({ maxPlayers: v })}
-        revision={settings}
-      />
+      <ContentModeSetting value={settings.contentMode} canEdit={isHost} onChange={(contentMode) => send({ contentMode })} />
       <ToggleSetting
         id="allowMidGameJoin"
         checked={settings.allowMidGameJoin}

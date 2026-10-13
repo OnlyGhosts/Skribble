@@ -196,7 +196,7 @@ export function GameHome({ game, code: invitedCode }: Props) {
               </h2>
               <p className="card__text">You become the host: tweak the settings, then share the code or the link.</p>
               <ul className="feature-list" aria-label="What you get">
-                <li>Up to {game.maxPlayers} players, private by default</li>
+                <li>{game.maxPlayers === null ? 'Any number of players' : `Up to ${game.maxPlayers} players`}, private by default</li>
                 <li>A 4-character code that is easy to read out loud</li>
                 <li>Rejoin automatically after a dropped connection</li>
               </ul>
@@ -297,7 +297,7 @@ export function GameHome({ game, code: invitedCode }: Props) {
 
 function PreviewText({ preview, game }: { preview: RoomPreview; game: GameMeta }) {
   if (!preview.exists) return <span className="field__error">No room with this code right now.</span>;
-  const players = `${preview.players}/${preview.maxPlayers} players`;
+  const players = `${preview.players} ${preview.players === 1 ? 'player' : 'players'} in the party`;
   if (!preview.joinable) {
     return <span className="field__error">{preview.inProgress ? `Game in progress — joining is closed. (${players})` : `Room is full. (${players})`}</span>;
   }

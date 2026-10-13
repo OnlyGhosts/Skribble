@@ -92,7 +92,6 @@ export function QuipgameSettingsFields({ settings, canEdit, patch }: SettingsFie
         hint="The host can skip ahead at any time."
         {...range}
       />
-      <ToggleSetting id="cheeky" checked={settings.cheeky} disabled={!canEdit} onChange={(v) => patch({ cheeky: v })} label="Cheeky prompts" hint="Adult humour: innuendo and embarrassment. Keep it off for kids." />
       <ToggleSetting id="finalRound" checked={settings.finalRound} disabled={!canEdit} onChange={(v) => patch({ finalRound: v })} label="Final round" hint="A third round: one prompt for everyone, then everyone ranks the answers." />
       <ToggleSetting id="announcer" checked={settings.announcer} disabled={!canEdit} onChange={(v) => patch({ announcer: v })} label="Announcer" hint="One player per matchup is asked to read the prompt and answers out loud." />
 

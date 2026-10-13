@@ -9,6 +9,8 @@ describe('server game registry', () => {
       const module = GAMES[meta.id];
       expect(module.meta).toEqual(gameById(meta.id));
       expect(module.meta.id).toBe(meta.id);
+      // null seats as many as the room holds; a limit can never sit below the minimum.
+      if (meta.maxPlayers !== null) expect(meta.maxPlayers).toBeGreaterThanOrEqual(meta.minPlayers);
     }
   });
 
@@ -17,7 +19,8 @@ describe('server game registry', () => {
       const { settings } = GAMES[id];
       expect(settings.schema.safeParse(settings.defaults).success, id).toBe(true);
       expect(settings.patchSchema.safeParse({}).success, id).toBe(true);
-      expect(settings.patchSchema.safeParse({ maxPlayers: 3 })).toMatchObject({ success: true, data: {} });
+      // Platform fields (and retired ones such as maxPlayers or Quip Game's cheeky) are stripped by a game's patch schema, never refused.
+      expect(settings.patchSchema.safeParse({ maxPlayers: 3, contentMode: 'cheeky', cheeky: true })).toMatchObject({ success: true, data: {} });
     }
   });
 

@@ -16,7 +16,7 @@ import {
 import { DRAWER_DISCONNECT_GRACE_MS } from '../../../shared/games/skribble/constants.js';
 import { gameById } from '../../../shared/platform/games.js';
 import { defineSettings, withDraft, type GameEvent, type GameResult, type GameServerModule } from '../../platform/game.js';
-import { createCanvasStore } from './canvas.js';
+import { createSkribbleCanvasStore } from './canvas.js';
 import { chat } from './chat.js';
 import { everyoneGuessed, findPlayer, isDrawer, type Ctx, type SkribbleData } from './state.js';
 import { beginNextTurn, chooseTimedOut, chooseWord, endTurn, rate, resumeHeldTurn, revealHint, snapshot, systemMessageForDrawerGone, type Gx } from './turns.js';
@@ -196,7 +196,7 @@ export const skribbleModule: GameServerModule<SkribbleSettings, SkribbleData, Sk
   nextDeadline,
   view: viewFor,
   sideMessages: SKRIBBLE_SIDE_MESSAGE_TYPES,
-  createSideStore: createCanvasStore,
+  createSideStore: createSkribbleCanvasStore,
 };
 
 export { findPlayer };

@@ -76,9 +76,14 @@ export function sim(gameId: GameId = 'skribble', code = 'ABCD', now = START, rng
   return s;
 }
 
+/** Every listed player readies up for the next game (the host is ready by pressing start, but readying them too is harmless). */
+export function readyUp(s: Sim, ids: string[]): void {
+  for (const id of ids) s.platform(id, { t: 'ready', ready: true });
+}
+
 /**
  * Seats `names` (the first one creates the room; filler players are added up to the game's
- * minPlayers), applies the game's deterministic test settings and starts the game.
+ * minPlayers), applies the game's deterministic test settings, readies everyone and starts the game.
  */
 export function startGame(s: Sim, names: string[], settings: Record<string, unknown> = {}): string[] {
   const ids = enoughNames(s.data.gameId, names).map((name, i) => {
@@ -91,6 +96,7 @@ export function startGame(s: Sim, names: string[], settings: Record<string, unkn
   });
   const host = ids[0];
   s.platform(host, { t: 'updateSettings', settings: { ...GAME_TEST_FIXTURES[s.data.gameId].settings, ...settings } });
+  readyUp(s, ids.slice(1));
   s.platform(host, { t: 'start' });
   return ids;
 }

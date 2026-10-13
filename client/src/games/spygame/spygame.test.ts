@@ -53,7 +53,7 @@ function view(overrides: Partial<SpygameView> = {}): SpygameView {
 function spyRoom(game: SpygameView, overrides: Partial<SpygameRoomState> = {}): SpygameRoomState {
   return {
     ...room({ gameId: 'spygame', phase: 'playing', players: [player('host'), player('bob', { joinOrder: 1 }), player('carol', { joinOrder: 2 }), player('dave', { joinOrder: 3 })] }),
-    settings: { maxPlayers: 12, allowMidGameJoin: true, rounds: 2, roundMinutes: 3, voteSeconds: 15 },
+    settings: { allowMidGameJoin: true, contentMode: 'family', rounds: 2, roundMinutes: 3, voteSeconds: 15 },
     game,
     ...overrides,
   } as SpygameRoomState;

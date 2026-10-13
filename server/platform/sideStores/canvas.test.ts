@@ -1,10 +1,13 @@
+/** The platform's canvas side store, driven through Skribble's policy (the drawer draws during their turn). */
 import { describe, expect, it } from 'vitest';
-import { MAX_ACTIONS_PER_TURN, MAX_POINTS_PER_STROKE } from '../../../shared/games/skribble/constants.js';
-import type { DrawOp } from '../../../shared/games/skribble/protocol.js';
-import type { SideRoom } from '../../platform/game.js';
-import { MemoryStorage, type GameStorage } from '../../platform/storage.js';
-import { CanvasHistory, CanvasStore, admitOp, emptyCounts, replayOps } from './canvas.js';
-import type { SkribbleData } from './state.js';
+import { MAX_ACTIONS_PER_TURN, MAX_POINTS_PER_STROKE, type CanvasClientMessage, type DrawOp } from '../../../shared/platform/canvas.js';
+import { skribbleCanvasPolicy } from '../../games/skribble/canvas.js';
+import type { SkribbleData } from '../../games/skribble/state.js';
+import type { SideRoom } from '../game.js';
+import { MemoryStorage, type GameStorage } from '../storage.js';
+import { CanvasHistory, CanvasStore, admitOp, createCanvasStore, emptyCounts, replayOps } from './canvas.js';
+
+const newStore = (storage: GameStorage): CanvasStore<SkribbleData, CanvasClientMessage> => new CanvasStore(storage, skribbleCanvasPolicy);
 
 const start = (id: number): DrawOp => ({ k: 'start', id, tool: 'brush', color: '#ff0000', size: 6, x: 10, y: 20 });
 const move = (id: number, n = 2): DrawOp => ({ k: 'move', id, pts: new Array<number>(n).fill(1) });
@@ -50,7 +53,7 @@ describe('admitOp', () => {
 describe('CanvasStore over MemoryStorage', () => {
   it('stores batches per action, undoes whole actions across read chunks and replays the same history as CanvasHistory', () => {
     const storage = new MemoryStorage();
-    const store = new CanvasStore(storage);
+    const store = newStore(storage);
     const reference = new CanvasHistory();
     const r = room();
     storage.reset('ABCD', null, 'canvas-1');
@@ -80,10 +83,12 @@ describe('CanvasStore over MemoryStorage', () => {
 
   it('authorises only the drawer, refuses stale stamps silently and resyncs a drawer whose input was cut', () => {
     const storage = new MemoryStorage();
-    const store = new CanvasStore(storage);
+    const store = newStore(storage);
     const r = room();
     storage.reset('ABCD', null, 'canvas-1');
     expect(sync(store.handleMessage(r, 'bob', { t: 'draw', ops: [start(1)] }, 0))).toEqual({ ok: false, message: 'Only the drawer can draw right now.' });
+    // Messages that are not canvas messages are not the store's business.
+    expect(sync(store.handleMessage(r, 'alice', { t: 'rate' } as unknown as CanvasClientMessage, 0))).toEqual({ ok: false, message: null });
     // The drawer after their deadline: in-flight ops, dropped without a word.
     expect(sync(store.handleMessage(r, 'alice', { t: 'draw', ops: [start(1)] }, 10_000))).toEqual({ ok: false, message: null });
     expect(sync(store.resync(r, 'alice', 10_000))).toBeNull();
@@ -117,7 +122,7 @@ describe('CanvasStore over MemoryStorage', () => {
       reset: (code, seq, stamp) => inner.reset(code, seq, stamp),
       drop: (code) => inner.drop(code),
     };
-    const store = new CanvasStore(flaky);
+    const store = createCanvasStore<SkribbleData, CanvasClientMessage>(skribbleCanvasPolicy)(flaky);
     inner.reset('ABCD', null, 'canvas-1');
     const out = await store.handleMessage(room(), 'alice', { t: 'draw', ops: [start(1)] }, 0);
     expect(out).toMatchObject({ ok: true, seq: 2 });

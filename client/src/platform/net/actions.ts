@@ -67,6 +67,21 @@ export function updateProfile(name: string | undefined, avatar: Avatar | undefin
   socket.send({ t: 'updateProfile', ...(name !== undefined ? { name } : {}), ...(avatar !== undefined ? { avatar } : {}) });
 }
 
+/** Host only, in the lobby: the party moves to another game without anyone leaving. */
+export function selectGame(gameId: GameId): void {
+  socket.send({ t: 'selectGame', gameId });
+}
+
+/** Lobby and podium: ready for the next game (or not). */
+export function setReady(ready: boolean): void {
+  socket.send({ t: 'ready', ready });
+}
+
+/** Lobby and podium: sit the next game out while staying in the party (or come back in). */
+export function setSitOut(sitOut: boolean): void {
+  socket.send({ t: 'sitOut', sitOut });
+}
+
 export function startGame(): void {
   socket.send({ t: 'start' });
 }
@@ -81,4 +96,11 @@ export function voteKick(playerId: string): void {
 
 export function returnToLobby(): void {
   socket.send({ t: 'returnToLobby' });
+}
+
+/** Host only, from the podium: back to the lobby with the host already ready, so one more tap starts the next game. */
+export function playAgain(): void {
+  usePlatformStore.getState().setPlayAgainPending(true);
+  socket.send({ t: 'returnToLobby' });
+  socket.send({ t: 'ready', ready: true });
 }

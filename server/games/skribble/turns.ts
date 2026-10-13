@@ -84,7 +84,7 @@ export function beginNextTurn(gx: Gx): void {
 function startChoosing(gx: Gx, drawer: PlatformPlayer): void {
   const { data, ctx } = gx;
   resetCanvas(gx);
-  const pool = buildWordPool(ctx.settings.language, ctx.settings.customWords, ctx.settings.customWordsOnly);
+  const pool = buildWordPool(ctx.settings.language, ctx.settings.customWords, ctx.settings.customWordsOnly, ctx.settings.contentMode);
   const choices = pickWords(pool, ctx.settings.wordChoices, data.usedWords, ctx.rng);
   data.turn = {
     drawerId: drawer.id,

@@ -1,11 +1,12 @@
 /** Which prompts a game draws from, and drawing without repeats while the pool lasts. */
-import { PROMPTS } from '../../../shared/games/quipgame/prompts.js';
+import { promptsForContentMode } from '../../../shared/games/quipgame/prompts.js';
 import type { QuipgameSettings } from '../../../shared/games/quipgame/protocol.js';
+import type { RoomSettings } from '../../platform/game.js';
 import type { Gx } from './state.js';
 
-/** The pack (clean, plus cheeky when enabled) merged with the host's prompts, or the host's alone; deduped case-insensitively. */
-export function promptPool(settings: QuipgameSettings): string[] {
-  const pack = PROMPTS.filter((p) => p.tier === 'clean' || settings.cheeky).map((p) => p.text);
+/** The pack tiers the room's content mode unlocks, merged with the host's prompts, or the host's alone; deduped case-insensitively. */
+export function promptPool(settings: RoomSettings<QuipgameSettings>): string[] {
+  const pack = promptsForContentMode(settings.contentMode).map((p) => p.text);
   const source = settings.customPromptsOnly && settings.customPrompts.length > 0 ? settings.customPrompts : [...pack, ...settings.customPrompts];
   const seen = new Set<string>();
   const out: string[] = [];

@@ -1,8 +1,11 @@
 /**
  * The Spy Game's location pack and the pure draws over it. Every location has a generated tile
  * (client/src/games/spygame/assets/locations/<id>.svg) built from `emoji` and `hue`; a photo
- * dropped next to it with the same id takes precedence.
+ * dropped next to it with the same id takes precedence. SPY_LOCATIONS is the family pack; the
+ * cheeky and unhinged tiers (./locationTiers.ts) join it by content mode (locationsForMode).
  */
+import type { ContentMode } from '../../platform/settings.js';
+import { CHEEKY_LOCATIONS, UNHINGED_LOCATIONS } from './locationTiers.js';
 
 export interface SpyLocation {
   /** Lowercase letters and dashes; doubles as the image file name. */
@@ -84,7 +87,22 @@ export const SPY_LOCATIONS: readonly SpyLocation[] = [
   { id: 'zoo', name: 'Zoo', emoji: '🦁', hue: 70 },
 ];
 
-const BY_ID = new Map<string, SpyLocation>(SPY_LOCATIONS.map((l) => [l.id, l]));
+/** Every location of every tier; ids are unique across tiers so one lookup serves them all. */
+export const ALL_SPY_LOCATIONS: readonly SpyLocation[] = [...SPY_LOCATIONS, ...CHEEKY_LOCATIONS, ...UNHINGED_LOCATIONS];
+
+const BY_ID = new Map<string, SpyLocation>(ALL_SPY_LOCATIONS.map((l) => [l.id, l]));
+
+/** The pool a room draws from: the family pack, plus the cheeky tier, plus the unhinged tier as the content mode unlocks them. */
+export function locationsForMode(mode: ContentMode): readonly SpyLocation[] {
+  switch (mode) {
+    case 'family':
+      return SPY_LOCATIONS;
+    case 'cheeky':
+      return [...SPY_LOCATIONS, ...CHEEKY_LOCATIONS];
+    case 'unhinged':
+      return ALL_SPY_LOCATIONS;
+  }
+}
 
 export function locationById(id: string): SpyLocation | undefined {
   return BY_ID.get(id);
@@ -108,16 +126,16 @@ function shuffle<T>(items: T[], rng: () => number): T[] {
   return items;
 }
 
-/** A location not used this game while any remain; the pack is reused once exhausted. */
-export function pickLocation(usedIds: readonly string[], rng: () => number): SpyLocation {
-  const fresh = SPY_LOCATIONS.filter((l) => !usedIds.includes(l.id));
-  return pickOne(fresh.length > 0 ? fresh : SPY_LOCATIONS, rng);
+/** A location of `pool` not used this game while any remain; the pool is reused once exhausted. */
+export function pickLocation(usedIds: readonly string[], rng: () => number, pool: readonly SpyLocation[] = SPY_LOCATIONS): SpyLocation {
+  const fresh = pool.filter((l) => !usedIds.includes(l.id));
+  return pickOne(fresh.length > 0 ? fresh : pool, rng);
 }
 
-/** The real location plus `count - 1` random decoys, shuffled once so everyone sees the same order. */
-export function drawCandidates(realId: string, count: number, rng: () => number): string[] {
+/** The real location plus `count - 1` random decoys from `pool`, shuffled once so everyone sees the same order. */
+export function drawCandidates(realId: string, count: number, rng: () => number, pool: readonly SpyLocation[] = SPY_LOCATIONS): string[] {
   const decoys = shuffle(
-    SPY_LOCATIONS.filter((l) => l.id !== realId).map((l) => l.id),
+    pool.filter((l) => l.id !== realId).map((l) => l.id),
     rng,
   ).slice(0, Math.max(0, count - 1));
   return shuffle([realId, ...decoys], rng);

@@ -19,7 +19,7 @@ const { player, registryOf, resetStore, room, welcome } = await import('../../te
 function race(overrides: Partial<TemplateRoomState> = {}): TemplateRoomState {
   return {
     ...room({ gameId: 'template', phase: 'playing', players: [player('host'), player('bob', { joinOrder: 1 })] }),
-    settings: { maxPlayers: 12, allowMidGameJoin: true, targetClicks: 10, timeLimit: 30 },
+    settings: { allowMidGameJoin: true, contentMode: 'family', targetClicks: 10, timeLimit: 30 },
     game: { clicks: { host: 7, bob: 3 }, endsAt: Date.now() + 20_000, winnerId: null },
     ...overrides,
   };

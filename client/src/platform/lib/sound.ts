@@ -2,7 +2,7 @@
  * Tiny WebAudio cue synthesiser. No asset files: every cue is a few oscillator notes.
  * Everything is best-effort — when AudioContext is missing or blocked we silently do nothing.
  */
-export type Cue = 'correct' | 'yourTurn' | 'tick' | 'turnEnd';
+export type Cue = 'correct' | 'yourTurn' | 'tick' | 'turnEnd' | 'fanfare';
 
 let context: AudioContext | null = null;
 let enabled = true;
@@ -86,6 +86,15 @@ const CUES: Record<Cue, Note[]> = {
   turnEnd: [
     { freq: 659.25, at: 0, dur: 0.16, type: 'triangle' },
     { freq: 493.88, at: 0.16, dur: 0.3, type: 'triangle' },
+  ],
+  // The podium's little fanfare: a rising arpeggio that lands on a held chord.
+  fanfare: [
+    { freq: 523.25, at: 0, dur: 0.14, type: 'triangle' },
+    { freq: 659.25, at: 0.12, dur: 0.14, type: 'triangle' },
+    { freq: 783.99, at: 0.24, dur: 0.14, type: 'triangle' },
+    { freq: 1046.5, at: 0.36, dur: 0.5, type: 'triangle', gain: 0.14 },
+    { freq: 659.25, at: 0.36, dur: 0.5, type: 'sine', gain: 0.07 },
+    { freq: 783.99, at: 0.36, dur: 0.5, type: 'sine', gain: 0.07 },
   ],
 };
 

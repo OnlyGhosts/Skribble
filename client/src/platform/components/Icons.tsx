@@ -46,6 +46,9 @@ export const KickIcon = (p: IconProps) => <Icon {...p} paths={['M16 21v-2a4 4 0 
 export const SparkIcon = (p: IconProps) => <Icon {...p} paths="m12 3 1.9 5.6L19.5 10l-5.6 1.4L12 17l-1.9-5.6L4.5 10l5.6-1.4L12 3Z" />;
 export const EditIcon = (p: IconProps) => <Icon {...p} paths={['M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7', 'M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4Z']} />;
 export const SendIcon = (p: IconProps) => <Icon {...p} paths={['m22 2-7 20-4-9-9-4Z', 'M22 2 11 13']} />;
+export const EyeIcon = (p: IconProps) => <Icon {...p} paths={['M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z', 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z']} />;
+export const PartyIcon = (p: IconProps) => <Icon {...p} paths={['m5.8 11.3 7 7L2 22l3.8-10.7Z', 'M4 3h.01M22 8h.01M15 2h.01M22 20h.01', 'M22 2 12.3 11.7', 'M11 13 22 2']} />;
+export const RefreshIcon = (p: IconProps) => <Icon {...p} paths={['M21 12a9 9 0 1 1-2.6-6.4', 'M21 3v6h-6']} />;
 export const MoreIcon = (p: IconProps) => <Icon {...p} paths={['M12 12h.01', 'M19 12h.01', 'M5 12h.01']} strokeWidth={3} />;
 export const GamepadIcon = (p: IconProps) => (
   <Icon {...p} paths={['M6 11h4M8 9v4', 'M15 12h.01M18 10h.01', 'M7 6h10a5 5 0 0 1 5 5v2a5 5 0 0 1-5 5h-1l-2-2h-4l-2 2H7a5 5 0 0 1-5-5v-2a5 5 0 0 1 5-5Z']} />

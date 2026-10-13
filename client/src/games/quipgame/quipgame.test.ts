@@ -75,7 +75,7 @@ const FINAL_ANSWERS = [
 function quipRoom(game: QuipgameView, overrides: Partial<QuipgameRoomState> = {}): QuipgameRoomState {
   return {
     ...room({ gameId: 'quipgame', phase: 'playing', players: [player('host'), player('bob', { joinOrder: 1 }), player('carol', { joinOrder: 2 })] }),
-    settings: { maxPlayers: 8, allowMidGameJoin: true, ...DEFAULT_QUIPGAME_SETTINGS },
+    settings: { allowMidGameJoin: true, contentMode: 'family', ...DEFAULT_QUIPGAME_SETTINGS },
     game,
     ...overrides,
   } as QuipgameRoomState;
@@ -406,7 +406,7 @@ describe('settings rows', () => {
     expect(tagWith(host, 'settings-writeSeconds')).toContain('step="10"');
     expect(tagWith(host, 'settings-voteSeconds')).toContain('max="60"');
     expect(tagWith(host, 'settings-resultsSeconds')).toContain('max="20"');
-    for (const id of ['cheeky', 'finalRound', 'announcer']) expect(tagWith(host, `settings-${id}`)).not.toContain('disabled');
+    for (const id of ['finalRound', 'announcer']) expect(tagWith(host, `settings-${id}`)).not.toContain('disabled');
     expect(tagWith(host, 'settings-finalRound')).toContain('checked');
     expect(host).toContain('Adult humour');
     expect(tagWith(host, 'settings-customPrompts')).toBeTruthy();
@@ -416,7 +416,8 @@ describe('settings rows', () => {
     expect(guest).not.toContain('data-testid="settings-writeSeconds"');
     expect(guest).not.toContain('data-testid="settings-customPrompts"');
     expect(guest).toContain('90s');
-    expect(tagWith(guest, 'settings-cheeky')).toContain('disabled');
+    expect(guest).not.toContain('settings-cheeky');
+    expect(tagWith(guest, 'settings-finalRound')).toContain('disabled');
     const enough = { ...settings, customPrompts: Array.from({ length: 10 }, (_, i) => `Prompt ${i}`) };
     const only = renderToString(createElement(quipgameClient.SettingsFields, { settings: enough, canEdit: true, patch: () => undefined }));
     expect(tagWith(only, 'settings-customPromptsOnly')).not.toContain('disabled');

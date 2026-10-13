@@ -48,6 +48,8 @@ interface PlatformState {
    * are biased by the one-way latency, so they never override a pong-based value).
    */
   clockSynced: boolean;
+  /** The host pressed "Play again" on the podium: the next lobby scrolls to Start, then clears this. */
+  playAgainPending: boolean;
 }
 
 interface PlatformActions {
@@ -72,6 +74,7 @@ interface PlatformActions {
   dismissToast(id: number): void;
   setTheme(theme: Theme | null): void;
   setSound(on: boolean): void;
+  setPlayAgainPending(pending: boolean): void;
 }
 
 export type PlatformStore = PlatformState & PlatformActions;
@@ -97,6 +100,7 @@ export const usePlatformStore = create<PlatformStore>()((set, get) => ({
   joinError: null,
   clockOffset: 0,
   clockSynced: false,
+  playAgainPending: false,
 
   setConnection: (connection) => set({ connection }),
   setRejoining: (rejoining) => set({ rejoining }),
@@ -155,7 +159,7 @@ export const usePlatformStore = create<PlatformStore>()((set, get) => ({
   resetRoom: (opts) => {
     const room = get().room;
     if (room) registeredGame(room.gameId)?.onLeave?.();
-    set({ room: null, playerId: null, chat: [], rejoining: false, joinPending: false, pendingJoin: null });
+    set({ room: null, playerId: null, chat: [], rejoining: false, joinPending: false, pendingJoin: null, playAgainPending: false });
     // After the state is cleared, so routeSync sees a room-less store and does not leave a second time.
     if (room && !opts?.keepUrl && codeFromLocation() === room.code) navigate(gamePath(room.gameId), { replace: true });
   },
@@ -177,4 +181,5 @@ export const usePlatformStore = create<PlatformStore>()((set, get) => ({
     savePrefs(prefs);
     set({ prefs });
   },
+  setPlayAgainPending: (playAgainPending) => set({ playAgainPending }),
 }));

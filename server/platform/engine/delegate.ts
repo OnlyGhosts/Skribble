@@ -3,7 +3,7 @@ import { isWireMessage, type WireMessage } from '../../../shared/platform/protoc
 import type { GameCtx, GameEffect, GameEvent, GameResult } from '../game.js';
 import { broadcastSnapshot, fail, pushChat, snapshotTo, systemMessage, type Cx } from './messaging.js';
 import { moduleFor } from './module.js';
-import { findPlayer, platformPlayers } from './players.js';
+import { findPlayer, platformPlayers, platformSpectators } from './players.js';
 import { finishGame, resetToLobby } from './lobby.js';
 
 export function gameCtx(cx: Cx): GameCtx<unknown> {
@@ -13,6 +13,7 @@ export function gameCtx(cx: Cx): GameCtx<unknown> {
     newId: cx.ctx.newId,
     settings: cx.data.settings,
     players: platformPlayers(cx.data),
+    spectators: platformSpectators(cx.data),
     hostId: cx.data.hostId,
   };
 }

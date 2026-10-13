@@ -1,24 +1,27 @@
 import { describe, expect, it } from 'vitest';
 import { gameById } from './games.js';
-import { PLATFORM_SETTINGS_LIMITS, clampMaxPlayers, defaultPlatformSettings, platformSettingsPatchSchema } from './settings.js';
+import { CONTENT_MODES, CONTENT_MODE_INFO, ROOM_HARD_CAP, defaultPlatformSettings, platformSettingsPatchSchema, seatLimit } from './settings.js';
 
 describe('platform settings', () => {
-  it('validates patches against the global bounds', () => {
+  it('validates patches against the platform schema', () => {
     expect(platformSettingsPatchSchema.safeParse({}).success).toBe(true);
-    expect(platformSettingsPatchSchema.safeParse({ maxPlayers: 0 }).success).toBe(false);
-    expect(platformSettingsPatchSchema.safeParse({ maxPlayers: PLATFORM_SETTINGS_LIMITS.maxPlayers.max + 1 }).success).toBe(false);
-    expect(platformSettingsPatchSchema.safeParse({ maxPlayers: 2.5 }).success).toBe(false);
     expect(platformSettingsPatchSchema.safeParse({ allowMidGameJoin: 'yes' }).success).toBe(false);
-    // Game fields are not the platform's business: they are stripped, not rejected.
-    expect(platformSettingsPatchSchema.safeParse({ rounds: 5 })).toEqual({ success: true, data: {} });
+    expect(platformSettingsPatchSchema.safeParse({ contentMode: 'filthy' }).success).toBe(false);
+    for (const mode of CONTENT_MODES) expect(platformSettingsPatchSchema.safeParse({ contentMode: mode })).toEqual({ success: true, data: { contentMode: mode } });
+    // Game fields (and the retired maxPlayers) are not the platform's business: they are stripped, not rejected.
+    expect(platformSettingsPatchSchema.safeParse({ rounds: 5, maxPlayers: 4 })).toEqual({ success: true, data: {} });
   });
 
-  it('derives room defaults and clamps maxPlayers to the game and the people seated', () => {
-    const skribble = gameById('skribble');
-    expect(defaultPlatformSettings(skribble)).toEqual({ maxPlayers: 12, allowMidGameJoin: true });
-    expect(clampMaxPlayers(50, skribble, 0)).toBe(skribble.maxPlayers);
-    expect(clampMaxPlayers(1, skribble, 0)).toBe(skribble.minPlayers);
-    expect(clampMaxPlayers(2, skribble, 3)).toBe(3);
-    expect(clampMaxPlayers(8, skribble, 3)).toBe(8);
+  it('derives room defaults and a seat limit per game', () => {
+    expect(defaultPlatformSettings(gameById('skribble'))).toEqual({ allowMidGameJoin: true, contentMode: 'family' });
+    expect(seatLimit(gameById('skribble'))).toBe(ROOM_HARD_CAP);
+    expect(seatLimit({ ...gameById('skribble'), maxPlayers: 6 })).toBe(6);
+  });
+
+  it('labels every content mode', () => {
+    for (const mode of CONTENT_MODES) {
+      expect(CONTENT_MODE_INFO[mode].label.length).toBeGreaterThan(0);
+      expect(CONTENT_MODE_INFO[mode].blurb.length).toBeGreaterThan(0);
+    }
   });
 });

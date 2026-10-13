@@ -1,5 +1,7 @@
 /** Quip Game's final round, the announcer, the hold for missing players at a round boundary and the module's purity through the pure engine. */
 import { describe, expect, it } from 'vitest';
+import { gameById } from '../../../shared/platform/games.js';
+import { defaultPlatformSettings } from '../../../shared/platform/settings.js';
 import { RECONNECT_GRACE_MS } from '../../../shared/platform/constants.js';
 import { nextDeadline } from '../../platform/engine/time.js';
 import { AVATAR, START, chatTexts, sim, startGame, type Sim } from '../../platform/engine/testHarness.js';
@@ -423,7 +425,7 @@ describe('Quip Game: edges', () => {
     const s = sim('quipgame');
     const [alice, bob] = startGame(s, ['Alice', 'Bob', 'Carol']);
     const game = data(s);
-    const ctx = { now: s.now, rng: () => 0, newId: () => 'x', settings: { ...quipgameModule.settings.defaults }, players: s.data.players.map((p) => ({ id: p.id, name: p.name, joinOrder: p.joinOrder, connected: p.connected, score: p.score })), hostId: alice };
+    const ctx = { now: s.now, rng: () => 0, newId: () => 'x', settings: { ...defaultPlatformSettings(gameById('quipgame')), ...quipgameModule.settings.defaults }, players: s.data.players.map((p) => ({ id: p.id, name: p.name, joinOrder: p.joinOrder, connected: p.connected, score: p.score })), spectators: [], hostId: alice };
     expect(quipgameModule.handle(ctx, game, { type: 'tick' }).data).toBe(game);
     expect(quipgameModule.handle(ctx, game, { type: 'chat', playerId: alice, text: 'hi' }).data).toBe(game);
     expect(quipgameModule.handle(ctx, game, { type: 'playerJoined', playerId: 'new' }).data).toBe(game);

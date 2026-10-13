@@ -1,5 +1,7 @@
 /** Quip Game's regular rounds through the pure engine: assignment, writing, matchups, votes, scoring and the flow between them. */
 import { describe, expect, it } from 'vitest';
+import { gameById } from '../../../shared/platform/games.js';
+import { defaultPlatformSettings } from '../../../shared/platform/settings.js';
 import { FALLBACK_ANSWERS, PROMPTS } from '../../../shared/games/quipgame/prompts.js';
 import { DEFAULT_QUIPGAME_SETTINGS, QUIPGAME_ANSWER_MAX_LENGTH } from '../../../shared/games/quipgame/protocol.js';
 import { nextDeadline } from '../../platform/engine/time.js';
@@ -12,6 +14,9 @@ const WRITE_MS = 30_000; // the fixture's writeSeconds
 const VOTE_MS = 10_000; // the fixture's voteSeconds
 const RESULT_MS = 4_000; // the fixture's resultsSeconds
 const NAMES = ['Alice', 'Bob', 'Carol', 'Dave', 'Erin', 'Fay', 'Gus', 'Hal'];
+
+/** The platform's part of a room's flat settings. */
+const PLATFORM = defaultPlatformSettings(gameById('quipgame'));
 
 describe('Quip Game: round setup', () => {
   it.each([3, 5, 8])('with %i players gives every prompt two authors and every player two prompts', (n) => {
@@ -59,18 +64,32 @@ describe('Quip Game: round setup', () => {
 
 describe('Quip Game: the prompt pool', () => {
   const gx = (settings: Partial<typeof DEFAULT_QUIPGAME_SETTINGS>, rng: () => number = lcg(1)): Gx => ({
-    ctx: { now: 0, rng, newId: () => 'x', settings: { ...DEFAULT_QUIPGAME_SETTINGS, ...settings }, players: [], hostId: 'a' },
+    ctx: { now: 0, rng, newId: () => 'x', settings: { ...PLATFORM, ...DEFAULT_QUIPGAME_SETTINGS, ...settings }, players: [], spectators: [], hostId: 'a' },
     data: { phase: 'writing', resumeAt: null, round: 1, totalRounds: 2, roundPlayers: [], prompts: [], answers: [], matchups: [], matchupIndex: 0, endsAt: 0, usedPrompts: [], announcerCursor: 0, final: null },
     effects: [],
   });
   const custom = Array.from({ length: 10 }, (_, i) => `Custom prompt ${i}`);
 
-  it('is the clean pack by default, adds the cheeky tier on request, merges custom prompts and can be custom-only', () => {
-    const clean = promptPool(DEFAULT_QUIPGAME_SETTINGS);
+  it('follows the room content mode (family: clean; cheeky: clean + cheeky; unhinged: cheeky + unhinged), merges custom prompts and can be custom-only', () => {
+    const settings = { ...PLATFORM, ...DEFAULT_QUIPGAME_SETTINGS };
+    const clean = promptPool(settings);
     expect(clean).toEqual(PROMPTS.filter((p) => p.tier === 'clean').map((p) => p.text));
-    expect(promptPool({ ...DEFAULT_QUIPGAME_SETTINGS, cheeky: true })).toHaveLength(PROMPTS.length);
-    expect(promptPool({ ...DEFAULT_QUIPGAME_SETTINGS, customPrompts: [...custom, clean[0].toUpperCase()] })).toHaveLength(clean.length + custom.length);
-    expect(promptPool({ ...DEFAULT_QUIPGAME_SETTINGS, customPrompts: custom, customPromptsOnly: true })).toEqual(custom);
+    const cheeky = promptPool({ ...settings, contentMode: 'cheeky' });
+    expect(cheeky).toEqual(PROMPTS.filter((p) => p.tier === 'clean' || p.tier === 'cheeky').map((p) => p.text));
+    const unhinged = promptPool({ ...settings, contentMode: 'unhinged' });
+    expect(unhinged).toEqual(PROMPTS.filter((p) => p.tier === 'cheeky' || p.tier === 'unhinged').map((p) => p.text));
+    expect(unhinged.length).toBeGreaterThanOrEqual(100);
+    expect(promptPool({ ...settings, customPrompts: [...custom, clean[0].toUpperCase()] })).toHaveLength(clean.length + custom.length);
+    expect(promptPool({ ...settings, customPrompts: custom, customPromptsOnly: true })).toEqual(custom);
+  });
+
+  it('draws unhinged prompts in an unhinged room', () => {
+    const s = sim('quipgame');
+    const [alice] = startGame(s, ['Alice', 'Bob', 'Carol'], { contentMode: 'unhinged' });
+    const unhinged = new Set(PROMPTS.filter((p) => p.tier === 'unhinged' || p.tier === 'cheeky').map((p) => p.text));
+    expect(data(s).prompts.length).toBeGreaterThan(0);
+    for (const p of data(s).prompts) expect(unhinged.has(p.text)).toBe(true);
+    expect(view(s, alice).myPrompts.length).toBe(2);
   });
 
   it('never repeats a prompt while the pool lasts, then starts over without repeating within a draw', () => {

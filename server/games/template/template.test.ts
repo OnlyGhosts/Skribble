@@ -1,7 +1,9 @@
 /** Click Race through the pure engine: the template every new game's tests can copy. */
 import { describe, expect, it } from 'vitest';
 import type { TemplateView } from '../../../shared/games/template/protocol.js';
+import { gameById } from '../../../shared/platform/games.js';
 import type { PlatformServerMessageOf } from '../../../shared/platform/protocol.js';
+import { defaultPlatformSettings } from '../../../shared/platform/settings.js';
 import type { Effect } from '../../platform/engine/effects.js';
 import { nextDeadline } from '../../platform/engine/time.js';
 import { viewFor } from '../../platform/engine/view.js';
@@ -89,7 +91,7 @@ describe('Click Race', () => {
 
   it('is a pure module: the same object comes back when nothing changed', () => {
     const data: TemplateData = { clicks: { a: 1 }, endsAt: 1000, winnerId: null, over: false };
-    const ctx = { now: 500, rng: () => 0, newId: () => 'x', settings: templateModule.settings.defaults, players: [{ id: 'a', name: 'A', joinOrder: 0, connected: true, score: 0 }], hostId: 'a' };
+    const ctx = { now: 500, rng: () => 0, newId: () => 'x', settings: { ...defaultPlatformSettings(gameById('template')), ...templateModule.settings.defaults }, players: [{ id: 'a', name: 'A', joinOrder: 0, connected: true, score: 0 }], spectators: [], hostId: 'a' };
     expect(templateModule.handle(ctx, data, { type: 'tick' }).data).toBe(data);
     expect(templateModule.handle(ctx, data, { type: 'chat', playerId: 'a', text: 'hi' }).data).toBe(data);
     const clicked = templateModule.handle(ctx, data, { type: 'message', playerId: 'a', msg: { t: 'click' } });

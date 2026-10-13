@@ -1,5 +1,9 @@
 /** The Spy Game's rules through the pure engine: roles, candidates, guesses, votes, the clock, the reveal and the edges. */
 import { describe, expect, it } from 'vitest';
+import { gameById } from '../../../shared/platform/games.js';
+import { defaultPlatformSettings } from '../../../shared/platform/settings.js';
+import { SPY_LOCATIONS, locationsForMode } from '../../../shared/games/spygame/locations.js';
+import { UNHINGED_LOCATIONS } from '../../../shared/games/spygame/locationTiers.js';
 import { SPYGAME_CANDIDATES, SPYGAME_REVEAL_SECONDS, type SpygameView } from '../../../shared/games/spygame/protocol.js';
 import { RECONNECT_GRACE_MS } from '../../../shared/platform/constants.js';
 import { nextDeadline } from '../../platform/engine/time.js';
@@ -111,6 +115,24 @@ describe('The Spy Game: round setup', () => {
     s.game(alice, { t: 'nextRound' });
     expect(data(s).current.playerIds).toEqual([alice, bob, carol, dave]);
     expect(view(s, dave).role).toBe('agent');
+  });
+});
+
+describe('The Spy Game: the location pool follows the room content mode', () => {
+  it('draws from the family pack by default and from every tier in an unhinged room', () => {
+    const family = sim('spygame', 'ABCD', START, () => 0.99);
+    startGame(family, ['Alice', 'Bob', 'Carol']);
+    expect(SPY_LOCATIONS.some((l) => l.id === data(family).current.locationId)).toBe(true);
+    for (const id of data(family).current.candidates) expect(SPY_LOCATIONS.some((l) => l.id === id)).toBe(true);
+
+    const unhinged = sim('spygame', 'ABCD', START, () => 0.99);
+    startGame(unhinged, ['Alice', 'Bob', 'Carol'], { contentMode: 'unhinged' });
+    const pool = locationsForMode('unhinged');
+    expect(data(unhinged).current.locationId).toBe(UNHINGED_LOCATIONS.at(-1)?.id);
+    for (const id of data(unhinged).current.candidates) expect(pool.some((l) => l.id === id)).toBe(true);
+    // The agents see the tier location by id, like any other.
+    const agent = data(unhinged).current.playerIds.find((id) => id !== data(unhinged).current.spyId) ?? '';
+    expect(view(unhinged, agent).locationId).toBe(UNHINGED_LOCATIONS.at(-1)?.id);
   });
 });
 
@@ -515,7 +537,7 @@ describe('The Spy Game: reveal, rounds and the end', () => {
     const s = sim('spygame');
     const [alice, bob] = startGame(s, ['Alice', 'Bob', 'Carol']);
     const current = data(s);
-    const ctx = { now: s.now, rng: () => 0, newId: () => 'x', settings: { rounds: 1, roundMinutes: 3, voteSeconds: 15 }, players: s.data.players.map((p) => ({ id: p.id, name: p.name, joinOrder: p.joinOrder, connected: p.connected, score: p.score })), hostId: alice };
+    const ctx = { now: s.now, rng: () => 0, newId: () => 'x', settings: { ...defaultPlatformSettings(gameById('spygame')), rounds: 1, roundMinutes: 3, voteSeconds: 15 }, players: s.data.players.map((p) => ({ id: p.id, name: p.name, joinOrder: p.joinOrder, connected: p.connected, score: p.score })), spectators: [], hostId: alice };
     expect(spygameModule.handle(ctx, current, { type: 'tick' }).data).toBe(current);
     expect(spygameModule.handle(ctx, current, { type: 'chat', playerId: bob, text: 'is it cold there?' })).toEqual({ data: current, effects: [] });
     expect(spygameModule.handle(ctx, current, { type: 'playerJoined', playerId: 'new' })).toEqual({ data: current, effects: [] });

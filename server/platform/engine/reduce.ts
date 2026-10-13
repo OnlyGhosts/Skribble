@@ -8,13 +8,13 @@ import type { Action, ActionResult, Ctx } from './actions.js';
 import { chat } from './chat.js';
 import { runGame } from './delegate.js';
 import type { Effect } from './effects.js';
-import { returnToLobby, start, updateProfile, updateSettings } from './lobby.js';
+import { returnToLobby, selectGame, setReady, setSitOut, start, updateProfile, updateSettings } from './lobby.js';
 import { deepEqual } from '../json.js';
 import { fail, type Cx } from './messaging.js';
 import { moduleFor } from './module.js';
 import { findPlayer } from './players.js';
 import { connectionClosed, create, expireSeat, join, kick, leave, rejoin, voteKick } from './seats.js';
-import type { PlatformRoomData } from './state.js';
+import { upgradeRoomData, type PlatformRoomData } from './state.js';
 import { gameDeadline, nextDue, type Deadline } from './time.js';
 
 export interface ApplyResult {
@@ -27,7 +27,7 @@ export interface ApplyResult {
 const OK: ActionResult = { ok: true, playerId: null };
 
 export function applyAction(data: PlatformRoomData, action: Action, ctx: Ctx): ApplyResult {
-  const cx: Cx = { data: structuredClone(data), effects: [], ctx, now: ctx.now };
+  const cx: Cx = { data: structuredClone(upgradeRoomData(data)), effects: [], ctx, now: ctx.now };
   const result = dispatch(cx, action);
   if (deepEqual(cx.data, data)) return { data, effects: cx.effects, result };
   cx.data.version = data.version + 1;
@@ -67,6 +67,12 @@ function handlePlatformMessage(cx: Cx, playerId: string, msg: PlatformRoomMessag
       return updateSettings(cx, playerId, msg.settings);
     case 'updateProfile':
       return updateProfile(cx, playerId, msg.name, msg.avatar);
+    case 'selectGame':
+      return selectGame(cx, playerId, msg.gameId);
+    case 'ready':
+      return setReady(cx, playerId, msg.ready);
+    case 'sitOut':
+      return setSitOut(cx, playerId, msg.sitOut);
     case 'start':
       return start(cx, playerId);
     case 'chat':
@@ -88,6 +94,8 @@ function handleGameMessage(cx: Cx, playerId: string, raw: unknown): void {
     return fail(cx, playerId, 'INVALID_MESSAGE', `${issue?.message ?? 'Invalid message'}${where}`);
   }
   if (cx.data.phase !== 'playing') return fail(cx, playerId, 'NOT_ALLOWED', 'The game is not running.');
+  // The game only knows its participants (GameCtx.players); a spectator's move has nobody to act for.
+  if (!findPlayer(cx.data, playerId)?.participating) return fail(cx, playerId, 'NOT_ALLOWED', 'You are sitting this game out.');
   runGame(cx, { type: 'message', playerId, msg: parsed.data });
 }
 

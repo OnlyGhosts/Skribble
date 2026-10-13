@@ -23,6 +23,13 @@ export interface PlatformPlayer {
   score: number;
 }
 
+/** A seated player who sits this game out (or has not readied up): in the room, never in the game. */
+export interface PlatformSpectator {
+  id: string;
+  name: string;
+  connected: boolean;
+}
+
 /** Identity and randomness are injected so the reducer is deterministic. */
 export interface GameCtx<S> {
   /** Epoch ms: the real clock, or the deadline being processed while a tick catches up. */
@@ -31,15 +38,19 @@ export interface GameCtx<S> {
   rng: () => number;
   /** Fresh unique id. */
   newId: () => string;
-  settings: S;
-  /** Every seated player (connected or in reconnect grace), in join order. */
+  /** The game's settings, flat next to the platform's (contentMode picks the content packs). */
+  settings: RoomSettings<S>;
+  /** Every participating seated player (connected or in reconnect grace), in join order. */
   players: PlatformPlayer[];
+  /** The other seated players: spectators who sat this game out. They get snapshots and chat but never play. */
+  spectators: PlatformSpectator[];
   hostId: string;
 }
 
 export interface GameViewCtx<S> {
-  settings: S;
+  settings: RoomSettings<S>;
   players: PlatformPlayer[];
+  spectators: PlatformSpectator[];
   hostId: string;
   now: number;
 }

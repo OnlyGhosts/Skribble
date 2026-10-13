@@ -10,6 +10,7 @@ export function registryOf(module: Partial<AnyGameClientModule>): Record<GameId,
   return Object.fromEntries(GAME_IDS.map((id) => [id, stub])) as Record<GameId, AnyGameClientModule>;
 }
 
+/** A seated player who is in the game (most fixtures are in-game states); lobby states override `participating`. */
 export function player(id: string, overrides: Partial<PlayerPublic> = {}): PlayerPublic {
   return {
     id,
@@ -19,6 +20,9 @@ export function player(id: string, overrides: Partial<PlayerPublic> = {}): Playe
     isHost: id === 'host',
     connected: true,
     joinOrder: 0,
+    ready: false,
+    sittingOut: false,
+    participating: true,
     ...overrides,
   };
 }
@@ -29,7 +33,7 @@ export function room(overrides: Partial<RoomState> = {}): RoomState {
     code: 'ABCD',
     gameId: 'skribble',
     hostId: 'host',
-    settings: { maxPlayers: 12, allowMidGameJoin: true, ...DEFAULT_SKRIBBLE_SETTINGS },
+    settings: { allowMidGameJoin: true, contentMode: 'family', ...DEFAULT_SKRIBBLE_SETTINGS },
     players: [player('host'), player('bob', { joinOrder: 1 })],
     phase: 'lobby',
     podium: null,

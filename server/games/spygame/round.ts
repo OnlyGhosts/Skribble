@@ -1,5 +1,5 @@
 /** Round lifecycle: start -> playing (guesses, pauses) -> reveal -> next round / game over. */
-import { SPY_LOCATIONS, drawCandidates, locationById, pickLocation } from '../../../shared/games/spygame/locations.js';
+import { drawCandidates, locationById, locationsForMode, pickLocation } from '../../../shared/games/spygame/locations.js';
 import { SPYGAME_CANDIDATES, SPYGAME_GUESSES, SPYGAME_POINTS, SPYGAME_REVEAL_SECONDS, type SpygameOutcome } from '../../../shared/games/spygame/protocol.js';
 import { RESUME_SETTLE_MS, holdEffects, resumeEffect } from '../waiting.js';
 import { MIN_PLAYERS, agentIds, connectedCount, fail, findPlayer, nameOf, snapshot, systemMessage, type Gx, type RoundData } from './state.js';
@@ -26,14 +26,16 @@ export function buildRound(gx: Gx): RoundData {
   const { data, ctx } = gx;
   const playerIds = ctx.players.filter((p) => p.connected).map((p) => p.id);
   const spyId = pickSpy(gx, playerIds);
-  if (SPY_LOCATIONS.every((l) => data.usedLocationIds.includes(l.id))) data.usedLocationIds = [];
-  const location = pickLocation(data.usedLocationIds, ctx.rng);
+  // The room's content mode picks the pool: the family pack, plus the cheeky and unhinged tiers.
+  const pool = locationsForMode(ctx.settings.contentMode);
+  if (pool.every((l) => data.usedLocationIds.includes(l.id))) data.usedLocationIds = [];
+  const location = pickLocation(data.usedLocationIds, ctx.rng, pool);
   data.usedLocationIds.push(location.id);
   return {
     spyId,
     spyName: nameOf(ctx, spyId),
     locationId: location.id,
-    candidates: drawCandidates(location.id, SPYGAME_CANDIDATES, ctx.rng),
+    candidates: drawCandidates(location.id, SPYGAME_CANDIDATES, ctx.rng, pool),
     playerIds,
     guessesLeft: SPYGAME_GUESSES,
     guessed: [],

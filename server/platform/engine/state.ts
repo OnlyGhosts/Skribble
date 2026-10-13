@@ -28,6 +28,12 @@ export interface PlatformPlayerData {
   connectedAt: number;
   /** Epoch ms of the disconnect that started the reconnect grace; null while connected. */
   disconnectedAt: number | null;
+  /** Lobby and ended phases: readied up for the next game. Reset to false when a game starts. */
+  ready: boolean;
+  /** Chose to sit the next game out; persists across games until the player changes it. */
+  sittingOut: boolean;
+  /** In the running game (or the one that just ended); false in the lobby. */
+  participating: boolean;
 }
 
 export interface GraceDeadlines {
@@ -73,6 +79,21 @@ export interface PlatformRoomData {
 }
 
 export const MAX_KICKED_TOKENS = 50;
+
+/** Rooms stored before the party fields existed load with them filled in (a running game counts every seat as playing). */
+export function upgradeRoomData(data: PlatformRoomData): PlatformRoomData {
+  const players = data.players as Array<Partial<PlatformPlayerData> & PlatformPlayerData>;
+  if (players.every((p) => typeof p.ready === 'boolean' && typeof p.sittingOut === 'boolean' && typeof p.participating === 'boolean')) return data;
+  return {
+    ...data,
+    players: players.map((p) => ({
+      ...p,
+      ready: p.ready ?? false,
+      sittingOut: p.sittingOut ?? false,
+      participating: p.participating ?? data.phase !== 'lobby',
+    })),
+  };
+}
 
 export function createRoomData(code: string, gameId: GameId, now: number): PlatformRoomData {
   const game = moduleFor(gameId);

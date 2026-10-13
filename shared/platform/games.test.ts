@@ -24,12 +24,13 @@ describe('game registry', () => {
       expect(g.howToPlay.length).toBeGreaterThan(0);
       expect(g.accent).toMatch(/^#[0-9a-f]{6}$/);
       expect(g.minPlayers).toBeGreaterThanOrEqual(1);
-      expect(g.maxPlayers).toBeGreaterThanOrEqual(g.minPlayers);
+      // null means the room's hard cap seats everyone; a limit can never sit below the minimum.
+      if (g.maxPlayers !== null) expect(g.maxPlayers).toBeGreaterThanOrEqual(g.minPlayers);
     }
   });
 
   it('resolves ids and slugs', () => {
-    expect(gameById('skribble')).toMatchObject({ slug: 'skribble', status: 'live', minPlayers: 2, maxPlayers: 20 });
+    expect(gameById('skribble')).toMatchObject({ slug: 'skribble', status: 'live', minPlayers: 2, maxPlayers: null });
     expect(gameById('template')).toMatchObject({ slug: 'template', name: 'Click Race', status: 'hidden' });
     expect(gameBySlug('skribble')?.id).toBe('skribble');
     expect(gameBySlug('ABCD')).toBeUndefined();

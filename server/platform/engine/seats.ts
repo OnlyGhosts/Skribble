@@ -8,7 +8,7 @@ import { runGame } from './delegate.js';
 import { ensureEnoughSeated } from './lobby.js';
 import { broadcastSnapshot, fail, requireHost, sendTo, sendWelcome, systemMessage, type Cx } from './messaging.js';
 import { moduleFor } from './module.js';
-import { connectedCount, findByToken, findPlayer, inProgress, isFull, othersConnected, votesNeeded } from './players.js';
+import { connectedCount, electorate, findByToken, findPlayer, inProgress, isFull, othersConnected, votesNeeded } from './players.js';
 import { MAX_KICKED_TOKENS, type PlatformPlayerData } from './state.js';
 
 type Seat = { ok: true; playerId: string } | { ok: false; code: 'ROOM_FULL' | 'GAME_IN_PROGRESS' | 'REJOIN_FAILED' | 'INTERNAL'; message: string };
@@ -39,6 +39,10 @@ export function join(cx: Cx, name: string, avatar: Avatar, connectionId: string)
     connectionId,
     connectedAt: cx.now,
     disconnectedAt: null,
+    ready: false,
+    sittingOut: false,
+    // A mid-game joiner is in the game (games decide when they take part); between games nobody is.
+    participating: data.phase === 'playing',
   };
   data.players.push(player);
   if (!data.hostId) data.hostId = player.id;
@@ -131,9 +135,10 @@ export function voteKick(cx: Cx, playerId: string, targetId: string): void {
   if (!voter) return;
   if (!target) return fail(cx, playerId, 'NOT_ALLOWED', 'That player is not in the room.');
   if (target.id === playerId) return fail(cx, playerId, 'NOT_ALLOWED', "You can't vote to kick yourself.");
+  if (!electorate(data).some((p) => p.id === playerId)) return fail(cx, playerId, 'NOT_ALLOWED', 'Only the players in the game vote.');
   // With one other player a "vote" would be a unilateral kick (of the host, even).
   if (othersConnected(data, target.id) < 2) {
-    return fail(cx, playerId, 'NOT_ALLOWED', 'A vote needs at least two other connected players.');
+    return fail(cx, playerId, 'NOT_ALLOWED', 'A vote needs at least two other connected players in the game.');
   }
   let vote = data.votes.find((v) => v.targetId === target.id);
   if (!vote) {
@@ -175,7 +180,8 @@ function resolveVotes(cx: Cx): boolean {
       data.votes = data.votes.filter((v) => v !== vote);
       continue;
     }
-    if (vote.voterIds.length >= votesNeeded(data, target.id)) {
+    const voters = electorate(data);
+    if (vote.voterIds.filter((id) => voters.some((p) => p.id === id)).length >= votesNeeded(data, target.id)) {
       data.votes = data.votes.filter((v) => v !== vote);
       removePlayer(cx, target.id, 'kicked', 'You were kicked by a vote.');
       return true;
