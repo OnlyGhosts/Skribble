@@ -32,6 +32,12 @@ export interface PlayerPublic {
   connected: boolean;
   /** Seat order (0-based, never reused within a room); games use it as their turn order. */
   joinOrder: number;
+  /** Lobby and ended phases: the player has readied up for the next game. */
+  ready: boolean;
+  /** The player chose to sit the next game out; they stay in the party as a spectator. */
+  sittingOut: boolean;
+  /** True while this player is in the running game (ready, not sitting out, within the game's seat limit, or a mid-game joiner). */
+  participating: boolean;
 }
 
 export type RoomPhase = 'lobby' | 'playing' | 'ended';
@@ -122,6 +128,12 @@ export const platformClientMessageSchema = z.discriminatedUnion('t', [
   /** Lobby only. */
   z.object({ t: z.literal('updateProfile'), name: nameSchema.optional(), avatar: avatarSchema.optional() }),
   /** Host only, lobby only, needs the game's minPlayers connected. */
+  /** Host only, lobby only: switch the party to another game (game settings reset to that game's defaults). */
+  z.object({ t: z.literal('selectGame'), gameId: gameIdSchema }),
+  /** Lobby and ended phases. */
+  z.object({ t: z.literal('ready'), ready: z.boolean() }),
+  /** Lobby and ended phases: sit the next game out (or come back in). */
+  z.object({ t: z.literal('sitOut'), sitOut: z.boolean() }),
   z.object({ t: z.literal('start') }),
   z.object({ t: z.literal('chat'), text: z.string().min(1).max(CHAT_MAX_LENGTH) }),
   /** Host only. */

@@ -15,7 +15,8 @@ export interface GameMeta {
   description: string;
   howToPlay: string[];
   minPlayers: number;
-  maxPlayers: number;
+  /** Seats the game can hold at once, or null when any number may play. Extra players sit a game out and stay in the party. */
+  maxPlayers: number | null;
   /** Emoji shown on the library card. */
   icon: string;
   /** Accent colour (#rrggbb) for the card tile and the game's screens. */
@@ -38,7 +39,7 @@ export const GAME_LIST: readonly GameMeta[] = [
       'The drawer scores for every player who guesses the word.',
     ],
     minPlayers: 2,
-    maxPlayers: 20,
+    maxPlayers: null,
     icon: '✏️',
     accent: '#6366f1',
     status: 'live',
@@ -58,7 +59,7 @@ export const GAME_LIST: readonly GameMeta[] = [
       'Time runs out? The agents win the round.',
     ],
     minPlayers: 3,
-    maxPlayers: 12,
+    maxPlayers: null,
     icon: '🕵️',
     accent: '#0f766e',
     status: 'live',
@@ -77,7 +78,7 @@ export const GAME_LIST: readonly GameMeta[] = [
       'Round two counts double, and the final round pits everyone against one prompt.',
     ],
     minPlayers: 3,
-    maxPlayers: 8,
+    maxPlayers: null,
     icon: '💬',
     accent: '#f59e0b',
     status: 'live',
@@ -90,7 +91,7 @@ export const GAME_LIST: readonly GameMeta[] = [
     description: 'The simplest possible game: everyone taps a button and the first to reach the target wins. It exists to prove the platform contract and as the copy base for new games.',
     howToPlay: ['Tap the big button as fast as you can.', 'The first player to reach the target wins 100 points.', 'Everyone else scores one point per tap when the race ends.'],
     minPlayers: 1,
-    maxPlayers: 20,
+    maxPlayers: null,
     icon: '👆',
     accent: '#f59e0b',
     status: 'hidden',
