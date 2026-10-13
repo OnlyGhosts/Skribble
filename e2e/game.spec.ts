@@ -1,4 +1,5 @@
 import { expect, test, type Browser, type BrowserContext, type Locator, type Page } from '@playwright/test';
+import { readyAll } from './party';
 
 /**
  * One browser, three contexts = three players sharing a room on the real production server.
@@ -170,7 +171,7 @@ test('player 2 joins by typing the code and player 3 joins through the share lin
   await bob.page.goto('/skribble');
   await expect(bob.page.getByTestId('home-name')).toHaveValue(bob.name);
   await typeCode(bob.page, roomCode);
-  await expect(bob.page.getByTestId('room-preview')).toContainText(/1\/12 players/);
+  await expect(bob.page.getByTestId('room-preview')).toContainText(/1 player in the party/);
   await bob.page.getByTestId('home-join').click();
   await expect(bob.page.getByTestId('room-code')).toHaveText(roomCode);
 
@@ -189,7 +190,13 @@ test('player 2 joins by typing the code and player 3 joins through the share lin
   }
   await expect(host.page.getByTestId('chat-log')).toContainText(`${bob.name} joined`);
   await expect(host.page.getByTestId('chat-log')).toContainText(`${carol.name} joined`);
+  // The host counts as ready by pressing Start; the others must ready up before the game can begin.
+  await expect(host.page.getByTestId('start-game')).toBeDisabled();
+  await expect(host.page.getByTestId('start-hint')).toContainText(`${bob.name} and ${carol.name}`);
+  await readyAll([bob.page, carol.page]);
+  await expect(host.page.getByTestId('player-count')).toHaveText('3 of 3 ready');
   await expect(host.page.getByTestId('start-game')).toBeEnabled();
+  await expect(host.page.getByTestId('start-game')).toContainText('Start · 3 ready');
 });
 
 test('the host changes settings, everyone sees them and non-hosts cannot edit', async () => {
@@ -292,6 +299,29 @@ test('the remaining turns rotate the drawer until the podium appears', async () 
   await expect(bob.page.getByTestId('back-to-lobby')).toHaveCount(0);
 });
 
+test('pressing Enter (and Tab) on the podium never takes a player out of the room', async () => {
+  for (const p of players) {
+    // The card has the focus, not a button: Enter is a no-op, and so is a stray tap on the backdrop.
+    await expect.poll(() => p.page.evaluate(() => document.activeElement?.getAttribute('data-testid') ?? document.activeElement?.tagName ?? null)).toBe('podium-card');
+    await p.page.keyboard.press('Enter');
+    await p.page.keyboard.press('Enter');
+    await p.page.mouse.click(10, 10);
+    await p.page.keyboard.press('Enter');
+    await p.page.waitForTimeout(400);
+    await expect(p.page.getByTestId('overlay-game-end')).toBeVisible();
+    await expect(p.page).toHaveURL(new RegExp(`/skribble/${roomCode}$`));
+    await expect(p.page.getByTestId('podium-leave')).toHaveCount(0);
+  }
+  for (const p of players) await expect(p.page.getByTestId('player-item')).toHaveCount(3);
+  // Tab reaches Ready first; Enter there readies the player instead of leaving.
+  await bob.page.keyboard.press('Tab');
+  await expect(bob.page.getByTestId('overlay-game-end').getByTestId('ready-toggle')).toBeFocused();
+  await bob.page.keyboard.press('Enter');
+  await expect(bob.page.getByTestId('overlay-game-end').getByTestId('ready-toggle')).toHaveAttribute('aria-pressed', 'true');
+  await expect(host.page.getByTestId('podium-ready-count')).toHaveText('2 of 3 ready');
+  await expect(bob.page.getByTestId('player-item')).toHaveCount(3);
+});
+
 test('a reload brings a player back into the same seat with the same score', async () => {
   const scoreBefore = await scoreOf(bob.page, bob.name);
   expect(scoreBefore).toBeGreaterThan(0);
@@ -308,13 +338,16 @@ test('a reload brings a player back into the same seat with the same score', asy
   await expect(host.page.getByTestId('chat-log')).toContainText(`${bob.name} reconnected`);
 });
 
-test('back to lobby resets the scores for everyone', async () => {
+test('back to lobby resets the scores for everyone and keeps the party together', async () => {
   await host.page.getByTestId('back-to-lobby').click();
   for (const p of players) {
     await expect(p.page.getByTestId('room-code')).toHaveText(roomCode);
     await expect(p.page.getByTestId('player-item')).toHaveCount(3);
     for (const other of players) expect(await scoreOf(p.page, other.name)).toBe(0);
   }
+  // Bob readied up on the podium; that carries into the lobby.
+  await expect(host.page.getByTestId('player-count')).toHaveText('2 of 3 ready');
+  await readyAll([carol.page]);
   await expect(host.page.getByTestId('start-game')).toBeEnabled();
 });
 

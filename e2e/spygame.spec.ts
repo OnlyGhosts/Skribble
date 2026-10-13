@@ -1,4 +1,5 @@
 import { expect, test, type Browser, type BrowserContext, type Locator, type Page } from '@playwright/test';
+import { readyAll } from './party';
 
 /**
  * A whole two-round Spy Game between a desktop host and two phones (390x844, touch): roles,
@@ -147,6 +148,8 @@ test('the host creates a Spy Game room, two phones join by code and the host tun
   await expect(pia.page.getByTestId('settings-value-voteSeconds')).toHaveText('15s');
   await expect(pia.page.getByTestId('settings-rounds')).toHaveCount(0);
 
+  await expect(host.page.getByTestId('start-game')).toBeDisabled();
+  await readyAll([pia.page, quinn.page]);
   await expect(host.page.getByTestId('start-game')).toBeEnabled();
   await host.page.getByTestId('start-game').click();
   for (const p of players) {
@@ -340,6 +343,7 @@ test('the host starts round two; the spy guesses right for +4; the podium lists 
   await expect(host.page.getByTestId('back-to-lobby')).toBeVisible();
   await host.page.getByTestId('back-to-lobby').click();
   for (const p of players) await expect(p.page.getByTestId('room-code')).toHaveText(roomCode);
+  await readyAll([pia.page, quinn.page]);
   await expect(host.page.getByTestId('start-game')).toBeEnabled();
 });
 

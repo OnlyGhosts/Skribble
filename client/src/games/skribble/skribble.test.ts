@@ -10,7 +10,8 @@ const { usePlatformStore } = await import('../../platform/store/usePlatformStore
 const { registerGames } = await import('../../platform/registry');
 const { skribbleClient } = await import('./module');
 const { useSkribbleStore } = await import('./store');
-const { DrawQueue } = await import('./net');
+const { skribbleCanvas, myDrawingTurn } = await import('./canvas');
+const { DrawQueue } = await import('../../platform/canvas');
 const { GuessInput } = await import('./components/GuessInput');
 const { WordDisplay } = await import('./components/WordDisplay');
 const { SkribbleSettingsFields } = await import('./components/SettingsFields');
@@ -21,6 +22,7 @@ const { drawingPhase, inTurn, resetSkribbleStore } = await import('./test/fixtur
 
 const stroke = (id: number): CanvasAction => ({ kind: 'stroke', id, tool: 'brush', color: '#000000', size: 6, points: [1, 1, 2, 2], done: true });
 const skribble = () => useSkribbleStore.getState();
+const canvas = () => skribbleCanvas.store.getState();
 const platform = () => usePlatformStore.getState();
 
 /** Feeds a welcome or snapshot the way the socket does: store first, then the module hooks. */
@@ -55,11 +57,11 @@ describe('welcome and the guess draft', () => {
 
   it('restores the canvas from welcome.extra and keeps a half-typed guess across a rejoin into the same turn', () => {
     enter(turn(), 'bob', { canvas: [stroke(1)] });
-    expect(skribble().canvas).toHaveLength(1);
+    expect(canvas().canvas).toHaveLength(1);
     skribble().setGuessDraft('ab');
     enter(turn(), 'bob', { canvas: [stroke(1), stroke(2)] });
     expect(skribble().guessDraft).toBe('ab');
-    expect(skribble().canvas).toHaveLength(2);
+    expect(canvas().canvas).toHaveLength(2);
   });
 
   it('clears the draft when the rejoin lands in another turn or seat', () => {
@@ -77,11 +79,11 @@ describe('welcome and the guess draft', () => {
     enter(turn(), 'bob', { canvas: [stroke(1)] });
     skribble().setGuessDraft('ab');
     snapshot(inTurn({ kind: 'choosing', drawerId: 'bob', endsAt: Date.now() + 15_000 }, { turn: 2 }));
-    expect(skribble().canvas).toEqual([]);
+    expect(canvas().canvas).toEqual([]);
     expect(skribble().guessDraft).toBe('');
-    skribble().appendOps([{ k: 'start', id: 1, tool: 'brush', color: '#000000', size: 6, x: 1, y: 1 }]);
+    canvas().appendOps([{ k: 'start', id: 1, tool: 'brush', color: '#000000', size: 6, x: 1, y: 1 }]);
     snapshot(room() as SkribbleRoomState);
-    expect(skribble().canvas).toEqual([]);
+    expect(canvas().canvas).toEqual([]);
   });
 });
 
@@ -90,33 +92,33 @@ describe('undo and clear', () => {
 
   it('the drawer applies undo locally and ignores the echo, so a stroke started meanwhile survives', () => {
     enter(turn('bob'));
-    skribble().appendOps([
+    canvas().appendOps([
       { k: 'start', id: 1, tool: 'brush', color: '#000000', size: 6, x: 1, y: 1 },
       { k: 'end', id: 1 },
       { k: 'start', id: 2, tool: 'brush', color: '#000000', size: 6, x: 5, y: 5 },
       { k: 'end', id: 2 },
     ]);
-    const epoch = skribble().canvasEpoch;
-    skribble().undo(); // what undoStroke() does when the undo was sent
-    expect(skribble().canvas.map((a) => (a.kind === 'stroke' ? a.id : -1))).toEqual([1]);
-    expect(skribble().canvasEpoch).toBe(epoch + 1);
+    const epoch = canvas().canvasEpoch;
+    canvas().undo(); // what undoStroke() does when the undo was sent
+    expect(canvas().canvas.map((a) => (a.kind === 'stroke' ? a.id : -1))).toEqual([1]);
+    expect(canvas().canvasEpoch).toBe(epoch + 1);
 
     // The drawer starts stroke 3 before the server's echo arrives.
-    skribble().appendOps([{ k: 'start', id: 3, tool: 'brush', color: '#000000', size: 6, x: 9, y: 9 }]);
+    canvas().appendOps([{ k: 'start', id: 3, tool: 'brush', color: '#000000', size: 6, x: 9, y: 9 }]);
     expect(skribbleClient.onServerMessage?.({ t: 'undo' })).toBe(true);
-    expect(skribble().canvas.map((a) => (a.kind === 'stroke' ? a.id : -1))).toEqual([1, 3]);
+    expect(canvas().canvas.map((a) => (a.kind === 'stroke' ? a.id : -1))).toEqual([1, 3]);
     skribbleClient.onServerMessage?.({ t: 'clear' });
-    expect(skribble().canvas).toHaveLength(2);
+    expect(canvas().canvas).toHaveLength(2);
   });
 
   it('a guesser applies the broadcast undo, clear and resync', () => {
     enter(turn('host'), 'bob', { canvas: [stroke(1), stroke(2)] });
     skribbleClient.onServerMessage?.({ t: 'undo' });
-    expect(skribble().canvas).toHaveLength(1);
+    expect(canvas().canvas).toHaveLength(1);
     skribbleClient.onServerMessage?.({ t: 'clear' });
-    expect(skribble().canvas).toHaveLength(0);
+    expect(canvas().canvas).toHaveLength(0);
     skribbleClient.onServerMessage?.({ t: 'canvas', actions: [stroke(7)] });
-    expect(skribble().canvas).toHaveLength(1);
+    expect(canvas().canvas).toHaveLength(1);
     expect(skribbleClient.onServerMessage?.({ t: 'somethingElse' })).toBe(false);
   });
 });
@@ -131,7 +133,7 @@ describe('drawing through an outage', () => {
 
   function queueFor(open: { value: boolean }) {
     const sent: SkribbleClientMessage[] = [];
-    const queue = new DrawQueue({ send: (m) => (open.value ? (sent.push(m), true) : false), isOpen: () => open.value }, () => platform().room as SkribbleRoomState | null);
+    const queue = new DrawQueue({ send: (m) => (open.value ? (sent.push(m), true) : false), isOpen: () => open.value }, () => myDrawingTurn(platform()));
     return { queue, sent };
   }
 
@@ -145,9 +147,9 @@ describe('drawing through an outage', () => {
     expect(sent).toEqual([]);
     open.value = true;
     enter(turn());
-    queue.resumeOfflineOps(turn(), 'bob');
+    canvas().appendOps(queue.resumeOfflineOps(myDrawingTurn(platform())));
     expect(sent).toEqual([{ t: 'draw', ops }]);
-    expect(skribble().canvas).toHaveLength(1);
+    expect(canvas().canvas).toHaveLength(1);
     vi.useRealTimers();
   });
 
@@ -160,9 +162,9 @@ describe('drawing through an outage', () => {
     open.value = true;
     const next = inTurn(drawingPhase('host'), { turn: 2 });
     enter(next);
-    queue.resumeOfflineOps(next, 'bob');
+    expect(queue.resumeOfflineOps(myDrawingTurn(platform()))).toEqual([]);
     expect(sent).toEqual([]);
-    expect(skribble().canvas).toHaveLength(0);
+    expect(canvas().canvas).toHaveLength(0);
   });
 
   it('merges consecutive move ops of one stroke into one message', () => {

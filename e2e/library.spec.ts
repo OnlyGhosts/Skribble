@@ -1,5 +1,6 @@
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
 import { GAME_LIST } from '../shared/platform/games';
+import { readyAll } from './party';
 
 /**
  * The library and the routing around it: the game cards, joining by code from the front page,
@@ -72,7 +73,7 @@ test('the library shows every live card, Skribble first, and hides the template 
   for (const [i, game] of live.entries()) {
     await expect(cards.nth(i)).toHaveAttribute('data-game', game.id);
     await expect(cards.nth(i)).toContainText(game.name);
-    await expect(cards.nth(i)).toContainText(`${game.minPlayers}-${game.maxPlayers} players`);
+    await expect(cards.nth(i)).toContainText(game.maxPlayers === null ? `${game.minPlayers}+ players` : `${game.minPlayers}–${game.maxPlayers} players`);
   }
   await expect(cards.first()).toHaveAttribute('data-game', 'skribble');
   await expect(host.page.getByTestId('game-card').filter({ hasText: 'Click Race' })).toHaveCount(0);
@@ -98,7 +99,7 @@ test('a code typed in the library leads to that game’s home and joins the room
   await expect(guest.page).toHaveURL(new RegExp(`/skribble/${skribbleCode}$`));
   await expect(guest.page.getByTestId('invite-banner')).toContainText(skribbleCode);
   await expect(guest.page.getByTestId('code-input-3')).toHaveValue(skribbleCode[3]);
-  await expect(guest.page.getByTestId('room-preview')).toContainText(/1\/12 players/);
+  await expect(guest.page.getByTestId('room-preview')).toContainText(/1 player in the party/);
   await guest.page.getByTestId('home-name').fill(guest.name);
   await guest.page.getByTestId('home-join').click();
   await expect(guest.page.getByTestId('room-code')).toHaveText(skribbleCode);
@@ -197,7 +198,10 @@ test('the hidden template game plays a whole Click Race between two players', as
   await expect(guest.page.getByTestId('settings-targetClicks')).toHaveCount(0);
   await expect(guest.page.getByTestId('settings-value-timeLimit')).toHaveText('30s');
   await expect(guest.page.getByTestId('settings-allowMidGameJoin')).toBeDisabled();
+  await expect(guest.page.getByTestId('settings-maxPlayers')).toHaveCount(0);
+  await expect(guest.page.getByTestId('content-mode-family')).toBeDisabled();
 
+  await readyAll([guest.page]);
   await host.page.getByTestId('start-game').click();
   for (const p of [host, guest]) {
     await expect(p.page.getByTestId('click-button')).toBeVisible();
@@ -220,7 +224,10 @@ test('the hidden template game plays a whole Click Race between two players', as
     await expect(end.locator('[data-testid="podium-entry"][data-rank="2"]')).toContainText('3 pts');
   }
   await expect(guest.page.getByTestId('back-to-lobby')).toHaveCount(0);
-  await expect(guest.page.getByTestId('podium-leave')).toBeVisible();
+  await expect(guest.page.getByTestId('podium-leave')).toHaveCount(0);
+  await expect(guest.page.getByTestId('overlay-game-end').getByTestId('ready-toggle')).toBeVisible();
+  await expect(host.page.getByTestId('overlay-game-end')).toContainText('You won!');
+  await expect(guest.page.getByTestId('overlay-game-end')).toContainText('You came 2nd');
 
   // The podium is a modal dialog: it takes the focus and keeps Tab inside, away from the game screen under it.
   await expect(host.page.getByTestId('overlay-game-end')).toHaveAttribute('aria-modal', 'true');

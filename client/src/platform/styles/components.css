@@ -1620,19 +1620,10 @@
   position: relative;
 }
 
-.podium-card__top {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-}
-
 .podium-card__menu {
   position: absolute;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
+  top: var(--space-3);
+  right: var(--space-3);
 }
 
 .podium-hero {

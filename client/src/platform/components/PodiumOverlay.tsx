@@ -53,12 +53,7 @@ export function PodiumOverlay({ room, meId, isHost }: { room: RoomState; meId: s
     <div className="podium-overlay" role="dialog" aria-modal="true" aria-label="Final scores" data-testid="overlay-game-end" data-winner={iWon}>
       <Confetti />
       <div className="overlay__card overlay__card--wide podium-card" ref={cardRef} tabIndex={-1} data-testid="podium-card">
-        <div className="podium-card__top">
-          <p className="overlay__kicker">Game over</p>
-          <button type="button" className="icon-btn podium-card__menu" onClick={() => setMenuOpen(true)} aria-haspopup="dialog" aria-expanded={menuOpen} aria-label="More options" data-testid="podium-menu">
-            <MoreIcon size={20} />
-          </button>
-        </div>
+        <p className="overlay__kicker">Game over</p>
 
         <div className={`podium-hero${iWon ? ' podium-hero--won' : ''}`}>
           <div className="podium-hero__avatars" aria-hidden="true">
@@ -130,6 +125,11 @@ export function PodiumOverlay({ room, meId, isHost }: { room: RoomState; meId: s
             </p>
           )}
         </div>
+
+        {/* Last in the tab order (Ready comes first), pinned to the card's top corner by the stylesheet. */}
+        <button type="button" className="icon-btn podium-card__menu" onClick={() => setMenuOpen(true)} aria-haspopup="dialog" aria-expanded={menuOpen} aria-label="More options" data-testid="podium-menu">
+          <MoreIcon size={20} />
+        </button>
       </div>
 
       <BottomSheet

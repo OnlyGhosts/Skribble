@@ -14,17 +14,13 @@ import { useAppMode } from '../../platform/lib/useViewport';
 import { leaveRoom } from '../../platform/net/actions';
 import { useActiveGame } from '../../platform/store/selectors';
 import { usePlatformStore } from '../../platform/store/usePlatformStore';
-import { rateDrawing } from './actions';
-import type { DrawingSettings } from './canvas/useDrawing';
-import { GameCanvas } from './components/GameCanvas';
+import { DEFAULT_DRAWING_SETTINGS, GameCanvas, Toolbar, type DrawingSettings } from '../../platform/canvas';
+import { clearCanvas, rateDrawing, undoStroke } from './actions';
+import { skribbleCanvas } from './canvas';
 import { PencilIcon, ThumbDownIcon, ThumbUpIcon } from './components/Icons';
 import { ChoosingOverlay, DrawingCaption, TurnEndOverlay } from './components/Overlays';
-import { Toolbar } from './components/Toolbar';
 import { WordDisplay } from './components/WordDisplay';
 import { drawerIdOf, hasGuessed } from './hooks';
-import { useSkribbleStore } from './store';
-
-const DEFAULT_TOOLS: DrawingSettings = { tool: 'brush', color: '#000000', size: 6 };
 
 type DrawingPhase = Extract<SkribblePhase, { kind: 'drawing' }>;
 
@@ -62,9 +58,9 @@ function Rating({ phase, isDrawer, compact }: { phase: DrawingPhase; isDrawer: b
 export function SkribbleScreen({ room, meId, isHost }: GameScreenProps<SkribbleView, SkribbleSettings>) {
   const game = useActiveGame();
   // Undo/clear apply locally the moment they are sent, so they are only offered while they can be sent.
-  const hasStrokes = useSkribbleStore((s) => s.canvas.length > 0);
+  const hasStrokes = skribbleCanvas.store((s) => s.canvas.length > 0);
   const connected = usePlatformStore((s) => s.connection === 'connected');
-  const [tools, setTools] = useState<DrawingSettings>(DEFAULT_TOOLS);
+  const [tools, setTools] = useState<DrawingSettings>(DEFAULT_DRAWING_SETTINGS);
   const [playersOpen, setPlayersOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const isPhone = useMediaQuery(PHONE_QUERY);
@@ -228,7 +224,13 @@ export function SkribbleScreen({ room, meId, isHost }: GameScreenProps<SkribbleV
       )}
 
       <main className="game__center">
-        <GameCanvas canDraw={canDraw} settings={tools} turnKey={turnKey} footer={canDraw ? <Toolbar settings={tools} onChange={setTools} canUndo={canUndo} /> : undefined}>
+        <GameCanvas
+          session={skribbleCanvas}
+          canDraw={canDraw}
+          settings={tools}
+          turnKey={turnKey}
+          footer={canDraw ? <Toolbar settings={tools} onChange={setTools} canUndo={canUndo} onUndo={undoStroke} onClear={clearCanvas} /> : undefined}
+        >
           {phase.kind === 'choosing' && <ChoosingOverlay phase={phase} room={room} isDrawer={isDrawer} paused={holding} />}
           {phase.kind === 'turnEnd' && <TurnEndOverlay phase={phase} room={room} paused={holding} />}
           {phase.kind === 'drawing' && !isDrawer && <DrawingCaption drawer={drawer} />}

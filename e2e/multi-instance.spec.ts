@@ -1,4 +1,5 @@
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
+import { readyAll } from './party';
 
 /**
  * Two server instances sharing one Redis (started by e2e/launch-cluster.mjs): the host plays on
@@ -123,7 +124,7 @@ test('the host creates a room on instance A and the guest joins it by code on in
   await guest.page.goto(`${guest.base}/skribble`);
   await guest.page.getByTestId('home-name').fill(guest.name);
   await guest.page.getByTestId('code-input-0').pressSequentially(code, { delay: 20 });
-  await expect(guest.page.getByTestId('room-preview')).toContainText(/1\/12 players/);
+  await expect(guest.page.getByTestId('room-preview')).toContainText(/1 player in the party/);
   await guest.page.getByTestId('home-join').click();
   await expect(guest.page.getByTestId('room-code')).toHaveText(code);
 
@@ -138,6 +139,7 @@ test('settings set on A show on B, and the game starts with one round of 80 seco
   await expect(guest.page.getByTestId('settings-value-rounds')).toHaveText('1');
   await expect(guest.page.getByTestId('settings-value-drawTime')).toHaveText('80s');
 
+  await readyAll([guest.page]);
   await host.page.getByTestId('start-game').click();
   drawer = await awaitDrawer();
   guesser = drawer === host ? guest : host;

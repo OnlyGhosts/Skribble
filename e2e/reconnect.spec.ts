@@ -1,4 +1,5 @@
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
+import { readyAll } from './party';
 
 /**
  * Two players: reloads in the middle of a turn must restore the seat, the role and the canvas
@@ -86,6 +87,7 @@ test('two players start a long turn and the drawer draws', async () => {
 
   await host.page.getByTestId('settings-drawTime').fill('120');
   await expect(guest.page.getByTestId('settings-value-drawTime')).toHaveText('120s');
+  await readyAll([guest.page]);
   await host.page.getByTestId('start-game').click();
 
   await expect

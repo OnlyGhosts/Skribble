@@ -1,4 +1,5 @@
 import { expect, test, type Browser, type BrowserContext, type Locator, type Page } from '@playwright/test';
+import { readyAll } from './party';
 
 /**
  * A desktop host and a phone guest (390x844, touch, 3x) share a two-player room. The phone is
@@ -246,7 +247,7 @@ test('the host creates a room and the phone joins by typing the code', async () 
   await phone.page.getByTestId('home-name').fill(phone.name);
   // The four boxes auto-advance, so typing on the first one fills them all.
   await phone.page.getByTestId('code-input-0').pressSequentially(roomCode, { delay: 20 });
-  await expect(phone.page.getByTestId('room-preview')).toContainText(/1\/\d+ players/);
+  await expect(phone.page.getByTestId('room-preview')).toContainText(/1 player in the party/);
   await phone.page.getByTestId('home-join').click();
   await expect(phone.page.getByTestId('room-code')).toHaveText(roomCode);
   await expect(host.page.getByTestId('player-item')).toHaveCount(2);
@@ -257,7 +258,7 @@ test('the phone lobby fits the viewport, with 44px buttons and a share button', 
   await expect.poll(async () => (await pageMetrics(phone.page)).scrollY, { message: 'lobby starts at the top' }).toBe(0);
   await expectNoHorizontalOverflow(phone.page, PORTRAIT.width);
   expect((await pageMetrics(phone.page)).isApp, 'the lobby page may scroll').toBe(false);
-  for (const id of ['copy-code', 'copy-link', 'share-invite', 'leave-room']) {
+  for (const id of ['copy-code', 'copy-link', 'share-invite', 'leave-room', 'ready-toggle', 'sitout-toggle']) {
     await expect(phone.page.getByTestId(id)).toBeVisible();
     await expectTallEnough(phone.page.getByTestId(id), id);
   }
@@ -269,6 +270,7 @@ test('the host sets one round of 80 seconds and starts', async () => {
   await host.page.getByTestId('settings-drawTime').fill('80');
   await expect(phone.page.getByTestId('settings-value-rounds')).toHaveText('1');
   await expect(phone.page.getByTestId('settings-value-drawTime')).toHaveText('80s');
+  await readyAll([phone.page]);
   await host.page.getByTestId('start-game').click();
 });
 
@@ -523,8 +525,11 @@ test('the phone draws in the second turn if it has not drawn yet, then the podiu
 });
 
 test('leaving from the podium drops the app mode so the game home scrolls again', async () => {
-  // The platform podium covers the game, so its own Leave button is the way out here.
+  // The platform podium covers the game: leaving lives in its options sheet, behind a confirmation.
+  await phone.page.getByTestId('podium-menu').click();
   await phone.page.getByTestId('podium-leave').click();
+  await expect(phone.page.getByTestId('overlay-game-end')).toBeVisible();
+  await phone.page.getByTestId('podium-leave-yes').click();
   await expect(phone.page.getByTestId('home-create')).toBeVisible();
   await expect(phone.page).toHaveURL(/\/skribble$/);
   await expect.poll(async () => (await pageMetrics(phone.page)).isApp).toBe(false);

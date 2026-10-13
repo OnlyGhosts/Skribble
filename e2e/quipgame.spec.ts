@@ -1,5 +1,6 @@
 import { expect, test, type Browser, type BrowserContext, type Locator, type Page } from '@playwright/test';
 import { PROMPTS } from '../shared/games/quipgame/prompts';
+import { readyAll } from './party';
 
 /**
  * A whole Quip Game between a desktop host and two phones (390x844, touch): the lobby settings,
@@ -202,8 +203,11 @@ test('the host creates a Quip Game room, two phones join by code and the host tu
   await expect(pia.page.getByTestId('settings-value-voteSeconds')).toHaveText('15s');
   await expect(pia.page.getByTestId('settings-value-resultsSeconds')).toHaveText('4s');
   await expect(pia.page.getByTestId('settings-writeSeconds')).toHaveCount(0);
-  await expect(pia.page.getByTestId('settings-cheeky')).toBeDisabled();
+  await expect(pia.page.getByTestId('settings-cheeky')).toHaveCount(0);
+  await expect(pia.page.getByTestId('settings-value-contentMode')).toHaveText('Family');
 
+  await expect(host.page.getByTestId('start-game')).toBeDisabled();
+  await readyAll([pia.page, quinn.page]);
   await expect(host.page.getByTestId('start-game')).toBeEnabled();
   await host.page.getByTestId('start-game').click();
   for (const p of players) {
@@ -324,6 +328,7 @@ test('the final: everyone answers, ranks the other two with medals, and the resu
   await expect(host.page.getByTestId('back-to-lobby')).toBeVisible();
   await host.page.getByTestId('back-to-lobby').click();
   for (const p of players) await expect(p.page.getByTestId('room-code')).toHaveText(roomCode);
+  await readyAll([pia.page, quinn.page]);
   await expect(host.page.getByTestId('start-game')).toBeEnabled();
 });
 

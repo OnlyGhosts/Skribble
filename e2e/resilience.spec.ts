@@ -1,4 +1,5 @@
 import { expect, test, type Browser, type BrowserContext, type Page, type WebSocketRoute } from '@playwright/test';
+import { readyAll } from './party';
 
 /**
  * Phones that go dark must not end the game. Part one (Skribble, two players): a guesser's link
@@ -155,6 +156,7 @@ test.describe('Skribble keeps going through a dropped link and a discarded tab',
 
     await host.page.getByTestId('settings-drawTime').fill('20');
     await expect(guest.page.getByTestId('settings-value-drawTime')).toHaveText('20s');
+    await readyAll([guest.page]);
     await host.page.getByTestId('start-game').click();
   });
 
@@ -289,6 +291,7 @@ test.describe('Spy Game holds for a dropped phone and the host may remove it', (
     await expect(host.page.getByTestId('player-item')).toHaveCount(3);
     await host.page.getByTestId('settings-rounds').fill('2');
     await host.page.getByTestId('settings-roundMinutes').fill('3');
+    await readyAll([pia.page, quinn.page]);
     await host.page.getByTestId('start-game').click();
     for (const p of players()) await expect(p.page.getByTestId('spygame-role')).toBeVisible();
 
@@ -408,6 +411,7 @@ test.describe('the waiting overlay fits a small phone with three long names', ()
     await expect(host.page.getByTestId('player-item')).toHaveCount(4);
     await host.page.getByTestId('settings-rounds').fill('2');
     await host.page.getByTestId('settings-roundMinutes').fill('3');
+    await readyAll(guests.map((g) => g.page));
     await host.page.getByTestId('start-game').click();
     const all = [host, ...guests];
     for (const p of all) await expect(p.page.getByTestId('spygame-role')).toBeVisible();
