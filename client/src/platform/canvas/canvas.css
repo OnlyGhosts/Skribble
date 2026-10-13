@@ -1,0 +1,239 @@
+/*
+ * The shared drawing canvas: the stage that fits the 4:3 canvas, and the drawer's toolbar. Games
+ * import this through platform/canvas (GameCanvas); a game's own stylesheet loads after it and
+ * may override the layout (Skribble's phone columns do).
+ */
+/* ---------- Toolbar ---------- */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  gap: 10px 16px;
+  padding: 10px 14px;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-md);
+}
+
+.toolbar__group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.tool-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--color-surface-2);
+  border: 2px solid transparent;
+  color: var(--color-text-muted);
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease;
+}
+
+.tool-btn:hover:not(:disabled) {
+  background: var(--color-surface-3);
+  color: var(--color-text);
+}
+
+.tool-btn.is-active {
+  background: var(--color-primary-soft);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.tool-btn:disabled {
+  opacity: 0.4;
+}
+
+.tool-btn--danger:hover:not(:disabled) {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+.size-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--color-surface-2);
+  border: 2px solid transparent;
+}
+
+.size-btn.is-active {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+
+.size-btn__dot {
+  border-radius: 50%;
+  background: var(--color-text);
+}
+
+.toolbar__palette {
+  gap: 5px;
+  max-width: 100%;
+}
+
+.toolbar__palette .swatch {
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+}
+
+.toolbar__actions {
+  margin-left: auto;
+}
+
+/* ---------- Canvas ---------- */
+.canvas-stage {
+  --canvas-fit: both;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.canvas-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 100%;
+}
+
+.canvas-frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--canvas-bg);
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--color-border);
+}
+
+.game-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  background: var(--canvas-bg);
+}
+
+.canvas-frame--drawing .game-canvas {
+  cursor: crosshair;
+}
+
+.canvas-frame--tool-fill .game-canvas {
+  cursor: cell;
+}
+
+/* ---------- Phones: 44px targets, the toolbar spanning the stage ---------- */
+@media (max-width: 760px), (min-aspect-ratio: 3/2) and (max-height: 520px) {
+  .canvas-stage {
+    --canvas-fit: both;
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+  }
+
+  .canvas-group {
+    gap: var(--space-2);
+    align-items: center;
+  }
+
+  .canvas-group__footer {
+    width: 100%;
+  }
+
+  .canvas-frame {
+    border-radius: var(--radius-md);
+  }
+
+  /*
+   * Drawer toolbar: 44px-wide targets in rows of 44px. Tools and undo/clear share the first row,
+   * the brush sizes wrap onto the second one (landscape is wide enough for all of them in one row)
+   * and the palette, scrolling sideways, always takes a row of its own (the pseudo-element breaks).
+   */
+  .toolbar {
+    flex-wrap: wrap;
+    gap: 6px 8px;
+    padding: 6px 8px;
+    border-radius: var(--radius-md);
+  }
+
+  .toolbar::before {
+    content: '';
+    flex-basis: 100%;
+    height: 0;
+    order: 5;
+  }
+
+  .toolbar__group {
+    gap: 4px;
+    flex-wrap: nowrap;
+  }
+
+  .toolbar__sizes {
+    order: 2;
+  }
+
+  .toolbar__palette {
+    order: 6;
+    flex: 1 1 0;
+    min-width: 0;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    padding: 2px;
+    gap: 6px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .toolbar__palette::-webkit-scrollbar {
+    display: none;
+  }
+
+  .toolbar__palette .swatch {
+    flex: none;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+  }
+
+  .toolbar__palette .swatch.is-selected {
+    outline-offset: 1px;
+  }
+
+  .toolbar__actions {
+    order: 0;
+    margin-left: auto;
+  }
+
+  .tool-btn,
+  .size-btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  .toolbar .btn--xs {
+    min-height: 44px;
+  }
+}

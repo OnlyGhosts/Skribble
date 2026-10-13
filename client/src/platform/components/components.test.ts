@@ -3,7 +3,6 @@ import { fileURLToPath } from 'node:url';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createElement } from 'react';
 import { renderToString } from 'react-dom/server';
-import { gameById } from '@shared/platform/games';
 import { installBrowserGlobals } from '../../test/env';
 
 installBrowserGlobals();
@@ -11,7 +10,7 @@ installBrowserGlobals();
 const { usePlatformStore } = await import('../store/usePlatformStore');
 const { player, resetStore, room, welcome } = await import('../../test/fixtures');
 const { Chat } = await import('./Chat');
-const { SettingsPanel, maxPlayersMin } = await import('./SettingsPanel');
+const { SettingsPanel } = await import('./SettingsPanel');
 const { Timer } = await import('./Timer');
 const { PodiumOverlay } = await import('./PodiumOverlay');
 const { WaitingOverlay, missingPlayers, waitingTitle } = await import('./WaitingOverlay');
@@ -194,55 +193,102 @@ describe('chat while reconnecting', () => {
   });
 });
 
-describe('max players slider', () => {
-  const skribble = gameById('skribble');
-
-  it('cannot go below the number of seated players nor outside the game’s range', () => {
-    expect(maxPlayersMin(0, skribble)).toBe(2);
-    expect(maxPlayersMin(3, skribble)).toBe(3);
-    expect(maxPlayersMin(99, skribble)).toBe(20);
-    const three = room({ players: [player('host'), player('bob'), player('carol')], settings: { ...room().settings, maxPlayers: 3 } });
-    const html = renderToString(createElement(SettingsPanel, { room: three, isHost: true, game: null }));
-    expect(tagWith(html, 'settings-maxPlayers')).toContain('min="3"');
-    expect(tagWith(html, 'settings-maxPlayers')).toContain('max="20"');
+describe('platform settings', () => {
+  it('offers the three content modes to the host, with the adults-only tag on Unhinged', () => {
+    const html = renderToString(createElement(SettingsPanel, { room: room(), isHost: true, game: null }));
+    expect(html).not.toContain('settings-maxPlayers');
+    expect(tagWith(html, 'settings-contentMode')).toContain('data-value="family"');
+    for (const mode of ['family', 'cheeky', 'unhinged']) expect(tagWith(html, `content-mode-${mode}`)).not.toContain('disabled');
+    expect(tagWith(html, 'content-mode-family')).toContain('aria-checked="true"');
+    expect(html).toContain('18+');
+    expect(html).toContain('Adults only');
     expect(tagWith(html, 'settings-allowMidGameJoin')).not.toContain('disabled');
   });
 
   it('renders read-only values for non-hosts', () => {
-    const html = renderToString(createElement(SettingsPanel, { room: room(), isHost: false, game: null }));
-    expect(html).not.toContain('data-testid="settings-maxPlayers"');
+    const unhinged = room({ settings: { ...room().settings, contentMode: 'unhinged' } });
+    const html = renderToString(createElement(SettingsPanel, { room: unhinged, isHost: false, game: null }));
+    expect(tagWith(html, 'settings-value-contentMode')).toBeTruthy();
+    expect(html).toContain('Unhinged');
+    for (const mode of ['family', 'cheeky', 'unhinged']) expect(tagWith(html, `content-mode-${mode}`)).toContain('disabled');
+    expect(tagWith(html, 'content-mode-unhinged')).toContain('aria-checked="true"');
     expect(tagWith(html, 'settings-allowMidGameJoin')).toContain('disabled');
     expect(html).toContain('Only the host can change settings.');
   });
 });
 
 describe('podium overlay', () => {
-  it('ranks the podium with the winner in the middle and offers Back to lobby to the host only', () => {
-    const ended = room({
+  const ended = (meId: string) => {
+    const state = room({
       phase: 'ended',
-      players: [player('host', { score: 10 }), player('bob', { score: 30 }), player('carol', { score: 20 })],
+      players: [player('host', { score: 10 }), player('bob', { score: 30, joinOrder: 1 }), player('carol', { score: 20, joinOrder: 2 }), player('dan', { score: 0, joinOrder: 3, participating: false, sittingOut: true })],
       podium: [
         { playerId: 'bob', score: 30, rank: 1 },
         { playerId: 'carol', score: 20, rank: 2 },
         { playerId: 'host', score: 10, rank: 3 },
       ],
     });
-    const html = renderToString(createElement(PodiumOverlay, { room: ended, isHost: true }));
+    return { room: state, meId };
+  };
+
+  it('celebrates the winner by name, tells each player their place and ranks the podium with the winner in the middle', () => {
+    const html = renderToString(createElement(PodiumOverlay, { ...ended('bob'), isHost: false }));
+    expect(tagWith(html, 'overlay-game-end')).toContain('data-winner="true"');
     expect(html).toContain('bob wins!');
+    expect(html).toContain('You won!');
+    expect(html).toContain('data-testid="confetti"');
     expect(html.match(/data-rank="(\d)"/g)).toEqual(['data-rank="2"', 'data-rank="1"', 'data-rank="3"']);
-    expect(html).toContain('data-testid="back-to-lobby"');
-    const guest = renderToString(createElement(PodiumOverlay, { room: ended, isHost: false }));
-    expect(guest).not.toContain('data-testid="back-to-lobby"');
-    expect(guest).toContain('data-testid="podium-leave"');
+    const third = renderToString(createElement(PodiumOverlay, { ...ended('host'), isHost: true }));
+    expect(third).toContain('You came 3rd');
+    expect(tagWith(third, 'overlay-game-end')).toContain('data-winner="false"');
+    const second = renderToString(createElement(PodiumOverlay, { ...ended('carol'), isHost: false }));
+    expect(second).toContain('You came 2nd');
+    const spectator = renderToString(createElement(PodiumOverlay, { ...ended('dan'), isHost: false }));
+    expect(spectator).toContain('You sat this one out');
   });
 
-  it('is a modal dialog whose card can take the focus away from the game screen behind it', () => {
-    const ended = room({ phase: 'ended', podium: [{ playerId: 'host', score: 10, rank: 1 }] });
-    const html = renderToString(createElement(PodiumOverlay, { room: ended, isHost: true }));
+  it('announces a tie instead of crowning the first of the tied players', () => {
+    const tied = room({
+      phase: 'ended',
+      players: [player('host', { score: 30 }), player('bob', { score: 30, joinOrder: 1 })],
+      podium: [
+        { playerId: 'host', score: 30, rank: 1 },
+        { playerId: 'bob', score: 30, rank: 1 },
+      ],
+    });
+    const html = renderToString(createElement(PodiumOverlay, { room: tied, meId: 'bob', isHost: false }));
+    expect(html).toContain('host and bob tie!');
+    expect(html).toContain('You tied for the win!');
+    expect(html).not.toContain('host wins!');
+  });
+
+  it('offers Ready for the next game to everyone with the count, and Play again / Back to lobby to the host only', () => {
+    const guest = renderToString(createElement(PodiumOverlay, { ...ended('bob'), isHost: false }));
+    expect(tagWith(guest, 'ready-toggle')).toContain('aria-pressed="false"');
+    expect(guest).toContain('Ready for the next game');
+    expect(guest).toContain('data-testid="sitout-toggle"');
+    // The host counts as ready by pressing Start; dan sits out and is not counted.
+    expect(guest).toContain('1 of 3 ready');
+    expect(guest).not.toContain('data-testid="back-to-lobby"');
+    expect(guest).not.toContain('data-testid="play-again"');
+    expect(guest).toContain('host picks what comes next');
+    const host = renderToString(createElement(PodiumOverlay, { ...ended('host'), isHost: true }));
+    expect(host).toContain('data-testid="back-to-lobby"');
+    expect(host).toContain('data-testid="play-again"');
+  });
+
+  it('keeps Leave out of reach: no leave button on the card, only in the closed options sheet behind a confirmation', () => {
+    const html = renderToString(createElement(PodiumOverlay, { ...ended('bob'), isHost: false }));
+    expect(html).not.toContain('data-testid="podium-leave"');
+    expect(html).not.toContain('Leave room');
+    expect(html).toContain('data-testid="podium-menu"');
+  });
+
+  it('is a modal dialog whose card (never a button) takes the focus away from the game screen behind it', () => {
+    const html = renderToString(createElement(PodiumOverlay, { ...ended('host'), isHost: true }));
     const dialog = tagWith(html, 'overlay-game-end');
     expect(dialog).toContain('role="dialog"');
     expect(dialog).toContain('aria-modal="true"');
-    const card = html.match(/<div class="overlay__card[^"]*"[^>]*>/)?.[0] ?? '';
-    expect(card).toContain('tabindex="-1"');
+    expect(tagWith(html, 'podium-card')).toContain('tabindex="-1"');
   });
 });

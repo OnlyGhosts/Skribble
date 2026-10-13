@@ -1594,3 +1594,146 @@
     font-size: 1.15rem;
   }
 }
+
+/* ---------- Player status between games ---------- */
+.player__status--ready {
+  color: var(--color-success-text);
+  font-weight: 700;
+}
+
+.player__status--sittingOut,
+.player__status--sitting-out {
+  color: var(--color-text-faint);
+  font-weight: 600;
+}
+
+.player__badge--spectator {
+  background: var(--color-text-faint);
+}
+
+.player--spectating {
+  opacity: 0.7;
+}
+
+/* ---------- Podium celebration ---------- */
+.podium-card {
+  position: relative;
+}
+
+.podium-card__top {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.podium-card__menu {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.podium-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.podium-hero__avatars {
+  display: flex;
+  gap: 8px;
+  animation: pop 0.4s ease;
+}
+
+.podium-hero__title {
+  font-size: 1.6rem;
+}
+
+.podium-place {
+  font-weight: 800;
+  color: var(--color-text-muted);
+}
+
+.podium-place--won {
+  color: var(--color-warning-text);
+  font-size: 1.15rem;
+  animation: pop 0.5s ease;
+}
+
+.podium-next {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: var(--space-2);
+}
+
+.podium-next .ready-controls {
+  margin-top: 0;
+}
+
+.podium-next__count {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+}
+
+.confetti {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.confetti__piece {
+  position: absolute;
+  top: -12px;
+  left: var(--confetti-left);
+  width: 10px;
+  height: 16px;
+  background: var(--confetti-color);
+  opacity: 0;
+  border-radius: 2px;
+  animation: confetti-fall var(--confetti-duration) ease-in var(--confetti-delay) 2 forwards;
+}
+
+.confetti__piece--round {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+@keyframes confetti-fall {
+  0% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+  100% {
+    opacity: 0.9;
+    transform: translate3d(var(--confetti-drift), 105vh, 0) rotate(540deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .confetti {
+    display: none;
+  }
+
+  .podium-hero__avatars,
+  .podium-place--won {
+    animation: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .podium-hero__title {
+    font-size: 1.3rem;
+  }
+
+  .podium-next .btn {
+    min-height: 44px;
+  }
+}

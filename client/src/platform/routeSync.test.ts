@@ -73,6 +73,19 @@ describe('leaving the room through the address bar', () => {
     expect(state().room).toBeNull();
   });
 
+  it('a slug change for the same room code is a game switch, never a leave', () => {
+    enterRoom();
+    // The host moved the party to another game: the snapshot carries the new game and the address bar follows.
+    state().handleServerMessage({ t: 'room', room: room({ gameId: 'template' }) });
+    navigate('/template/ABCD', { replace: true });
+    expect(state().room?.gameId).toBe('template');
+    expect(onLeave).not.toHaveBeenCalled();
+    // An invite link for the other game of the same room is no reason to leave either.
+    goBackTo('/spygame/ABCD');
+    expect(state().room).not.toBeNull();
+    expect(onLeave).not.toHaveBeenCalled();
+  });
+
   it('a room entered from a join link is left when Back leaves the link', () => {
     setLocation('/skribble/ABCD');
     refreshRoute();

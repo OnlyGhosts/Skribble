@@ -69,11 +69,43 @@ player, a 10 min reconnect grace (`RECONNECT_GRACE_MS`) during which the seat an
 presence (`connected` on every player), a stand-in host while the host's socket is down and the
 role handed back on rejoin ([`server/platform/engine/seats.ts`](../server/platform/engine/seats.ts)).
 
-**Lobby and settings.** The lobby screen, the invite card (code, copy link, native share), the
-profile editor, `maxPlayers` and `allowMidGameJoin` ([`shared/platform/settings.ts`](../shared/platform/settings.ts)),
-validation of settings patches (platform schema merged with your game's `patchSchema`), the
-start button gated on `meta.minPlayers` connected players, scores reset to 0 on start, and
-`returnToLobby` after a game ends ([`server/platform/engine/lobby.ts`](../server/platform/engine/lobby.ts)).
+**Parties, lobby and settings.** A room is a party: it outlives any one game. The host picks the
+game in the lobby (`selectGame`; the game settings reset to the new game's defaults, the platform
+settings and everyone's ready flags carry over, a system line says "Host switched the party to
+<game>"), everyone readies up (`ready`) or sits the next game out (`sitOut`, which clears ready
+and persists until the player changes it; both accepted in the lobby and on the podium), and the
+host starts. The lobby screen, the invite card (code, copy link, native share), the profile
+editor, the platform settings `allowMidGameJoin` and `contentMode` (`'family' | 'cheeky' |
+'unhinged'`, [`shared/platform/settings.ts`](../shared/platform/settings.ts)), validation of
+settings patches (platform schema merged with your game's `patchSchema`), the start rule, scores
+reset to 0 on start, and `returnToLobby` after a game ends (the host's "play again" too) are all
+in [`server/platform/engine/lobby.ts`](../server/platform/engine/lobby.ts).
+
+**Who plays.** `start` needs at least `meta.minPlayers` *ready* players: connected, `ready` and
+not `sittingOut` (the host counts as ready by pressing start unless they sit out). Those become
+the game's participants; everyone else stays seated in the party as a spectator ("Carol and Dave
+sit this one out"). A game with a seat limit (`meta.maxPlayers`, `null` for no limit) takes the
+first ready players by join order and benches the rest with a line. Every `ready` flag resets
+when the game starts. Mid-game joiners (`allowMidGameJoin`) are participants at once; your game
+decides when they actually take part (all three games seat them from the next round or turn).
+`PlayerPublic` carries `ready`, `sittingOut` and `participating` so the client can render all of
+this; your module only ever sees the participants (`GameCtx.players`) and, separately, the
+spectators (`GameCtx.spectators`). Spectators get snapshots and chat, but their game messages are
+refused with `NOT_ALLOWED` before your module sees them, and they neither vote-kick nor count
+towards a vote-kick majority while a game runs.
+
+**Content modes.** `settings.contentMode` is the room's single switch for what the packs contain:
+`family` is clean, `cheeky` adds rude-but-harmless content, `unhinged` is adults only. Every game
+reads it from `ctx.settings.contentMode` and picks its content with a shared pure helper:
+Quip Game's prompt tiers (`promptsForContentMode` in
+[`shared/games/quipgame/prompts.ts`](../shared/games/quipgame/prompts.ts): family = clean,
+cheeky = clean + cheeky, unhinged = cheeky + unhinged), Skribble's words (`wordPoolForMode` /
+`buildWordPool(lang, custom, customOnly, mode)` in
+[`shared/games/skribble/words/index.ts`](../shared/games/skribble/words/index.ts), which any word
+game may reuse) and The Spy Game's locations (`locationsForMode` in
+[`shared/games/spygame/locations.ts`](../shared/games/spygame/locations.ts), with the tiers in
+`locationTiers.ts` and generated tiles for every tier). A game never ships its own "cheeky"
+switch; it reads the room's mode.
 
 **Chat.** The chat panel, rate limiting (6 lines per 4 s per socket, in
 [`server/platform/connection.ts`](../server/platform/connection.ts)), history for late joiners
@@ -82,15 +114,18 @@ over. Every chat line is offered to the running game first (a `'chat'` event) so
 chat as input (Skribble's guesses).
 
 **Scores and podium.** Players carry a `score`; your game adds to it with `score` effects. When
-the game emits `gameOver` the platform ranks everyone (ties share a rank), stores
+the game emits `gameOver` the platform ranks the participants (ties share a rank), stores
 `RoomState.podium`, announces the winner in chat, moves the room to `phase: 'ended'` and the client
 shows the `PodiumOverlay` with the host's Back-to-lobby button.
 
-**Kicks and vote-kicks.** Host kick, majority vote-kick (at least two other connected players,
-never a single voter), kicked tokens refused on rejoin.
+**Kicks and vote-kicks.** Host kick, majority vote-kick (a majority of the other connected
+players in the game, at least two of them, never a single voter; in the lobby every connected
+player counts), kicked tokens refused on rejoin. Joins are refused only at the room's hard cap
+(`ROOM_HARD_CAP` = 24 seats, players in reconnect grace included); games never cap the party.
 
-**Low-player handling.** A running game is sent back to the lobby only when fewer *seats* than
-`meta.minPlayers` remain: on a leave, a kick or a reconnect-grace expiry. A dropped socket never
+**Low-player handling.** A running game is sent back to the lobby only when fewer *participating
+seats* than `meta.minPlayers` remain: on a leave, a kick or a reconnect-grace expiry (a spectator
+leaving changes nothing). A dropped socket never
 ends a game; the player keeps their seat for the grace and your game decides what to do
 meanwhile. A game that cannot go on without them holds at its next boundary and says so with a
 `waiting` effect, which the platform shows as `RoomState.waiting` (the client's waiting overlay
@@ -139,7 +174,8 @@ export interface GameMeta {
   description: string;
   howToPlay: string[];
   minPlayers: number;
-  maxPlayers: number;
+  /** Seats the game can hold at once, or null when any number may play. Extra players sit a game out and stay in the party. */
+  maxPlayers: number | null;
   /** Emoji shown on the library card. */
   icon: string;
   /** Accent colour (#rrggbb) for the card tile and the game's screens. */
@@ -160,7 +196,8 @@ export const GAME_IDS: readonly GameId[];
 disabled with a "Coming soon" pill; `'hidden'` cards are not rendered at all but `/:slug` still
 works (that is how Click Race ships). [`shared/platform/games.test.ts`](../shared/platform/games.test.ts)
 checks every entry: lowercase-letter slug, never 4 characters, unique id and slug, a non-empty
-name/tagline/howToPlay, a `#rrggbb` accent, `1 <= minPlayers <= maxPlayers`, and that
+name/tagline/howToPlay, a `#rrggbb` accent, `1 <= minPlayers` (and `minPlayers <= maxPlayers` when a
+limit is set; `seatLimit(meta)` in `settings.ts` turns `null` into the room's hard cap), and that
 `gameIdSchema` in `protocol.ts` lists every id.
 
 ### 3.2 Shared protocol: what crosses the wire
@@ -169,8 +206,9 @@ Platform messages are flat and fixed ([`shared/platform/protocol.ts`](../shared/
 
 - client to server: `create { gameId, name, avatar }`, `join { code, name, avatar }`,
   `rejoin { code, token }`, `leave`, `ping`, `updateSettings { settings }` (one flat patch of
-  platform and game fields), `updateProfile { name?, avatar? }`, `start`, `chat { text }`,
-  `kick { playerId }`, `voteKick { playerId }`, `returnToLobby`.
+  platform and game fields), `updateProfile { name?, avatar? }`, `selectGame { gameId }` (host,
+  lobby only), `ready { ready }` and `sitOut { sitOut }` (lobby and podium), `start`,
+  `chat { text }`, `kick { playerId }`, `voteKick { playerId }`, `returnToLobby`.
 - server to client: `welcome { playerId, token, room, chat, extra? }`, `room { room }`,
   `chat { message }`, `error { code, message }`, `kicked { reason }`, `pong { serverTime }`.
 
@@ -187,8 +225,8 @@ export interface RoomState<V = unknown, S = Record<string, unknown>> {
   code: string;
   gameId: GameId;
   hostId: string;
-  settings: PlatformSettings & S;   // flat: { maxPlayers, allowMidGameJoin, ...your fields }
-  players: PlayerPublic[];          // { id, name, avatar, score, isHost, connected, joinOrder }
+  settings: PlatformSettings & S;   // flat: { allowMidGameJoin, contentMode, ...your fields }
+  players: PlayerPublic[];          // { id, name, avatar, score, isHost, connected, joinOrder, ready, sittingOut, participating }
   phase: 'lobby' | 'playing' | 'ended';
   podium: PodiumEntry[] | null;     // { playerId, score, rank }, set by the platform on gameOver
   game: V | null;                   // your view; null in the lobby
@@ -218,6 +256,9 @@ Your `shared/games/<id>/protocol.ts` declares, with zod where it is validated:
 /** What a game may know about a seated player. Names and scores are the platform's; per-game state lives in D. */
 export interface PlatformPlayer { id: string; name: string; joinOrder: number; connected: boolean; score: number; }
 
+/** A seated player who sits this game out (or has not readied up): in the room, never in the game. */
+export interface PlatformSpectator { id: string; name: string; connected: boolean; }
+
 /** Identity and randomness are injected so the reducer is deterministic. */
 export interface GameCtx<S> {
   /** Epoch ms: the real clock, or the deadline being processed while a tick catches up. */
@@ -226,16 +267,19 @@ export interface GameCtx<S> {
   rng: () => number;
   /** Fresh unique id. */
   newId: () => string;
-  settings: S;
-  /** Every seated player (connected or in reconnect grace), in join order. */
+  /** The game's settings, flat next to the platform's (contentMode picks the content packs). */
+  settings: RoomSettings<S>;                 // PlatformSettings & S
+  /** Every participating seated player (connected or in reconnect grace), in join order. */
   players: PlatformPlayer[];
+  /** The other seated players: spectators who sat this game out. They get snapshots and chat but never play. */
+  spectators: PlatformSpectator[];
   hostId: string;
 }
 
-export interface GameViewCtx<S> { settings: S; players: PlatformPlayer[]; hostId: string; now: number; }
+export interface GameViewCtx<S> { settings: RoomSettings<S>; players: PlatformPlayer[]; spectators: PlatformSpectator[]; hostId: string; now: number; }
 
 export type GameEvent<CMsg> =
-  /** A validated game message from a seated, connected player (only while the room is 'playing'). */
+  /** A validated game message from a participating, connected player (only while the room is 'playing'). */
   | { type: 'message'; playerId: string; msg: CMsg }
   /** A chat line; the game may consume it (a guess) by returning a 'chatHandled' effect. */
   | { type: 'chat'; playerId: string; text: string }
@@ -341,28 +385,31 @@ messages. The registry erases them to `AnyGameServerModule`.
 | `chatHandled` | Marks the triggering `'chat'` event as consumed: the platform does not broadcast the player's line. Only meaningful while handling a `'chat'` event. |
 | `error` | `{ t: 'error', code, message }` to that player (if connected). |
 | `score` | `player.score += delta`. **No snapshot is sent for you**; add one (or end the game) so the player list updates. Negative deltas are allowed and totals are not clamped: the podium prints `-50 pts` as it is. |
-| `gameOver` | Ignored unless the room is `'playing'`. Clears any `waiting` state, builds the podium (score desc, then join order; rank = 1 + number of players with a higher score), sets `phase: 'ended'`, posts "Game over! Alice wins with 100 points." (or a tie line), broadcasts a snapshot. After this `nextDeadline` is no longer consulted and `handle` is not called again; game messages are refused. |
-| `abort` | Posts `reason` as a system line, then `resetToLobby`: phase `'lobby'`, `podium` and `game` null, any `waiting` state cleared, votes cleared, every score reset to 0, the side store reset (when the module has one), a snapshot. **Any effects after `abort` in the same list are skipped.** |
+| `gameOver` | Ignored unless the room is `'playing'`. Clears any `waiting` state, builds the podium from the participants (score desc, then join order; rank = 1 + number of players with a higher score; spectators are not ranked), sets `phase: 'ended'`, posts "Game over! Alice wins with 100 points." (or a tie line), broadcasts a snapshot. After this `nextDeadline` is no longer consulted and `handle` is not called again; game messages are refused. |
+| `abort` | Posts `reason` as a system line, then `resetToLobby`: phase `'lobby'`, `podium` and `game` null, any `waiting` state cleared, votes cleared, every score reset to 0 and `participating` to false (ready and sit-out flags survive), the side store reset (when the module has one), a snapshot. **Any effects after `abort` in the same list are skipped.** |
 | `waiting` | Stores `missing` as the room's hold. Every later snapshot carries `RoomState.waiting = { reason: 'players', missing, needed: meta.minPlayers, connected }` with the live connected count, `missing` narrowed to players still seated and disconnected; `missing: null` clears it, as do `abort`, `gameOver` and the return to the lobby. **No snapshot is sent for you**; add one so everyone sees the hold (a tick carries none). A holding game returns `null` from `nextDeadline` while too few are connected (only the seat expiries are pending then); once enough are back it waits a short settle (`RESUME_SETTLE_MS`, restarted by every further reconnect) before going on, so a group whose sockets were all cut at once is seated together rather than from the first one back. See `server/games/waiting.ts` for the shared helpers the three games use. |
 | `side` | Forwarded to the driver, which resets the side store with the given stamp (section 7). |
 
-Around your module the platform also does: a system line "The game has started!" before
-`start`; if your `start` effects contain no `snapshot`, the platform broadcasts one; the first
-`nextDeadline` after `start` arms the timer.
+Around your module the platform also does: the "sit this one out" lines and a system line "The
+game has started!" before `start`; if your `start` effects contain no `snapshot`, the platform
+broadcasts one; the first `nextDeadline` after `start` arms the timer. `ctx.players` at `start`
+is exactly the set of participants: ready, not sitting out, connected, within the seat limit.
 
 **When each event arrives** ([`seats.ts`](../server/platform/engine/seats.ts), [`chat.ts`](../server/platform/engine/chat.ts), [`reduce.ts`](../server/platform/engine/reduce.ts)):
 
-- `message`: after `clientMessageSchema.safeParse` succeeded and only while `'playing'`. Invalid
+- `message`: after `clientMessageSchema.safeParse` succeeded, only while `'playing'` and only
+  from a participant (a spectator gets `NOT_ALLOWED` "You are sitting this game out."). Invalid
   messages get `INVALID_MESSAGE` with the first zod issue and path.
 - `chat`: for every chat line while `'playing'`. If you do **not** return `chatHandled`, the
   platform inserts the player's line **before** your effects, so a reaction ("close!") follows
   the line it reacts to.
-- `playerJoined`: the seat is already in `ctx.players`; your effects are appended after the
+- `playerJoined`: a mid-game joiner is a participant, so the seat is already in `ctx.players`; your effects are appended after the
   newcomer's `welcome` and everyone else's snapshot, so the welcome already reflects your updated
   data (the template puts the newcomer at 0 clicks and snapshots).
-- `playerLeft`: after the removal (leave, kick, vote-kick or grace expiry). Not delivered when the
-  room became empty, or when the departure already dropped the room below `minPlayers` (the
-  platform aborted the game first).
+- `playerLeft`: after the removal (leave, kick, vote-kick or grace expiry) of a participant or a
+  spectator (check `ctx.players` if you care which). Not delivered when the room became empty, or
+  when the departure already dropped the participants below `minPlayers` (the platform aborted
+  the game first).
 - `playerDisconnected` / `playerReconnected`: a socket dropped / a disconnected player rejoined
   (a socket merely replaced by a reload on the same seat does not fire `playerReconnected`). A
   disconnected player **stays in `ctx.players`** with `connected: false` until the reconnect grace
@@ -496,8 +543,9 @@ same record plus your `settings.defaults`; it should pass for a new game without
    `MaybePromise` / `after`). What a module needs is `shared/`, `server/platform/game.js` and, for
    side stores, `server/platform/storage.js` and `server/platform/cas.js`.
 7. **Settings must pass their own schema.** `settings.defaults` must satisfy `settings.schema`,
-   `patchSchema` must accept `{}`, and both must strip platform fields (`{ maxPlayers: 3 }`
-   parses to `{}`), which a `z.object(...)` does by default.
+   `patchSchema` must accept `{}`, and both must strip platform fields (`{ contentMode: 'cheeky' }`
+   parses to `{}`), which a `z.object(...)` does by default. Content lives behind
+   `settings.contentMode`, never behind a per-game switch.
 8. **Game modules don't import each other** and the platform never imports a game by name; the
    registries are the only coupling.
 
@@ -525,7 +573,7 @@ export type GameId = 'skribble' | 'template' | 'wordle';
   description: 'Everyone solves the same hidden word. Fewest guesses wins.',
   howToPlay: ['Type a five-letter word.', 'Green is right, yellow is misplaced.', 'Solve it in the fewest tries.'],
   minPlayers: 1,
-  maxPlayers: 20,
+  maxPlayers: null, // or a number when the game cannot seat everyone; the rest sit a game out
   icon: '🟩',
   accent: '#16a34a',
   status: 'hidden', // flip to 'live' when ready; 'soon' shows a muted card
@@ -595,7 +643,7 @@ Tests use the deterministic harness in [`server/platform/engine/testHarness.ts`]
 
 ```ts
 const s = sim('wordle');                                   // a room at START (2026-01-01T12:00Z), ids 'id-1', 'id-2', ..., rng () => 0
-const [alice, bob] = startGame(s, ['Alice', 'Bob'], { /* settings patch */ });  // create + join + updateSettings + start
+const [alice, bob] = startGame(s, ['Alice', 'Bob'], { /* settings patch */ });  // create + join + updateSettings + ready + start
 s.game(alice, { t: 'guess', word: 'crane' });              // a game message; returns that action's effects
 s.platform(bob, { t: 'chat', text: 'hi' });                // a platform message
 s.apply({ type: 'join', name: 'Carol', avatar: AVATAR, connectionId: 'c' });
@@ -850,7 +898,9 @@ mid-game joiners, and a direct purity check on the module.
 /** Click Race through the pure engine: the template every new game's tests can copy. */
 import { describe, expect, it } from 'vitest';
 import type { TemplateView } from '../../../shared/games/template/protocol.js';
+import { gameById } from '../../../shared/platform/games.js';
 import type { PlatformServerMessageOf } from '../../../shared/platform/protocol.js';
+import { defaultPlatformSettings } from '../../../shared/platform/settings.js';
 import type { Effect } from '../../platform/engine/effects.js';
 import { nextDeadline } from '../../platform/engine/time.js';
 import { viewFor } from '../../platform/engine/view.js';
@@ -938,7 +988,7 @@ describe('Click Race', () => {
 
   it('is a pure module: the same object comes back when nothing changed', () => {
     const data: TemplateData = { clicks: { a: 1 }, endsAt: 1000, winnerId: null, over: false };
-    const ctx = { now: 500, rng: () => 0, newId: () => 'x', settings: templateModule.settings.defaults, players: [{ id: 'a', name: 'A', joinOrder: 0, connected: true, score: 0 }], hostId: 'a' };
+    const ctx = { now: 500, rng: () => 0, newId: () => 'x', settings: { ...defaultPlatformSettings(gameById('template')), ...templateModule.settings.defaults }, players: [{ id: 'a', name: 'A', joinOrder: 0, connected: true, score: 0 }], spectators: [], hostId: 'a' };
     expect(templateModule.handle(ctx, data, { type: 'tick' }).data).toBe(data);
     expect(templateModule.handle(ctx, data, { type: 'chat', playerId: 'a', text: 'hi' }).data).toBe(data);
     const clicked = templateModule.handle(ctx, data, { type: 'message', playerId: 'a', msg: { t: 'click' } });
@@ -1267,7 +1317,7 @@ const { player, registryOf, resetStore, room, welcome } = await import('../../te
 function race(overrides: Partial<TemplateRoomState> = {}): TemplateRoomState {
   return {
     ...room({ gameId: 'template', phase: 'playing', players: [player('host'), player('bob', { joinOrder: 1 })] }),
-    settings: { maxPlayers: 12, allowMidGameJoin: true, targetClicks: 10, timeLimit: 30 },
+    settings: { allowMidGameJoin: true, contentMode: 'family', targetClicks: 10, timeLimit: 30 },
     game: { clicks: { host: 7, bob: 3 }, endsAt: Date.now() + 20_000, winnerId: null },
     ...overrides,
   };
@@ -1325,12 +1375,60 @@ describe('Click Race settings rows', () => {
 
 ---
 
-## 7. Advanced: side stores (how Skribble streams drawing)
+## 7. Advanced: side stores (how Skribble streams drawing) and the shared canvas
 
 Most games do not need this; the template deliberately does not use it. Reach for a side store
 only when a game has a **high-rate stream whose every message would be wasteful to run through
 the reducer** (Skribble's drawing: dozens of batches a second that must reach the other players
 with minimal latency and be replayed for late joiners). Everything else belongs in the reducer.
+
+### 7.1 The shared canvas, ready to use
+
+A game that needs a drawing canvas does not write a side store: the platform ships one.
+
+- Wire format: [`shared/platform/canvas.ts`](../shared/platform/canvas.ts) — `drawOpSchema` /
+  `DrawOp` (the streaming ops), `CanvasAction` (the history late joiners replay), the caps
+  (`MAX_ACTIONS_PER_TURN`, `MAX_POINTS_PER_STROKE`, `MAX_POINTS_PER_TURN`, `MAX_CANVAS_RESYNC_BYTES`),
+  `CANVAS_WIDTH` / `CANVAS_HEIGHT`, the client messages (`canvasClientMessageOptions` to spread into
+  your own discriminated union, `canvasClientMessageSchema`, `CanvasClientMessage`), the server
+  stream `CanvasServerMessage` (`draw` / `undo` / `clear` / `canvas`), `CANVAS_SIDE_MESSAGE_TYPES`
+  and `CanvasWelcomeExtra` / `isCanvasWelcomeExtra` for `welcome.extra`. Skribble's protocol and
+  constants files re-export all of these under their old names.
+- Server store: [`server/platform/sideStores/canvas.ts`](../server/platform/sideStores/canvas.ts)
+  — `createCanvasStore(policy)` returns the `createSideStore` function for your module;
+  `CanvasStore`, `CanvasHistory` (the in-memory reference every test compares against),
+  `admitOp` / `admitAll` / `replayOps` are exported for tests. The store is keyed per room code
+  over the driver's `GameStorage` (memory or Redis) and applies the caps identically on both.
+
+Opting in is three lines on the module plus a policy that says who may draw on what:
+
+```ts
+import { CANVAS_SIDE_MESSAGE_TYPES, canvasClientMessageOptions } from '../../../shared/platform/canvas.js';
+import { createCanvasStore, type CanvasPolicy } from '../../platform/sideStores/canvas.js';
+
+export const policy: CanvasPolicy<MyData> = {
+  /** Identifies the canvas the game's current data draws on ('' when none); a reset mints a new one. */
+  stamp: (game) => game?.canvasId ?? '',
+  /** 'ok' to accept, 'silent' to drop without a word (in-flight ops after a turn ended), 'forbidden' to answer with an error. */
+  check: (game, playerId, now) => (game && game.drawerId === playerId && now < game.endsAt ? 'ok' : game?.drawerId === playerId ? 'silent' : 'forbidden'),
+  forbiddenMessage: 'Only the drawer can draw right now.',
+};
+
+// clientMessageSchema = z.discriminatedUnion('t', [ ...yourMessages, ...canvasClientMessageOptions ]);
+export const myModule = { /* ... */ sideMessages: CANVAS_SIDE_MESSAGE_TYPES, createSideStore: createCanvasStore<MyData, MyClientMessage>(policy) };
+```
+
+Then, in your reducer, mint a fresh `canvasId` with `ctx.newId()` whenever the canvas must be
+emptied and emit `{ type: 'side', name: 'reset', payload: { stamp: canvasId } }` plus
+`{ type: 'send', to: 'all', msg: { t: 'clear' } }` (see `resetCanvas` in
+[`server/games/skribble/turns.ts`](../server/games/skribble/turns.ts)). Skribble's whole opt-in is
+[`server/games/skribble/canvas.ts`](../server/games/skribble/canvas.ts): `skribbleCanvasPolicy`
+and `createSkribbleCanvasStore`. The store is tested over `MemoryStorage` in
+[`server/platform/sideStores/canvas.test.ts`](../server/platform/sideStores/canvas.test.ts) and
+across two Redis instances in `drivers/redis.test.ts`. The client side (the canvas renderer, the
+drawing hook, the batching queue) is the platform's as well; see the client module's docs.
+
+### 7.2 Writing a side store of your own
 
 The pieces, all in [`server/platform/game.ts`](../server/platform/game.ts) and
 [`server/platform/storage.ts`](../server/platform/storage.ts):
@@ -1340,7 +1438,7 @@ The pieces, all in [`server/platform/game.ts`](../server/platform/game.ts) and
 sideMessages?: ReadonlySet<string>;                         // message types the driver routes to the store
 createSideStore?(storage: GameStorage): GameSideStore<D, CMsg, SMsg>;
 
-/** What the room looks like to a side store: the platform's record with the game's data inside. */
+/** What the room looks like to a side store: the platform's record with the game's data inside (players = the participants). */
 export interface SideRoom<D> { code: string; phase: 'lobby' | 'playing' | 'ended'; game: D | null; players: PlatformPlayer[]; }
 
 export type SideOutcome<SMsg> =
@@ -1381,7 +1479,9 @@ How it flows:
    `clientMessageSchema` and calls `store.handleMessage(room, playerId, msg, now)` instead of
    dispatching an engine action ([`drivers/room.ts`](../server/platform/drivers/room.ts),
    [`drivers/redis.ts`](../server/platform/drivers/redis.ts)). The reducer still receives these
-   types in its `CMsg` union; Skribble's `handle` simply ignores `draw` / `undo` / `clear`.
+   types in its `CMsg` union; Skribble's `handle` simply ignores `draw` / `undo` / `clear`. A
+   party may switch games, so both drivers resolve the store from the room's *current* `gameId`
+   (one store per game, built on first use over the same storage).
 2. **Storage.** `MemoryStorage` ([`storage.ts`](../server/platform/storage.ts)) and
    `RedisStorage` ([`drivers/redisStorage.ts`](../server/platform/drivers/redisStorage.ts), keys
    `room:CODE:side`, `room:CODE:side:meta`, `room:CODE:side:seq`) implement the same interface; writes
@@ -1395,26 +1495,19 @@ How it flows:
    `ctx.newId()`) and emits `{ type: 'side', name: 'reset', payload: { stamp } }`; the driver
    empties the store and stamps it. `handleMessage` compares `stamp(room)` with the stored stamp and
    refuses writes authorised against stale data. Platform-level lobby transitions (abort, return to
-   lobby, empty room) reset the store with stamp `''` automatically when the module has
-   `createSideStore`.
+   lobby, empty room, a game switch away from the game) reset the store with stamp `''`
+   automatically when the module has `createSideStore`.
 5. **Welcome.** The driver completes every `welcome` with `extra` from `store.welcomeExtra`
-   (Skribble: `{ canvas: CanvasAction[] }`). Games without a side store have `extra` undefined.
-6. **Resync.** When the store had to cut a player's input (Skribble's per-turn caps),
+   (the canvas store: `{ canvas: CanvasAction[] }`). Games without a side store have `extra` undefined.
+6. **Resync.** When the store had to cut a player's input (the canvas caps),
    `outcome.resync = playerId` schedules `store.resync` after `SIDE_RESYNC_DEBOUNCE_MS`.
 
-Skribble's implementation is [`server/games/skribble/canvas.ts`](../server/games/skribble/canvas.ts)
-(`CanvasStore`, `createCanvasStore`), with the message types in `SKRIBBLE_SIDE_MESSAGE_TYPES` from
-[`shared/games/skribble/protocol.ts`](../shared/games/skribble/protocol.ts). On the client the
-counterpart is the module's `onServerMessage` (apply `draw` / `undo` / `clear` / `canvas` to the
-game's own store), `onWelcome` (seed the store from `extra`) and `onLeave` (flush the outgoing
-queue), plus a batching queue ([`client/src/games/skribble/net.ts`](../client/src/games/skribble/net.ts)).
-
-Constraints: the store receives `now` as a parameter and must not read the clock itself (the
-purity test exempts only `canvas.ts`, so a new side store file would have to be added to that
-exemption deliberately, and it still should not need it); side messages are rate limited like any
-game message (60/s per socket); a side store never touches `PlatformRoomData`, it only reads the
-`SideRoom` it is given. Document the stream in the game's protocol file and test the store over
-`MemoryStorage` the way [`canvas.test.ts`](../server/games/skribble/canvas.test.ts) does.
+Constraints: the store receives `now` as a parameter and must not read the clock itself; side
+messages are rate limited like any game message (60/s per socket); a side store never touches
+`PlatformRoomData`, it only reads the `SideRoom` it is given. A store of your own lives under
+`server/platform/sideStores/` like the canvas (the purity test keeps `server/games/` free of
+clocks and timers). Document the stream in the game's protocol file and test the store over
+`MemoryStorage` the way [`canvas.test.ts`](../server/platform/sideStores/canvas.test.ts) does.
 
 ---
 
@@ -1527,6 +1620,7 @@ From [`client/src/platform/net/socket.ts`](../client/src/platform/net/socket.ts)
 socket.send(msg: PlatformClientMessage | WireMessage): boolean;   // false when the socket is closed
 socket.isOpen(): boolean;
 leaveRoom(); sendChat(text); updateSettings(patch); startGame(); kickPlayer(id); voteKick(id); returnToLobby();
+// Party actions (platform messages `selectGame`, `ready`, `sitOut`) are the lobby's and the podium's; a game never sends them.
 ```
 
 From [`store/usePlatformStore.ts`](../client/src/platform/store/usePlatformStore.ts) and
@@ -1597,13 +1691,20 @@ Run from the repository root; everything is green at HEAD.
 - **Scores reset to 0** on `start` and on every return to the lobby; the podium is the only
   record of a finished game.
 - **Settings patches** are validated as a whole: one invalid field rejects the patch with
-  `INVALID_MESSAGE` ("Invalid settings at <path>: <message>"); unknown keys are stripped; your
-  `normalize` runs on the merged settings and may rewrite dependent fields; `maxPlayers` is then
-  clamped to `[meta.minPlayers, meta.maxPlayers]` and never below the seated count.
+  `INVALID_MESSAGE` ("Invalid settings at <path>: <message>"); unknown keys are stripped (so a
+  room stored with a retired key such as `maxPlayers` or Quip Game's old `cheeky` still loads);
+  your `normalize` runs on the merged settings and may rewrite dependent fields.
+- **`ctx.players` is the participants, not the room.** Players who sat the game out are in
+  `ctx.spectators` and in `room.players` with `participating: false`; they still receive every
+  snapshot and chat line, so views must not assume every `room.players` entry has a game entry.
+- **Content follows `ctx.settings.contentMode`.** Pick words, prompts and places through the
+  shared pool helpers; never add a per-game "adult" switch.
+- **`meta.maxPlayers` is a seat limit, not a room cap.** `null` seats everyone (up to
+  `ROOM_HARD_CAP` = 24); a number benches the extra ready players for that game.
 - **Chat history** is capped at 60 lines and replayed in `welcome.chat`; private lines (explicit
   recipient lists) are never stored, so a late joiner does not see them.
 - **`playerJoined` arrives mid-game only** (joins in the lobby are not game events) and only when
-  `allowMidGameJoin` is on; `ctx.players` already contains the newcomer.
+  `allowMidGameJoin` is on; the newcomer is a participant and `ctx.players` already contains them.
 - **Rate limits**: 60 game messages per second per socket are accepted, the rest dropped
   silently; chat is 6 per 4 s with a `RATE_LIMITED` error; room create/join 5 per 10 s.
 - **Message size**: 64 KB per WebSocket frame (`MAX_WS_MESSAGE_BYTES`).

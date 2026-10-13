@@ -121,7 +121,7 @@ function RoomScreen({ room }: { room: RoomState }) {
     <>
       <Screen key={room.code} room={room} meId={meId ?? ''} isHost={isHost} />
       {room.phase === 'playing' && room.waiting && <WaitingOverlay room={room} waiting={room.waiting} isHost={isHost} meId={meId} />}
-      {room.phase === 'ended' && <PodiumOverlay room={room} isHost={isHost} />}
+      {room.phase === 'ended' && <PodiumOverlay room={room} meId={meId} isHost={isHost} />}
       <ReconnectingBanner />
     </>
   );

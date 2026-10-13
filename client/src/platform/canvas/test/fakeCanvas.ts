@@ -1,4 +1,4 @@
-import type { CanvasSource } from '../canvas/renderer';
+import type { CanvasSource } from '../renderer';
 
 export interface Call {
   op: string;

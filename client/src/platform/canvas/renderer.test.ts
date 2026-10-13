@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { CANVAS_HEIGHT, CANVAS_WIDTH } from '@shared/games/skribble/constants';
-import type { CanvasAction, DrawOp } from '@shared/games/skribble/protocol';
+import { CANVAS_HEIGHT, CANVAS_WIDTH } from '@shared/platform/canvas';
+import type { CanvasAction, DrawOp } from '@shared/platform/canvas';
 import { applyOpsToActions } from './history';
 import { CanvasRenderer } from './renderer';
-import { FakeCanvas, geometry } from '../test/fakeCanvas';
+import { FakeCanvas, geometry } from './test/fakeCanvas';
 
 function makeRenderer(dpr = 1) {
   const display = new FakeCanvas(false);

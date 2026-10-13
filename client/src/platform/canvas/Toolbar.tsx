@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react';
 import { BRUSH_SIZES, PALETTE } from '@shared/games/skribble/constants';
-import { clearCanvas, undoStroke } from '../actions';
-import type { DrawTool, DrawingSettings } from '../canvas/useDrawing';
 import { BucketIcon, EraserIcon, PencilIcon, TrashIcon, UndoIcon } from './Icons';
+import type { DrawTool, DrawingSettings } from './useDrawing';
 
 interface Props {
   settings: DrawingSettings;
   onChange(next: DrawingSettings): void;
+  /** Whether undo/clear are offered (something to undo, and a connection to send it over). */
   canUndo: boolean;
+  onUndo(): void;
+  onClear(): void;
 }
 
 const SIZE_LIST: readonly number[] = BRUSH_SIZES;
@@ -17,7 +19,8 @@ function isTypingTarget(target: EventTarget | null): boolean {
   return target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
 }
 
-export function Toolbar({ settings, onChange, canUndo }: Props) {
+/** The drawer's tools: brush, eraser and fill, five sizes, the palette with a custom colour, undo and clear. */
+export function Toolbar({ settings, onChange, canUndo, onUndo, onClear }: Props) {
   const [confirmClear, setConfirmClear] = useState(false);
   const setTool = (tool: DrawTool) => onChange({ ...settings, tool });
 
@@ -28,7 +31,7 @@ export function Toolbar({ settings, onChange, canUndo }: Props) {
       const key = e.key.toLowerCase();
       if ((e.ctrlKey || e.metaKey) && key === 'z') {
         e.preventDefault();
-        if (canUndo) undoStroke();
+        if (canUndo) onUndo();
         return;
       }
       if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -145,7 +148,7 @@ export function Toolbar({ settings, onChange, canUndo }: Props) {
       </div>
 
       <div className="toolbar__group toolbar__actions">
-        <button type="button" className="tool-btn" onClick={undoStroke} disabled={!canUndo} aria-label="Undo (Ctrl+Z)" title="Undo (Ctrl+Z)" data-testid="tool-undo">
+        <button type="button" className="tool-btn" onClick={onUndo} disabled={!canUndo} aria-label="Undo (Ctrl+Z)" title="Undo (Ctrl+Z)" data-testid="tool-undo">
           <UndoIcon />
         </button>
         {confirmClear ? (
@@ -154,7 +157,7 @@ export function Toolbar({ settings, onChange, canUndo }: Props) {
               type="button"
               className="btn btn--danger btn--xs"
               onClick={() => {
-                clearCanvas();
+                onClear();
                 setConfirmClear(false);
               }}
               data-testid="tool-clear-confirm"

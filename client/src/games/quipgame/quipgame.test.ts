@@ -408,7 +408,6 @@ describe('settings rows', () => {
     expect(tagWith(host, 'settings-resultsSeconds')).toContain('max="20"');
     for (const id of ['finalRound', 'announcer']) expect(tagWith(host, `settings-${id}`)).not.toContain('disabled');
     expect(tagWith(host, 'settings-finalRound')).toContain('checked');
-    expect(host).toContain('Adult humour');
     expect(tagWith(host, 'settings-customPrompts')).toBeTruthy();
     expect(tagWith(host, 'settings-customPromptsOnly')).toContain('disabled');
     expect(host).toContain('Add at least 10 custom prompts');

@@ -1,9 +1,8 @@
 import { useEffect, useRef, type RefObject } from 'react';
-import { CANVAS_HEIGHT, CANVAS_WIDTH } from '@shared/games/skribble/constants';
-import type { CanvasAction, DrawOp } from '@shared/games/skribble/protocol';
-import { drawQueue } from '../net';
-import { useSkribbleStore } from '../store';
+import { CANVAS_HEIGHT, CANVAS_WIDTH, type DrawOp } from '@shared/platform/canvas';
+import { maxStrokeId } from './history';
 import type { CanvasRenderer } from './renderer';
+import type { CanvasSession } from './session';
 
 export type DrawTool = 'brush' | 'eraser' | 'fill';
 
@@ -13,10 +12,13 @@ export interface DrawingSettings {
   size: number;
 }
 
+export const DEFAULT_DRAWING_SETTINGS: DrawingSettings = { tool: 'brush', color: '#000000', size: 6 };
+
 interface Options {
+  session: CanvasSession;
   canvasRef: RefObject<HTMLCanvasElement | null>;
   rendererRef: RefObject<CanvasRenderer | null>;
-  /** Only the drawer, during the drawing phase. */
+  /** Only the drawer, while drawing is open. */
   enabled: boolean;
   settings: DrawingSettings;
   /** Changes once per turn; resets the stroke id counter. */
@@ -33,17 +35,11 @@ const MIN_POINT_DISTANCE = 0.5;
 
 const round2 = (v: number): number => Math.round(v * 100) / 100;
 
-function maxStrokeId(actions: readonly CanvasAction[]): number {
-  let max = -1;
-  for (const a of actions) if (a.kind === 'stroke' && a.id > max) max = a.id;
-  return max;
-}
-
 /**
- * Pointer handling for the drawer. Every op is rendered locally, folded into the store's action
- * list and queued for the network — the same path remote viewers take, so both sides agree.
+ * Pointer handling for the drawer. Every op is rendered locally, folded into the session's
+ * history and queued for the network — the same path remote viewers take, so both sides agree.
  */
-export function useDrawing({ canvasRef, rendererRef, enabled, settings, turnKey }: Options): void {
+export function useDrawing({ session, canvasRef, rendererRef, enabled, settings, turnKey }: Options): void {
   const settingsRef = useRef(settings);
   useEffect(() => {
     settingsRef.current = settings;
@@ -64,10 +60,9 @@ export function useDrawing({ canvasRef, rendererRef, enabled, settings, turnKey 
     let lastY = 0;
 
     const emit = (ops: DrawOp[]): void => {
-      const store = useSkribbleStore.getState();
-      store.appendOps(ops);
-      rendererRef.current?.applyOps(ops, useSkribbleStore.getState().canvas);
-      drawQueue.queue(ops);
+      session.store.getState().appendOps(ops);
+      rendererRef.current?.applyOps(ops, session.store.getState().canvas);
+      session.queue.queue(ops);
     };
 
     const toLogical = (e: { clientX: number; clientY: number }): Point => {
@@ -88,7 +83,7 @@ export function useDrawing({ canvasRef, rendererRef, enabled, settings, turnKey 
       if (tool === 'fill') return;
       // After a reload the counter restarts, but the server still holds this turn's history
       // (restored into the store), so never reuse an id it already knows.
-      const id = Math.max(strokeCounter.current, maxStrokeId(useSkribbleStore.getState().canvas) + 1);
+      const id = Math.max(strokeCounter.current, maxStrokeId(session.store.getState().canvas) + 1);
       strokeCounter.current = id + 1;
       strokeId = id;
       lastX = p.x;
@@ -163,7 +158,7 @@ export function useDrawing({ canvasRef, rendererRef, enabled, settings, turnKey 
       } catch {
         /* already released */
       }
-      drawQueue.flush();
+      session.queue.flush();
     };
 
     const onContextMenu = (e: Event): void => e.preventDefault();
@@ -180,7 +175,7 @@ export function useDrawing({ canvasRef, rendererRef, enabled, settings, turnKey 
       canvas.removeEventListener('pointercancel', onPointerUp);
       canvas.removeEventListener('contextmenu', onContextMenu);
       endStroke();
-      drawQueue.flush();
+      session.queue.flush();
     };
-  }, [canvasRef, rendererRef, enabled]);
+  }, [session, canvasRef, rendererRef, enabled]);
 }

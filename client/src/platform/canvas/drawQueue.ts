@@ -1,8 +1,4 @@
-import type { DrawOp, SkribbleClientMessage, SkribbleRoomState } from '@shared/games/skribble/protocol';
-import { socket } from '../../platform/net/socket';
-import { usePlatformStore } from '../../platform/store/usePlatformStore';
-import { drawingTurnKey, selectSkribbleRoom } from './hooks';
-import { useSkribbleStore } from './store';
+import type { CanvasClientMessage, DrawOp } from '@shared/platform/canvas';
 
 const DRAW_FLUSH_MS = 30;
 const MAX_OPS_PER_MESSAGE = 200;
@@ -10,15 +6,17 @@ const MAX_PTS_PER_MOVE = 2000;
 /** Ops drawn while the socket is down are kept for the rejoin, up to this many. */
 export const MAX_OFFLINE_OPS = 2000;
 
+/** The wire the queue writes to (the game socket; tests substitute a recorder). */
 export interface DrawLink {
-  send(msg: SkribbleClientMessage): boolean;
+  send(msg: CanvasClientMessage): boolean;
   isOpen(): boolean;
 }
 
 /**
  * Batches the drawer's ops for the wire: consecutive 'move' ops of one stroke are merged and
- * flushed every ~30ms. Ops drawn during an outage are parked and delivered after a rejoin into
- * the very same turn (the welcome's canvas would otherwise lose them).
+ * flushed every ~30ms. Ops drawn during an outage are parked under the key of the drawing turn
+ * they belong to (`turnKey()`, null outside a drawing turn) and delivered after a rejoin into the
+ * very same turn (the welcome's canvas would otherwise lose them).
  */
 export class DrawQueue {
   private timer: ReturnType<typeof setTimeout> | null = null;
@@ -28,7 +26,7 @@ export class DrawQueue {
 
   constructor(
     private readonly link: DrawLink,
-    private readonly currentRoom: () => SkribbleRoomState | null,
+    private readonly turnKey: () => string | null,
   ) {}
 
   queue(ops: readonly DrawOp[]): void {
@@ -56,16 +54,18 @@ export class DrawQueue {
     this.offlineTurn = null;
   }
 
-  /** After a rejoin as the drawer of the very same turn, the strokes drawn offline are restored and delivered. */
-  resumeOfflineOps(room: SkribbleRoomState, playerId: string): void {
+  /**
+   * After a rejoin: the ops parked for `currentTurn` (the key of the turn the rejoin landed in,
+   * as this player's own drawing turn; null when they are not drawing now) are returned for the
+   * caller to restore locally and sent again. Ops from another turn are dropped.
+   */
+  resumeOfflineOps(currentTurn: string | null): DrawOp[] {
     const ops = this.offlineOps;
     const turn = this.offlineTurn;
     this.dropOffline();
-    if (ops.length === 0) return;
-    const phase = room.game?.phase;
-    if (!phase || phase.kind !== 'drawing' || phase.drawerId !== playerId || drawingTurnKey(room) !== turn) return;
-    useSkribbleStore.getState().appendOps(ops);
+    if (ops.length === 0 || currentTurn === null || currentTurn !== turn) return [];
     this.sendDraw(ops);
+    return ops;
   }
 
   private sendDraw(ops: readonly DrawOp[]): void {
@@ -76,7 +76,7 @@ export class DrawQueue {
 
   /** Keeps ops drawn during an outage for the current turn only; a long outage gives up (the welcome resyncs). */
   private park(ops: DrawOp[]): void {
-    const key = drawingTurnKey(this.currentRoom());
+    const key = this.turnKey();
     if (key === null) {
       this.dropOffline();
       return;
@@ -107,8 +107,3 @@ export class DrawQueue {
     }
   }
 }
-
-export const drawQueue = new DrawQueue(
-  { send: (msg) => socket.send(msg), isOpen: () => socket.isOpen() },
-  () => selectSkribbleRoom(usePlatformStore.getState()),
-);

@@ -1,5 +1,4 @@
-import { CANVAS_HEIGHT, CANVAS_WIDTH } from '@shared/games/skribble/constants';
-import type { CanvasAction, DrawOp, Tool } from '@shared/games/skribble/protocol';
+import { CANVAS_HEIGHT, CANVAS_WIDTH, type CanvasAction, type DrawOp, type Tool } from '@shared/platform/canvas';
 import { FILL_TOLERANCE, floodFillImage, paintSpans, type FillSpans } from './floodFill';
 
 export const ERASER_COLOR = '#ffffff';

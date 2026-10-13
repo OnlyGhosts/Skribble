@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { CANVAS_HEIGHT, CANVAS_WIDTH } from '@shared/games/skribble/constants';
-import { PHONE_QUERY, matchesMedia } from '../../../platform/lib/media';
-import { canvasBus } from '../canvas/bus';
-import { CanvasRenderer } from '../canvas/renderer';
-import { useDrawing, type DrawingSettings } from '../canvas/useDrawing';
-import { useSkribbleStore } from '../store';
+import { CANVAS_HEIGHT, CANVAS_WIDTH } from '@shared/platform/canvas';
+import { PHONE_QUERY, matchesMedia } from '../lib/media';
+import { CanvasRenderer } from './renderer';
+import type { CanvasSession } from './session';
+import { useDrawing, type DrawingSettings } from './useDrawing';
+import './canvas.css';
 
 interface Props {
+  session: CanvasSession;
   canDraw: boolean;
   settings: DrawingSettings;
   turnKey: string;
@@ -38,10 +39,10 @@ function sameFrame(a: Frame | null, b: Frame): boolean {
 
 /**
  * Hosts the logical 800x600 canvas, scaled to fit its stage while keeping 4:3, and keeps the
- * renderer in sync with the store: remote ops stream in through the bus, structural changes
+ * renderer in sync with the session: remote ops stream in through the session, structural changes
  * (undo / clear / resync / rejoin) bump `canvasEpoch` and trigger a full replay.
  */
-export function GameCanvas({ canDraw, settings, turnKey, children, footer }: Props) {
+export function GameCanvas({ session, canDraw, settings, turnKey, children, footer }: Props) {
   const stageRef = useRef<HTMLDivElement | null>(null);
   const groupRef = useRef<HTMLDivElement | null>(null);
   const footerRef = useRef<HTMLDivElement | null>(null);
@@ -51,25 +52,25 @@ export function GameCanvas({ canDraw, settings, turnKey, children, footer }: Pro
   // Phone layout: the toolbar spans the stage instead of the canvas, so its height never depends
   // on the canvas width (which would feed back into the by-height fit).
   const [fullWidthGroup, setFullWidthGroup] = useState(() => matchesMedia(PHONE_QUERY));
-  const epoch = useSkribbleStore((s) => s.canvasEpoch);
+  const epoch = session.store((s) => s.canvasEpoch);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const renderer = new CanvasRenderer(canvas);
     rendererRef.current = renderer;
-    renderer.replayAll(useSkribbleStore.getState().canvas);
-    // The store folded the ops into its list before publishing them; the list lets fills be cached.
-    const unsubscribe = canvasBus.subscribe((ops) => renderer.applyOps(ops, useSkribbleStore.getState().canvas));
+    renderer.replayAll(session.store.getState().canvas);
+    // The session folded the ops into its history before publishing them; the list lets fills be cached.
+    const unsubscribe = session.subscribe((ops) => renderer.applyOps(ops, session.store.getState().canvas));
     return () => {
       unsubscribe();
       rendererRef.current = null;
     };
-  }, []);
+  }, [session]);
 
   useEffect(() => {
-    rendererRef.current?.replayAll(useSkribbleStore.getState().canvas);
-  }, [epoch]);
+    rendererRef.current?.replayAll(session.store.getState().canvas);
+  }, [session, epoch]);
 
   useEffect(() => {
     const stage = stageRef.current;
@@ -92,7 +93,7 @@ export function GameCanvas({ canDraw, settings, turnKey, children, footer }: Pro
       }
       const renderer = rendererRef.current;
       if (renderer && renderer.resize(window.devicePixelRatio)) {
-        renderer.replayAll(useSkribbleStore.getState().canvas);
+        renderer.replayAll(session.store.getState().canvas);
       }
     };
     update();
@@ -106,9 +107,9 @@ export function GameCanvas({ canDraw, settings, turnKey, children, footer }: Pro
       window.removeEventListener('resize', update);
       phone.removeEventListener('change', update);
     };
-  }, [footer !== undefined]);
+  }, [session, footer !== undefined]);
 
-  useDrawing({ canvasRef, rendererRef, enabled: canDraw, settings, turnKey });
+  useDrawing({ session, canvasRef, rendererRef, enabled: canDraw, settings, turnKey });
 
   return (
     <div className="canvas-stage" ref={stageRef}>

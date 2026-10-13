@@ -1,4 +1,4 @@
-import type { CanvasAction, DrawOp } from '@shared/games/skribble/protocol';
+import type { CanvasAction, DrawOp } from '@shared/platform/canvas';
 
 function findStroke(actions: readonly CanvasAction[], id: number): number {
   for (let i = actions.length - 1; i >= 0; i--) {
@@ -47,4 +47,11 @@ export function applyOpsToActions(actions: readonly CanvasAction[], ops: readonl
     }
   }
   return next;
+}
+
+/** The highest stroke id in the history, or -1 on a blank canvas; a drawer never reuses an id the server already knows. */
+export function maxStrokeId(actions: readonly CanvasAction[]): number {
+  let max = -1;
+  for (const a of actions) if (a.kind === 'stroke' && a.id > max) max = a.id;
+  return max;
 }

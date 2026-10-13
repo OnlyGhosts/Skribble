@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Avatar as AvatarData } from '@shared/platform/avatar';
 import { NAME_MAX_LENGTH } from '@shared/platform/constants';
 import { gameById } from '@shared/platform/games';
@@ -6,12 +6,15 @@ import type { RoomState } from '@shared/platform/protocol';
 import { SITE_NAME } from '@shared/platform/site';
 import { AvatarPicker } from '../components/AvatarPicker';
 import { Chat } from '../components/Chat';
+import { GamePicker } from '../components/GamePicker';
 import { CopyIcon, EditIcon, LinkIcon, LogoutIcon, PlayIcon, SendIcon } from '../components/Icons';
 import { PlayerList } from '../components/PlayerList';
+import { ReadyControls } from '../components/ReadyControls';
 import { SettingsPanel } from '../components/SettingsPanel';
 import { SiteHeader } from '../components/SiteHeader';
 import type { AnyGameClientModule } from '../game';
 import { copyText } from '../lib/clipboard';
+import { canStart, listNames, notReadyPlayers, readyLine, readyPlayers } from '../lib/party';
 import { leaveRoom, startGame, updateProfile } from '../net/actions';
 import { inviteLink } from '../router';
 import { selectIsHost, selectMe } from '../store/selectors';
@@ -27,14 +30,23 @@ export function Lobby({ room, game }: Props) {
   const isHost = usePlatformStore(selectIsHost);
   const playerId = usePlatformStore((s) => s.playerId);
   const addToast = usePlatformStore((s) => s.addToast);
+  const playAgainPending = usePlatformStore((s) => s.playAgainPending);
+  const setPlayAgainPending = usePlatformStore((s) => s.setPlayAgainPending);
   const [editing, setEditing] = useState(false);
+  const startRef = useRef<HTMLDivElement | null>(null);
   const meta = gameById(room.gameId);
 
-  // The home page was likely scrolled to its join form; start the lobby at the code.
-  useEffect(() => window.scrollTo(0, 0), []);
+  // The home page was likely scrolled to its join form; start the lobby at the code. After "Play
+  // again" the host lands at the Start button instead.
+  useEffect(() => {
+    if (playAgainPending) {
+      startRef.current?.scrollIntoView({ block: 'center' });
+      setPlayAgainPending(false);
+      return;
+    }
+    window.scrollTo(0, 0);
+  }, [playAgainPending, setPlayAgainPending]);
 
-  const connectedCount = room.players.filter((p) => p.connected).length;
-  const canStart = connectedCount >= meta.minPlayers;
   const host = room.players.find((p) => p.id === room.hostId);
   const link = inviteLink(meta, room.code);
 
@@ -45,7 +57,7 @@ export function Lobby({ room, game }: Props) {
 
   /** The native share sheet where it exists (phones); otherwise the link lands on the clipboard. */
   const share = async () => {
-    const data: ShareData = { title: `${meta.name} · ${SITE_NAME}`, text: `Join my ${meta.name} room with code ${room.code}`, url: link };
+    const data: ShareData = { title: `${meta.name} · ${SITE_NAME}`, text: `Join my ${meta.name} party with code ${room.code}`, url: link };
     if (typeof navigator.share === 'function' && (typeof navigator.canShare !== 'function' || navigator.canShare(data))) {
       try {
         await navigator.share(data);
@@ -65,12 +77,14 @@ export function Lobby({ room, game }: Props) {
         </button>
       </SiteHeader>
 
+      <GamePicker room={room} isHost={isHost} />
+
       <section className="card code-card" aria-labelledby="code-heading">
         <div className="code-card__text">
           <h1 className="code-card__title" id="code-heading">
             Invite your friends
           </h1>
-          <p className="card__text">Share this code — or the link — and they'll land right here.</p>
+          <p className="card__text">Share this code — or the link — and they'll land right here. The party stays together between games.</p>
         </div>
         <div className="code-card__code" data-testid="room-code" aria-label={`Room code ${room.code.split('').join(' ')}`}>
           {room.code.split('').map((ch, i) => (
@@ -98,11 +112,12 @@ export function Lobby({ room, game }: Props) {
             <h2 className="card__title" id="players-heading">
               Players
             </h2>
-            <span className="pill" data-testid="player-count">
-              {room.players.length}/{room.settings.maxPlayers}
+            <span className="pill" data-testid="player-count" data-ready={readyPlayers(room).length} data-players={room.players.length}>
+              {readyLine(room)}
             </span>
           </div>
           <PlayerList room={room} meId={playerId} isHost={isHost} mode="lobby" game={game} />
+          {me && <ReadyControls me={me} context="lobby" />}
           {me && (
             <div className="profile-edit">
               <button type="button" className="btn btn--ghost btn--sm" onClick={() => setEditing((v) => !v)} aria-expanded={editing} data-testid="edit-profile">
@@ -111,21 +126,13 @@ export function Lobby({ room, game }: Props) {
               {editing && <ProfileEditor me={{ name: me.name, avatar: me.avatar }} onClose={() => setEditing(false)} />}
             </div>
           )}
-          <div className="lobby__start">
+          <div className="lobby__start" ref={startRef}>
             {isHost ? (
-              <>
-                <button type="button" className="btn btn--primary btn--lg btn--block" onClick={startGame} disabled={!canStart} data-testid="start-game">
-                  <PlayIcon size={18} /> Start game
-                </button>
-                {!canStart && (
-                  <p className="field__hint" data-testid="start-hint">
-                    You need at least {meta.minPlayers} connected players to start ({connectedCount} here now).
-                  </p>
-                )}
-              </>
+              <StartControls room={room} />
             ) : (
               <p className="lobby__waiting" data-testid="waiting-for-host">
-                Waiting for {host?.name ?? 'the host'} to start the game<span className="ellipsis" aria-hidden="true" />
+                Waiting for {host?.name ?? 'the host'} to start {meta.name}
+                <span className="ellipsis" aria-hidden="true" />
               </p>
             )}
           </div>
@@ -134,7 +141,7 @@ export function Lobby({ room, game }: Props) {
         <section className="card lobby__settings" aria-labelledby="settings-heading">
           <div className="card__head">
             <h2 className="card__title" id="settings-heading">
-              Game settings
+              {meta.name} settings
             </h2>
             {isHost && <span className="pill pill--accent">You're the host</span>}
           </div>
@@ -149,6 +156,59 @@ export function Lobby({ room, game }: Props) {
         </section>
       </div>
     </div>
+  );
+}
+
+/**
+ * The host's Start: enabled once enough players are ready, with a hint naming who still is not.
+ * Starting while some could still ready up asks first, since they would sit the game out.
+ */
+function StartControls({ room }: { room: RoomState }) {
+  const meta = gameById(room.gameId);
+  const [confirming, setConfirming] = useState(false);
+  const ready = readyPlayers(room).length;
+  const notReady = notReadyPlayers(room);
+  const startable = canStart(room, meta);
+  useEffect(() => {
+    if (notReady.length === 0) setConfirming(false);
+  }, [notReady.length]);
+
+  const onStart = () => {
+    if (notReady.length > 0 && !confirming) {
+      setConfirming(true);
+      return;
+    }
+    setConfirming(false);
+    startGame();
+  };
+
+  return (
+    <>
+      {confirming ? (
+        <div className="start-confirm" role="group" aria-label="Start with players not ready" data-testid="start-confirm">
+          <p className="start-confirm__text">
+            Not everyone is ready — {listNames(notReady.map((p) => p.name))} {notReady.length === 1 ? "isn't" : "aren't"} ready yet and would sit this one out.
+          </p>
+          <div className="start-confirm__actions">
+            <button type="button" className="btn btn--primary" onClick={onStart} data-testid="start-anyway">
+              <PlayIcon size={16} /> Start anyway
+            </button>
+            <button type="button" className="btn btn--ghost" onClick={() => setConfirming(false)} data-testid="start-wait">
+              Wait for them
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button type="button" className="btn btn--primary btn--lg btn--block" onClick={onStart} disabled={!startable} data-testid="start-game" data-ready={ready}>
+          <PlayIcon size={18} /> Start · {ready} ready
+        </button>
+      )}
+      {!startable && (
+        <p className="field__hint" data-testid="start-hint">
+          {meta.name} needs at least {meta.minPlayers} ready {meta.minPlayers === 1 ? 'player' : 'players'}.{notReady.length > 0 && ` Not ready yet: ${listNames(notReady.map((p) => p.name))}.`}
+        </p>
+      )}
+    </>
   );
 }
 

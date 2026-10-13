@@ -1,6 +1,7 @@
 import type { SkribblePhase, SkribbleRoomState, SkribbleView } from '@shared/games/skribble/protocol';
 import type { RoomState } from '@shared/platform/protocol';
 import { room } from '../../../test/fixtures';
+import { skribbleCanvas } from '../canvas';
 import { useSkribbleStore } from '../store';
 
 export function drawingPhase(drawerId: string, overrides: Partial<Extract<SkribblePhase, { kind: 'drawing' }>> = {}): SkribblePhase {
@@ -26,5 +27,6 @@ export function inTurn(phase: SkribblePhase, viewOverrides: Partial<SkribbleView
 }
 
 export function resetSkribbleStore(): void {
-  useSkribbleStore.setState({ canvas: [], canvasEpoch: 0, guessDraft: '' });
+  useSkribbleStore.setState({ guessDraft: '' });
+  skribbleCanvas.store.setState({ canvas: [], canvasEpoch: 0 });
 }
