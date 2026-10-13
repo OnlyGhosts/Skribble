@@ -14,9 +14,10 @@ is the copy-paste guide for the next one.
 
 | Game | URL | Players | Status | What it is |
 | --- | --- | --- | --- | --- |
-| **Skribble** | `/skribble` | 2–20 | live | A better skribbl.io: draw a word, everyone guesses, fast guesses and clear drawings score |
-| **The Spy Game** | `/spygame` | 3–12 | live | One player is the spy and does not know the location; ask questions out loud, vote the spy out before they guess where you are |
-| **Click Race** | `/template` | 1–20 | hidden | The template game: tap a button, first to the target wins. Not in the library; it proves the platform contract end to end and is the copy base for new games |
+| **Skribble** | `/skribble` | 2+ | live | A better skribbl.io: draw a word, everyone guesses, fast guesses and clear drawings score |
+| **The Spy Game** | `/spygame` | 3+ | live | One player is the spy and does not know the location; ask questions out loud, vote the spy out before they guess where you are |
+| **Quip Game** | `/quipgame` | 3+ | live | Write the funniest answer: two prompts each, answers go head to head, the room votes, the biggest laughs score |
+| **Click Race** | `/template` | 1+ | hidden | The template game: tap a button, first to the target wins. Not in the library; it proves the platform contract end to end and is the copy base for new games |
 
 The library at `/` shows every game whose status is `live`; `soon` games appear as muted cards;
 `hidden` games stay reachable at their URL for development and tests.
@@ -39,7 +40,18 @@ Open http://localhost:5173. The Vite dev server proxies `/ws` and `/api` to the 
 2. Friends open the site and type the code into the four boxes on the front page (codes are one
    namespace across games, so the code alone finds the right game), or open the link, and pick a
    name and avatar.
-3. The host adjusts the settings and hits **Start** once enough players are in (two for Skribble).
+3. Everyone taps **Ready** (or **Sit out** to watch this one from the party), the host adjusts
+   the settings and hits **Start** once enough players are ready (two for Skribble, three for
+   the Spy Game and Quip Game). There is no cap on a game: everyone in the room plays, up to the
+   24 seats a room holds.
+4. The room is a party. After the podium nobody has to rejoin: ready up for the next game, sit it
+   out, or let the host switch the party to another game from the lobby. The code and the invite
+   link stay the same whatever game is on.
+
+The host also picks a **content mode** for the whole party: *Family* keeps every game clean,
+*Cheeky* adds rude-but-harmless words, prompts and locations, *Unhinged* is adults only. Every game
+draws its material from the mode, so one switch covers Skribble's words, Quip Game's prompts and
+the Spy Game's locations.
 
 Reload, lock your phone or drop off Wi-Fi and you come back to the same seat with the same name
 and score: a seat survives ten minutes without a connection. A running game never ends over a
@@ -57,7 +69,7 @@ needs does it return everyone to the lobby.
 - **Hints that help.** Letters are revealed on a schedule spread over the turn; "close" guesses are flagged privately so you know you're nearly there; `icecream` counts for `ice cream`.
 - **Fair scoring.** Guessers earn 50–400 points by speed. The drawer earns up to 300 points scaled by how many people got it, so drawing clearly for everyone beats racing one fast friend.
 - **Real drawing tools.** Smooth strokes, five brush sizes, 24 colours plus a colour picker, eraser, flood fill, undo and clear, with keyboard shortcuts (`B`, `E`, `F`, `Ctrl+Z`, `[` and `]`).
-- **Host controls and fair play.** Rounds, draw time, hints, word choices, max players, custom word lists (optionally custom-only), mid-game join on or off, kick, vote-kick, automatic host hand-over. The drawer can't type the word into chat; players who've guessed can only chat with each other and the drawer.
+- **Host controls and fair play.** Rounds, draw time, hints, word choices, custom word lists (optionally custom-only), mid-game join on or off, kick, vote-kick, automatic host hand-over. The drawer can't type the word into chat; players who've guessed can only chat with each other and the drawer.
 - **Polish.** Light and dark themes, sound cues, like/dislike the drawing, turn summaries, a podium at the end, and a 1,390-word English list of things you can actually draw.
 
 Each round, every player draws once. The drawer picks one of three words, everyone else guesses in
@@ -66,7 +78,7 @@ guessed.
 
 ## The Spy Game
 
-Three to twelve players in the same room. Each round one player is secretly the spy; everyone
+Three or more players in the same room. Each round one player is secretly the spy; everyone
 else sees the location (one of 24 candidates drawn from the pack in `shared/games/spygame/locations.ts`).
 Questions are asked out loud; the spy has two guesses, the agents one group accusation each
 round (a vote that pauses the clock). Rounds, the round clock and the vote window are set in the lobby.
@@ -201,10 +213,14 @@ client/src/platform/ React 19 + zustand. game.ts is the client contract (GameCli
                    room's module; screens/ are Library, GameHome and Lobby; components/ is the design
                    system (SiteHeader, Avatar, AvatarPicker, CodeInput, PlayerList, Chat, SettingsPanel +
                    SettingControls, BottomSheet, Toasts, ThemeToggle/SoundToggle, ConnectionPill, Timer,
-                   PodiumOverlay, Icons); styles/ the tokens, base, components, library, home and lobby CSS.
+                   PodiumOverlay, GamePicker, ReadyControls, ContentModeSetting, Icons); canvas/ the
+                   shared drawing canvas (renderer, flood fill, drawing hook, batching queue, Toolbar
+                   and GameCanvas) any game can opt into; styles/ the tokens, base, components,
+                   library, home and lobby CSS.
 client/src/games/  GAMES, the client registry (index.ts), and one folder per game: its module, store,
-                   screen, components and stylesheet. skribble/ keeps the canvas renderer, the drawing
-                   queue and the type-into-the-blanks guess bar; template/ is Click Race.
+                   screen, components and stylesheet. skribble/ wires up the platform canvas and keeps
+                   the type-into-the-blanks guess bar; quipgame/ and spygame/ their screens and
+                   components; template/ is Click Race.
 e2e/               Playwright specs. One browser, several contexts, real server.
 docs/              ADDING_A_GAME.md, the guide for the next game.
 ```
@@ -225,8 +241,11 @@ Every room has the platform settings; each game adds its own, flat next to them.
 
 | Platform setting | Default | Range |
 | --- | --- | --- |
-| Max players | 12 (or the game's maximum if lower) | the game's min–max, never below the players already seated |
+| Content mode | Family | Family, Cheeky or Unhinged; picks every game's words, prompts and locations |
 | Mid-game join | on | |
+
+There is no max-players setting: a room holds up to 24 seats and every player who is ready takes
+part. Players who sit a game out stay in the party and watch.
 
 | Skribble | Default | Range |
 | --- | --- | --- |

@@ -132,7 +132,7 @@ test('the host creates a Spy Game room, two phones join by code and the host tun
   for (const p of [pia, quinn]) {
     await p.page.goto('/spygame');
     await p.page.getByTestId('code-input-0').pressSequentially(roomCode, { delay: 20 });
-    await expect(p.page.getByTestId('room-preview')).toContainText(/players/);
+    await expect(p.page.getByTestId('room-preview')).toContainText(/in the party/);
     await p.page.getByTestId('home-name').fill(p.name);
     await p.page.getByTestId('home-join').click();
     await expect(p.page.getByTestId('room-code')).toHaveText(roomCode);

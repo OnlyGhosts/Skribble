@@ -1425,8 +1425,17 @@ emptied and emit `{ type: 'side', name: 'reset', payload: { stamp: canvasId } }`
 [`server/games/skribble/canvas.ts`](../server/games/skribble/canvas.ts): `skribbleCanvasPolicy`
 and `createSkribbleCanvasStore`. The store is tested over `MemoryStorage` in
 [`server/platform/sideStores/canvas.test.ts`](../server/platform/sideStores/canvas.test.ts) and
-across two Redis instances in `drivers/redis.test.ts`. The client side (the canvas renderer, the
-drawing hook, the batching queue) is the platform's as well; see the client module's docs.
+across two Redis instances in `drivers/redis.test.ts`.
+
+The client half is [`client/src/platform/canvas/index.ts`](../client/src/platform/canvas/index.ts)
+(its header comment is the contract): a game keeps one `createCanvasSession({ link, myDrawingTurn })`
+for the lifetime of the page, hands it the stream from its module (`onServerMessage:
+canvas.handleServerMessage`, `onWelcome: canvas.onWelcome`, `onLeave: canvas.onLeave`, and
+`canvas.store.getState().clear()` at turn boundaries), and renders `<GameCanvas session={canvas}
+canDraw settings turnKey footer={<Toolbar ... onUndo={canvas.undo} onClear={canvas.clear} />} />`.
+The renderer, flood fill, the drawing hook, the batching `DrawQueue` with its offline parking and
+the toolbar's 44px phone styles (`canvas.css`) all live there; Skribble's whole opt-in is
+[`client/src/games/skribble/canvas.ts`](../client/src/games/skribble/canvas.ts).
 
 ### 7.2 Writing a side store of your own
 

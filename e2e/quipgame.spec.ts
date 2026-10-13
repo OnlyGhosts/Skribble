@@ -187,7 +187,7 @@ test('the host creates a Quip Game room, two phones join by code and the host tu
   for (const p of [pia, quinn]) {
     await p.page.goto('/quipgame');
     await p.page.getByTestId('code-input-0').pressSequentially(roomCode, { delay: 20 });
-    await expect(p.page.getByTestId('room-preview')).toContainText(/players/);
+    await expect(p.page.getByTestId('room-preview')).toContainText(/in the party/);
     await p.page.getByTestId('home-name').fill(p.name);
     await p.page.getByTestId('home-join').click();
     await expect(p.page.getByTestId('room-code')).toHaveText(roomCode);
