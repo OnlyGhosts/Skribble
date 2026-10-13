@@ -132,12 +132,12 @@ test('players ready up: the count follows, Start waits for enough ready players 
 });
 
 test('the race is played to the podium: the winner is celebrated, Enter changes nothing, everyone readies up for the next game', async () => {
-  await host.page.getByTestId('settings-targetClicks').fill('5');
-  await expect(quinn.page.getByTestId('settings-value-targetClicks')).toHaveText('5');
+  await host.page.getByTestId('settings-targetClicks').fill('10');
+  await expect(quinn.page.getByTestId('settings-value-targetClicks')).toHaveText('10');
   await host.page.getByTestId('start-game').click();
   for (const p of players) await expect(p.page.getByTestId('click-button')).toBeVisible();
   for (let i = 0; i < 2; i++) await quinn.page.getByTestId('click-button').click();
-  for (let i = 0; i < 5; i++) await host.page.getByTestId('click-button').click();
+  for (let i = 0; i < 10; i++) await host.page.getByTestId('click-button').click();
 
   for (const p of players) {
     const end = p.page.getByTestId('overlay-game-end');
