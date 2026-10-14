@@ -20,7 +20,7 @@ import {
 } from '../../../shared/platform/canvas.js';
 import { retryCas } from '../cas.js';
 import { after, type MaybePromise } from '../drivers/types.js';
-import type { GameSideStore, SideOutcome, SideRoom } from '../game.js';
+import type { GameSideStore, Recipients, SideOutcome, SideRoom } from '../game.js';
 import { STAMP_FIELD, type GameStorage } from '../storage.js';
 
 /** How a game authorises canvas input: who draws, on which canvas, and until when. */
@@ -34,6 +34,12 @@ export interface CanvasPolicy<D> {
   check(game: D | null, playerId: string, now: number): 'ok' | 'silent' | 'forbidden';
   /** The error a 'forbidden' op gets. */
   forbiddenMessage: string;
+  /**
+   * Partitions a canvas into segments drawn one after another (Hangman: the figure's sections).
+   * Undo and clear only reach the actions drawn in the current segment; earlier segments stay.
+   * Absent, the whole canvas is one segment and clear empties it.
+   */
+  segment?(game: D | null): string;
 }
 
 export interface AppendResult {
@@ -184,6 +190,9 @@ export function replayOps(ops: readonly DrawOp[]): CanvasAction[] {
 /** Batches read per round trip while walking back to the start of the last action. */
 const UNDO_CHUNK = 8;
 const STROKE_FIELD = 's:';
+/** The segment the latest actions belong to and how many actions the canvas held when it began. */
+const SEGMENT_FIELD = 'segment';
+const FLOOR_FIELD = 'floor';
 
 type Outcome = SideOutcome<CanvasServerMessage>;
 
@@ -217,9 +226,10 @@ export class CanvasStore<D, CMsg extends { t: string }> implements GameSideStore
     const check = this.policy.check(room.game, playerId, now);
     if (check !== 'ok') return { ok: false, message: check === 'forbidden' ? this.policy.forbiddenMessage : null };
     const stamp = this.stamp(room);
+    const segment = this.policy.segment?.(room.game) ?? '';
     switch (msg.t) {
       case 'draw':
-        return after(this.append(room.code, stamp, msg.ops), (appended) => {
+        return after(this.append(room.code, stamp, msg.ops, segment), (appended) => {
           if (appended === 'stale') return { ok: true, seq: 0, sends: [] };
           const out: Outcome = { ok: true, seq: appended.seq, sends: [] };
           if (appended.accepted.length > 0) out.sends.push({ to: { except: [playerId] }, msg: { t: 'draw', ops: appended.accepted } });
@@ -228,14 +238,28 @@ export class CanvasStore<D, CMsg extends { t: string }> implements GameSideStore
           return out;
         });
       case 'undo':
-        return after(this.undo(room.code, stamp), (seq) => ({ ok: true, seq: seq ?? 0, sends: seq === null ? [] : [{ to: 'all', msg: { t: 'undo' } }] }));
+        return after(this.undo(room.code, stamp, segment), (seq) => ({ ok: true, seq: seq ?? 0, sends: seq === null ? [] : [{ to: 'all', msg: { t: 'undo' } }] }));
       case 'clear':
-        return after(this.clear(room.code, stamp), (seq) => ({ ok: true, seq: seq ?? 0, sends: seq === null ? [] : [{ to: 'all', msg: { t: 'clear' } }] }));
+        return after(this.clear(room.code, stamp, segment), (cleared) => {
+          if (cleared === null) return { ok: true, seq: 0, sends: [] };
+          // A segment clear is a run of undos on the wire, so viewers need nothing new to follow it.
+          const sends: Array<{ to: Recipients; msg: CanvasServerMessage }> =
+            cleared.removed === 'all' ? [{ to: 'all', msg: { t: 'clear' } }] : Array.from({ length: cleared.removed }, () => ({ to: 'all', msg: { t: 'undo' } }));
+          return { ok: true, seq: cleared.seq, sends };
+        });
     }
   }
 
+  /** The history and, for a segmented canvas, how many of its actions the current segment must leave alone (so a rejoining drawer's clear stops there too). */
   welcomeExtra(room: SideRoom<D>): MaybePromise<{ extra: CanvasWelcomeExtra; seq: number }> {
-    return after(this.load(room.code), (snapshot) => ({ extra: { canvas: snapshot.actions }, seq: snapshot.seq }));
+    const segment = this.policy.segment?.(room.game);
+    return after(this.storage.state(room.code), ({ hash }) =>
+      after(this.load(room.code), (snapshot) => {
+        const extra: CanvasWelcomeExtra = { canvas: snapshot.actions };
+        if (segment !== undefined) extra.floor = Math.min(snapshot.actions.length, floorOf(hash, segment));
+        return { extra, seq: snapshot.seq };
+      }),
+    );
   }
 
   /** A drifted drawer gets the stored canvas back, unless they may no longer draw on it. */
@@ -244,19 +268,34 @@ export class CanvasStore<D, CMsg extends { t: string }> implements GameSideStore
     return after(this.load(room.code), (snapshot) => ({ msg: { t: 'canvas', actions: snapshot.actions }, seq: snapshot.seq }));
   }
 
-  append(code: string, stamp: string, ops: readonly DrawOp[]): MaybePromise<CanvasAppend | 'stale'> {
-    return retryCas(`canvas ${code}`, () => this.appendAttempt(code, stamp, ops));
+  append(code: string, stamp: string, ops: readonly DrawOp[], segment = ''): MaybePromise<CanvasAppend | 'stale'> {
+    return retryCas(`canvas ${code}`, () => this.appendAttempt(code, stamp, ops, segment));
   }
 
-  /** Removes the last action; the change's sequence number, or null when there was nothing to undo. */
-  undo(code: string, stamp: string): MaybePromise<number | null> {
-    return retryCas(`canvas ${code}`, () => this.undoAttempt(code, stamp));
-  }
-
-  /** Empties the canvas; the change's sequence number, or null for a stale stamp. */
-  clear(code: string, stamp: string): MaybePromise<number | null> {
+  /** Removes the last action of the segment; the change's sequence number, or null when there was nothing to undo. */
+  undo(code: string, stamp: string, segment = ''): MaybePromise<number | null> {
     return retryCas(`canvas ${code}`, () =>
-      after(this.storage.state(code), ({ hash, seq }) => (isOtherStamp(hash[STAMP_FIELD], stamp) ? null : this.storage.reset(code, seq, stamp))),
+      after(this.storage.state(code), ({ hash, seq }) => {
+        if (isOtherStamp(hash[STAMP_FIELD], stamp) || countsFrom(hash).actions <= floorOf(hash, segment)) return null;
+        return this.truncateAttempt(code, seq, stamp, 1);
+      }),
+    );
+  }
+
+  /**
+   * Empties the segment: the whole canvas when the segment began on an empty one ('all'), else
+   * the last `removed` actions. Null when there is nothing to remove or the stamp is stale.
+   */
+  clear(code: string, stamp: string, segment = ''): MaybePromise<{ seq: number; removed: number | 'all' } | null> {
+    return retryCas(`canvas ${code}`, () =>
+      after(this.storage.state(code), ({ hash, seq }) => {
+        if (isOtherStamp(hash[STAMP_FIELD], stamp)) return null;
+        const floor = floorOf(hash, segment);
+        if (floor === 0) return after(this.storage.reset(code, seq, stamp), (next) => (next === 'conflict' ? 'conflict' : { seq: next, removed: 'all' as const }));
+        const removed = countsFrom(hash).actions - floor;
+        if (removed <= 0) return null;
+        return after(this.truncateAttempt(code, seq, stamp, removed), (next) => (next === 'conflict' || next === null ? next : { seq: next, removed }));
+      }),
     );
   }
 
@@ -265,10 +304,11 @@ export class CanvasStore<D, CMsg extends { t: string }> implements GameSideStore
     return after(this.storage.list(code), ({ items, seq }) => ({ actions: replayOps(items.flatMap(asBatch)), seq }));
   }
 
-  private appendAttempt(code: string, stamp: string, ops: readonly DrawOp[]): MaybePromise<CanvasAppend | 'stale' | 'conflict'> {
+  private appendAttempt(code: string, stamp: string, ops: readonly DrawOp[], segment: string): MaybePromise<CanvasAppend | 'stale' | 'conflict'> {
     return after(this.storage.state(code), ({ hash, seq }) => {
       if (isOtherStamp(hash[STAMP_FIELD], stamp)) return 'stale';
       const counts = countsFrom(hash);
+      const floor = counts.actions;
       const batches: DrawOp[][] = [];
       const touched = new Set<number>();
       let current: DrawOp[] = [];
@@ -285,48 +325,55 @@ export class CanvasStore<D, CMsg extends { t: string }> implements GameSideStore
       });
       if (batches.length === 0) return { accepted, truncated, seq: 0 };
       const fields: Record<string, string> = { [STAMP_FIELD]: stamp, actions: String(counts.actions), points: String(counts.points) };
+      // The first actions of a new segment record where it began, so undo and clear stop there.
+      if (segmentOf(hash) !== segment) Object.assign(fields, { [SEGMENT_FIELD]: segment, [FLOOR_FIELD]: String(floor) });
       for (const id of touched) fields[`${STROKE_FIELD}${id}`] = String(counts.strokes.get(id) ?? 0);
       return after(this.storage.append(code, seq, batches, fields), (next) => (next === 'conflict' ? 'conflict' : { accepted, truncated, seq: next }));
     });
   }
 
-  private undoAttempt(code: string, stamp: string): MaybePromise<number | null | 'conflict'> {
-    return after(this.storage.state(code), ({ hash, seq }) => {
-      if (isOtherStamp(hash[STAMP_FIELD], stamp)) return null;
-      return after(this.storage.length(code), (length) => {
-        if (length === 0) return null;
-        return after(this.walkBack(code, length, []), ({ removed, found }) => {
-          // Nothing marks an action start: the history is unusable, so drop it rather than guess.
-          if (!found) return this.storage.reset(code, seq, stamp);
-          let points = 0;
-          let strokeId: number | null = null;
-          for (const op of removed.flat()) {
-            if (op.k === 'start') {
-              points += 2;
-              strokeId = op.id;
-            } else if (op.k === 'move') {
-              points += op.pts.length;
-            }
+  /** Removes the last `count` actions under the sequence number read with them. */
+  private truncateAttempt(code: string, seq: number, stamp: string, count: number): MaybePromise<number | null | 'conflict'> {
+    return after(this.storage.length(code), (length) => {
+      if (length === 0) return null;
+      return after(this.walkBack(code, length, [], count), ({ removed, found }) => {
+        // Nothing marks an action start: the history is unusable, so drop it rather than guess.
+        if (!found) return this.storage.reset(code, seq, stamp);
+        let points = 0;
+        const strokeIds: number[] = [];
+        for (const op of removed.flat()) {
+          if (op.k === 'start') {
+            points += 2;
+            strokeIds.push(op.id);
+          } else if (op.k === 'move') {
+            points += op.pts.length;
           }
-          const increments: Record<string, number> = { actions: -1 };
-          if (points > 0) increments.points = -points;
-          return this.storage.pop(code, seq, removed.length, increments, strokeId === null ? [] : [`${STROKE_FIELD}${strokeId}`]);
-        });
+        }
+        const increments: Record<string, number> = { actions: -count };
+        if (points > 0) increments.points = -points;
+        return this.storage.pop(
+          code,
+          seq,
+          removed.length,
+          increments,
+          strokeIds.map((id) => `${STROKE_FIELD}${id}`),
+        );
       });
     });
   }
 
-  /** Walks back from the end of the list to the batch that began the last action. */
-  private walkBack(code: string, end: number, removed: DrawOp[][]): MaybePromise<{ removed: DrawOp[][]; found: boolean }> {
+  /** Walks back from the end of the list to the batch that began the last-but-(actions - 1) action. */
+  private walkBack(code: string, end: number, removed: DrawOp[][], actions: number): MaybePromise<{ removed: DrawOp[][]; found: boolean }> {
     if (end <= 0) return { removed, found: false };
     const start = Math.max(0, end - UNDO_CHUNK);
     return after(this.storage.range(code, start, end - 1), (chunk) => {
+      let left = actions;
       for (let i = chunk.length - 1; i >= 0; i--) {
         const batch = asBatch(chunk[i]);
         removed.unshift(batch);
-        if (batch.length > 0 && startsAction(batch[0])) return { removed, found: true };
+        if (batch.length > 0 && startsAction(batch[0]) && --left === 0) return { removed, found: true };
       }
-      return this.walkBack(code, start, removed);
+      return this.walkBack(code, start, removed, left);
     });
   }
 }
@@ -349,6 +396,15 @@ function isOtherStamp(stored: string | undefined, stamp: string): boolean {
 /** The canvas action an admitted op belongs to: its stroke, or a fill of its own. */
 function actionOf(op: DrawOp): string {
   return op.k === 'fill' ? `fill:${op.x},${op.y},${op.color}` : `${STROKE_FIELD}${op.id}`;
+}
+
+function segmentOf(hash: Record<string, string>): string {
+  return hash[SEGMENT_FIELD] ?? '';
+}
+
+/** Actions undo and clear must leave alone: those drawn before the segment began (everything, when the segment has no actions yet). */
+function floorOf(hash: Record<string, string>, segment: string): number {
+  return segmentOf(hash) === segment ? Number(hash[FLOOR_FIELD] ?? '0') : countsFrom(hash).actions;
 }
 
 function countsFrom(hash: Record<string, string>): CanvasCounts {

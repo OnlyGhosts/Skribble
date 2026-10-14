@@ -1,26 +1,6 @@
-/** Indices of characters in `word` that are letters/digits and can therefore be hidden or revealed. */
-export function revealableIndices(word: string): number[] {
-  const out: number[] = [];
-  for (let i = 0; i < word.length; i++) {
-    if (/[\p{L}\p{N}]/u.test(word[i])) out.push(i);
-  }
-  return out;
-}
+import { maskWord, revealableIndices } from '../../platform/words.js';
 
-/**
- * Builds the mask shown to guessers: hidden letters become "_", spaces/hyphens/apostrophes stay.
- * Example: maskWord("ice cream", [0]) === "i__ _____"
- */
-export function maskWord(word: string, revealed: Iterable<number> = []): string {
-  const show = new Set(revealed);
-  let out = '';
-  for (let i = 0; i < word.length; i++) {
-    const ch = word[i];
-    if (/[\p{L}\p{N}]/u.test(ch)) out += show.has(i) ? ch : '_';
-    else out += ch;
-  }
-  return out;
-}
+export { maskWord, revealableIndices };
 
 /** How many letters may be revealed for this word given the room's hint setting (never more than half). */
 export function hintCountFor(word: string, hintsSetting: number): number {

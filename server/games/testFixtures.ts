@@ -40,6 +40,13 @@ export const GAME_TEST_FIXTURES: Readonly<Record<GameId, GameTestFixture>> = {
     // With rng () => 0 the shuffled writing order ends with the host, who therefore writes prompt r1-p0.
     validMessage: { t: 'answer', promptId: 'r1-p0', text: 'banana' },
   },
+  hangman: {
+    // The shortest clocks: an unplayed word (ten idle laps, each a drawing step) still ends within the cross-game suites' windows.
+    settings: { customWords: TEST_WORDS, customWordsOnly: true, rounds: 1, guessSeconds: 10, drawSeconds: 10 },
+    longSettings: { rounds: 5, guessSeconds: 60, drawSeconds: 60 },
+    // With rng () => 0 the host is the first hangman and 'APPLE' their first choice.
+    validMessage: { t: 'chooseWord', index: 0 },
+  },
   template: {
     settings: {},
     longSettings: { timeLimit: 120 },

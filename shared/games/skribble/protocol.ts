@@ -5,6 +5,7 @@
 import { z } from 'zod';
 import { CANVAS_SIDE_MESSAGE_TYPES, canvasClientMessageOptions, isCanvasWelcomeExtra, type CanvasServerMessage, type CanvasWelcomeExtra } from '../../platform/canvas.js';
 import type { RoomState, WelcomeMessage } from '../../platform/protocol.js';
+import { parseWordList } from '../../platform/words.js';
 
 // ---------------------------------------------------------------------------
 // Settings
@@ -53,18 +54,7 @@ export const DEFAULT_SKRIBBLE_SETTINGS: SkribbleSettings = {
 
 /** Parses a free-text custom word list ("cat, dog, hot dog" or newline separated). Dedupes case-insensitively. */
 export function parseCustomWords(text: string): string[] {
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const raw of text.split(/[,\n]/)) {
-    const w = raw.trim().replace(/\s+/g, ' ');
-    if (!w || w.length > SKRIBBLE_SETTINGS_LIMITS.customWords.maxLength) continue;
-    const key = w.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(w);
-    if (out.length >= SKRIBBLE_SETTINGS_LIMITS.customWords.maxCount) break;
-  }
-  return out;
+  return parseWordList(text, SKRIBBLE_SETTINGS_LIMITS.customWords);
 }
 
 /** Fixes up invariants after a patch: normalised custom words, customWordsOnly needs enough of them. */

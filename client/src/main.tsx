@@ -2,6 +2,7 @@
 import './platform/styles/tokens.css';
 import './platform/styles/base.css';
 import './platform/styles/components.css';
+import './platform/styles/guess.css';
 import './platform/styles/home.css';
 import './platform/styles/lobby.css';
 import { StrictMode } from 'react';

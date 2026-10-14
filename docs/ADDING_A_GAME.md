@@ -1587,9 +1587,12 @@ light theme swaps the `-text` variants for darker cuts while the fills stay lime
 | Header | `.site-header`, `.site-header__actions`, `.brand` (the wordmark link), `.wordmark` (sized by `--wordmark-width`), `.wordmark--lilac-io`, `.monogram`, `.brand__mark` (a game's own small mark in its in-game header), `.brand__crumb`, `.conn-pill` |
 | Misc | `.avatar--sm/md/lg/xl`, `.swatch`, `.emoji-choice`, `.code-input`, `.range`, `.toggle`, `.setting*`, `.podium*`, `.hide-mobile`, `.sr-only` |
 
-Game-specific classes live in the game's stylesheet; Skribble's `skribble.css` owns `.word*`,
-`.tile*`, `.guess-*`, `.toolbar*`, `.canvas-*`, `.rating*`, `.overlay` (its in-canvas overlay
-position), and the whole `.game` layout, which is a good reference for a non-scrolling phone game.
+The type-into-the-blanks guess bar (`.guess-*`, `.gtile*`) is the platform's `guess.css`, rendered
+by `GuessTiles`; the canvas and its toolbar (`.canvas-*`, `.toolbar*`) are the platform canvas's
+`canvas.css`. Game-specific classes live in the game's stylesheet; Skribble's `skribble.css` owns
+`.word*`, `.tile*`, `.rating*`, `.overlay` (its in-canvas overlay position), and the whole `.game`
+layout, which is a good reference for a non-scrolling phone game; Hangman's `hangman.css` (`.hm*`)
+is the reference for a scrolling column with a canvas and a keys panel.
 
 ### 8.3 Components and their props
 
@@ -1608,6 +1611,8 @@ position), and the whole `.game` layout, which is a good reference for a non-scr
 | `RangeControl` | `id`, `value`, `min`, `max`, `step?`, `onCommit(v)`, `label`, `revision` | Debounced 150 ms; test id `settings-<id>` |
 | `RangeSetting` | `RangeControl` props + `canEdit`, `display?`, `hint?`, `rowLabel?` | A row with the slider for editors and the value for everyone |
 | `ToggleSetting` | `id`, `checked`, `onChange(checked)`, `label`, `disabled?`, `hint?` | Test ids `settings-row-<id>`, `settings-<id>` |
+| `WordListSetting` | `id`, `label`, `words`, `canEdit`, `parse(text)`, `onCommit(words)`, `placeholder?`, `maxLength?` | A custom word list: a debounced textarea for editors, the list for everyone (Skribble's and Hangman's custom words); test ids `settings-row-<id>`, `settings-<id>-count`, `settings-<id>` |
+| [`GuessTiles`](../client/src/platform/components/GuessTiles.tsx) | `mask`, `draft`, `onDraftChange(draft)`, `onSubmit(text): boolean`, `canSend`, `placeholder?`, `focusMemory?`, `inputTestId?`, `sendTestId?` | Type into the blanks of a masked word (layout in [`lib/wordMask.ts`](../client/src/platform/lib/wordMask.ts)); Skribble's guess bar and Hangman's whole-word guess |
 | [`Timer`](../client/src/platform/components/Timer.tsx) | `endsAt: number \| null \| undefined`, `warnUnder?` (10), `tickUnder?`, `size?: 'md' \| 'lg'` | Server-clock countdown; `tickUnder` plays a tick cue for the final seconds |
 | [`BottomSheet`](../client/src/platform/components/BottomSheet.tsx) | `open`, `title`, `onClose()`, `children`, `testId` | Phone sheet with focus trap and Escape; `${testId}-close`, `${testId}-backdrop` |
 | [`PodiumOverlay`](../client/src/platform/components/PodiumOverlay.tsx) | `room`, `isHost` | Rendered by the shell on `'ended'`; you never render it |

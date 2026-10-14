@@ -110,3 +110,104 @@ export function ToggleSetting({ id, checked, disabled, onChange, label, hint }: 
     </label>
   );
 }
+
+const WORD_LIST_DEBOUNCE_MS = 500;
+/** How long a local word-list edit outranks the server copy while its echo is in flight. */
+const PENDING_EDIT_GRACE_MS = 3000;
+
+interface WordListProps {
+  id: string;
+  label: string;
+  /** The server's list. */
+  words: readonly string[];
+  canEdit: boolean;
+  /** The game's parser: free text to the normalised list the server would store. */
+  parse(text: string): string[];
+  onCommit(words: string[]): void;
+  placeholder?: string;
+  maxLength?: number;
+}
+
+/**
+ * A free-text word list (custom words): editors type comma or newline separated words into a
+ * textarea that patches the server after a short pause; everyone else reads the list. Test ids:
+ * settings-row-<id>, settings-<id>-count, settings-<id>.
+ */
+export function WordListSetting({ id, label, words, canEdit, parse, onCommit, placeholder, maxLength }: WordListProps) {
+  const [text, setText] = useState(() => words.join('\n'));
+  const [focused, setFocused] = useState(false);
+  const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const editedAt = useRef<number | null>(null);
+
+  // Keep the textarea in step with the server unless the host is mid-edit or waiting for the
+  // echo of an edit they just made.
+  useEffect(() => {
+    if (focused) return;
+    const fromServer = words.join('\n');
+    const local = parse(text).join('\n');
+    if (local === fromServer) {
+      editedAt.current = null;
+      return;
+    }
+    if (editedAt.current !== null && Date.now() - editedAt.current < PENDING_EDIT_GRACE_MS) return;
+    editedAt.current = null;
+    setText(fromServer);
+  }, [words, focused, text, parse]);
+
+  useEffect(
+    () => () => {
+      if (debounce.current !== null) clearTimeout(debounce.current);
+    },
+    [],
+  );
+
+  const flush = (value: string) => {
+    if (debounce.current !== null) clearTimeout(debounce.current);
+    debounce.current = null;
+    onCommit(parse(value));
+  };
+
+  const onChange = (value: string) => {
+    setText(value);
+    editedAt.current = Date.now();
+    if (debounce.current !== null) clearTimeout(debounce.current);
+    debounce.current = setTimeout(() => flush(value), WORD_LIST_DEBOUNCE_MS);
+  };
+
+  const count = canEdit ? parse(text).length : words.length;
+
+  return (
+    <div className="setting" data-testid={`settings-row-${id}`}>
+      <div className="setting__head">
+        <label className="setting__label" htmlFor={id}>
+          {label}
+        </label>
+        <span className="setting__value" data-testid={`settings-${id}-count`}>
+          {count} {count === 1 ? 'word' : 'words'}
+        </span>
+      </div>
+      {canEdit ? (
+        <textarea
+          id={id}
+          className="textarea"
+          data-testid={`settings-${id}`}
+          rows={3}
+          placeholder={placeholder}
+          autoCapitalize="off"
+          autoCorrect="off"
+          autoComplete="off"
+          value={text}
+          maxLength={maxLength}
+          onChange={(e) => onChange(e.target.value)}
+          onFocus={() => setFocused(true)}
+          onBlur={() => {
+            setFocused(false);
+            if (debounce.current !== null) flush(text);
+          }}
+        />
+      ) : (
+        <p className="setting__readonly-words">{words.length ? words.join(', ') : 'None'}</p>
+      )}
+    </div>
+  );
+}

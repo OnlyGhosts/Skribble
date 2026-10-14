@@ -87,7 +87,7 @@ test('the host creates a Click Race party, three friends join, and the lobby sho
   await expect(picker).toHaveAttribute('data-game', 'template');
   await expect(picker.locator('[data-testid="game-tile"][data-game="template"]')).toHaveAttribute('aria-checked', 'true');
   await expect(picker.locator('[data-testid="game-tile"][data-game="spygame"]')).toHaveAttribute('aria-checked', 'false');
-  await expect(picker.getByTestId('game-tile')).toHaveCount(4);
+  await expect(picker.getByTestId('game-tile')).toHaveCount(5);
   // Everyone else sees the current game and who decides.
   await expect(pia.page.getByTestId('game-picker-note')).toHaveText(`${host.name} picks the game`);
   await expect(pia.page.getByTestId('game-picker').getByTestId('game-tile')).toHaveCount(1);

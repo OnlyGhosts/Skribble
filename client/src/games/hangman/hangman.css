@@ -1,0 +1,794 @@
+/* ---------- Hangman: layout ---------- */
+.hm {
+  display: grid;
+  grid-template-columns: 264px minmax(0, 1fr) 320px;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: var(--space-4);
+  height: 100dvh;
+  padding: var(--space-4) var(--gutter);
+  width: min(1500px, 100%);
+  margin: 0 auto;
+}
+
+.hm__top {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+}
+
+.hm__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.hm__round {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+  min-width: 0;
+}
+
+.hm__round strong {
+  font-weight: 800;
+}
+
+.hm__round small {
+  color: var(--color-text-faint);
+  font-weight: 600;
+  font-size: 0.75rem;
+}
+
+.hm__clock {
+  justify-self: center;
+}
+
+.hm__side {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.hm__players-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 44px;
+  padding: 0 10px;
+  border-radius: var(--radius-pill);
+  background: var(--color-primary-soft);
+  color: var(--color-primary-text);
+  font-weight: 800;
+  font-size: 0.9rem;
+}
+
+.hm__icon-btn {
+  width: 44px;
+  height: 44px;
+}
+
+.hm__players {
+  grid-row: 2;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-3);
+}
+
+.hm__players-body {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/*
+ * One column inside a fixed frame, so an overlay over the frame covers exactly what is on screen.
+ * On desktop the canvas gives way (it fits by height, like Skribble's) so the strip, the canvas
+ * with its tools and the keys share the screen; on phones the column scrolls as a whole.
+ */
+.hm__main {
+  position: relative;
+  grid-row: 2;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.hm__scroll {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  padding: 2px;
+}
+
+.hm__strip {
+  flex: none;
+  padding: var(--space-3) var(--space-4);
+}
+
+.hm__canvas {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+/* A bounded stage: the canvas shrinks until it, the toolbar and the Done bar fit the column. */
+.hm__canvas .canvas-stage {
+  --canvas-fit: both;
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.hm__panel {
+  flex: none;
+  padding: var(--space-3) var(--space-4);
+}
+
+.hm__chat {
+  grid-row: 2;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-3);
+}
+
+.hm__chat-sheet {
+  display: flex;
+  flex-direction: column;
+  height: min(60vh, 520px);
+}
+
+/* ---------- Word strip ---------- */
+.hm-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-4);
+  flex-wrap: wrap;
+}
+
+.hm-word {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  min-width: 0;
+  flex: 1 1 240px;
+}
+
+.hm-word__pending {
+  color: var(--color-text-muted);
+  font-weight: 700;
+}
+
+.hm-word__group {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.hm-tile {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 30px;
+  border-radius: 6px;
+  font-weight: 800;
+  font-size: 1.05rem;
+  text-transform: uppercase;
+  background: var(--color-surface-3);
+  color: var(--color-text);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.hm-tile--hidden {
+  border-bottom: 3px solid var(--color-border-strong);
+}
+
+.hm-tile--revealed {
+  background: var(--color-primary-soft);
+  color: var(--color-primary-text);
+}
+
+/* The hangman's own view of a letter nobody has guessed yet. */
+.hm-tile--secret {
+  color: var(--color-text-faint);
+  border-bottom: 3px dashed var(--color-border);
+}
+
+.hm-tile--sep {
+  width: 14px;
+  background: transparent;
+  color: var(--color-text-faint);
+}
+
+.hm-strip__side {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: none;
+}
+
+.hm-lives {
+  width: 34px;
+  height: 44px;
+  flex: none;
+  fill: none;
+  stroke: var(--color-border-strong);
+  stroke-width: 28;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.hm-lives__part {
+  opacity: 0.35;
+}
+
+.hm-lives__part--drawn {
+  stroke: var(--color-text);
+  opacity: 1;
+}
+
+.hm-strip__facts {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.2;
+}
+
+.hm-strip__lives {
+  font-weight: 800;
+  font-size: 0.9rem;
+}
+
+.hm-strip__wrong {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  font-size: 0.78rem;
+}
+
+.hm-strip__wrong-none {
+  color: var(--color-text-faint);
+  font-weight: 600;
+}
+
+.hm-strip__wrong-letter {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 3px;
+  border-radius: 4px;
+  background: var(--color-danger-soft);
+  color: var(--color-danger-text);
+  font-weight: 800;
+  text-decoration: line-through;
+}
+
+/* ---------- The hangman's ghost over the canvas ---------- */
+.hm-ghost {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.hm-ghost__part--todo {
+  stroke: #9aa0a6;
+  stroke-width: 6;
+  opacity: 0.25;
+}
+
+/* The accent reads on the white canvas in both themes (the canvas never changes colour). */
+.hm-ghost__part--current {
+  stroke: var(--hm-accent);
+  stroke-width: 10;
+  stroke-dasharray: 18 14;
+  opacity: 0.55;
+}
+
+/* Top right: the figure's base runs along the bottom and its post up the left, so this corner stays clear longest. */
+.hm-caption {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 6px 6px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--color-text);
+  pointer-events: none;
+}
+
+.hm-drawbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 8px 12px;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+
+.hm-drawbar__label {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.2;
+}
+
+.hm-drawbar__label strong {
+  font-weight: 800;
+}
+
+.hm-drawbar__label small {
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+}
+
+.hm-drawbar__done {
+  flex: none;
+  min-height: 44px;
+  min-width: 96px;
+}
+
+/* ---------- Guess panel ---------- */
+.hm-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.hm-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.hm-panel__title {
+  font-weight: 800;
+  font-size: 1.05rem;
+}
+
+.hm-panel__mode {
+  min-height: 44px;
+}
+
+.hm-panel__status {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  font-weight: 700;
+  color: var(--color-text-muted);
+}
+
+.hm-panel[data-state='out'] .hm-panel__status {
+  color: var(--color-danger-text);
+}
+
+.hm-keys {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+  gap: 6px;
+}
+
+/* The "risk the word" button takes the end of the keys' last row (or a row of its own when it is full). */
+.hm-keys .hm-panel__mode {
+  grid-column: -5 / -1;
+  white-space: nowrap;
+}
+
+.hm-key {
+  min-height: 44px;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  font-weight: 800;
+  font-size: 1rem;
+  touch-action: manipulation;
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease;
+}
+
+.hm-key:hover:not(:disabled) {
+  background: var(--color-surface-3);
+}
+
+.hm-key--idle:disabled {
+  opacity: 0.55;
+}
+
+.hm-key--correct {
+  background: var(--color-success-soft);
+  border-color: var(--color-success);
+  color: var(--color-success-text);
+}
+
+.hm-key--wrong {
+  background: var(--color-danger-soft);
+  border-color: var(--color-danger);
+  color: var(--color-danger-text);
+  text-decoration: line-through;
+}
+
+/* ---------- Overlays over the column ---------- */
+.hm-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+  background: var(--overlay-bg);
+  animation: fade-in 0.2s ease;
+  overflow-y: auto;
+}
+
+.hm-overlay__word {
+  color: var(--color-secondary-text);
+}
+
+.hm-choices {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+.hm .btn--choice {
+  min-height: 44px;
+}
+
+.hm-custom {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.hm-custom__input {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  text-transform: uppercase;
+}
+
+.hm-custom__send {
+  flex: none;
+  min-height: 44px;
+}
+
+.hm-points {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hm-points__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-2);
+}
+
+.hm-points__name {
+  flex: 1;
+  text-align: left;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hm-points__tag {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  color: var(--color-primary-text);
+  background: var(--color-primary-soft);
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+}
+
+.hm-points__pts {
+  font-weight: 800;
+  color: var(--color-success-text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Player list hooks ---------- */
+.player__badge--hangman {
+  color: #fff;
+}
+
+.player__badge--out {
+  background: var(--color-danger);
+}
+
+.player__badge--guessing {
+  background: var(--color-primary);
+}
+
+.player--out {
+  opacity: 0.55;
+}
+
+.player--guessing {
+  background: var(--color-primary-soft);
+}
+
+@media (max-width: 1100px) {
+  .hm {
+    grid-template-columns: 220px minmax(0, 1fr) 280px;
+  }
+}
+
+/* ---------- Phones: one scrolling column under a compact bar ---------- */
+@media (max-width: 760px), (min-aspect-ratio: 3/2) and (max-height: 520px) {
+  .hm {
+    display: flex;
+    flex-direction: column;
+    height: var(--app-height, 100dvh);
+    min-height: 0;
+    width: 100%;
+    overflow: hidden;
+    gap: var(--space-2);
+    padding: calc(var(--space-2) + env(safe-area-inset-top)) calc(var(--space-2) + env(safe-area-inset-right)) calc(var(--space-2) + env(safe-area-inset-bottom))
+      calc(var(--space-2) + env(safe-area-inset-left));
+  }
+
+  .hm__top {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    border-radius: var(--radius-md);
+    min-height: 56px;
+  }
+
+  .hm__brand {
+    flex: 1 1 0;
+  }
+
+  .hm__round strong,
+  .hm__round small {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .hm__round strong {
+    font-size: 0.85rem;
+  }
+
+  .hm__round small {
+    font-size: 0.7rem;
+  }
+
+  /* The scrolling column: the stage grows with the canvas, whose width the rules below bound. */
+  .hm__canvas {
+    flex: none;
+    display: block;
+    width: 100%;
+    margin: 0 auto;
+  }
+
+  .hm__canvas .canvas-stage {
+    --canvas-fit: width;
+    flex: none;
+  }
+
+  .hm .timer--lg {
+    width: 44px;
+    height: 44px;
+    font-size: 0.82rem;
+    letter-spacing: -0.02em;
+  }
+
+  .hm__main {
+    flex: 1 1 0;
+  }
+
+  .hm__scroll {
+    gap: var(--space-2);
+  }
+
+  .hm__strip,
+  .hm__panel {
+    padding: var(--space-2);
+    border-radius: var(--radius-md);
+  }
+
+  .hm__strip {
+    padding: var(--space-2) var(--space-3);
+  }
+
+  .hm-strip {
+    gap: var(--space-2) var(--space-4);
+  }
+
+  /* A short word shares its row with the lives; only a long phrase wraps under them. */
+  .hm-word {
+    flex-basis: 160px;
+  }
+
+  /* Six 44px keys per row: 26 letters fill four rows, Y, Z and the word button the fifth. */
+  .hm-keys {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .hm-keys .hm-panel__mode {
+    grid-column: 3 / -1;
+  }
+
+  .hm-panel {
+    gap: var(--space-2);
+  }
+
+  .hm-panel__title {
+    font-size: 1rem;
+  }
+
+  .hm-tile {
+    width: 20px;
+    height: 26px;
+    font-size: 0.95rem;
+  }
+
+  .hm-lives {
+    width: 28px;
+    height: 36px;
+  }
+
+  .hm-drawbar {
+    border-radius: var(--radius-md);
+  }
+
+  .hm-overlay--choosing .overlay__hint {
+    font-size: 0.8rem;
+  }
+
+  .hm-overlay .overlay__card {
+    gap: var(--space-2);
+    padding: var(--space-3);
+  }
+}
+
+/*
+ * Upright phones: the canvas is bounded by the screen's height so the keys stay on it. While a
+ * section is drawn the canvas is the show: the stage takes the screen under the bar and the strip
+ * (about 180px of header, strip, gaps and padding) and fits the canvas by height above the
+ * full-width toolbar and Done bar. At other times the canvas is a thumbnail of the figure (three
+ * tenths of the screen, less on a short one) above the keys.
+ */
+@media (max-width: 760px) and (max-aspect-ratio: 3/2) {
+  .hm__canvas {
+    --hm-canvas-share: 0.3;
+    width: min(100%, calc(var(--app-height, 100dvh) * var(--hm-canvas-share) * 4 / 3));
+  }
+
+  .hm[data-phase='drawing'] .hm__canvas {
+    width: 100%;
+  }
+
+  /* Top-aligned: the canvas sits under the strip, the toolbar under the canvas, spare room below. */
+  .hm[data-phase='drawing'] .hm__canvas .canvas-stage {
+    --canvas-fit: both;
+    height: max(400px, calc(var(--app-height, 100dvh) - 180px));
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 760px) and (max-aspect-ratio: 3/2) and (max-height: 600px) {
+  .hm__canvas {
+    --hm-canvas-share: 0.18;
+  }
+}
+
+/* The narrowest phones: tighter chrome in the bar so "Round 1/1" never has to be cut short. */
+@media (max-width: 359px) {
+  .hm__top {
+    gap: 4px;
+    padding: 6px;
+  }
+
+  .hm__side {
+    gap: 4px;
+  }
+
+  .hm__players-btn {
+    padding: 0 8px;
+  }
+
+  .hm__round strong {
+    font-size: 0.78rem;
+    letter-spacing: -0.01em;
+  }
+
+  /* Six 44px keys across a 320px screen leave 15px for the gaps. */
+  .hm-keys {
+    gap: 3px;
+  }
+}
+
+/*
+ * Landscape phones: the canvas sits beside the strip and the keys, or beside the drawing tools
+ * while the hangman draws (the keys are gone then), and is never taller than the column.
+ */
+@media (min-aspect-ratio: 3/2) and (max-height: 520px) {
+  .hm__scroll {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
+    align-content: start;
+  }
+
+  .hm__canvas {
+    grid-column: 1;
+    grid-row: 1 / 3;
+    align-self: start;
+    width: min(100%, calc((var(--app-height, 100dvh) - 96px) * 4 / 3));
+  }
+
+  .hm__strip {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .hm__panel,
+  .hm__tools {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .hm__tools {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    min-width: 0;
+  }
+
+  /* The side column is wide but short: as many 44px keys per row as fit (eight on most phones, four rows). */
+  .hm-keys {
+    grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+    gap: 4px;
+  }
+
+  .hm-keys .hm-panel__mode {
+    grid-column: -5 / -1;
+  }
+}

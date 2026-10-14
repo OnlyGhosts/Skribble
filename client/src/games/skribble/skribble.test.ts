@@ -216,7 +216,7 @@ describe('guess tiles for assistive tech and narrow bars', () => {
   it('describes the word shape and revealed hints to the real input', () => {
     usePlatformStore.setState({ connection: 'connected' });
     const html = renderToString(createElement(GuessInput, { mask: 'a__l_', focusMemory: { current: false } }));
-    expect(tagWith(html, 'chat-input')).toContain('aria-describedby="guess-word-description"');
+    expect(tagWith(html, 'chat-input')).toContain('aria-describedby="chat-input-description"');
     expect(html).toContain('5 letters. Revealed: A blank blank L blank.');
   });
 

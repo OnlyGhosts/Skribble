@@ -1,0 +1,227 @@
+/*
+ * Type into the blanks (GuessTiles): the word-length tiles as a field, shared by the games that
+ * guess a masked word. A game's own stylesheet may tune the tiles under its root class.
+ */
+.guess-form {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  margin-top: var(--space-3);
+}
+
+.guess-tiles {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  container-type: inline-size;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: var(--radius-md);
+  border: 2px solid var(--color-border);
+  background: var(--color-surface-2);
+  cursor: text;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  transition: border-color 0.15s ease;
+}
+
+.guess-tiles.is-focused {
+  border-color: var(--color-primary-text);
+  background: var(--color-surface);
+}
+
+.guess-tiles__groups {
+  --ggap: 12px;
+  /* Set inline (GuessInput): how many letter tiles, separators and words the whole bar holds. */
+  --total-letters: 1;
+  --total-seps: 0;
+  --groups: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px var(--ggap);
+  width: 100%;
+  min-width: 0;
+}
+
+.guess-tiles__group {
+  --gtile-gap: 3px;
+  --gtile-max: 24px;
+  --gsep-w: 12px;
+  /* Set inline per group (GuessInput): how many letter tiles and separators it holds. */
+  --letters: 1;
+  --seps: 0;
+  /*
+   * A word always fits on one row: its tiles shrink (down to 16px) before anything wraps, so a
+   * ten-letter word on a 375px phone never leaves one orphan tile on a second line.
+   */
+  --gtile-fit-word: calc((100cqw - var(--seps) * var(--gsep-w) - (var(--letters) + var(--seps) - 1) * var(--gtile-gap)) / var(--letters));
+  /* The tile width at which the whole phrase fits the bar on one row (short viewports use it). */
+  --gtile-fit-bar: calc(
+    (100cqw - var(--total-seps) * var(--gsep-w) - (var(--groups) - 1) * var(--ggap) - (var(--total-letters) + var(--total-seps) - var(--groups)) * var(--gtile-gap)) / var(--total-letters)
+  );
+  --gtile-w: clamp(16px, var(--gtile-fit-word), var(--gtile-max));
+  display: inline-flex;
+  flex-wrap: wrap; /* only a word longer than the whole bar ever breaks mid-word */
+  gap: var(--gtile-gap);
+}
+
+.gtile {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 32px;
+  border-radius: 6px;
+  font-weight: 800;
+  font-size: 1.05rem;
+  text-transform: uppercase;
+  color: var(--color-text);
+  background: var(--color-surface-3);
+  border-bottom: 3px solid var(--color-border-strong);
+  line-height: 1;
+}
+
+.gtile--letter {
+  width: var(--gtile-w);
+  font-size: clamp(0.78rem, calc(var(--gtile-w) * 0.7), 1.05rem);
+}
+
+.gtile--hint {
+  color: var(--color-primary-text);
+  background: var(--color-primary-soft);
+  border-bottom-color: var(--color-primary-text);
+}
+
+.gtile--filled {
+  color: var(--color-text);
+  background: var(--color-surface);
+  border-bottom-color: var(--color-primary-text);
+  box-shadow: var(--shadow-sm);
+}
+
+.gtile--match {
+  color: var(--chat-correct-fg);
+  background: var(--chat-correct-bg);
+  border-bottom-color: var(--color-success);
+}
+
+.gtile--mismatch {
+  color: var(--chat-close-fg);
+  background: var(--chat-close-bg);
+  border-bottom-color: var(--color-warning);
+}
+
+.gtile--active {
+  border-bottom-color: var(--color-primary-text);
+}
+
+.guess-tiles.is-focused .gtile--active::after {
+  content: '';
+  position: absolute;
+  width: 2px;
+  height: 60%;
+  border-radius: 1px;
+  background: var(--color-primary);
+  animation: caret-blink 1s steps(2, start) infinite;
+}
+
+.gtile--sep {
+  width: var(--gsep-w);
+  background: transparent;
+  border-bottom: 0;
+  color: var(--color-text-faint);
+}
+
+.guess-tiles__overflow {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding-left: 6px;
+  border-left: 2px dashed var(--color-border-strong);
+}
+
+.gtile--overflow {
+  width: 16px;
+  height: 22px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-text-faint);
+  background: transparent;
+  border-bottom: 2px solid var(--color-border);
+  text-transform: none;
+}
+
+.gtile--more {
+  width: auto;
+  height: 22px;
+  padding: 0 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: none;
+  color: var(--color-text-muted);
+  background: var(--color-surface-3);
+  border-bottom: 0;
+  border-radius: var(--radius-pill);
+}
+
+/*
+ * Narrow bars (landscape phones): smaller tiles before anything has to wrap. Declared after the
+ * base tile rules on purpose: equal specificity, so source order decides.
+ */
+@container (max-width: 260px) {
+  .gtile {
+    height: 28px;
+    border-radius: 5px;
+  }
+
+  .guess-tiles__group {
+    --gtile-gap: 2px;
+    --gtile-max: 20px;
+    --gsep-w: 10px;
+  }
+
+  .guess-tiles__groups {
+    --ggap: 8px;
+    gap: 4px var(--ggap);
+  }
+}
+
+/* The real field. Transparent, never hidden: the native keyboard must open from it. */
+.guess-tiles__input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: transparent;
+  opacity: 0;
+  caret-color: transparent;
+  font-size: 16px;
+  outline: none;
+  cursor: text;
+}
+
+.guess-tiles__input::selection {
+  background: transparent;
+}
+
+.guess-form__send {
+  flex: none;
+  width: 48px;
+  min-height: 48px;
+  padding: 0;
+  border-radius: var(--radius-md);
+}
+
+@keyframes caret-blink {
+  to {
+    visibility: hidden;
+  }
+}

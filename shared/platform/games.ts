@@ -2,7 +2,7 @@
  * The game registry: every game the site offers, in library order. Adding a game means adding a
  * GameId, a GameMeta entry here, a server module (server/games) and a client module (client/src/games).
  */
-export type GameId = 'skribble' | 'spygame' | 'quipgame' | 'template';
+export type GameId = 'skribble' | 'spygame' | 'quipgame' | 'hangman' | 'template';
 
 export type GameStatus = 'live' | 'soon' | 'hidden';
 
@@ -81,6 +81,26 @@ export const GAME_LIST: readonly GameMeta[] = [
     maxPlayers: null,
     icon: '💬',
     accent: '#f59e0b',
+    status: 'live',
+  },
+  {
+    id: 'hangman',
+    slug: 'hangman',
+    name: 'Hangman',
+    tagline: 'Guess the word before the drawing is done.',
+    description:
+      'One player picks a secret word and the others take turns guessing letters. Every wrong guess lets the hangman draw one more piece of the figure, their way: the classic gallows is only a faint template. Solve the word before the drawing is finished.',
+    howToPlay: [
+      'The hangman picks a word from three choices or types their own.',
+      'Guessers take turns: name a letter, or risk the whole word.',
+      'A right letter scores for the guesser; a wrong one scores for the hangman, who then draws the next piece.',
+      'Guess the word for a big bonus; a wrong word guess puts you out for that word.',
+      'Ten wrong guesses complete the figure and the hangman wins the word.',
+    ],
+    minPlayers: 2,
+    maxPlayers: null,
+    icon: '🪢',
+    accent: '#b45309',
     status: 'live',
   },
   {

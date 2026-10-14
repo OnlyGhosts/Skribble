@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { maskWord } from '@shared/games/skribble/hints';
-import { draftLetters, hintMatches, layoutGuess, letterCountFor, type GuessSlot } from './mask';
+import { maskWord } from '@shared/platform/words';
+import { draftLetters, hintMatches, layoutGuess, letterCountFor, type GuessSlot } from './wordMask';
 
 function letterSlots(groups: GuessSlot[][]): Extract<GuessSlot, { kind: 'letter' }>[] {
   return groups.flat().filter((s): s is Extract<GuessSlot, { kind: 'letter' }> => s.kind === 'letter');
@@ -127,7 +127,7 @@ describe('layoutGuess', () => {
   });
 });
 
-import { describeMask, groupMetrics } from './mask';
+import { describeMask, groupMetrics } from './wordMask';
 
 describe('groupMetrics', () => {
   it('counts the letter tiles and separators of a group', () => {
