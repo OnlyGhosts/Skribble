@@ -81,12 +81,13 @@ export function BlackjackScreen({ room, meId, isHost }: GameScreenProps<Blackjac
       mainTestId="blackjack-main"
       data={{ 'data-phase': view.phase, 'data-round': view.round, 'data-turn-player': view.turn?.playerId, 'data-turn-hand': view.turn?.handIndex, 'data-busy': busy }}
       isPhone={isPhone}
-      heading={
-        <div className="tbl__title" data-testid="round-indicator" data-round={view.round} data-total={view.totalRounds}>
-          <strong>{roundLabel(view.round, view.totalRounds)}</strong>
-          <small data-testid="phase-kicker">{phaseKicker(view, turnName, myTurn)}</small>
-        </div>
+      status={
+        <>
+          {roundLabel(view.round, view.totalRounds)} · <span data-testid="phase-kicker">{phaseKicker(view, turnName, myTurn)}</span>
+        </>
       }
+      statusTestId="round-indicator"
+      statusData={{ 'data-round': view.round, 'data-total': view.totalRounds }}
       clock={<Timer endsAt={timed ? view.endsAt : null} paused={held} warnUnder={view.phase === 'ending' ? 0 : 5} tickUnder={tickUnder} />}
       playerCount={room.players.length}
       players={<PlayerList room={room} meId={meId} isHost={isHost} mode="game" game={game} />}

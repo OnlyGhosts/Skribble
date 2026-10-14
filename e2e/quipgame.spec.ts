@@ -137,7 +137,12 @@ async function playMatchup(index: number, choice: 'a' | 'b', pool: number, skip:
   await expect(voter.page.getByTestId('vote-count')).toHaveAttribute('data-votes', '0');
   const button = voter.page.locator(`button[data-testid="vote-answer"][data-choice="${choice}"]`);
   await expect(button).toBeEnabled();
+  // A tap selects (with a check); Vote sends it.
+  await expect(voter.page.getByTestId('vote-submit')).toBeDisabled();
   await button.click();
+  await expect(button).toHaveAttribute('data-selected', 'true');
+  await expect(button.locator('.quip-answer__check')).toBeVisible();
+  await voter.page.getByTestId('vote-submit').click();
 
   const result = await readResult(host);
   expect(result.matchup).toBe(String(index));

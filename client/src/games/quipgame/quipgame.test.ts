@@ -204,7 +204,7 @@ describe('writing', () => {
 describe('voting', () => {
   const voting = (overrides: Partial<QuipgameView> = {}) => quipRoom(view({ phase: 'voting', matchup: MATCHUP, canVote: true, ...overrides }));
 
-  it('gives a voter two big A/B buttons, the prompt and the live count; a tapped answer shows as selected', () => {
+  it('gives a voter two equal A/B cards, the prompt, Vote and the live count; a tapped answer shows as selected with a check', () => {
     const html = render(voting(), 'host');
     expect(attr(tagWith(html, 'quip-voting'), 'data-can-vote')).toBe('true');
     expect(html).toContain(MATCHUP.prompt);
@@ -214,15 +214,23 @@ describe('voting', () => {
     expect(attr(tagWith(html, 'vote-count'), 'data-votes')).toBe('1');
     expect(attr(tagWith(html, 'vote-count'), 'data-voters')).toBe('1');
     expect(html).not.toContain('data-testid="quip-announcer"');
+    // Nothing picked yet: Vote waits for a tap.
+    expect(tagWith(html, 'vote-submit')).toContain('disabled');
+    expect(html).not.toContain('quip-answer__check');
     useQuipgameStore.getState().selectChoice('b');
     const tapped = render(voting(), 'host');
     expect(tagsWith(tapped, 'vote-answer').map((a) => attr(a, 'data-selected'))).toEqual(['false', 'true']);
-    // A changed vote shows at once: the tap wins over the server's older echo until the step changes.
+    expect(tapped.match(/quip-answer__check/g)).toHaveLength(1);
+    expect(tagWith(tapped, 'vote-submit')).not.toContain('disabled');
+    // A changed pick shows at once: the tap wins over the server's older echo until the step changes.
     const changed = render(voting({ myVote: 'a' }), 'host');
     expect(tagsWith(changed, 'vote-answer').map((a) => attr(a, 'data-selected'))).toEqual(['false', 'true']);
+    expect(changed).toContain('Change vote');
     useQuipgameStore.getState().selectChoice(null);
     const echoed = render(voting({ myVote: 'a' }), 'host');
     expect(tagsWith(echoed, 'vote-answer').map((a) => attr(a, 'data-selected'))).toEqual(['true', 'false']);
+    expect(attr(tagWith(echoed, 'vote-submit'), 'data-sent')).toBe('true');
+    expect(echoed).toContain('Voted');
   });
 
   it('shows an author the answers without buttons and a sit-tight card; the announcer gets the read-out card on top', () => {
@@ -457,8 +465,10 @@ describe('the stylesheet', () => {
     expect((light + 0.05) / (dark + 0.05)).toBeGreaterThanOrEqual(4.5);
   });
 
-  it('prefixes platform overrides inside the phone media query with the root class', () => {
-    expect(css).toContain('.quip .timer--lg {');
+  it('never overrides a platform class unprefixed, and leaves the bar timer to the shared top bar', () => {
     expect(css).not.toMatch(/\n {2}\.timer--lg \{/);
+    expect(css).not.toContain('.quip .timer--lg {');
+    const bar = readFileSync(fileURLToPath(new URL('../../platform/styles/gamebar.css', import.meta.url)), 'utf8');
+    expect(bar).toContain('.gbar .timer--lg {');
   });
 });

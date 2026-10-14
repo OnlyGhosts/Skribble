@@ -16,6 +16,8 @@ interface Props {
   testId?: string;
   /** Printed under the name (the "tap again" hint). */
   hint?: ReactNode;
+  /** Printed above the name (the agents' "Your location"). */
+  label?: string;
 }
 
 function Picture({ location }: { location: SpyLocation }) {
@@ -28,12 +30,13 @@ function Picture({ location }: { location: SpyLocation }) {
 }
 
 /** A location as a picture plus its name; a button when `onClick` is given. */
-export function LocationTile({ location, size, state = 'idle', onClick, disabled, testId, hint }: Props) {
+export function LocationTile({ location, size, state = 'idle', onClick, disabled, testId, hint, label }: Props) {
   const className = `spy-tile spy-tile--${size} spy-tile--${state}`;
   const body = (
     <>
       <Picture location={location} />
       <span className="spy-tile__body">
+        {label && <span className="spy-tile__label">{label}</span>}
         <span className="spy-tile__name">{location.name}</span>
         {hint && <span className="spy-tile__hint">{hint}</span>}
       </span>

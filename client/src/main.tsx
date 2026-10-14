@@ -6,6 +6,8 @@ import './platform/styles/components.css';
 import './platform/styles/guess.css';
 import './platform/styles/cards.css';
 import './platform/styles/table.css';
+import './platform/styles/gamebar.css';
+import './platform/styles/results.css';
 import './platform/styles/home.css';
 import './platform/styles/lobby.css';
 import { StrictMode } from 'react';

@@ -28,5 +28,5 @@ export function placeholderFor(phaseKind: string | undefined, isDrawer: boolean,
   if (!participating) return "You're watching this one. Chat...";
   // The server delivers the drawer's lines to players who already know the word only.
   if (isDrawer) return 'Chat with players who guessed...';
-  return hasGuessed ? 'You guessed it! Chat with others who know...' : 'Type your guess...';
+  return hasGuessed ? 'Chat with players who guessed...' : 'Type your guess...';
 }

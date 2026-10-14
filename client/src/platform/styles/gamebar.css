@@ -1,0 +1,141 @@
+/* ---------- The game top bar (GameTopBar): options, name and round, timer ring, players, chat ---------- */
+.gbar {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: var(--space-2) var(--space-3);
+  min-width: 0;
+}
+
+.gbar__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  min-height: 44px;
+}
+
+.gbar__title {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.2;
+}
+
+.gbar__name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+}
+
+.gbar__status {
+  color: var(--color-text-muted);
+  font-weight: 600;
+  font-size: 0.75rem;
+}
+
+.gbar__name,
+.gbar__status {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* With something in the middle the name keeps its width and the middle takes the rest. */
+.gbar--middle .gbar__title {
+  flex: 0 1 auto;
+}
+
+.gbar__middle {
+  flex: 1 1 0;
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+}
+
+.gbar__clock {
+  flex: none;
+  display: grid;
+  place-items: center;
+}
+
+.gbar .timer--lg {
+  width: 44px;
+  height: 44px;
+  font-size: 0.85rem;
+  letter-spacing: -0.02em;
+}
+
+.gbar__side {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.gbar__btn {
+  width: 44px;
+  height: 44px;
+}
+
+.gbar__players {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 44px;
+  padding: 0 10px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  font-weight: 700;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+  transition: background-color 100ms ease-out;
+}
+
+.gbar__players:hover {
+  background: var(--color-surface-3);
+}
+
+/* Phones: one tight row; the name gives way first, the controls never shrink below 44px. */
+.gbar--phone {
+  padding: 4px 6px;
+  border-radius: var(--radius-item);
+}
+
+.gbar--phone .gbar__row {
+  gap: 6px;
+}
+
+.gbar--phone .gbar__name {
+  font-size: 0.95rem;
+}
+
+.gbar--phone .gbar__status {
+  font-size: 0.72rem;
+}
+
+@media (max-width: 360px) {
+  /* The less important half of the status line ("· Turn 2/3") gives way first. */
+  .gbar__more {
+    display: none;
+  }
+
+  .gbar--phone {
+    padding: 4px;
+  }
+
+  .gbar--phone .gbar__row,
+  .gbar--phone .gbar__side {
+    gap: 2px;
+  }
+
+  .gbar--phone .gbar__players {
+    padding: 0 8px;
+  }
+}

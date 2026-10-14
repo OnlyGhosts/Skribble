@@ -1,5 +1,6 @@
 /* ---------- Hangman: layout ---------- */
 .hm {
+  --game-accent: var(--game-hangman);
   display: grid;
   grid-template-columns: 264px minmax(0, 1fr) 320px;
   grid-template-rows: auto minmax(0, 1fr);
@@ -12,64 +13,6 @@
 
 .hm__top {
   grid-column: 1 / -1;
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-3) var(--space-4);
-}
-
-.hm__brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-}
-
-.hm__round {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.2;
-  min-width: 0;
-}
-
-.hm__round strong {
-  font-weight: 800;
-}
-
-.hm__round small {
-  color: var(--color-text-faint);
-  font-weight: 600;
-  font-size: 0.75rem;
-}
-
-.hm__clock {
-  justify-self: center;
-}
-
-.hm__side {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 6px;
-}
-
-.hm__players-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  min-height: 44px;
-  padding: 0 10px;
-  border-radius: var(--radius-pill);
-  background: var(--color-primary-soft);
-  color: var(--color-primary-text);
-  font-weight: 800;
-  font-size: 0.9rem;
-}
-
-.hm__icon-btn {
-  width: 44px;
-  height: 44px;
 }
 
 .hm__players {
@@ -113,6 +56,7 @@
 .hm__strip {
   flex: none;
   padding: var(--space-3) var(--space-4);
+  border-left: 4px solid var(--game-accent);
 }
 
 .hm__canvas {
@@ -378,6 +322,10 @@
   min-height: 44px;
 }
 
+.hm-panel__mode-short {
+  display: none;
+}
+
 .hm-panel__status {
   min-height: 44px;
   display: flex;
@@ -450,10 +398,6 @@
   overflow-y: auto;
 }
 
-.hm-overlay__word {
-  color: var(--color-secondary-text);
-}
-
 .hm-choices {
   display: flex;
   flex-wrap: wrap;
@@ -481,50 +425,6 @@
 .hm-custom__send {
   flex: none;
   min-height: 44px;
-}
-
-.hm-points {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.hm-points__row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 10px;
-  border-radius: var(--radius-sm);
-  background: var(--color-surface-2);
-}
-
-.hm-points__name {
-  flex: 1;
-  text-align: left;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.hm-points__tag {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  color: var(--color-primary-text);
-  background: var(--color-primary-soft);
-  padding: 1px 6px;
-  border-radius: var(--radius-pill);
-}
-
-.hm-points__pts {
-  font-weight: 800;
-  color: var(--color-success-text);
-  font-variant-numeric: tabular-nums;
 }
 
 /* ---------- Player list hooks ---------- */
@@ -570,32 +470,6 @@
 
   .hm__top {
     flex: none;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 8px;
-    border-radius: var(--radius-item);
-    min-height: 56px;
-  }
-
-  .hm__brand {
-    flex: 1 1 0;
-  }
-
-  .hm__round strong,
-  .hm__round small {
-    display: block;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .hm__round strong {
-    font-size: 0.85rem;
-  }
-
-  .hm__round small {
-    font-size: 0.7rem;
   }
 
   /* The scrolling column: the stage grows with the canvas, whose width the rules below bound. */
@@ -609,13 +483,6 @@
   .hm__canvas .canvas-stage {
     --canvas-fit: width;
     flex: none;
-  }
-
-  .hm .timer--lg {
-    width: 44px;
-    height: 44px;
-    font-size: 0.82rem;
-    letter-spacing: -0.02em;
   }
 
   .hm__main {
@@ -645,14 +512,15 @@
     flex-basis: 160px;
   }
 
-  /* Six 44px keys per row: 26 letters fill four rows, Y, Z and the word button the fifth. */
+  /* Seven keys per row: 26 letters fill three rows and five keys of the fourth, the word button the rest. */
   .hm-keys {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: repeat(7, minmax(0, 1fr));
     gap: 4px;
   }
 
   .hm-keys .hm-panel__mode {
-    grid-column: 3 / -1;
+    grid-column: 6 / -1;
+    padding: 0 6px;
   }
 
   .hm-panel {
@@ -719,29 +587,15 @@
   }
 }
 
-/* The narrowest phones: tighter chrome in the bar so "Round 1/1" never has to be cut short. */
-@media (max-width: 359px) {
-  .hm__top {
-    gap: 4px;
-    padding: 6px;
+/* Upright phones: the word button has two of the seven key cells, so it takes its short label. */
+@media (max-width: 760px) and (max-aspect-ratio: 3/2) {
+  .hm-keys .hm-panel__mode svg,
+  .hm-panel__mode-long {
+    display: none;
   }
 
-  .hm__side {
-    gap: 4px;
-  }
-
-  .hm__players-btn {
-    padding: 0 8px;
-  }
-
-  .hm__round strong {
-    font-size: 0.78rem;
-    letter-spacing: -0.01em;
-  }
-
-  /* Six 44px keys across a 320px screen leave 15px for the gaps. */
-  .hm-keys {
-    gap: 3px;
+  .hm-panel__mode-short {
+    display: inline;
   }
 }
 

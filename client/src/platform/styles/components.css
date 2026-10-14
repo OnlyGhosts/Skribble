@@ -1509,97 +1509,58 @@
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  gap: 10px;
-  width: 100%;
+  gap: 8px;
+  width: min(100%, 300px);
 }
 
 .podium__step {
   flex: 1 1 0;
-  max-width: 150px;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
 }
 
-.podium__medal {
-  font-size: 1.6rem;
-}
-
 .podium__name {
-  font-weight: 700;
   max-width: 100%;
+  font-size: 0.8rem;
+  font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.podium__score {
-  font-size: 0.85rem;
-  color: var(--color-text-muted);
-  font-weight: 700;
 }
 
 /* Flat podium steps: lime for the winner, lilac for second, graphite for third. */
 .podium__block {
+  display: grid;
+  place-items: center;
   width: 100%;
   border-radius: var(--radius-sm) var(--radius-sm) 4px 4px;
   background: var(--color-surface-3);
   border: 1px solid var(--color-border);
-  margin-top: 6px;
+  color: var(--color-text-muted);
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  font-weight: 700;
 }
 
 .podium__step--1 .podium__block {
-  height: 72px;
+  height: 44px;
   background: var(--color-primary);
   border-color: var(--color-primary);
+  color: var(--color-primary-contrast);
 }
 
 .podium__step--2 .podium__block {
-  height: 52px;
+  height: 32px;
   background: var(--color-secondary);
   border-color: var(--color-secondary);
+  color: var(--color-secondary-contrast);
 }
 
 .podium__step--3 .podium__block {
-  height: 38px;
-}
-
-.podium-rest {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.podium-rest__row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 5px 10px;
-  border-radius: var(--radius-sm);
-  background: var(--color-surface-2);
-  font-size: 0.9rem;
-}
-
-.podium-rest__rank {
-  width: 28px;
-  font-weight: 700;
-  color: var(--color-text-faint);
-}
-
-.podium-rest__name {
-  flex: 1;
-  text-align: left;
-  font-weight: 700;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.podium-rest__score {
-  font-weight: 700;
-  color: var(--color-text-muted);
+  height: 24px;
 }
 
 @keyframes fade-in {
@@ -1813,18 +1774,6 @@
 }
 
 @media (max-width: 760px) {
-  .podium__step--1 .podium__block {
-    height: 48px;
-  }
-
-  .podium__step--2 .podium__block {
-    height: 34px;
-  }
-
-  .podium__step--3 .podium__block {
-    height: 24px;
-  }
-
   .overlay__card {
     padding: var(--space-4);
   }
@@ -1898,28 +1847,110 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-}
-
-.podium-hero__avatars {
-  display: flex;
-  gap: 8px;
-  animation: pop 0.4s ease;
+  gap: 2px;
 }
 
 .podium-hero__title {
   font-size: 1.6rem;
+  margin-top: var(--space-2);
+}
+
+/* The happy phone, small (96px at most), with one short bounce as the podium appears. */
+.podium-hero__mascot {
+  width: auto;
+  height: 96px;
+  animation: podium-bounce 600ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes podium-bounce {
+  0% {
+    transform: translateY(12px) scale(0.92);
+    opacity: 0;
+  }
+  60% {
+    transform: translateY(-6px) scale(1.02);
+    opacity: 1;
+  }
+  100% {
+    transform: none;
+  }
+}
+
+.podium-hero__points {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--color-text);
 }
 
 .podium-place {
-  font-weight: 700;
+  font-weight: 600;
   color: var(--color-text-muted);
 }
 
 .podium-place--won {
   color: var(--color-primary-text);
-  font-size: 1.15rem;
-  animation: pop 0.5s ease;
+  font-weight: 700;
+}
+
+/* Everyone, in order: rank, avatar, name and points. */
+.podium-standings {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-item);
+  background: var(--color-surface-3);
+}
+
+.podium-standings__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 4px 12px 4px 10px;
+  font-size: 0.9rem;
+}
+
+.podium-standings__row + .podium-standings__row {
+  border-top: 1px solid var(--color-border);
+}
+
+.podium-standings__row--me {
+  background: var(--color-secondary-soft);
+}
+
+.podium-standings__rank {
+  flex: none;
+  width: 18px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.podium-standings__name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-align: left;
+  font-weight: 600;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.podium-standings__you {
+  flex: none;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--color-secondary-text);
+}
+
+.podium-standings__score {
+  flex: none;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 .podium-next {
@@ -1987,8 +2018,7 @@
     display: none;
   }
 
-  .podium-hero__avatars,
-  .podium-place--won {
+  .podium-hero__mascot {
     animation: none;
   }
 }
@@ -1996,6 +2026,10 @@
 @media (max-width: 760px) {
   .podium-hero__title {
     font-size: 1.3rem;
+  }
+
+  .podium-hero__mascot {
+    height: 72px;
   }
 
   .podium-next .btn {

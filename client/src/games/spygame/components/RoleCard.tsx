@@ -15,11 +15,13 @@ export function RoleCard({ view }: { view: SpygameView }) {
   if (view.role === 'spy') {
     return (
       <section className="card spy-role spy-role--spy" aria-label="Your role" data-testid="spygame-role" data-role="spy">
-        <span className="spy-role__mark" aria-hidden="true">
-          <SpyIcon size={28} />
-        </span>
-        <h1 className="spy-role__title">You are the spy</h1>
-        <p className="spy-role__text">Ask and answer like you belong there. Work out the location from the chatter, then tap it twice below.</p>
+        <div className="spy-role__head">
+          <span className="spy-role__mark" aria-hidden="true">
+            <SpyIcon size={22} />
+          </span>
+          <h1 className="spy-role__title">You are the spy</h1>
+        </div>
+        <p className="spy-role__text">Blend in. Work out the location from the questions, then tap it twice below.</p>
         {guesses}
       </section>
     );
@@ -29,7 +31,7 @@ export function RoleCard({ view }: { view: SpygameView }) {
     return (
       <section className="card spy-role spy-role--spectator" aria-label="Your role" data-testid="spygame-role" data-role="spectator">
         <h1 className="spy-role__title">You'll join the next round</h1>
-        <p className="spy-role__text">Someone in the room is the spy. Watch how it plays out; your seat is ready for the next round.</p>
+        <p className="spy-role__text">Someone here is the spy. Watch how it plays out.</p>
         {guesses}
       </section>
     );
@@ -38,11 +40,9 @@ export function RoleCard({ view }: { view: SpygameView }) {
   const location = view.locationId ? locationById(view.locationId) : undefined;
   return (
     <section className="card spy-role spy-role--agent" aria-label="Your role" data-testid="spygame-role" data-role="agent">
-      {location && <LocationTile location={location} size="lg" testId="spygame-location" />}
-      <div className="spy-role__row">
-        <p className="spy-role__text spy-role__text--strong">You are not the spy</p>
-        {guesses}
-      </div>
+      <h1 className="spy-role__title">You are not the spy</h1>
+      {location && <LocationTile location={location} size="lg" label="Your location" testId="spygame-location" />}
+      {guesses}
     </section>
   );
 }

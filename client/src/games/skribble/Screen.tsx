@@ -2,18 +2,14 @@ import { useLayoutEffect, useRef, useState } from 'react';
 import type { SkribblePhase, SkribbleSettings, SkribbleView } from '@shared/games/skribble/protocol';
 import { gameById } from '@shared/platform/games';
 import { BottomSheet } from '../../platform/components/BottomSheet';
-import { GameMark } from '../../platform/components/GameGlyph';
 import { Chat } from '../../platform/components/Chat';
-import { ConnectionPill } from '../../platform/components/ConnectionPill';
-import { LogoutIcon, MoreIcon, UsersIcon } from '../../platform/components/Icons';
+import { GameMenuSheet, GameTopBar } from '../../platform/components/GameTopBar';
 import { PlayerList } from '../../platform/components/PlayerList';
-import { PreferenceRows, SettingsMenu } from '../../platform/components/Preferences';
 import { Timer } from '../../platform/components/Timer';
 import type { GameScreenProps } from '../../platform/game';
 import { PHONE_QUERY, useMediaQuery } from '../../platform/lib/media';
 import { useCountdownSeconds } from '../../platform/lib/useCountdown';
 import { useAppMode } from '../../platform/lib/useViewport';
-import { leaveRoom } from '../../platform/net/actions';
 import { useActiveGame } from '../../platform/store/selectors';
 import { usePlatformStore } from '../../platform/store/usePlatformStore';
 import { DEFAULT_DRAWING_SETTINGS, GameCanvas, Toolbar, type DrawingSettings } from '../../platform/canvas';
@@ -28,11 +24,13 @@ const meta = gameById('skribble');
 
 type DrawingPhase = Extract<SkribblePhase, { kind: 'drawing' }>;
 
-/** Guessers rate the drawing; the drawer and anyone sitting the game out only see the tally. */
-function Rating({ phase, canRate, compact }: { phase: DrawingPhase; canRate: boolean; compact?: boolean }) {
-  const iconSize = compact ? 15 : 16;
+/**
+ * Guessers rate the drawing from the canvas corner; the drawer and anyone sitting the game out
+ * only see the tally there (it lets the drawer's strokes through to the canvas).
+ */
+function Rating({ phase, canRate }: { phase: DrawingPhase; canRate: boolean }) {
   return (
-    <div className={`rating${compact ? ' rating--compact' : ''}`} role="group" aria-label="Rate the drawing">
+    <div className={`rating${canRate ? '' : ' rating--tally'}`} role="group" aria-label="Rate the drawing" data-testid="rating">
       <button
         type="button"
         className={`rating__btn${phase.myRating === 'like' ? ' is-active' : ''}`}
@@ -42,7 +40,7 @@ function Rating({ phase, canRate, compact }: { phase: DrawingPhase; canRate: boo
         aria-label={`Like this drawing (${phase.likes})`}
         data-testid="rate-like"
       >
-        <ThumbUpIcon size={iconSize} /> <span>{phase.likes}</span>
+        <ThumbUpIcon size={16} /> <span>{phase.likes}</span>
       </button>
       <button
         type="button"
@@ -53,7 +51,7 @@ function Rating({ phase, canRate, compact }: { phase: DrawingPhase; canRate: boo
         aria-label={`Dislike this drawing (${phase.dislikes})`}
         data-testid="rate-dislike"
       >
-        <ThumbDownIcon size={iconSize} /> <span>{phase.dislikes}</span>
+        <ThumbDownIcon size={16} /> <span>{phase.dislikes}</span>
       </button>
     </div>
   );
@@ -71,14 +69,13 @@ export function SkribbleScreen({ room, meId, isHost }: GameScreenProps<SkribbleV
   const isPhone = useMediaQuery(PHONE_QUERY);
   useAppMode(isPhone);
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const headerRef = useRef<HTMLElement | null>(null);
 
   // Phones show the turn summary as a fixed overlay. It must leave the header (and in landscape
   // the whole side column) uncovered so the players and menu buttons stay reachable; the header's
   // height varies (its word line comes and goes), so its edges are published as CSS vars.
   useLayoutEffect(() => {
     const root = rootRef.current;
-    const header = headerRef.current;
+    const header = root?.querySelector<HTMLElement>('[data-testid="game-header"]');
     if (!isPhone || !root || !header) return;
     const update = () => {
       const rect = header.getBoundingClientRect();
@@ -152,74 +149,27 @@ export function SkribbleScreen({ room, meId, isHost }: GameScreenProps<SkribbleV
 
   return (
     <div ref={rootRef} className={`game${isPhone ? ' game--phone' : ''}${canDraw ? ' game--drawer' : ''}`} data-phase={phase.kind}>
-      <header ref={headerRef} className="game__top card" data-testid="game-header">
-        {isPhone ? (
+      <GameTopBar
+        meta={meta}
+        isPhone={isPhone}
+        testId="game-header"
+        className="game__top"
+        status={
           <>
-            <div className="game__round game__round--compact" data-testid="round-indicator">
-              <strong>
-                Round {view.round}/{view.totalRounds}
-              </strong>
-              <small>
-                Turn {view.turn}/{view.turnsInRound}
-              </small>
-            </div>
-            {timer}
-            {phase.kind === 'drawing' && <Rating phase={phase} canRate={canRate} compact />}
-            <button
-              type="button"
-              className="players-btn"
-              onClick={() => setPlayersOpen(true)}
-              aria-haspopup="dialog"
-              aria-expanded={playersOpen}
-              aria-label={`Players (${room.players.length})`}
-              data-testid="players-toggle"
-            >
-              <UsersIcon size={18} />
-              <span>{room.players.length}</span>
-            </button>
-            <button
-              type="button"
-              className="icon-btn game__menu-btn"
-              onClick={() => setMenuOpen(true)}
-              aria-haspopup="dialog"
-              aria-expanded={menuOpen}
-              aria-label="More options"
-              data-testid="game-menu"
-            >
-              <MoreIcon size={20} />
-            </button>
-            <div className={`game__word${wordKnown ? '' : ' game__word--phone-hidden'}`}>{wordArea}</div>
+            Round {view.round}/{view.totalRounds}
+            <span className="gbar__more">
+              {' '}
+              · Turn {view.turn}/{view.turnsInRound}
+            </span>
           </>
-        ) : (
-          <>
-            <div className="game__brand">
-              <GameMark game={meta} size="sm" />
-              <div className="game__round" data-testid="round-indicator">
-                <strong>
-                  Round {view.round} of {view.totalRounds}
-                </strong>
-                <small>
-                  Turn {view.turn}/{view.turnsInRound}
-                </small>
-              </div>
-            </div>
-
-            <div className="game__word">{wordArea}</div>
-
-            <div className="game__side">
-              {phase.kind === 'drawing' && <Rating phase={phase} canRate={canRate} />}
-              {timer}
-              <div className="game__controls">
-                <ConnectionPill />
-                <SettingsMenu />
-                <button type="button" className="btn btn--ghost btn--sm" onClick={leaveRoom} data-testid="leave-room" aria-label="Leave room">
-                  <LogoutIcon size={16} /> <span className="hide-mobile">Leave</span>
-                </button>
-              </div>
-            </div>
-          </>
-        )}
-      </header>
+        }
+        statusData={{ 'data-round': view.round, 'data-turn': view.turn }}
+        clock={timer || undefined}
+        players={{ count: room.players.length, open: playersOpen, onOpen: () => setPlayersOpen(true) }}
+        menu={{ open: menuOpen, onOpen: () => setMenuOpen(true) }}
+        middle={isPhone ? undefined : <div className="game__word">{wordArea}</div>}
+        below={isPhone ? <div className={`game__word${wordKnown ? '' : ' game__word--phone-hidden'}`}>{wordArea}</div> : undefined}
+      />
 
       {!isPhone && (
         <aside className="game__players card" aria-label="Players">
@@ -238,6 +188,7 @@ export function SkribbleScreen({ room, meId, isHost }: GameScreenProps<SkribbleV
           {phase.kind === 'choosing' && <ChoosingOverlay phase={phase} room={room} isDrawer={isDrawer} paused={holding} />}
           {phase.kind === 'turnEnd' && <TurnEndOverlay phase={phase} room={room} paused={holding} />}
           {phase.kind === 'drawing' && !isDrawer && <DrawingCaption drawer={drawer} />}
+          {phase.kind === 'drawing' && <Rating phase={phase} canRate={canRate} />}
         </GameCanvas>
       </main>
 
@@ -250,14 +201,7 @@ export function SkribbleScreen({ room, meId, isHost }: GameScreenProps<SkribbleV
           <BottomSheet open={playersOpen} title={`Players (${room.players.length})`} onClose={() => setPlayersOpen(false)} testId="players-sheet">
             {players}
           </BottomSheet>
-          <BottomSheet open={menuOpen} title="Options" onClose={() => setMenuOpen(false)} testId="menu-sheet">
-            <div className="menu-sheet">
-              <PreferenceRows />
-              <button type="button" className="btn btn--ghost btn--block menu-sheet__leave" onClick={leaveRoom} data-testid="leave-room">
-                <LogoutIcon size={16} /> Leave room
-              </button>
-            </div>
-          </BottomSheet>
+          <GameMenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} />
         </>
       )}
     </div>

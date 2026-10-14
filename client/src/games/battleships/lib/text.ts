@@ -19,10 +19,9 @@ export function diceText(shooter: string, dice: number): string {
   return `${shooter} rolled a ${dice}. A ship may slip away!`;
 }
 
-/** The shot counter in the top bar: the narrowest phones get a number, not a word. */
-export function turnKicker(phase: BattleshipsPhase, turnNumber: number, narrow: boolean, phone: boolean): string {
-  if (phase === 'placing') return phone ? 'Placing' : 'Placing fleets';
-  return narrow ? `#${turnNumber}` : `Shot ${turnNumber}`;
+/** The shot counter under the game's name in the top bar. */
+export function turnKicker(phase: BattleshipsPhase, turnNumber: number): string {
+  return phase === 'placing' ? 'Placing fleets' : `Shot ${turnNumber}`;
 }
 
 export function chatPlaceholderFor(phase: BattleshipsPhase | undefined, myTurn: boolean, watching: boolean): string | undefined {

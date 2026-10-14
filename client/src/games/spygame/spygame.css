@@ -1,5 +1,6 @@
 /* ---------- The Spy Game: layout ---------- */
 .spy {
+  --game-accent: var(--game-spygame);
   display: grid;
   grid-template-columns: minmax(0, 1fr) 360px;
   grid-template-rows: auto minmax(0, 1fr);
@@ -12,62 +13,6 @@
 
 .spy__top {
   grid-column: 1 / -1;
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-3) var(--space-4);
-}
-
-.spy__brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.spy__round {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.2;
-}
-
-.spy__round strong {
-  font-weight: 800;
-}
-
-.spy__round small {
-  color: var(--color-text-faint);
-  font-weight: 600;
-  font-size: 0.75rem;
-}
-
-.spy__center {
-  justify-self: center;
-}
-
-.spy__side {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 6px;
-}
-
-.spy__players-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  min-height: 44px;
-  padding: 0 10px;
-  border-radius: var(--radius-pill);
-  background: var(--color-primary-soft);
-  color: var(--color-primary-text);
-  font-weight: 800;
-  font-size: 0.9rem;
-}
-
-.spy__icon-btn {
-  width: 44px;
-  height: 44px;
 }
 
 .spy__stage {
@@ -166,28 +111,32 @@
   flex-direction: column;
   gap: var(--space-3);
   padding: var(--space-4);
+  border-left: 4px solid var(--game-accent);
 }
 
-.spy-role--spy {
-  align-items: flex-start;
-  border-color: var(--color-primary-text);
-  background: var(--color-primary-soft);
+.spy-role__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
 }
 
 .spy-role__mark {
   display: inline-grid;
   place-items: center;
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background: var(--color-text);
-  color: var(--color-surface);
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  background: var(--game-accent);
+  color: var(--game-ink);
 }
 
 .spy-role__title {
-  font-size: 1.6rem;
-  font-weight: 900;
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 700;
   letter-spacing: -0.02em;
+  line-height: 1.15;
 }
 
 .spy-role__text {
@@ -195,28 +144,10 @@
   font-size: 0.95rem;
 }
 
-.spy-role__text--strong {
-  color: var(--color-text);
-  font-weight: 800;
-  font-size: 1.05rem;
-}
-
-.spy-role__row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: var(--space-2) var(--space-3);
-}
-
 .spy-role__guesses {
+  align-self: flex-start;
   background: var(--color-secondary-soft);
   color: var(--color-secondary-text);
-}
-
-.spy-role--agent .spy-tile--lg {
-  width: min(100%, 520px);
-  margin: 0 auto;
 }
 
 /* ---------- Location tiles ---------- */
@@ -288,6 +219,12 @@ button.spy-tile:disabled {
   hyphens: manual;
 }
 
+.spy-tile__label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
 .spy-tile__hint {
   font-size: 0.72rem;
   font-weight: 700;
@@ -324,30 +261,23 @@ button.spy-tile:disabled {
 }
 
 .spy-tile--lg {
-  flex-direction: column;
-  align-items: stretch;
-  gap: 10px;
+  gap: var(--space-3);
   padding: 0;
   background: transparent;
   border: 0;
 }
 
 .spy-tile--lg .spy-tile__picture {
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  max-height: 240px;
+  width: 112px;
+  height: 84px;
   border-radius: var(--radius-item);
-  box-shadow: var(--shadow-sm);
-}
-
-.spy-tile--lg .spy-tile__body {
-  align-items: center;
-  text-align: center;
+  border: 1px solid var(--color-border);
 }
 
 .spy-tile--lg .spy-tile__name {
-  font-size: 1.5rem;
-  font-weight: 900;
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  font-weight: 700;
   letter-spacing: -0.01em;
 }
 
@@ -713,97 +643,44 @@ button.spy-accuse__row:disabled {
 }
 
 .spy-reveal__facts {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-2);
   width: 100%;
 }
 
 .spy-reveal__spy {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-3);
+  text-align: left;
 }
 
 .spy-reveal__label {
+  display: block;
   font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--color-text-faint);
-  font-weight: 700;
+  font-weight: 600;
+  color: var(--color-text-muted);
 }
 
 .spy-reveal__name {
-  font-size: 1.1rem;
-  font-weight: 900;
-}
-
-.spy-reveal__place .spy-tile--lg .spy-tile__picture {
-  max-height: 150px;
-}
-
-.spy-reveal__place .spy-tile--lg .spy-tile__name {
-  font-size: 1.15rem;
+  display: block;
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-weight: 700;
 }
 
 .spy-reveal__footer {
   flex-wrap: wrap;
   justify-content: center;
-  /* Pinned to the card's bottom edge while the body above it scrolls. */
   position: sticky;
   bottom: 0;
-  width: calc(100% + 2 * var(--space-5));
-  margin: 0 calc(-1 * var(--space-5)) calc(-1 * var(--space-5));
-  padding: var(--space-2) var(--space-5) var(--space-4);
+  width: calc(100% + 2 * var(--space-4));
+  margin: 0 calc(-1 * var(--space-4)) calc(-1 * var(--space-3));
+  padding: var(--space-2) var(--space-4) var(--space-3);
   background: var(--color-surface);
   border-top: 1px solid var(--color-border);
-}
-
-/* The points earned this round (the game's own copy of the Skribble list: a game never leans on another game's stylesheet). */
-.spy-points {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.spy-points__row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 10px;
-  border-radius: var(--radius-sm);
-  background: var(--color-surface-2);
-}
-
-.spy-points__name {
-  flex: 1;
-  text-align: left;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.spy-points__tag {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  color: var(--color-primary-text);
-  background: var(--color-primary-soft);
-  padding: 1px 6px;
-  border-radius: var(--radius-pill);
-}
-
-.spy-points__pts {
-  font-weight: 800;
-  color: var(--color-success-text);
-  font-variant-numeric: tabular-nums;
 }
 
 /* ---------- Player-list badges ---------- */
@@ -841,10 +718,6 @@ button.spy-accuse__row:disabled {
   .spy {
     grid-template-columns: minmax(0, 1fr) 300px;
   }
-
-  .spy__top {
-    grid-template-columns: auto 1fr auto;
-  }
 }
 
 /* ---------- Phone layout: header, one scrolling column, sheets for players and chat ---------- */
@@ -863,42 +736,6 @@ button.spy-accuse__row:disabled {
 
   .spy__top {
     flex: none;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 8px;
-    border-radius: var(--radius-item);
-    min-height: 56px;
-  }
-
-  .spy__round--compact {
-    flex: 1 1 0;
-    min-width: 0;
-    overflow: hidden;
-    line-height: 1.15;
-  }
-
-  .spy__round--compact strong,
-  .spy__round--compact small {
-    display: block;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .spy__round--compact strong {
-    font-size: 0.85rem;
-  }
-
-  .spy__round--compact small {
-    font-size: 0.7rem;
-  }
-
-  .spy .timer--lg {
-    width: 44px;
-    height: 44px;
-    font-size: 0.82rem;
-    letter-spacing: -0.02em;
   }
 
   .spy-clock__label {
@@ -925,17 +762,13 @@ button.spy-accuse__row:disabled {
 
   /* The platform card pads var(--space-4) on phones; the sticky footer bleeds into that padding. */
   .spy-reveal__footer {
-    width: calc(100% + 2 * var(--space-4));
-    margin: 0 calc(-1 * var(--space-4)) calc(-1 * var(--space-4));
-    padding: var(--space-2) var(--space-4) var(--space-3);
+    width: calc(100% + 2 * var(--space-3));
+    margin: 0 calc(-1 * var(--space-3)) calc(-1 * var(--space-3));
+    padding: var(--space-2) var(--space-3) var(--space-3);
   }
 
   .spy-role__title {
-    font-size: 1.4rem;
-  }
-
-  .spy-tile--lg .spy-tile__picture {
-    max-height: 190px;
+    font-size: 1.3rem;
   }
 
   .spy-tile--md .spy-tile__picture {
@@ -948,7 +781,7 @@ button.spy-accuse__row:disabled {
   }
 
   .spy-tile--lg .spy-tile__name {
-    font-size: 1.3rem;
+    font-size: 1.25rem;
   }
 }
 
@@ -979,20 +812,6 @@ button.spy-accuse__row:disabled {
   .spy-reveal__facts {
     gap: var(--space-3);
   }
-
-  .spy-reveal__spy .avatar--xl {
-    width: 44px;
-    height: 44px;
-    font-size: 1.3rem;
-  }
-
-  .spy-reveal__place .spy-tile--lg .spy-tile__picture {
-    max-height: 90px;
-  }
-
-  .spy-reveal__place .spy-tile--lg .spy-tile__name {
-    font-size: 1rem;
-  }
 }
 
 /* Landscape phones: the vote sheet is ~310px tall; keep the countdown and the Yes/No above its fold. */
@@ -1020,15 +839,6 @@ button.spy-accuse__row:disabled {
 
 /* The smallest phones: the header keeps "Round x/y" whole and the tiles leave more room for names. */
 @media (max-width: 360px) {
-  .spy__round--compact small {
-    display: none;
-  }
-
-  .spy__top {
-    gap: 4px;
-    padding: 6px;
-  }
-
   .spy-tile--sm .spy-tile__picture {
     width: 32px;
     height: 24px;

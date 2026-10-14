@@ -20,25 +20,6 @@ export function roundLabel(view: QuipgameView, long: boolean): string {
   return long ? `Round ${view.round} of ${view.totalRounds}` : `Round ${view.round}/${view.totalRounds}`;
 }
 
-/** The phase in a few words; `short` is the phone header's narrow slot. */
-export function phaseKicker(view: QuipgameView, short = false): string {
-  switch (view.phase) {
-    case 'writing':
-      if (short) return view.multiplier > 1 ? 'Write: double points' : 'Write your answers';
-      return view.multiplier > 1 ? 'Write: double points!' : 'Write your answers';
-    case 'finalWriting':
-      return short ? 'One answer each' : 'Final round: one answer';
-    case 'voting':
-      return short ? 'Vote!' : 'Vote for the funnier one';
-    case 'finalVoting':
-      return short ? 'Rank them' : 'Rank your favourites';
-    case 'result':
-      return short ? 'The votes are in' : 'And the votes say…';
-    case 'finalResult':
-      return 'The final ranking';
-  }
-}
-
 export function waitingLine(done: number, total: number): string {
   return `Waiting for the others (${done} of ${total} done)`;
 }

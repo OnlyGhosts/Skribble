@@ -3,20 +3,17 @@ import type { BattleshipsSettings, BattleshipsView } from '@shared/games/battles
 import { gameById } from '@shared/platform/games';
 import type { RoomState } from '@shared/platform/protocol';
 import { BottomSheet } from '../../platform/components/BottomSheet';
-import { GameMark } from '../../platform/components/GameGlyph';
 import { Chat } from '../../platform/components/Chat';
-import { ConnectionPill } from '../../platform/components/ConnectionPill';
-import { DiceIcon, LogoutIcon, MoreIcon, UsersIcon } from '../../platform/components/Icons';
+import { GameMenuSheet, GameTopBar } from '../../platform/components/GameTopBar';
+import { DiceIcon } from '../../platform/components/Icons';
 import { PlayerList } from '../../platform/components/PlayerList';
-import { PreferenceRows, SettingsMenu } from '../../platform/components/Preferences';
 import { Timer } from '../../platform/components/Timer';
 import type { GameScreenProps } from '../../platform/game';
 import { PHONE_QUERY, useMediaQuery } from '../../platform/lib/media';
 import { useAppMode } from '../../platform/lib/useViewport';
-import { leaveRoom } from '../../platform/net/actions';
 import { useActiveGame } from '../../platform/store/selectors';
 import { Board } from './components/Board';
-import { ChatIcon, ListIcon, ShipIcon } from './components/Icons';
+import { ListIcon } from './components/Icons';
 import { MoveNotice, MovePanel } from './components/MovePanel';
 import { PlacementPanel } from './components/PlacementPanel';
 import { ShotLog } from './components/ShotLog';
@@ -27,8 +24,6 @@ import { turnKicker } from './lib/text';
 import { useBattleships } from './store';
 
 const meta = gameById('battleships');
-/** The narrowest phones: the bar drops the game's name and counts shots as '#28'. */
-export const NARROW_QUERY = '(max-width: 359px)';
 
 /** The line under the top bar: what is going on and what the viewer should do about it. */
 export function statusOf(room: RoomState, view: BattleshipsView, meId: string, holding: boolean): { kicker: string; text: string } {
@@ -66,7 +61,6 @@ export function statusOf(room: RoomState, view: BattleshipsView, meId: string, h
 export function BattleshipsScreen({ room, meId, isHost }: GameScreenProps<BattleshipsView, BattleshipsSettings>) {
   const game = useActiveGame();
   const isPhone = useMediaQuery(PHONE_QUERY);
-  const narrow = useMediaQuery(NARROW_QUERY);
   useAppMode(isPhone);
   const sheet = useBattleships((s) => s.sheet);
   const openSheet = useBattleships((s) => s.openSheet);
@@ -112,13 +106,6 @@ export function BattleshipsScreen({ room, meId, isHost }: GameScreenProps<Battle
     }),
   ];
 
-  const playersButton = (
-    <button type="button" className="bs__players-btn" onClick={() => openSheet('players')} aria-haspopup="dialog" aria-expanded={sheet === 'players'} aria-label={`Players (${room.players.length})`} data-testid="players-toggle">
-      <UsersIcon size={18} />
-      <span>{room.players.length}</span>
-    </button>
-  );
-
   return (
     <div
       className={`bs${isPhone ? ' bs--phone' : ''}`}
@@ -130,44 +117,19 @@ export function BattleshipsScreen({ room, meId, isHost }: GameScreenProps<Battle
       data-my-turn={myTurn ? 'true' : undefined}
       data-side={view.mySideId ?? undefined}
     >
-      <header className="bs__top card" data-testid="battleships-header">
-        <div className="bs__brand">
-          {!isPhone && (
-            <GameMark game={meta} size="sm" />
-          )}
-          <div className="bs__turn" data-testid="turn-indicator" data-turn={view.turnNumber}>
-            <strong>{turnKicker(view.phase, view.turnNumber, narrow, isPhone)}</strong>
-            {!narrow && <small>{meta.name}</small>}
-          </div>
-        </div>
-        <div className="bs__clock">
-          <Timer endsAt={endsAt} paused={paused} warnUnder={view.phase === 'placing' ? 10 : 5} tickUnder={myTurn && view.phase === 'playing' ? 5 : undefined} />
-        </div>
-        <div className="bs__side">
-          {playersButton}
-          {isPhone ? (
-            <>
-              <button type="button" className="icon-btn bs__icon-btn" onClick={() => openSheet('log')} aria-haspopup="dialog" aria-expanded={sheet === 'log'} aria-label="Shot log" data-testid="log-toggle">
-                <ListIcon size={20} />
-              </button>
-              <button type="button" className="icon-btn bs__icon-btn" onClick={() => openSheet('chat')} aria-haspopup="dialog" aria-expanded={sheet === 'chat'} aria-label="Chat" data-testid="chat-toggle">
-                <ChatIcon size={20} />
-              </button>
-              <button type="button" className="icon-btn bs__icon-btn" onClick={() => openSheet('menu')} aria-haspopup="dialog" aria-expanded={sheet === 'menu'} aria-label="More options" data-testid="game-menu">
-                <MoreIcon size={20} />
-              </button>
-            </>
-          ) : (
-            <>
-              <ConnectionPill />
-              <SettingsMenu />
-              <button type="button" className="btn btn--ghost btn--sm" onClick={leaveRoom} data-testid="leave-room" aria-label="Leave room">
-                <LogoutIcon size={16} /> <span className="hide-mobile">Leave</span>
-              </button>
-            </>
-          )}
-        </div>
-      </header>
+      <GameTopBar
+        meta={meta}
+        isPhone={isPhone}
+        testId="battleships-header"
+        className="bs__top"
+        status={turnKicker(view.phase, view.turnNumber)}
+        statusTestId="turn-indicator"
+        statusData={{ 'data-turn': view.turnNumber }}
+        clock={<Timer endsAt={endsAt} paused={paused} warnUnder={view.phase === 'placing' ? 10 : 5} tickUnder={myTurn && view.phase === 'playing' ? 5 : undefined} />}
+        players={{ count: room.players.length, open: sheet === 'players', onOpen: () => openSheet('players') }}
+        chat={isPhone ? { open: sheet === 'chat', onOpen: () => openSheet('chat') } : undefined}
+        menu={{ open: sheet === 'menu', onOpen: () => openSheet('menu') }}
+      />
 
       {!isPhone && (
         <aside className="bs__left">
@@ -196,6 +158,11 @@ export function BattleshipsScreen({ room, meId, isHost }: GameScreenProps<Battle
                 <span className="bs-dice" aria-label={`Last roll: ${view.dice}`} data-testid="dice" data-value={view.dice}>
                   <DiceIcon size={14} /> {view.dice}
                 </span>
+              )}
+              {isPhone && view.phase !== 'placing' && (
+                <button type="button" className="icon-btn bs-status__log" onClick={() => openSheet('log')} aria-haspopup="dialog" aria-expanded={sheet === 'log'} aria-label="Shot log" data-testid="log-toggle">
+                  <ListIcon size={20} />
+                </button>
               )}
             </div>
             {side && !side.alive && (
@@ -264,14 +231,7 @@ export function BattleshipsScreen({ room, meId, isHost }: GameScreenProps<Battle
               <Chat />
             </div>
           </BottomSheet>
-          <BottomSheet open={sheet === 'menu'} title="Options" onClose={closeSheet} testId="menu-sheet">
-            <div className="menu-sheet">
-              <PreferenceRows />
-              <button type="button" className="btn btn--ghost btn--block menu-sheet__leave" onClick={leaveRoom} data-testid="leave-room">
-                <LogoutIcon size={16} /> Leave room
-              </button>
-            </div>
-          </BottomSheet>
+          <GameMenuSheet open={sheet === 'menu'} onClose={closeSheet} />
         </>
       )}
     </div>

@@ -71,16 +71,18 @@ export function PokerScreen({ room, meId, isHost }: GameScreenProps<PokerView, P
       mainTestId="poker-main"
       data={{ 'data-phase': view.phase, 'data-hand': view.hand, 'data-street': view.street ?? '', 'data-turn-player': view.turn ?? '', 'data-busy': busy }}
       isPhone={isPhone}
-      heading={
-        <div className="tbl__title" data-testid="hand-indicator" data-hand={view.hand} data-total={view.totalHands}>
-          <strong>{handLabel(view)}</strong>
-          <small data-testid="phase-kicker">
+      status={
+        <>
+          {handLabel(view)} ·{' '}
+          <span data-testid="phase-kicker">
             <span data-testid="blinds" data-small={view.blinds.small} data-big={view.blinds.big}>
               {phaseKicker(view)}
             </span>
-          </small>
-        </div>
+          </span>
+        </>
       }
+      statusTestId="hand-indicator"
+      statusData={{ 'data-hand': view.hand, 'data-total': view.totalHands }}
       clock={<Timer endsAt={playing && !held ? view.endsAt : null} paused={held} warnUnder={view.phase === 'results' ? 0 : 5} tickUnder={myTurn ? 5 : undefined} />}
       playerCount={room.players.length}
       players={<PlayerList room={room} meId={meId} isHost={isHost} mode="game" game={game} />}

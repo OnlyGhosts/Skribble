@@ -315,10 +315,8 @@ describe('the screen while playing', () => {
     expect(tagsWith(html, 'tab')[0]).toContain('id="bs-tab-mine" aria-controls="bs-panel-mine" aria-selected="true"');
     expect(tagsWith(html, 'tab')[1]).toContain('id="bs-tab-bob" aria-controls="bs-panel-bob" aria-selected="false"');
     expect(tagWith(html, 'tab-strip')).toContain('role="tablist"');
-    expect(turnKicker('playing', 28, false, true)).toBe('Shot 28');
-    expect(turnKicker('playing', 28, true, true)).toBe('#28');
-    expect(turnKicker('placing', 1, true, true)).toBe('Placing');
-    expect(turnKicker('placing', 1, false, false)).toBe('Placing fleets');
+    expect(turnKicker('playing', 28)).toBe('Shot 28');
+    expect(turnKicker('placing', 1)).toBe('Placing fleets');
   });
 
   it('opens the move window for the shooter only, and tells everyone else a ship may be moving', () => {

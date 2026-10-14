@@ -42,7 +42,7 @@ export function Writing({ view, open }: Props) {
   if (!prompt) {
     return (
       <section className="card quip-write quip-write--waiting" aria-label="Waiting" data-testid="quip-waiting">
-        <p className="overlay__kicker">All sent</p>
+        <p className="quip-kicker">All sent</p>
         <h2 className="quip-write__title">{waitingLine(view.done, view.total)}</h2>
         <ul className="quip-write__sent" aria-label="Your answers">
           {view.myPrompts.map((p) => (
@@ -80,8 +80,9 @@ export function Writing({ view, open }: Props) {
 
   return (
     <section className="card quip-write" aria-label="Write your answer" data-testid="quip-writing" data-prompt-id={prompt.id}>
-      <p className="overlay__kicker" data-testid="write-progress" data-number={number} data-total={view.myPrompts.length}>
+      <p className="quip-kicker" data-testid="write-progress" data-number={number} data-total={view.myPrompts.length}>
         {editing ? 'Editing answer' : 'Answer'} {number} of {view.myPrompts.length}
+        {view.multiplier > 1 && ' · Double points'}
       </p>
       <div key={prompt.id} className="quip-prompt quip-prompt--slide" data-testid="write-prompt" data-prompt-id={prompt.id}>
         {prompt.text}
@@ -133,7 +134,7 @@ export function Writing({ view, open }: Props) {
 export function Spectating({ view }: { view: QuipgameView }) {
   return (
     <section className="card quip-write quip-write--waiting" aria-label="Watching" data-testid="quip-spectating">
-      <p className="overlay__kicker">Watching this round</p>
+      <p className="quip-kicker">Watching this round</p>
       <h2 className="quip-write__title">The others are writing</h2>
       <p className="quip-write__text">You vote on their answers in a moment, and you write from the next round.</p>
       <p className="quip-write__status" role="status" data-testid="write-done" data-done={view.done} data-total={view.total}>

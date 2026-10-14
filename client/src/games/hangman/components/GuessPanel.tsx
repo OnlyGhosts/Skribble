@@ -56,8 +56,23 @@ export function GuessPanel({ room, view, meId }: Props) {
   const mine = isGuesser(view, meId);
   const status = mine ? null : statusLine(room, view, meId);
   const modeButton = mine ? (
-    <button type="button" className="btn btn--secondary btn--sm hm-panel__mode" onClick={() => toggleGuessMode(mode, focusMemory)} data-testid="guess-mode">
-      <KeyboardIcon size={16} /> {mode === 'word' ? 'Back to letters' : 'Risk the word'}
+    <button
+      type="button"
+      className="btn btn--secondary btn--sm hm-panel__mode"
+      onClick={() => toggleGuessMode(mode, focusMemory)}
+      aria-label={mode === 'word' ? 'Back to letters' : 'Risk the word'}
+      data-testid="guess-mode"
+    >
+      <KeyboardIcon size={16} />
+      {mode === 'word' ? (
+        'Back to letters'
+      ) : (
+        <>
+          {/* Two cells of the seven-key grid on the narrowest phones: the short label fits there. */}
+          <span className="hm-panel__mode-long">Risk the word</span>
+          <span className="hm-panel__mode-short">Word</span>
+        </>
+      )}
     </button>
   ) : null;
 

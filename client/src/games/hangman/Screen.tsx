@@ -3,24 +3,19 @@ import type { HangmanSettings, HangmanView } from '@shared/games/hangman/protoco
 import { gameById } from '@shared/platform/games';
 import { DEFAULT_DRAWING_SETTINGS, GameCanvas, Toolbar, type DrawingSettings } from '../../platform/canvas';
 import { BottomSheet } from '../../platform/components/BottomSheet';
-import { GameMark } from '../../platform/components/GameGlyph';
 import { Chat } from '../../platform/components/Chat';
-import { ConnectionPill } from '../../platform/components/ConnectionPill';
-import { LogoutIcon, MoreIcon, UsersIcon } from '../../platform/components/Icons';
+import { GameMenuSheet, GameTopBar } from '../../platform/components/GameTopBar';
 import { PlayerList } from '../../platform/components/PlayerList';
-import { PreferenceRows, SettingsMenu } from '../../platform/components/Preferences';
 import { Timer } from '../../platform/components/Timer';
 import type { GameScreenProps } from '../../platform/game';
 import { PHONE_QUERY, useMediaQuery } from '../../platform/lib/media';
 import { useAppMode } from '../../platform/lib/useViewport';
-import { leaveRoom } from '../../platform/net/actions';
 import { useActiveGame } from '../../platform/store/selectors';
 import { usePlatformStore } from '../../platform/store/usePlatformStore';
 import { clearSection, drawDone, undoStroke } from './actions';
 import { hangmanCanvas, useStrokeCount } from './canvas';
 import { FigureGhost } from './components/Figure';
 import { GuessPanel } from './components/GuessPanel';
-import { ChatIcon, RopeIcon } from './components/Icons';
 import { ChoosingOverlay, DrawingCaption, TurnEndOverlay } from './components/Overlays';
 import { WordStrip } from './components/WordStrip';
 import { LANDSCAPE_QUERY, drawingKey, isHangman, scrollAnchor, turnKey } from './hooks';
@@ -101,76 +96,28 @@ export function HangmanScreen({ room, meId, isHost }: GameScreenProps<HangmanVie
   const players = <PlayerList room={room} meId={meId} isHost={isHost} mode="game" game={game} />;
   const style = { '--hm-accent': meta.accent } as CSSProperties;
 
-  const playersButton = (
-    <button
-      type="button"
-      className="hm__players-btn"
-      onClick={() => openSheet('players')}
-      aria-haspopup="dialog"
-      aria-expanded={sheet === 'players'}
-      aria-label={`Players (${room.players.length})`}
-      data-testid="players-toggle"
-    >
-      <UsersIcon size={18} />
-      <span>{room.players.length}</span>
-    </button>
-  );
-
   return (
     <div className={`hm${isPhone ? ' hm--phone' : ''}${canDraw ? ' hm--drawer' : ''}`} style={style} data-phase={view.phase} data-testid="hangman-screen">
-      <header className="hm__top card" data-testid="hangman-header">
-        <div className="hm__brand">
-          {!isPhone && (
-            <GameMark game={meta} size="sm" />
-          )}
-          <div className="hm__round" data-testid="round-indicator" data-round={view.round} data-turn={view.turn}>
-            <strong>{isPhone ? `Round ${view.round}/${view.totalRounds}` : `Round ${view.round} of ${view.totalRounds}`}</strong>
-            <small>
-              Turn {view.turn}/{view.turnsInRound}
-            </small>
-          </div>
-        </div>
-        <div className="hm__clock">
-          <Timer endsAt={endsAt} paused={paused} warnUnder={warnUnder} tickUnder={tickUnder} />
-        </div>
-        <div className="hm__side">
-          {playersButton}
-          {isPhone ? (
-            <>
-              <button
-                type="button"
-                className="icon-btn hm__icon-btn"
-                onClick={() => openSheet('chat')}
-                aria-haspopup="dialog"
-                aria-expanded={sheet === 'chat'}
-                aria-label="Chat"
-                data-testid="chat-toggle"
-              >
-                <ChatIcon size={20} />
-              </button>
-              <button
-                type="button"
-                className="icon-btn hm__icon-btn"
-                onClick={() => openSheet('menu')}
-                aria-haspopup="dialog"
-                aria-expanded={sheet === 'menu'}
-                aria-label="More options"
-                data-testid="game-menu"
-              >
-                <MoreIcon size={20} />
-              </button>
-            </>
-          ) : (
-            <>
-              <ConnectionPill />
-              <SettingsMenu />
-              <button type="button" className="btn btn--ghost btn--sm" onClick={leaveRoom} data-testid="leave-room" aria-label="Leave room">
-                <LogoutIcon size={16} /> <span className="hide-mobile">Leave</span>
-              </button>
-            </>
-          )}
-        </div>
-      </header>
+      <GameTopBar
+        meta={meta}
+        isPhone={isPhone}
+        testId="hangman-header"
+        className="hm__top"
+        status={
+          <>
+            Round {view.round}/{view.totalRounds}
+            <span className="gbar__more">
+              {' '}
+              · Turn {view.turn}/{view.turnsInRound}
+            </span>
+          </>
+        }
+        statusData={{ 'data-round': view.round, 'data-turn': view.turn }}
+        clock={<Timer endsAt={endsAt} paused={paused} warnUnder={warnUnder} tickUnder={tickUnder} />}
+        players={{ count: room.players.length, open: sheet === 'players', onOpen: () => openSheet('players') }}
+        chat={isPhone ? { open: sheet === 'chat', onOpen: () => openSheet('chat') } : undefined}
+        menu={{ open: sheet === 'menu', onOpen: () => openSheet('menu') }}
+      />
 
       {!isPhone && (
         <aside className="hm__players card" aria-label="Players">
@@ -222,14 +169,7 @@ export function HangmanScreen({ room, meId, isHost }: GameScreenProps<HangmanVie
               <Chat />
             </div>
           </BottomSheet>
-          <BottomSheet open={sheet === 'menu'} title="Options" onClose={closeSheet} testId="menu-sheet">
-            <div className="menu-sheet">
-              <PreferenceRows />
-              <button type="button" className="btn btn--ghost btn--block menu-sheet__leave" onClick={leaveRoom} data-testid="leave-room">
-                <LogoutIcon size={16} /> Leave room
-              </button>
-            </div>
-          </BottomSheet>
+          <GameMenuSheet open={sheet === 'menu'} onClose={closeSheet} />
         </>
       )}
     </div>

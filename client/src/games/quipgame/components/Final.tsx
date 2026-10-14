@@ -40,7 +40,7 @@ export function FinalVoting({ room, view }: Props) {
         </section>
       )}
       <section className="card quip-final" aria-label="Rank the answers" data-testid="quip-final-voting" data-max-picks={view.maxPicks}>
-        <p className="overlay__kicker">Final round</p>
+        <p className="quip-kicker">Final round</p>
         <div className="quip-prompt" data-testid="final-prompt">
           {prompt}
         </div>
@@ -95,7 +95,7 @@ export function FinalResult({ room, view, footer }: Props & { footer: ReactNode 
   const rows = view.finalResult ?? [];
   return (
     <section className="card quip-final quip-final--result" aria-label="Final result" data-testid="quip-final-result">
-      <p className="overlay__kicker">Final round</p>
+      <p className="quip-kicker">Final round</p>
       <h2 className="quip-result__headline">{rows[0] ? `${rows[0].authorName} wins the final!` : 'The final'}</h2>
       <div className="quip-prompt quip-prompt--sm" data-testid="final-prompt">
         {view.finalPrompt ?? ''}

@@ -128,8 +128,8 @@ test('the party starts; the small phone shows the whole round indicator', async 
   await host.page.getByTestId('start-game').click();
   for (const p of players) await expect(p.page.getByTestId('hangman-screen')).toHaveAttribute('data-phase', 'choosing');
 
-  const round = pia.page.getByTestId('round-indicator').locator('strong');
-  await expect(round).toHaveText('Round 1/1');
+  const round = pia.page.getByTestId('round-indicator').locator('.gbar__status');
+  await expect(round).toContainText('Round 1/1');
   const truncated = await round.evaluate((el) => el.scrollWidth > el.clientWidth);
   expect(truncated, 'the round indicator is not cut short at 320px').toBe(false);
   await expect.poll(() => pia.page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(SMALL.width);
@@ -144,11 +144,15 @@ test('the small phone guesser opens on the word with the whole keyboard on scree
   await expectOnScreen(pia, pia.page.getByTestId('canvas'), 'the canvas');
   for (const letter of ['A', 'M', 'Y', 'Z']) await expectOnScreen(pia, key(pia, letter), `key ${letter}`);
   await expectOnScreen(pia, pia.page.getByTestId('guess-mode'), 'the word button');
-  for (const letter of ['A', 'Z']) {
+  // Seven keys per row at 320px: at least 36px wide and 44px tall (the Pocket Party letter grid).
+  for (const letter of ['A', 'G', 'H', 'Z']) {
     const box = await boxOf(key(pia, letter));
-    expect(box.width).toBeGreaterThanOrEqual(44);
+    expect(box.width).toBeGreaterThanOrEqual(36);
     expect(box.height).toBeGreaterThanOrEqual(44);
   }
+  // A to G share the first row; H starts the second.
+  expect((await boxOf(key(pia, 'G'))).y).toBeCloseTo((await boxOf(key(pia, 'A'))).y, 0);
+  expect((await boxOf(key(pia, 'H'))).y).toBeGreaterThan((await boxOf(key(pia, 'A'))).y);
 
   // One tap on "Risk the word" focuses the tiles (the native keyboard opens from the tap).
   await pia.page.getByTestId('guess-mode').tap();

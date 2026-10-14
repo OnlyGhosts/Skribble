@@ -119,10 +119,9 @@
   position: relative;
   width: 100%;
   aspect-ratio: 4 / 3;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   overflow: hidden;
   background: var(--canvas-bg);
-  box-shadow: var(--shadow-md);
   border: 1px solid var(--color-border);
 }
 
@@ -161,10 +160,6 @@
 
   .canvas-group__footer {
     width: 100%;
-  }
-
-  .canvas-frame {
-    border-radius: var(--radius-item);
   }
 
   /*

@@ -61,4 +61,5 @@ export const SendIcon = (p: IconProps) => <Icon {...p} paths={['M3 3l18 9-18 9 4
 export const EyeIcon = (p: IconProps) => <Icon {...p} paths={['M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z', 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z']} />;
 export const PartyIcon = (p: IconProps) => <Icon {...p} paths={['m5.8 11.3 7 7L2 22l3.8-10.7Z', 'M4 3h.01M22 8h.01M15 2h.01M22 20h.01', 'M22 2 12.3 11.7', 'M11 13 22 2']} />;
 export const RefreshIcon = (p: IconProps) => <Icon {...p} paths={['M21 12a9 9 0 1 1-2.6-6.4', 'M21 3v6h-6']} />;
+export const MenuIcon = (p: IconProps) => <Icon {...p} paths="M4 6h16M4 12h16M4 18h16" />;
 export const MoreIcon = (p: IconProps) => <Icon {...p} paths={['M12 12h.01', 'M19 12h.01', 'M5 12h.01']} strokeWidth={3} />;

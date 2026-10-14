@@ -3,7 +3,7 @@ import { HANGMAN_WORD_LETTERS, HANGMAN_WORD_MAX_CHARS, type HangmanRoomState, ty
 import { isValidHangmanWord, normalizeHangmanWord } from '@shared/games/hangman/words';
 import { Avatar } from '../../../platform/components/Avatar';
 import { Timer } from '../../../platform/components/Timer';
-import { formatPoints } from '../../../platform/lib/format';
+import { ResultNext, ResultPoints, earnersOf } from '../../../platform/components/RoundResult';
 import { useCountdownSeconds } from '../../../platform/lib/useCountdown';
 import { usePlatformStore } from '../../../platform/store/usePlatformStore';
 import { chooseWord, sendCustomWord } from '../actions';
@@ -101,48 +101,30 @@ export function TurnEndOverlay({ room, view, paused }: Props) {
   const seconds = useCountdownSeconds(paused ? null : view.endsAt);
   const settling = !paused && seconds <= 0;
   const solverId = view.outcome?.kind === 'solved' ? view.outcome.solverId : null;
-  const earners = room.players
-    .map((p) => ({ player: p, points: view.points[p.id] ?? 0 }))
-    .filter((e) => e.points > 0)
-    .sort((a, b) => b.points - a.points || a.player.joinOrder - b.player.joinOrder);
+  const rows = earnersOf(room.players, view.points).map(({ player, points }) => ({
+    id: player.id,
+    player,
+    name: player.name,
+    points,
+    tag: player.id === view.hangmanId ? 'hangman' : undefined,
+    data: { 'data-name': player.name, 'data-points': points },
+  }));
   return (
     <div className="hm-overlay hm-overlay--turn-end" data-testid="overlay-turn-end" data-outcome={view.outcome?.kind}>
-      <div className="overlay__card">
-        <p className="overlay__kicker">{outcomeText(view.outcome, nameOf(room, view.hangmanId), nameOf(room, solverId))}</p>
-        <h2 className="overlay__title">
-          {view.word ? (
-            <>
-              The word was{' '}
-              <span className="hm-overlay__word" data-testid="turn-end-word">
-                {view.word}
-              </span>
-            </>
-          ) : (
-            'No word was chosen'
-          )}
-        </h2>
-        {earners.length > 0 ? (
-          <ul className="hm-points" aria-label="Points earned this turn">
-            {earners.map(({ player, points }) => (
-              <li key={player.id} className="hm-points__row" data-testid="turn-end-points" data-name={player.name} data-points={points}>
-                <Avatar avatar={player.avatar} size="sm" />
-                <span className="hm-points__name">
-                  {player.name}
-                  {player.id === view.hangmanId && <span className="hm-points__tag">hangman</span>}
-                </span>
-                <span className="hm-points__pts">{formatPoints(points)}</span>
-              </li>
-            ))}
-          </ul>
+      <div className="overlay__card result-card">
+        <p className="result-kicker">{outcomeText(view.outcome, nameOf(room, view.hangmanId), nameOf(room, solverId))}</p>
+        {view.word ? (
+          <p className="result-reveal">
+            <span className="result-reveal__label">The word was</span>
+            <strong className="result-reveal__value" data-testid="turn-end-word">
+              {view.word}
+            </strong>
+          </p>
         ) : (
-          <p className="overlay__hint">Nobody scored this turn.</p>
+          <h2 className="overlay__title">No word was chosen</h2>
         )}
-        <div className="overlay__footer">
-          <span data-testid="turn-end-countdown" data-countdown={paused ? 'paused' : settling ? 'settling' : 'running'}>
-            {paused ? 'Next turn is paused' : settling ? 'Next turn is starting' : 'Next turn in'}
-          </span>
-          <Timer endsAt={view.endsAt} size="md" warnUnder={0} paused={paused} settling={settling} />
-        </div>
+        <ResultPoints rows={rows} label="Points earned this turn" rowTestId="turn-end-points" empty="Nobody scored this turn." />
+        <ResultNext noun="Next turn" endsAt={view.endsAt} paused={paused} settling={settling} testId="turn-end-countdown" />
       </div>
     </div>
   );

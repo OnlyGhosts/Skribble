@@ -1,21 +1,16 @@
 import type { SpygameSettings, SpygameView } from '@shared/games/spygame/protocol';
 import { gameById } from '@shared/platform/games';
 import { BottomSheet } from '../../platform/components/BottomSheet';
-import { GameMark } from '../../platform/components/GameGlyph';
 import { Chat } from '../../platform/components/Chat';
-import { ConnectionPill } from '../../platform/components/ConnectionPill';
-import { LogoutIcon, MoreIcon, UsersIcon } from '../../platform/components/Icons';
+import { GameMenuSheet, GameTopBar } from '../../platform/components/GameTopBar';
 import { PlayerList } from '../../platform/components/PlayerList';
-import { PreferenceRows, SettingsMenu } from '../../platform/components/Preferences';
 import type { GameScreenProps } from '../../platform/game';
 import { PHONE_QUERY, useMediaQuery } from '../../platform/lib/media';
 import { useAppMode } from '../../platform/lib/useViewport';
-import { leaveRoom } from '../../platform/net/actions';
 import { useActiveGame } from '../../platform/store/selectors';
 import { AccuseList } from './components/AccuseList';
 import { CandidateGrid } from './components/CandidateGrid';
 import { GuessGrid } from './components/GuessGrid';
-import { ChatIcon, SpyIcon } from './components/Icons';
 import { RevealOverlay } from './components/RevealOverlay';
 import { RoleCard } from './components/RoleCard';
 import { RoundClock } from './components/RoundClock';
@@ -52,58 +47,19 @@ export function SpyGameScreen({ room, meId, isHost }: GameScreenProps<SpygameVie
   const players = <PlayerList room={room} meId={meId} isHost={isHost} mode="game" game={game} />;
   const accuse = <AccuseList room={room} view={view} meId={meId} />;
 
-  const playersButton = (
-    <button type="button" className="spy__players-btn" onClick={() => openSheet('players')} aria-haspopup="dialog" aria-expanded={playersOpen} aria-label={`Scores (${room.players.length} players)`} data-testid="players-toggle">
-      <UsersIcon size={18} />
-      <span>{room.players.length}</span>
-    </button>
-  );
-
   return (
     <div className={`spy${isPhone ? ' spy--phone' : ''}`} data-phase={view.phase} data-role={view.role} data-testid="spygame-screen">
-      <header className="spy__top card" data-testid="spygame-header">
-        {isPhone ? (
-          <>
-            <div className="spy__round spy__round--compact" data-testid="round-indicator">
-              <strong>
-                Round {view.round}/{view.totalRounds}
-              </strong>
-              <small>{meta.name}</small>
-            </div>
-            <RoundClock clock={view.clock} holding={holding} />
-            {playersButton}
-            <button type="button" className="icon-btn spy__icon-btn" onClick={() => openSheet('chat')} aria-haspopup="dialog" aria-expanded={chatOpen} aria-label="Chat" data-testid="chat-toggle">
-              <ChatIcon size={20} />
-            </button>
-            <button type="button" className="icon-btn spy__icon-btn" onClick={() => openSheet('menu')} aria-haspopup="dialog" aria-expanded={menuOpen} aria-label="More options" data-testid="game-menu">
-              <MoreIcon size={20} />
-            </button>
-          </>
-        ) : (
-          <>
-            <div className="spy__brand">
-              <GameMark game={meta} size="sm" />
-              <div className="spy__round" data-testid="round-indicator">
-                <strong>
-                  Round {view.round} of {view.totalRounds}
-                </strong>
-                <small>{meta.name}</small>
-              </div>
-            </div>
-            <div className="spy__center">
-              <RoundClock clock={view.clock} holding={holding} />
-            </div>
-            <div className="spy__side">
-              {playersButton}
-              <ConnectionPill />
-              <SettingsMenu />
-              <button type="button" className="btn btn--ghost btn--sm" onClick={leaveRoom} data-testid="leave-room" aria-label="Leave room">
-                <LogoutIcon size={16} /> <span className="hide-mobile">Leave</span>
-              </button>
-            </div>
-          </>
-        )}
-      </header>
+      <GameTopBar
+        meta={meta}
+        isPhone={isPhone}
+        testId="spygame-header"
+        className="spy__top"
+        status={`Round ${view.round}/${view.totalRounds}`}
+        clock={<RoundClock clock={view.clock} holding={holding} />}
+        players={{ count: room.players.length, label: 'Scores', open: playersOpen, onOpen: () => openSheet('players') }}
+        chat={isPhone ? { open: chatOpen, onOpen: () => openSheet('chat') } : undefined}
+        menu={{ open: menuOpen, onOpen: () => openSheet('menu') }}
+      />
 
       <div className="spy__stage">
         <main className="spy__main" data-testid="spygame-main">
@@ -144,14 +100,7 @@ export function SpyGameScreen({ room, meId, isHost }: GameScreenProps<SpygameVie
               <Chat />
             </div>
           </BottomSheet>
-          <BottomSheet open={menuOpen} title="Options" onClose={closeSheet} testId="menu-sheet">
-            <div className="menu-sheet">
-              <PreferenceRows />
-              <button type="button" className="btn btn--ghost btn--block menu-sheet__leave" onClick={leaveRoom} data-testid="leave-room">
-                <LogoutIcon size={16} /> Leave room
-              </button>
-            </div>
-          </BottomSheet>
+          <GameMenuSheet open={menuOpen} onClose={closeSheet} />
         </>
       )}
       {/* Last, so it stacks above the other sheets should one be open. */}

@@ -122,7 +122,7 @@ export function Result({ room, view, result, isHost, playing, holding = false }:
   const label = !last ? 'Next' : view.round >= view.totalRounds ? 'Show results' : view.round + 1 >= view.totalRounds ? 'Final round' : 'Next round';
   return (
     <section className="card quip-result" aria-label="Result" data-testid="quip-result" data-matchup={result.index} data-outcome={result.outcome}>
-      <p className="overlay__kicker">
+      <p className="quip-kicker">
         Matchup {result.index + 1} of {result.total}
       </p>
       <h2 className="quip-result__headline" data-testid="result-headline">

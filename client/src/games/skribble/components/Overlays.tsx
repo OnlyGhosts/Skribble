@@ -2,7 +2,7 @@ import type { SkribblePhase, SkribbleRoomState } from '@shared/games/skribble/pr
 import type { PlayerPublic } from '@shared/platform/protocol';
 import { Avatar } from '../../../platform/components/Avatar';
 import { Timer } from '../../../platform/components/Timer';
-import { formatPoints } from '../../../platform/lib/format';
+import { ResultNext, ResultPoints, earnersOf } from '../../../platform/components/RoundResult';
 import { useCountdownSeconds } from '../../../platform/lib/useCountdown';
 import { chooseWord } from '../actions';
 import { turnEndReasonText } from '../lib/format';
@@ -51,47 +51,21 @@ export function TurnEndOverlay({ phase, room, paused = false }: { phase: TurnEnd
   // The summary's time ran out and the server's next turn is a beat away: no red "0" meanwhile.
   const seconds = useCountdownSeconds(paused ? null : phase.endsAt);
   const settling = !paused && seconds <= 0;
-  const earners = Object.entries(phase.points)
-    .filter(([, pts]) => pts > 0)
-    .sort((a, b) => b[1] - a[1]);
+  const rows = earnersOf(room.players, phase.points).map(({ player, points }) => ({ id: player.id, player, name: player.name, points, tag: player.id === phase.drawerId ? 'drawer' : undefined }));
   return (
     <div className="overlay overlay--turn-end" data-testid="overlay-turn-end">
-      <div className="overlay__card">
-        <p className="overlay__kicker">{turnEndReasonText(phase.reason, drawerName)}</p>
-        <h2 className="overlay__title">
-          {phase.word ? (
-            <>
-              The word was <span className="overlay__word">{phase.word}</span>
-            </>
-          ) : (
-            'No word was chosen'
-          )}
-        </h2>
-        {earners.length > 0 ? (
-          <ul className="points-list" aria-label="Points earned this turn">
-            {earners.map(([id, pts]) => {
-              const player = findPlayer(room, id);
-              return (
-                <li key={id} className="points-list__row">
-                  {player && <Avatar avatar={player.avatar} size="sm" />}
-                  <span className="points-list__name">
-                    {player?.name ?? 'A player'}
-                    {id === phase.drawerId && <span className="points-list__tag">drawer</span>}
-                  </span>
-                  <span className="points-list__pts">{formatPoints(pts)}</span>
-                </li>
-              );
-            })}
-          </ul>
+      <div className="overlay__card result-card">
+        <p className="result-kicker">{turnEndReasonText(phase.reason, drawerName)}</p>
+        {phase.word ? (
+          <p className="result-reveal">
+            <span className="result-reveal__label">The word was</span>
+            <strong className="result-reveal__value">{phase.word}</strong>
+          </p>
         ) : (
-          <p className="overlay__hint">Nobody guessed it this time.</p>
+          <h2 className="overlay__title">No word was chosen</h2>
         )}
-        <div className="overlay__footer">
-          <span data-testid="turn-end-countdown" data-countdown={paused ? 'paused' : settling ? 'settling' : 'running'}>
-            {paused ? 'Next turn is paused' : settling ? 'Next turn is starting' : 'Next turn in'}
-          </span>
-          <Timer endsAt={phase.endsAt} size="md" warnUnder={0} paused={paused} settling={settling} />
-        </div>
+        <ResultPoints rows={rows} label="Points earned this turn" empty="Nobody guessed it this time." />
+        <ResultNext noun="Next turn" endsAt={phase.endsAt} paused={paused} settling={settling} testId="turn-end-countdown" />
       </div>
     </div>
   );

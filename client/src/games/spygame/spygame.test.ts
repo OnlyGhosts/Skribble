@@ -271,7 +271,7 @@ describe('the reveal', () => {
 
     const heldGuest = render(revealRoom(NOW - 3_000, 'bob', hold), 'bob');
     expect(tagWith(heldGuest, 'reveal-countdown')).toContain('data-countdown="paused"');
-    expect(heldGuest).toContain('Next round paused');
+    expect(heldGuest).toContain('Next round is paused');
     const heldTimer = heldGuest.slice(heldGuest.indexOf('data-testid="spygame-reveal"'));
     expect(tagWith(heldTimer, 'timer')).toContain('data-paused="players"');
     expect(heldTimer).not.toContain('timer--urgent');
@@ -282,7 +282,7 @@ describe('the reveal', () => {
     // The settle after a hold (or the beat before the server's tick): the deadline is in the past, nothing holds.
     const settlingGuest = render(revealRoom(NOW - 3_000, 'bob'), 'bob');
     expect(tagWith(settlingGuest, 'reveal-countdown')).toContain('data-countdown="settling"');
-    expect(settlingGuest).toContain('Next round starting');
+    expect(settlingGuest).toContain('Next round is starting');
     const settlingTimer = settlingGuest.slice(settlingGuest.indexOf('data-testid="spygame-reveal"'));
     expect(tagWith(settlingTimer, 'timer')).toContain('data-face="settling"');
     expect(settlingTimer).not.toContain('timer--urgent');
@@ -298,7 +298,7 @@ describe('the reveal', () => {
     expect(running).toContain('Next round in');
   });
 
-  it('names a spy who has left the room from the reveal itself and styles the points with game-owned classes', () => {
+  it('names a spy who has left the room from the reveal itself and lists the points in the platform result list', () => {
     const left = spyRoom(view({ phase: 'reveal', roundPlayers: ['bob', 'carol', 'dave'], reveal: { ...REVEAL, outcome: 'spyLeft', spyName: 'Hana', points: { bob: 1, carol: 1, dave: 1 } } }), {
       players: [player('bob', { joinOrder: 1 }), player('carol', { joinOrder: 2 }), player('dave', { joinOrder: 3 })],
     });
@@ -306,10 +306,8 @@ describe('the reveal', () => {
     expect(attr(tagWith(html, 'reveal-spy'), 'data-player-id')).toBe('host');
     expect(html).toContain('Hana');
     expect(html).not.toContain('Someone');
-    expect(html).toContain('class="spy-points spy-reveal__points"');
-    expect(html).not.toContain('points-list');
-    const css = readFileSync(fileURLToPath(new URL('./spygame.css', import.meta.url)), 'utf8');
-    for (const cls of ['.spy-points {', '.spy-points__row {', '.spy-points__name {', '.spy-points__tag {', '.spy-points__pts {']) expect(css).toContain(cls);
+    expect(html).toContain('class="result-points"');
+    expect(tagsWith(html, 'reveal-points-row')).toHaveLength(3);
   });
 
   it('hands the spy badge and the round points to the player list only during the reveal', () => {
@@ -446,7 +444,6 @@ describe('the stylesheet', () => {
   it('keeps notices in view in the scrolling column and the reveal footer reachable', () => {
     expect(css).toMatch(/\.spy__banner \{[^}]*position: sticky/);
     expect(css).toMatch(/\.spy-reveal__footer \{[^}]*position: sticky/);
-    expect(css).toMatch(/@media \(max-width: 360px\) \{[^@]*\.spy__round--compact small \{\s*display: none/);
   });
 });
 

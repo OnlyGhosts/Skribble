@@ -1,5 +1,9 @@
 /* ---------- Battleships: layout ---------- */
 .bs {
+  --game-accent: var(--game-battleships);
+  /* Mask glyphs for the grid: a hit's cross and the aimed cell's crosshair (filled by background-color). */
+  --bs-cross: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='4' stroke-linecap='round'%3E%3Cpath d='M5 5l14 14M19 5L5 19'/%3E%3C/svg%3E");
+  --bs-crosshair: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='7'/%3E%3Cpath d='M12 1v6M12 17v6M1 12h6M17 12h6'/%3E%3C/svg%3E");
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr) 320px;
   grid-template-rows: auto minmax(0, 1fr);
@@ -12,64 +16,6 @@
 
 .bs__top {
   grid-column: 1 / -1;
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-3) var(--space-4);
-}
-
-.bs__brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-}
-
-.bs__turn {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.2;
-  min-width: 0;
-}
-
-.bs__turn strong {
-  font-weight: 800;
-}
-
-.bs__turn small {
-  color: var(--color-text-faint);
-  font-weight: 600;
-  font-size: 0.75rem;
-}
-
-.bs__clock {
-  justify-self: center;
-}
-
-.bs__side {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 6px;
-}
-
-.bs__players-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  min-height: 44px;
-  padding: 0 10px;
-  border-radius: var(--radius-pill);
-  background: var(--color-primary-soft);
-  color: var(--color-primary-text);
-  font-weight: 800;
-  font-size: 0.9rem;
-}
-
-.bs__icon-btn {
-  width: 44px;
-  height: 44px;
 }
 
 .bs-dice {
@@ -180,9 +126,26 @@
 
 .bs-status .bs-dice {
   margin-left: auto;
+  align-self: center;
   min-height: 26px;
   padding: 0 8px;
   font-size: 0.8rem;
+}
+
+/* The phone's shot log button rides at the end of the status line. */
+.bs-status__log {
+  align-self: center;
+  width: 44px;
+  height: 44px;
+  margin: -8px -10px -8px 0;
+}
+
+.bs-status .bs-dice + .bs-status__log {
+  margin-left: 0;
+}
+
+.bs-status > .bs-status__log:not(.bs-dice + .bs-status__log) {
+  margin-left: auto;
 }
 
 .bs-status span {
@@ -464,25 +427,38 @@
   background: var(--color-border-strong);
 }
 
+/* A hit is a cross, not just a red mark: the shape tells it from a miss without the colour. */
 .bs-cell[data-mark='hit']::after,
 .bs-cell[data-mark='sunk']::after {
-  width: 58%;
-  height: 58%;
+  width: 62%;
+  height: 62%;
+  border-radius: 0;
   background: var(--color-danger);
+  -webkit-mask: var(--bs-cross) center / contain no-repeat;
+  mask: var(--bs-cross) center / contain no-repeat;
 }
 
 .bs-cell[data-mark='sunk'] {
   background: var(--color-danger-soft);
 }
 
-.bs-cell[data-mark='sunk']::after {
-  border-radius: 20%;
-}
-
+/* The aimed cell: a thick outline and a crosshair (the fire bar names it, "Fire at F1"). */
 .bs-cell[data-state='aimed'] {
   background: var(--color-primary-soft);
-  box-shadow: inset 0 0 0 2px var(--color-primary-text);
+  box-shadow: inset 0 0 0 3px var(--color-primary-text);
   z-index: 2;
+}
+
+.bs-cell[data-state='aimed']::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 70%;
+  height: 70%;
+  background: var(--color-primary-text);
+  -webkit-mask: var(--bs-crosshair) center / contain no-repeat;
+  mask: var(--bs-crosshair) center / contain no-repeat;
 }
 
 .bs-cell[data-state='invalid'] {
@@ -898,39 +874,6 @@
 
   .bs__top {
     flex: none;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 8px;
-    border-radius: var(--radius-item);
-    min-height: 56px;
-  }
-
-  .bs__brand {
-    flex: 1 1 0;
-  }
-
-  .bs__turn strong,
-  .bs__turn small {
-    display: block;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .bs__turn strong {
-    font-size: 0.85rem;
-  }
-
-  .bs__turn small {
-    font-size: 0.7rem;
-  }
-
-  .bs .timer--lg {
-    width: 44px;
-    height: 44px;
-    font-size: 0.82rem;
-    letter-spacing: -0.02em;
   }
 
   .bs__main {
@@ -981,26 +924,6 @@
   .bs-place__actions .btn {
     font-size: 0.85rem;
     padding: 0 6px;
-  }
-}
-
-/* The narrowest phones: tighter chrome in the bar, and the board takes the gutters too (ten cells of ~31px on 320px). */
-@media (max-width: 359px) {
-  .bs__top {
-    gap: 4px;
-    padding: 6px;
-  }
-
-  .bs__side {
-    gap: 4px;
-  }
-
-  .bs__players-btn {
-    padding: 0 8px;
-  }
-
-  .bs__turn strong {
-    font-size: 0.8rem;
   }
 }
 
