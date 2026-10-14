@@ -1,5 +1,6 @@
 import type { BattleshipsRoomState, BattleshipsView, SideView, TargetGridView } from '@shared/games/battleships/protocol';
 import type { PlayerPublic, RoomState } from '@shared/platform/protocol';
+import type { TurnDraft, TurnMode } from './store';
 
 export function playerOf(room: RoomState, id: string | null | undefined): PlayerPublic | undefined {
   return id ? room.players.find((p) => p.id === id) : undefined;
@@ -82,4 +83,15 @@ export function fleetStatus(fleet: readonly number[], sunkLengths: readonly numb
     if (i >= 0) left.splice(i, 1);
     return { length, sunk: i >= 0 };
   });
+}
+
+/** Ties the shooter's draft to one turn: a new turn, a new shooter or a fresh roll after a hold all start over. */
+export function turnKey(view: BattleshipsView): string {
+  return view.turn ? `${view.turnNumber}:${view.turn.shooterId}:${view.turn.roll ?? '-'}` : '';
+}
+
+/** What the viewer is doing with their turn: the draft's mode when it belongs to this turn, else where a turn starts. */
+export function turnModeOf(view: BattleshipsView, draft: TurnDraft): TurnMode {
+  if (!view.moveOrFire || view.turn?.roll === null) return 'fire';
+  return draft.key === turnKey(view) ? draft.mode : 'choose';
 }

@@ -10,8 +10,8 @@ import { vibrate } from '../../platform/lib/haptics';
 import { playCue } from '../../platform/lib/sound';
 import { usePlatformStore } from '../../platform/store/usePlatformStore';
 import { AnchorIcon, CrosshairIcon, SkullIcon } from './components/Icons';
-import { isEliminated, isNewGame, isShooter, isWatching, mySideSunk, nameOf, shotAdded, targetForTurn } from './hooks';
-import { chatPlaceholderFor, diceText } from './lib/text';
+import { isEliminated, isNewGame, isShooter, isWatching, mySideSunk, nameOf, shotAdded, targetForTurn, turnKey } from './hooks';
+import { chatPlaceholderFor } from './lib/text';
 import { BattleshipsScreen } from './Screen';
 import { BattleshipsSettingsFields } from './SettingsFields';
 import { useBattleshipsStore } from './store';
@@ -36,7 +36,7 @@ export const battleshipsClient = defineGameClient<BattleshipsView, BattleshipsSe
     }
     if (isShooter(view, player.id)) {
       return (
-        <span className="player__badge player__badge--shooter" style={{ background: meta.accent }} title="Taking aim" aria-label="Taking aim">
+        <span className="player__badge player__badge--shooter" style={{ background: meta.accent }} title="Their turn" aria-label="Their turn">
           <CrosshairIcon size={11} />
         </span>
       );
@@ -75,9 +75,12 @@ export const battleshipsClient = defineGameClient<BattleshipsView, BattleshipsSe
     const before = prev?.game ?? null;
     if (view.phase === 'placing' && view.myBoard) store.adoptLayout(view.myBoard.ships);
     const myTurn = isShooter(view, me) && view.phase === 'playing';
-    if (myTurn && !(isShooter(before, me) && before?.phase === 'playing')) {
+    const key = turnKey(view);
+    // A turn of the viewer's opens (or comes back with a fresh roll after a hold): the choice, or straight to aiming.
+    if (myTurn && store.turn.key !== key) {
+      store.beginTurn(key, view.moveOrFire && view.turn?.roll !== null);
       store.selectTab(targetForTurn(view, store.tab));
-      if (prev) {
+      if (prev && !(isShooter(before, me) && before?.phase === 'playing' && before.turnNumber === view.turnNumber)) {
         playCue('yourTurn');
         vibrate(30);
       }
@@ -88,10 +91,12 @@ export const battleshipsClient = defineGameClient<BattleshipsView, BattleshipsSe
       const shot = view.lastShot;
       if (shot.result === 'sunk') playCue('correct');
       if (shot.targetId === view.mySideId && shot.result !== 'miss') vibrate(shot.result === 'sunk' ? 80 : 30);
-      // Only a roll that opens a move window earns a toast, and not for the shooter, whose panel says it: the dice pill and the log carry the rest.
-      if (shot.dice !== null && view.phase === 'moving' && shot.shooterId !== me) addToast('info', diceText(nameOf(room, shot.shooterId), shot.dice));
     }
-    if (view.phase === 'moving' && before?.phase !== 'moving' && isShooter(view, me)) store.selectTab(null);
+    // A move says only who moved: everyone but the mover hears it here too, as the next turn has already begun.
+    const action = view.lastAction;
+    if (prev && before && before.turnNumber !== view.turnNumber && action?.kind === 'move' && action.playerId !== me) addToast('info', `${nameOf(room, action.playerId)} moved a ship.`);
+    // A teammate starts planning a move: their ghost shows on the shared board.
+    if (!myTurn && view.myBoard?.plan && !before?.myBoard?.plan) store.selectTab(null);
     if (prev && mySideSunk(before, view, me)) {
       playCue('turnEnd');
       addToast('warning', 'Your fleet is sunk. You can watch the rest of the battle.');

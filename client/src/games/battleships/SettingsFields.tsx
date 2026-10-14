@@ -1,4 +1,4 @@
-import { BATTLESHIPS_BOARD_SIZES, BATTLESHIPS_FLEETS, BATTLESHIPS_SETTINGS_LIMITS, type BattleshipsSettings } from '@shared/games/battleships/protocol';
+import { BATTLESHIPS_FLEETS, BATTLESHIPS_SETTINGS_LIMITS, type BattleshipsSettings } from '@shared/games/battleships/protocol';
 import { RangeSetting, SettingRow, ToggleSetting } from '../../platform/components/SettingControls';
 import type { SettingsFieldsProps } from '../../platform/game';
 
@@ -39,7 +39,7 @@ function ChoiceSetting<T extends string | number>({ id, label, value, options, c
   return <SettingRow label={label} testId={id} value={current?.label ?? String(value)} hint={hint} control={canEdit ? control : undefined} />;
 }
 
-/** Battleships' rows in the lobby settings panel: mode, board, fleet, the two clocks and the dice. */
+/** Battleships' rows in the lobby settings panel: mode, fleet, the two clocks and move or fire. */
 export function BattleshipsSettingsFields({ settings, canEdit, patch }: SettingsFieldsProps<BattleshipsSettings>) {
   const range = { canEdit, revision: settings };
   return (
@@ -56,14 +56,6 @@ export function BattleshipsSettingsFields({ settings, canEdit, patch }: Settings
         ]}
       />
       <ChoiceSetting
-        id="boardSize"
-        label="Board"
-        value={settings.boardSize}
-        canEdit={canEdit}
-        onChange={(boardSize) => patch({ boardSize })}
-        options={BATTLESHIPS_BOARD_SIZES.map((size) => ({ value: size, label: `${size} × ${size}` }))}
-      />
-      <ChoiceSetting
         id="fleet"
         label="Fleet"
         value={settings.fleet}
@@ -74,6 +66,7 @@ export function BattleshipsSettingsFields({ settings, canEdit, patch }: Settings
           label: fleet === 'small' ? 'Small' : 'Classic',
           blurb: `Ships of ${BATTLESHIPS_FLEETS[fleet].join(', ')}`,
         }))}
+        hint="Boards are 10 × 10. A shared team board grows with its crew and gets an extra 3-ship per extra player."
       />
       <RangeSetting
         id="placeSeconds"
@@ -99,7 +92,14 @@ export function BattleshipsSettingsFields({ settings, canEdit, patch }: Settings
         hint="A shot is fired for you when the clock runs out."
         {...range}
       />
-      <ToggleSetting id="diceMoves" checked={settings.diceMoves} disabled={!canEdit} onChange={(v) => patch({ diceMoves: v })} label="Dice moves" hint="Roll a die after every shot: a 5 or 6 lets you secretly slide an undamaged ship one cell." />
+      <ToggleSetting
+        id="moveOrFire"
+        checked={settings.moveOrFire}
+        disabled={!canEdit}
+        onChange={(v) => patch({ moveOrFire: v })}
+        label="Move or fire"
+        hint="Each turn starts with a die roll. Fire, or secretly move one of your ships up to the roll. Off: one shot a turn."
+      />
     </>
   );
 }

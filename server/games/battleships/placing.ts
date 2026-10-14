@@ -1,12 +1,12 @@
-/** The placing phase: sides are formed at start, captains lay out their fleets, the deadline fills in the rest. */
-import { completeLayout, isComplete, validateLayout } from '../../../shared/games/battleships/fleet.js';
+/** The placing phase: sides and boards are formed at start, captains lay out their fleets, the deadline fills in the rest. */
+import { boardSizeFor, completeLayout, fleetFor, isComplete, validateLayout } from '../../../shared/games/battleships/fleet.js';
 import { BATTLESHIPS_TEAM_IDS, type ShipPlacement } from '../../../shared/games/battleships/protocol.js';
 import type { PlatformPlayer } from '../../platform/game.js';
 import { aliveSides, captainOf, fail, sideName, sideOf, snapshot, systemMessage, type BattleshipsData, type Ctx, type Gx, type SideData } from './state.js';
 import { beginTurn } from './turns.js';
 
 function newSide(id: string, memberIds: string[]): SideData {
-  return { id, memberIds, ships: [], ready: false, shots: {}, alive: true, lastShooterId: null };
+  return { id, memberIds, ships: [], ready: false, shots: {}, alive: true, lastShooterId: null, movedLastTurn: false };
 }
 
 /** Solo: a side per participant in join order. Teams: A and B alternately by join order (an odd count gives A one more). */
@@ -15,17 +15,25 @@ export function formSides(ctx: Ctx): SideData[] {
   return BATTLESHIPS_TEAM_IDS.map((id, team) => newSide(id, ctx.players.filter((_, i) => i % 2 === team).map((p) => p.id)));
 }
 
+/**
+ * Every board is the classic 10x10 for one player. A team board grows with its crew (with an extra
+ * 3-ship per extra member), and both teams play the larger team's board and fleet so neither side
+ * hides in more water. Joiners after the start do not change it.
+ */
 export function initialData(ctx: Ctx): BattleshipsData {
+  const sides = formSides(ctx);
+  const crew = ctx.settings.mode === 'teams' ? Math.max(1, ...sides.map((s) => s.memberIds.length)) : 1;
   return {
     mode: ctx.settings.mode,
-    size: ctx.settings.boardSize,
-    fleet: ctx.settings.fleet,
-    sides: formSides(ctx),
+    size: boardSizeFor(crew),
+    fleet: fleetFor(ctx.settings.fleet, crew),
+    moveOrFire: ctx.settings.moveOrFire,
+    sides,
     phase: { kind: 'placing', endsAt: ctx.now + ctx.settings.placeSeconds * 1000 },
     lastSide: -1,
-    dice: null,
     log: [],
-    shotsTaken: 0,
+    lastAction: null,
+    turnsTaken: 0,
   };
 }
 

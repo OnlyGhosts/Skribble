@@ -14,3 +14,5 @@ export const ArrowIcon = ({ direction, ...p }: IconProps & { direction: 'left' |
   }[direction];
   return <Icon {...p} paths={paths} />;
 };
+export const MoveIcon = (p: IconProps) => <Icon {...p} paths={['M12 3v18M3 12h18', 'm9 6 3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3']} />;
+export const UndoIcon = (p: IconProps) => <Icon {...p} paths={['M9 14 4 9l5-5', 'M4 9h11a5 5 0 0 1 0 10h-3']} />;

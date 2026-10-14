@@ -14,14 +14,9 @@ export function shotSummary(shot: ShotEvent): string {
   }
 }
 
-/** The toast for a roll that opens a move window; lower rolls only show in the dice pill and the log. */
-export function diceText(shooter: string, dice: number): string {
-  return `${shooter} rolled a ${dice}. A ship may slip away!`;
-}
-
-/** The shot counter under the game's name in the top bar. */
+/** The turn counter under the game's name in the top bar (shots and moves). */
 export function turnKicker(phase: BattleshipsPhase, turnNumber: number): string {
-  return phase === 'placing' ? 'Placing fleets' : `Shot ${turnNumber}`;
+  return phase === 'placing' ? 'Placing fleets' : `Turn ${turnNumber}`;
 }
 
 export function chatPlaceholderFor(phase: BattleshipsPhase | undefined, myTurn: boolean, watching: boolean): string | undefined {

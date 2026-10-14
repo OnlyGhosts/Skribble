@@ -82,8 +82,10 @@ Open http://localhost:5173. The Vite dev server proxies `/ws` and `/api` to the 
 
 For the games with words, prompts or places (Scribble, The Spy Game, Quip Game and Hangman) the
 host also picks a **content mode** for the whole party: *Family* keeps it clean, *Unhinged (18+)*
-is adults only, crude and filthy. The lobby only shows the choice for those games; for the others
-it stays stored, so switching back restores it.
+is adults only and plays the cheeky packs plus the explicit ones (sex, drink and drugs, bodily
+fluids, death and family shame; never slurs, never jokes aimed at a group, nothing sexual
+involving anyone under 18). The lobby only shows the choice for those games; for the others it
+stays stored, so switching back restores it.
 
 Reload, lock your phone or drop off Wi-Fi and you come back to the same seat with the same name
 and score: a seat survives ten minutes without a connection. A running game never ends over a

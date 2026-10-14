@@ -33,7 +33,7 @@ describe('the location pack', () => {
     expect(locationsForMode('family')).toEqual(SPY_LOCATIONS);
     expect(locationsForMode('unhinged')).toEqual([...SPY_LOCATIONS, ...CHEEKY_LOCATIONS, ...UNHINGED_LOCATIONS]);
     expect(CHEEKY_LOCATIONS.length).toBeGreaterThanOrEqual(10);
-    expect(UNHINGED_LOCATIONS.length).toBeGreaterThanOrEqual(10);
+    expect(UNHINGED_LOCATIONS).toHaveLength(24);
     expect(new Set(ALL_SPY_LOCATIONS.map((l) => l.id)).size).toBe(ALL_SPY_LOCATIONS.length);
     expect(new Set(ALL_SPY_LOCATIONS.map((l) => l.name)).size).toBe(ALL_SPY_LOCATIONS.length);
     for (const l of ALL_SPY_LOCATIONS) {
@@ -44,16 +44,16 @@ describe('the location pack', () => {
       expect(locationById(l.id)).toBe(l);
     }
     for (const mode of CONTENT_MODES) expect(locationsForMode(mode).length).toBeGreaterThanOrEqual(SPYGAME_CANDIDATES);
-    expect(isLocationId('strip-club')).toBe(true);
-    expect(SPY_LOCATIONS.some((l) => l.id === 'strip-club')).toBe(false);
+    expect(isLocationId('stag-do-in-magaluf')).toBe(true);
+    expect(SPY_LOCATIONS.some((l) => l.id === 'stag-do-in-magaluf')).toBe(false);
   });
 
   it('draws candidates and picks locations from the pool it is given', () => {
     const pool = locationsForMode('unhinged');
     const rng = lcg(5);
     const seen = new Set<string>();
-    for (let i = 0; i < 60; i++) for (const id of drawCandidates('strip-club', SPYGAME_CANDIDATES, rng, pool)) seen.add(id);
-    expect(seen.has('sex-shop')).toBe(true);
+    for (let i = 0; i < 60; i++) for (const id of drawCandidates('stag-do-in-magaluf', SPYGAME_CANDIDATES, rng, pool)) seen.add(id);
+    expect(seen.has('sex-shop-stockroom')).toBe(true);
     // The family pool never draws a tier location, as a decoy or as the pick.
     for (let i = 0; i < 20; i++) {
       for (const id of drawCandidates('beach', SPYGAME_CANDIDATES, rng)) expect(SPY_LOCATIONS.some((l) => l.id === id)).toBe(true);

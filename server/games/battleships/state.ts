@@ -1,6 +1,6 @@
 /** Battleships' JSON-safe game state (the module's `D`), its working context and the small queries over it. */
 import { shipsAfloat, type Ship } from '../../../shared/games/battleships/fleet.js';
-import type { BattleshipsFleet, BattleshipsMode, BattleshipsServerMessage, BattleshipsSettings, CellMark, ShotEvent } from '../../../shared/games/battleships/protocol.js';
+import { BATTLESHIPS_DIE_FACES, type BattleshipsMode, type BattleshipsServerMessage, type BattleshipsSettings, type CellMark, type MovePlan, type ShotEvent, type TurnAction } from '../../../shared/games/battleships/protocol.js';
 import type { GameCtx, GameEffect, PlatformPlayer } from '../../platform/game.js';
 
 /** A fleet and the players behind it: one player in solo, a team in teams. */
@@ -16,32 +16,36 @@ export interface SideData {
   /** Every shot received, keyed by cell. */
   shots: Record<string, CellMark>;
   alive: boolean;
-  /** The member who fired last (null before the first shot); the team rotates from here. */
+  /** The member who took the side's last turn (null before the first); the team rotates from here. */
   lastShooterId: string | null;
+  /** The side's last turn was a move: its next one must be a shot. */
+  movedLastTurn: boolean;
 }
 
 export type PhaseData =
   | { kind: 'placing'; endsAt: number }
-  | { kind: 'turn'; sideId: string; shooterId: string; endsAt: number }
-  | { kind: 'moving'; sideId: string; shooterId: string; endsAt: number }
+  /** `roll` is the die rolled as the turn began (null with move or fire off); `plan` the shooter's move in the making. */
+  | { kind: 'turn'; sideId: string; shooterId: string; endsAt: number; roll: number | null; plan: MovePlan | null }
   /** Holding at a turn boundary for disconnected players; `resumeAt` is the settle once enough are back. */
   | { kind: 'held'; resumeAt: number | null }
   | { kind: 'gameOver'; winnerSideId: string | null };
 
 export interface BattleshipsData {
   mode: BattleshipsMode;
+  /** Every board's side, fixed at the start from the biggest crew. */
   size: number;
-  fleet: BattleshipsFleet;
+  /** Every fleet's ship lengths in ship-id order, fixed at the start with the board. */
+  fleet: number[];
+  moveOrFire: boolean;
   sides: SideData[];
   phase: PhaseData;
-  /** Index into `sides` of the side that fired last; the rotation continues after it. */
+  /** Index into `sides` of the side that took the last turn; the rotation continues after it. */
   lastSide: number;
-  /** The latest die roll, until the next shot. */
-  dice: number | null;
   /** The last few shots, newest last. */
   log: ShotEvent[];
-  /** Shots taken so far. */
-  shotsTaken: number;
+  lastAction: TurnAction | null;
+  /** Turns taken so far, shots and moves. */
+  turnsTaken: number;
 }
 
 export type Ctx = GameCtx<BattleshipsSettings>;
@@ -109,7 +113,7 @@ export function shipsLeft(side: SideData): number {
 }
 
 export function isShooter(data: BattleshipsData, playerId: string): boolean {
-  return (data.phase.kind === 'turn' || data.phase.kind === 'moving') && data.phase.shooterId === playerId;
+  return data.phase.kind === 'turn' && data.phase.shooterId === playerId;
 }
 
 export function systemMessage(gx: Gx, text: string): void {
@@ -130,7 +134,7 @@ export function award(gx: Gx, playerId: string, delta: number): void {
 
 /** A die roll from the injected rng: 1 to 6. */
 export function rollDie(ctx: Ctx): number {
-  return 1 + Math.min(5, Math.floor(ctx.rng() * 6));
+  return 1 + Math.min(BATTLESHIPS_DIE_FACES - 1, Math.floor(ctx.rng() * BATTLESHIPS_DIE_FACES));
 }
 
 /** A uniform pick from a non-empty list through the injected rng. */

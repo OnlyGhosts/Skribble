@@ -106,8 +106,13 @@ setting only governs joins while the room is `'playing'`.
 
 **Content modes.** `settings.contentMode` is the room's single switch for what the packs contain:
 `family` is clean, `unhinged` is adults only (it plays the rude-but-harmless "cheeky" tiers and the
-crude "unhinged" ones together; there is no middle mode, and a room stored with the retired
-`'cheeky'` mode loads as `family`). A game that reads it sets `contentModes: true` in its
+explicit "unhinged" ones together; there is no middle mode, and a room stored with the retired
+`'cheeky'` mode loads as `family`). The unhinged tiers are written at party-card level: explicit
+sex, drink and drugs, bodily fluids, death and family shame, British wording. The hard lines hold
+for every tier: no slurs, no jokes aimed at a group (race, ethnicity, nationality, religion,
+disability, sexuality, gender identity), nothing sexual involving anyone under 18, no real private
+people. Scribble's word tiers feed Hangman too, so every word stays Hangman-playable (letters,
+spaces, hyphens, apostrophes; 3 to 24 letters). A game that reads it sets `contentModes: true` in its
 `GameMeta`, which is what makes the lobby offer the choice (Scribble, The Spy Game, Quip Game and
 Hangman do; for the others the setting is hidden but kept). Such a game reads it from
 `ctx.settings.contentMode` and picks its content with a shared pure helper: Quip Game's prompt
@@ -1834,7 +1839,9 @@ Run from the repository root; everything is green at HEAD.
 - **Settings patches** are validated as a whole: one invalid field rejects the patch with
   `INVALID_MESSAGE` ("Invalid settings at <path>: <message>"); unknown keys are stripped (so a
   room stored with a retired key such as `maxPlayers` or Quip Game's old `cheeky` still loads);
-  your `normalize` runs on the merged settings and may rewrite dependent fields.
+  your `normalize` runs on the merged settings and may rewrite dependent fields. A field you add
+  later is filled in from your defaults when an older stored room loads (Battleships' `moveOrFire`
+  reads `true` in a room saved with the old `boardSize` and `diceMoves`, which stay, unread).
 - **`ctx.players` is the participants, not the room.** Players who sat the game out are in
   `ctx.spectators` and in `room.players` with `participating: false`; they still receive every
   snapshot and chat line, so views must not assume every `room.players` entry has a game entry.

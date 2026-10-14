@@ -1,107 +1,102 @@
 import { useEffect, useRef } from 'react';
-import type { BattleshipsRoomState, BattleshipsView, OwnBoardView } from '@shared/games/battleships/protocol';
-import { Timer } from '../../../platform/components/Timer';
-import { usePlatformStore } from '../../../platform/store/usePlatformStore';
-import { moveShip, skipMove } from '../actions';
-import { nameOf } from '../hooks';
+import type { MoveDirection } from '@shared/games/battleships/protocol';
+import { backToChoice, confirmMove, resetMove, stepShip, turnShip, type MoveContext } from '../actions';
+import { confirmProblem, movesLeft, stepGhost, turnGhost, type Step } from '../lib/moveDraft';
 import { shipSpan } from '../lib/placement';
-import { useBattleships } from '../store';
-import { ArrowIcon } from './Icons';
+import type { TurnDraft } from '../store';
+import { ArrowIcon, RotateIcon, UndoIcon } from './Icons';
 
 interface Props {
-  room: BattleshipsRoomState;
-  view: BattleshipsView;
-  board: OwnBoardView | null;
-  meId: string;
-  paused: boolean;
+  draft: TurnDraft;
+  ctx: MoveContext;
+  connected: boolean;
 }
 
-/** The line everyone but the shooter sees while a move window is open: a sentence and its clock. */
-export function MoveNotice({ room, view, paused }: Pick<Props, 'room' | 'view' | 'paused'>) {
-  return (
-    <div className="banner banner--info bs-banner" role="status" data-testid="move-notice">
-      <span>
-        {`${nameOf(room, view.turn?.shooterId)} rolled a ${view.dice ?? '?'} and may be moving a ship`}
-        <span className="ellipsis" aria-hidden="true" />
-      </span>
-      <Timer endsAt={view.endsAt} size="md" warnUnder={3} paused={paused} />
-    </div>
-  );
+const ARROWS: ReadonlyArray<{ direction: MoveDirection; label: string }> = [
+  { direction: 'up', label: 'Up' },
+  { direction: 'left', label: 'Left' },
+  { direction: 'down', label: 'Down' },
+  { direction: 'right', label: 'Right' },
+];
+
+function plural(n: number, one: string, many: string): string {
+  return `${n} ${n === 1 ? one : many}`;
 }
 
 /**
- * The move window after a lucky roll, under the shooter's own board: each row names a ship by
- * the cells it covers and lights its hull on the board while pointed at; the arrows slide it one
- * cell forward or back along its axis. The window opens on every 5 or 6, so with nothing able to
- * move the panel says so and only Carry on is left.
+ * The move controls under the shooter's own board: tap a ship, then step its ghost one square at
+ * a time (arrows), turn it, reset or confirm. A control that cannot act stays tappable and says
+ * why (in its title for a long press or hover, and in the note line on a tap).
  */
-export function MovePanel({ view, board, meId, paused }: Omit<Props, 'room'>) {
-  const connected = usePlatformStore((s) => s.connection === 'connected');
-  const setHighlight = useBattleships((s) => s.setHighlight);
+export function MovePanel({ draft, ctx, connected }: Props) {
   const panel = useRef<HTMLElement>(null);
-  const shooter = view.turn?.shooterId ?? null;
-  const mine = shooter === meId && board !== null;
-  // The panel sits under the board, below the fold on a small phone: the twelve seconds start with it in view.
+  // The panel sits under the board, below the fold on a small phone: it opens in view.
   useEffect(() => {
-    if (mine) panel.current?.scrollIntoView?.({ block: 'nearest' });
-  }, [mine]);
-  if (!mine) return null;
-  const ships = board.ships.filter((s) => board.movable.some((m) => m.id === s.id));
-  const point = (id: string | null) => () => setHighlight(id);
+    panel.current?.scrollIntoView?.({ block: 'nearest' });
+  }, []);
+  const ship = ctx.ships.find((s) => s.id === draft.shipId) ?? null;
+  const left = movesLeft(draft.move, ctx.roll);
+  const noShip: Step = { ok: false, reason: 'Tap one of your ships first.' };
+  const steps = new Map(ARROWS.map(({ direction }) => [direction, ship ? stepGhost(ship, draft.move, direction, ctx.roll, ctx.size) : noShip]));
+  const turn = ship ? turnGhost(ship, draft.move, ctx.size) : noShip;
+  const problem = ship ? confirmProblem(ctx.ships, ship.id, draft.move, ctx.size, ctx.shots, ctx.roll) : null;
+  const hint = !ship ? 'Tap one of your ships on the board.' : draft.move === null ? `${shipSpan(ship)} picked. Slide it with the arrows or turn it.` : (problem ?? 'Looks good. Confirm to move it.');
+  const control = (step: Step, act: () => void) => ({
+    'aria-disabled': step.ok ? undefined : true,
+    title: step.ok ? undefined : step.reason,
+    'data-reason': step.ok ? undefined : step.reason,
+    onClick: act,
+  });
+
   return (
-    <section className="bs-move card" ref={panel} data-testid="move-panel" data-movable={ships.length}>
+    <section className="bs-move card" ref={panel} data-testid="move-panel" data-ship-id={draft.shipId ?? undefined} data-moves-left={left}>
       <header className="bs-move__head">
         <div>
-          <p className="overlay__kicker">You rolled a {view.dice}</p>
-          <h2 className="bs-move__title">{ships.length > 0 ? 'Move a ship?' : 'No ship can move'}</h2>
-          <p className="bs-move__hint">
-            {ships.length > 0 ? 'Slide an undamaged ship one cell along its length, never under a shot. Nobody else will know.' : 'Every ship afloat is damaged or boxed in. Nobody else knows that.'}
+          <h2 className="bs-move__title">Move a ship</h2>
+          <p className={`bs-move__hint${ship && draft.move && problem ? ' is-problem' : ''}`} data-testid="move-hint">
+            {hint}
           </p>
         </div>
-        <Timer endsAt={view.endsAt} size="md" warnUnder={3} tickUnder={3} paused={paused} />
+        <span className="bs-move__left" data-testid="moves-left" data-left={left}>
+          {draft.move?.kind === 'rotate' ? 'Turned' : `${plural(left, 'move', 'moves')} left`}
+        </span>
       </header>
-      {ships.length > 0 && (
-        <ul className="bs-move__list" onPointerLeave={point(null)}>
-          {ships.map((s) => {
-            const can = board.movable.find((m) => m.id === s.id);
-            return (
-              <li key={s.id} className="bs-move__row" data-testid="move-row" data-ship-id={s.id} onPointerEnter={point(s.id)} onFocus={point(s.id)} onBlur={point(null)}>
-                <span className="bs-move__ship">
-                  {Array.from({ length: s.length }, (_, i) => (
-                    <span key={i} className="bs-tray__seg" aria-hidden="true" />
-                  ))}
-                  <small data-testid="move-span">{shipSpan(s)}</small>
-                </span>
-                <button
-                  type="button"
-                  className="btn btn--secondary bs-move__btn"
-                  onClick={() => moveShip(s.id, 'back')}
-                  disabled={!connected || !can?.back}
-                  aria-label={`Move ${shipSpan(s)} ${s.horizontal ? 'left' : 'up'}`}
-                  data-testid="move-back"
-                  data-ship-id={s.id}
-                >
-                  <ArrowIcon size={18} direction={s.horizontal ? 'left' : 'up'} />
-                </button>
-                <button
-                  type="button"
-                  className="btn btn--secondary bs-move__btn"
-                  onClick={() => moveShip(s.id, 'forward')}
-                  disabled={!connected || !can?.forward}
-                  aria-label={`Move ${shipSpan(s)} ${s.horizontal ? 'right' : 'down'}`}
-                  data-testid="move-forward"
-                  data-ship-id={s.id}
-                >
-                  <ArrowIcon size={18} direction={s.horizontal ? 'right' : 'down'} />
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+      <div className="bs-move__pad" role="group" aria-label="Move controls">
+        <button type="button" className="btn btn--secondary bs-move__btn bs-move__btn--rotate" {...control(turn, () => turnShip(ctx))} data-testid="move-rotate">
+          <RotateIcon size={18} /> {draft.move?.kind === 'rotate' ? 'Undo turn' : 'Rotate'}
+        </button>
+        {ARROWS.map(({ direction, label }) => {
+          const step = steps.get(direction) ?? noShip;
+          return (
+            <button
+              key={direction}
+              type="button"
+              className={`btn btn--secondary bs-move__btn bs-move__btn--${direction}`}
+              aria-label={label}
+              {...control(step, () => stepShip(direction, ctx))}
+              data-testid={`move-${direction}`}
+            >
+              <ArrowIcon size={20} direction={direction} />
+            </button>
+          );
+        })}
+        <button type="button" className="btn btn--secondary bs-move__btn bs-move__btn--reset" {...control(draft.move ? { ok: true, move: null } : { ok: false, reason: 'Nothing to reset yet.' }, () => resetMove(ctx))} data-testid="move-reset">
+          <UndoIcon size={18} /> Reset
+        </button>
+      </div>
+      {draft.note && (
+        <p className="bs-move__note" role="status" data-testid="move-note">
+          {draft.note}
+        </p>
       )}
-      <button type="button" className="btn btn--ghost btn--block" onClick={skipMove} disabled={!connected} data-testid="skip-move">
-        {ships.length > 0 ? 'Keep them where they are' : 'Carry on'}
-      </button>
+      <div className="bs-move__actions">
+        <button type="button" className="btn btn--ghost" onClick={() => backToChoice(ctx)} data-testid="move-back">
+          Back
+        </button>
+        <button type="button" className="btn btn--primary" onClick={() => confirmMove(ctx)} disabled={!connected || !ship || draft.move === null || problem !== null} data-testid="move-confirm">
+          Confirm move
+        </button>
+      </div>
     </section>
   );
 }

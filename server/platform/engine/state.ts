@@ -84,17 +84,19 @@ export const MAX_KICKED_TOKENS = 50;
  * Rooms stored before the party fields existed load with them filled in: a running game counts
  * every seat as playing, and a settings record from before content modes, or from when 'cheeky'
  * was a mode, reads as a family room (the games index their content packs by it, so it must
- * always name a mode that exists).
+ * always name a mode that exists). A game's settings stored before a field was added take its
+ * default; retired fields stay, harmlessly, since nothing reads them.
  */
 export function upgradeRoomData(data: PlatformRoomData): PlatformRoomData {
   const players = data.players as Array<Partial<PlatformPlayerData> & PlatformPlayerData>;
   const settings = data.settings as Partial<RoomSettingsData> & Record<string, unknown>;
   const playersCurrent = players.every((p) => typeof p.ready === 'boolean' && typeof p.sittingOut === 'boolean' && typeof p.participating === 'boolean');
   const contentMode = upgradeContentMode(settings.contentMode);
-  if (playersCurrent && settings.contentMode === contentMode) return data;
+  const gameSettings = upgradeGameSettings(data);
+  if (playersCurrent && settings.contentMode === contentMode && gameSettings === null) return data;
   return {
     ...data,
-    settings: { ...data.settings, contentMode },
+    settings: { ...(gameSettings ?? data.settings), contentMode },
     players: players.map((p) => ({
       ...p,
       ready: p.ready ?? false,
@@ -102,6 +104,15 @@ export function upgradeRoomData(data: PlatformRoomData): PlatformRoomData {
       participating: p.participating ?? data.phase !== 'lobby',
     })),
   };
+}
+
+/** The room's settings with the game's missing fields filled in, or null when none is missing. */
+function upgradeGameSettings(data: PlatformRoomData): RoomSettingsData | null {
+  const stored = data.settings as Record<string, unknown>;
+  const gameDefaults = moduleFor(data.gameId).settings.defaults as Record<string, unknown>;
+  const missing = Object.keys(gameDefaults).filter((key) => !(key in stored));
+  if (missing.length === 0) return null;
+  return { ...data.settings, ...Object.fromEntries(missing.map((key) => [key, structuredClone(gameDefaults[key])])) };
 }
 
 export function createRoomData(code: string, gameId: GameId, now: number): PlatformRoomData {

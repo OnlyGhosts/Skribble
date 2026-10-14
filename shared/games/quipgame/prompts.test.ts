@@ -16,10 +16,22 @@ describe('the prompt pack', () => {
     }
   });
 
-  it('has enough clean prompts for a full game of eight without repeats, and at least 100 unhinged ones', () => {
+  it('has enough clean prompts for a full game of eight without repeats', () => {
     // Two regular rounds of eight prompts plus one for the final.
     expect(PROMPTS.filter((p) => p.tier === 'clean').length).toBeGreaterThanOrEqual(17);
-    expect(PROMPTS.filter((p) => p.tier === 'unhinged').length).toBeGreaterThanOrEqual(100);
+  });
+
+  it('ships 200 short, varied unhinged prompts', () => {
+    const unhinged = PROMPTS.filter((p) => p.tier === 'unhinged').map((p) => p.text);
+    expect(unhinged).toHaveLength(200);
+    for (const text of unhinged) {
+      expect(text.length).toBeLessThanOrEqual(90);
+      expect(text).not.toContain('\u2014');
+      // A fill-in prompt marks its blank the same way everywhere.
+      if (text.includes('_')) expect(text).toMatch(/(^|[^_])____([^_]|$)/);
+    }
+    expect(unhinged.filter((t) => t.startsWith('The worst')).length).toBeLessThanOrEqual(unhinged.length / 4);
+    expect(unhinged.filter((t) => t.includes('____')).length).toBeGreaterThanOrEqual(20);
   });
 
   it('picks the tiers by content mode: family is clean only, unhinged plays everything that was cheeky plus the unhinged tier', () => {

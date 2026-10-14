@@ -128,11 +128,14 @@ describe('The Spy Game: the location pool follows the room content mode', () => 
     const unhinged = sim('spygame', 'ABCD', START, () => 0.99);
     startGame(unhinged, ['Alice', 'Bob', 'Carol'], { contentMode: 'unhinged' });
     const pool = locationsForMode('unhinged');
-    expect(data(unhinged).current.locationId).toBe(UNHINGED_LOCATIONS.at(-1)?.id);
+    // A constant 0.99 lands near the end of the pool, which is the unhinged tier.
+    const picked = pool[Math.floor(0.99 * pool.length)].id;
+    expect(UNHINGED_LOCATIONS.some((l) => l.id === picked)).toBe(true);
+    expect(data(unhinged).current.locationId).toBe(picked);
     for (const id of data(unhinged).current.candidates) expect(pool.some((l) => l.id === id)).toBe(true);
     // The agents see the tier location by id, like any other.
     const agent = data(unhinged).current.playerIds.find((id) => id !== data(unhinged).current.spyId) ?? '';
-    expect(view(unhinged, agent).locationId).toBe(UNHINGED_LOCATIONS.at(-1)?.id);
+    expect(view(unhinged, agent).locationId).toBe(picked);
   });
 });
 

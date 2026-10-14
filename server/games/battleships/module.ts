@@ -1,6 +1,7 @@
 /**
- * Battleships' server module: placing, shooting, dice moves, elimination and holds as a pure
- * reducer over BattleshipsData. Boards are secret state; view.ts decides who sees what.
+ * Battleships' server module: placing, then turns of move or fire (a shot, or a secret ship move
+ * up to the turn's roll), elimination and holds as a pure reducer over BattleshipsData. Boards are
+ * secret state; view.ts decides who sees what.
  */
 import {
   DEFAULT_BATTLESHIPS_SETTINGS,
@@ -15,7 +16,9 @@ import { gameById } from '../../../shared/platform/games.js';
 import { defineSettings, withDraft, type GameEvent, type GameResult, type GameServerModule } from '../../platform/game.js';
 import { announceStart, autoPlace, finishPlacing, initialData, place, placeReady, seatJoiner } from './placing.js';
 import { aliveSides, connectedAliveSides, findPlayer, isShooter, sideOf, snapshot, type BattleshipsData, type Ctx, type Gx } from './state.js';
-import { beginTurn, endMove, fire, fireTimedOut, memberLeft, move, resumeIfHeld, settleDue, shooterAway, skipMove } from './turns.js';
+import { move, plan } from './moving.js';
+import { fire, fireTimedOut } from './shooting.js';
+import { beginTurn, memberLeft, resumeIfHeld, settleDue, shooterAway } from './turns.js';
 import { viewFor } from './view.js';
 
 type Result = GameResult<BattleshipsData, BattleshipsServerMessage>;
@@ -60,9 +63,9 @@ function onMessage(gx: Gx, playerId: string, msg: BattleshipsClientMessage): voi
     case 'fire':
       return fire(gx, playerId, msg.targetId, msg.x, msg.y);
     case 'move':
-      return move(gx, playerId, msg.shipId, msg.direction);
-    case 'skipMove':
-      return skipMove(gx, playerId);
+      return move(gx, playerId, msg.shipId, msg.move);
+    case 'plan':
+      return plan(gx, playerId, msg.plan);
   }
 }
 
@@ -88,11 +91,7 @@ function onPlayerLeft(gx: Gx, playerId: string): void {
   snapshot(gx);
 }
 
-/**
- * The shooter is skipped; a side left with nobody connected holds the game at once. A move
- * window is never interrupted for somebody else's drop: the slide the roll granted runs its
- * course (it is the shooter's own board), and the turn boundary after it holds.
- */
+/** The shooter is skipped; a side left with nobody connected holds the game at once. */
 function onPlayerDisconnected(gx: Gx, playerId: string): void {
   const { ctx, data } = gx;
   if (!sideOf(data, playerId)) return;
@@ -110,8 +109,6 @@ function onTick(gx: Gx): void {
       return finishPlacing(gx);
     case 'turn':
       return fireTimedOut(gx);
-    case 'moving':
-      return endMove(gx);
     case 'held':
       return settleDue(gx);
     case 'gameOver':
@@ -123,7 +120,6 @@ function nextDeadline(data: BattleshipsData): number | null {
   switch (data.phase.kind) {
     case 'placing':
     case 'turn':
-    case 'moving':
       return data.phase.endsAt;
     case 'held':
       return data.phase.resumeAt;

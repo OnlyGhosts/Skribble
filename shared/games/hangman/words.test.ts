@@ -58,6 +58,8 @@ describe('hangman words', () => {
     expect(unhinged.length).toBeGreaterThan(family.length);
     expect(unhinged).toContain(normalizeHangmanWord(UNHINGED_WORDS[0]));
     expect(family).not.toContain(normalizeHangmanWord(UNHINGED_WORDS[0]));
+    // Every unhinged pack word is playable, none is dropped from the pool.
+    for (const w of UNHINGED_WORDS) expect(isValidHangmanWord(normalizeHangmanWord(w))).toBe(true);
     expect(hangmanWordPool('family', ['zebra crossing', 'zebra crossing', '42'], false)).toEqual([...family, 'ZEBRA CROSSING']);
     expect(hangmanWordPool('family', ['zebra crossing', '42'], true)).toEqual(['ZEBRA CROSSING']);
     // Custom only with nothing playable falls back to the pack.

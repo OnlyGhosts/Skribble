@@ -1,8 +1,8 @@
 /**
  * Extra Spy Game locations for an Unhinged room, in two tiers: 'cheeky' (rude but harmless) and
- * 'unhinged' (crude). Ids double as image file names (client/src/games/spygame/assets/locations);
- * re-run scripts/spygame-location-images.mjs after editing. The pool for a mode is built in
- * ./locations.ts (locationsForMode).
+ * 'unhinged' (explicit 18+ places: sex, drink and drugs, bodily fluids, death). Ids double as image
+ * file names (client/src/games/spygame/assets/locations); re-run scripts/spygame-location-images.mjs
+ * after editing. The pool for a mode is built in ./locations.ts (locationsForMode).
  */
 import type { SpyLocation } from './locations.js';
 
@@ -22,16 +22,28 @@ export const CHEEKY_LOCATIONS: readonly SpyLocation[] = [
 ];
 
 export const UNHINGED_LOCATIONS: readonly SpyLocation[] = [
-  { id: 'strip-club', name: 'Strip Club', emoji: '💃', hue: 300 },
-  { id: 'sex-shop', name: 'Sex Shop', emoji: '🍆', hue: 290 },
-  { id: 'swingers-party', name: 'Swingers Party', emoji: '🔑', hue: 20 },
-  { id: 'drunk-tank', name: 'Drunk Tank', emoji: '🚔', hue: 220 },
-  { id: 'adult-film-set', name: 'Adult Film Set', emoji: '🎬', hue: 350 },
-  { id: 'sex-dungeon', name: 'Sex Dungeon', emoji: '⛓️', hue: 0 },
-  { id: 'hangover-hotel-room', name: 'Hangover Hotel Room', emoji: '🤢', hue: 90 },
-  { id: 'rehab-clinic', name: 'Rehab Clinic', emoji: '🩺', hue: 170 },
-  { id: 'red-light-district', name: 'Red Light District', emoji: '🔴', hue: 355 },
-  { id: 'massage-parlour', name: 'Massage Parlour', emoji: '💆', hue: 30 },
-  { id: 'nudist-colony', name: 'Nudist Colony', emoji: '🌞', hue: 45 },
-  { id: 'the-morning-after', name: 'The Morning After', emoji: '🥴', hue: 60 },
+  { id: 'sex-shop-stockroom', name: 'Sex Shop Stockroom', emoji: '🍆', hue: 290 },
+  { id: 'stag-do-in-magaluf', name: 'Stag Do in Magaluf', emoji: '🍻', hue: 35 },
+  { id: 'sti-clinic-waiting-room', name: 'STI Clinic Waiting Room', emoji: '🩺', hue: 170 },
+  { id: 'crematorium-after-party', name: 'Crematorium After-Party', emoji: '⚱️', hue: 25 },
+  { id: 'strip-club-changing-room', name: 'Strip Club Changing Room', emoji: '💃', hue: 305 },
+  { id: 'swingers-key-party', name: "Swingers' Key Party", emoji: '🔑', hue: 48 },
+  { id: 'dogging-car-park', name: 'Dogging Car Park', emoji: '🚗', hue: 215 },
+  { id: 'porn-film-set', name: 'Porn Film Set', emoji: '🎬', hue: 350 },
+  { id: 'fetish-club-dungeon', name: 'Fetish Club Dungeon', emoji: '⛓️', hue: 0 },
+  { id: 'police-cells-at-two-am', name: 'Police Cells at 2am', emoji: '🚔', hue: 228 },
+  { id: 'rehab-group-session', name: 'Rehab Group Session', emoji: '🪑', hue: 150 },
+  { id: 'a-and-e-on-a-saturday', name: 'A&E on a Saturday', emoji: '🚑', hue: 8 },
+  { id: 'sperm-bank-wank-room', name: 'Sperm Bank Wank Room', emoji: '🧪', hue: 192 },
+  { id: 'nudist-campsite', name: 'Nudist Campsite', emoji: '🏕️', hue: 105 },
+  { id: 'kebab-shop-at-three-am', name: 'Kebab Shop at 3am', emoji: '🥙', hue: 30 },
+  { id: 'festival-portaloo', name: 'Festival Portaloo', emoji: '🚽', hue: 80 },
+  { id: 'hen-do-in-blackpool', name: 'Hen Do in Blackpool', emoji: '👰', hue: 322 },
+  { id: 'wake-in-a-wetherspoons', name: 'Wake in a Wetherspoons', emoji: '🍺', hue: 42 },
+  { id: 'morgue-night-shift', name: 'Morgue Night Shift', emoji: '🧊', hue: 200 },
+  { id: 'swingers-cruise', name: "Swingers' Cruise", emoji: '🛳️', hue: 184 },
+  { id: 'mums-sex-toy-party', name: "Mum's Sex Toy Party", emoji: '🎉', hue: 332 },
+  { id: 'vasectomy-clinic', name: 'Vasectomy Clinic', emoji: '✂️', hue: 262 },
+  { id: 'embalming-room', name: 'Embalming Room', emoji: '⚰️', hue: 272 },
+  { id: 'rave-toilet-cubicle', name: 'Toilets at a Rave', emoji: '💊', hue: 282 },
 ];

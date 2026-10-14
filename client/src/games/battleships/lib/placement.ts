@@ -17,7 +17,7 @@ export interface DraftShip {
 export type Draft = Record<string, DraftShip>;
 
 function asShip(ship: DraftShip): Ship {
-  return { ...ship, hits: 0 };
+  return { ...ship, damage: new Array<boolean>(ship.length).fill(false) };
 }
 
 /** The draft the server's layout describes (an auto-place, a rejoin, the captain's own echo). */

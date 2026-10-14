@@ -24,13 +24,13 @@ describe('location tiles', () => {
 
   it('prefers a photo over the generated svg and reads ids with dashes', () => {
     const images = pickImages({
-      './assets/locations/the-morning-after.svg': '/svg',
-      './assets/locations/the-morning-after.jpg': '/jpg',
-      './assets/locations/sex-shop.webp': '/webp',
+      './assets/locations/crematorium-after-party.svg': '/svg',
+      './assets/locations/crematorium-after-party.jpg': '/jpg',
+      './assets/locations/sex-shop-stockroom.webp': '/webp',
       './assets/locations/README.md': '/nope',
     });
-    expect(images['the-morning-after']).toBe('/jpg');
-    expect(images['sex-shop']).toBe('/webp');
+    expect(images['crematorium-after-party']).toBe('/jpg');
+    expect(images['sex-shop-stockroom']).toBe('/webp');
     expect(Object.keys(images)).toHaveLength(2);
   });
 

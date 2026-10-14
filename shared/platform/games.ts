@@ -121,12 +121,13 @@ export const GAME_LIST: readonly GameMeta[] = [
     name: 'Battleships',
     tagline: 'Hunt the fleets. Last one floating wins.',
     description:
-      'Hide your fleet on a grid, then take turns calling shots at everyone else. Play every player for themselves or in two teams sharing one board, and roll the dice after each shot for a chance to slip an undamaged ship into new waters. The last fleet afloat wins.',
+      'Hide your fleet on a grid, then take turns against everyone else. Play every player for themselves or in two teams sharing a bigger board. Each turn starts with a roll of the die: fire a shot, or secretly move one of your ships. The last fleet afloat wins.',
     howToPlay: [
       'Place your ships on your grid before the clock runs out, or let the game place them for you.',
-      'On your turn pick an opponent and a cell: miss, hit or sunk, and everyone hears about it.',
-      'Roll a 5 or 6 after your shot and you may secretly slide an undamaged ship one cell.',
-      'A fleet with every ship sunk is out; the last player or team floating wins.',
+      'Each turn you roll the die, then fire or move.',
+      'Fire: pick an opponent and a square. Miss, hit or sunk, everyone hears about it.',
+      'Move: shift one of your ships up to the roll in a straight line, or turn it. Nobody sees where it went.',
+      'You can\'t move two turns in a row. A fleet with every ship sunk is out, and the last one floating wins.',
     ],
     minPlayers: 2,
     maxPlayers: 8,

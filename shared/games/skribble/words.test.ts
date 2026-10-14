@@ -13,6 +13,14 @@ describe('word lists', () => {
   });
 });
 
+describe('the unhinged tier', () => {
+  it('ships 150 distinct words and phrases', () => {
+    expect(UNHINGED_WORDS).toHaveLength(150);
+    expect(new Set(UNHINGED_WORDS.map((w) => w.toLowerCase())).size).toBe(150);
+    for (const w of UNHINGED_WORDS) expect(w).toBe(w.trim());
+  });
+});
+
 describe('wordPoolForMode', () => {
   const lower = (list: readonly string[]): Set<string> => new Set(list.map((w) => w.toLowerCase()));
 
@@ -29,8 +37,8 @@ describe('wordPoolForMode', () => {
     const tierOnly = TIER_WORDS.unhinged.filter((w) => !lower(family).has(w.toLowerCase()));
     expect(tierOnly.length).toBeGreaterThan(100);
     for (const w of tierOnly) expect(lower(family).has(w.toLowerCase())).toBe(false);
-    expect(lower(family).has('porn')).toBe(false);
-    expect(lower(unhinged).has('porn')).toBe(true);
+    expect(lower(family).has('dildo')).toBe(false);
+    expect(lower(unhinged).has('dildo')).toBe(true);
   });
 });
 
@@ -62,7 +70,7 @@ describe('buildWordPool', () => {
     // customOnly with no custom words falls back to the language list.
     expect(buildWordPool('en', [], true).length).toBe(getWordList('en').length);
     // The content mode widens the pack, custom words still merge in once.
-    const unhinged = buildWordPool('en', ['zzyzx', 'porn'], false, 'unhinged');
+    const unhinged = buildWordPool('en', ['zzyzx', 'dildo'], false, 'unhinged');
     expect(unhinged.length).toBe(wordPoolForMode('unhinged').length + 1);
     expect(buildWordPool('en', ['one', 'two'], true, 'unhinged')).toEqual(['one', 'two']);
   });

@@ -13,6 +13,10 @@ interface Props {
   target: TargetGridView;
   meId: string;
   holding: boolean;
+  /** Aiming is open: the viewer's turn, in fire mode. */
+  aiming: boolean;
+  /** Back to Fire or Move (move or fire only). */
+  onBack?(): void;
 }
 
 /** The fleet of a side as pills: a ship per length, crossed once sunk. */
@@ -31,12 +35,12 @@ export function FleetPills({ fleet, sunkLengths, testId }: { fleet: readonly num
 }
 
 /** One opponent's grid: the shots everyone landed on it, and, on the viewer's turn, a two-tap Fire. */
-export function TargetPanel({ room, view, target, meId, holding }: Props) {
+export function TargetPanel({ room, view, target, meId, holding, aiming, onBack }: Props) {
   const aim = useBattleships((s) => s.aim);
   const connected = usePlatformStore((s) => s.connection === 'connected');
   const side = sideOf(view, target.sideId);
   const alive = side?.alive ?? false;
-  const canFire = view.phase === 'playing' && isShooter(view, meId) && alive && !holding && !view.paused;
+  const canFire = aiming && view.phase === 'playing' && isShooter(view, meId) && alive && !holding && !view.paused;
   const aimedHere = aim && aim.sideId === target.sideId ? aim : null;
   const freshHere = view.lastShot && view.lastShot.targetId === target.sideId ? view.lastShot : null;
   const label = sideLabel(room, view, target.sideId);
@@ -66,9 +70,16 @@ export function TargetPanel({ room, view, target, meId, holding }: Props) {
           <span className="bs-target__aim" data-testid="aim" data-cell={aimedHere ? cellLabel(aimedHere.x, aimedHere.y) : undefined}>
             {aimedHere ? 'Aiming at' : 'Tap a cell to aim'}
           </span>
-          <button type="button" className="btn btn--primary bs-fire" onClick={fire} disabled={!connected || !aimedHere} data-testid="fire">
-            <CrosshairIcon size={18} /> {aimedHere ? `Fire at ${cellLabel(aimedHere.x, aimedHere.y)}` : 'Fire'}
-          </button>
+          <div className="bs-target__buttons">
+            {onBack && (
+              <button type="button" className="btn btn--ghost bs-back" onClick={onBack} data-testid="fire-back">
+                Back
+              </button>
+            )}
+            <button type="button" className="btn btn--primary bs-fire" onClick={fire} disabled={!connected || !aimedHere} data-testid="fire">
+              <CrosshairIcon size={18} /> {aimedHere ? `Fire at ${cellLabel(aimedHere.x, aimedHere.y)}` : 'Fire'}
+            </button>
+          </div>
         </div>
       )}
     </section>

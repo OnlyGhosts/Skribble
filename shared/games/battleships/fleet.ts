@@ -1,14 +1,22 @@
 /**
- * Battleships geometry, pure and shared by both sides: fleets and ship ids, cell keys and labels,
- * layout validation, random layouts, shot resolution and the secret slide after a lucky roll.
- * Nothing here reads a clock or the global random source; randomness is passed in.
+ * Battleships geometry, pure and shared by both sides: board sizes and fleets by crew, ship ids,
+ * cell keys and labels, layout validation, random layouts and shot resolution. Moving a ship lives
+ * in moves.ts. Nothing here reads a clock or the global random source; randomness is passed in.
  */
-import { BATTLESHIPS_FLEETS, type BattleshipsFleet, type CellMark, type MoveDirection, type ShipPlacement, type ShotResult } from './protocol.js';
+import {
+  BATTLESHIPS_BOARD_SIZES,
+  BATTLESHIPS_EXTRA_SHIP_LENGTH,
+  BATTLESHIPS_FLEETS,
+  type BattleshipsFleet,
+  type CellMark,
+  type ShipPlacement,
+  type ShotResult,
+} from './protocol.js';
 
 export interface Ship extends ShipPlacement {
   length: number;
-  /** Damaged segments so far. */
-  hits: number;
+  /** Per segment, counted from (x, y) along the ship: damaged or not. */
+  damage: boolean[];
 }
 
 export interface Cell {
@@ -16,8 +24,19 @@ export interface Cell {
   y: number;
 }
 
-export function fleetLengths(fleet: BattleshipsFleet): number[] {
-  return [...BATTLESHIPS_FLEETS[fleet]];
+export type ShipShape = Pick<Ship, 'x' | 'y' | 'length' | 'horizontal'>;
+export type Shots = Readonly<Record<string, CellMark>>;
+
+/** The board side for a crew of players sharing it: 10, 12, 13, then 14 for four or more. */
+export function boardSizeFor(crew: number): number {
+  const index = Math.min(BATTLESHIPS_BOARD_SIZES.length, Math.max(1, crew)) - 1;
+  return BATTLESHIPS_BOARD_SIZES[index];
+}
+
+/** The fleet's ship lengths for a crew, longest first: every member beyond the first adds a 3-ship. */
+export function fleetFor(fleet: BattleshipsFleet, crew: number): number[] {
+  const extra = new Array<number>(Math.max(0, crew - 1)).fill(BATTLESHIPS_EXTRA_SHIP_LENGTH);
+  return [...BATTLESHIPS_FLEETS[fleet], ...extra].sort((a, b) => b - a);
 }
 
 /** Ship ids are positional ('s0' is the longest ship), so a layout message can name them. */
@@ -25,8 +44,8 @@ export function shipId(index: number): string {
   return `s${index}`;
 }
 
-export function fleetShipIds(fleet: BattleshipsFleet): string[] {
-  return fleetLengths(fleet).map((_, i) => shipId(i));
+export function fleetShipIds(lengths: readonly number[]): string[] {
+  return lengths.map((_, i) => shipId(i));
 }
 
 export function cellKey(x: number, y: number): string {
@@ -38,18 +57,25 @@ export function cellLabel(x: number, y: number): string {
   return `${String.fromCharCode(65 + x)}${y + 1}`;
 }
 
-export function shipCells(ship: Pick<Ship, 'x' | 'y' | 'length' | 'horizontal'>): Cell[] {
+export function shipCells(ship: ShipShape): Cell[] {
   const cells: Cell[] = [];
   for (let i = 0; i < ship.length; i++) cells.push(ship.horizontal ? { x: ship.x + i, y: ship.y } : { x: ship.x, y: ship.y + i });
   return cells;
 }
 
-export function inBounds(ship: Pick<Ship, 'x' | 'y' | 'length' | 'horizontal'>, size: number): boolean {
+/** The segment of `ship` on (x, y), or -1. */
+export function segmentAt(ship: ShipShape, x: number, y: number): number {
+  const i = ship.horizontal ? x - ship.x : y - ship.y;
+  const across = ship.horizontal ? y === ship.y : x === ship.x;
+  return across && i >= 0 && i < ship.length ? i : -1;
+}
+
+export function inBounds(ship: ShipShape, size: number): boolean {
   if (ship.x < 0 || ship.y < 0) return false;
   return ship.horizontal ? ship.x + ship.length <= size && ship.y < size : ship.y + ship.length <= size && ship.x < size;
 }
 
-function overlaps(a: Pick<Ship, 'x' | 'y' | 'length' | 'horizontal'>, b: Pick<Ship, 'x' | 'y' | 'length' | 'horizontal'>): boolean {
+export function overlaps(a: ShipShape, b: ShipShape): boolean {
   const taken = new Set(shipCells(a).map((c) => cellKey(c.x, c.y)));
   return shipCells(b).some((c) => taken.has(cellKey(c.x, c.y)));
 }
@@ -59,11 +85,15 @@ export function fits(ship: Ship, fleet: readonly Ship[], size: number): boolean 
   return inBounds(ship, size) && fleet.every((other) => other.id === ship.id || !overlaps(ship, other));
 }
 
+export function newShip(placement: ShipPlacement, length: number): Ship {
+  return { id: placement.id, x: placement.x, y: placement.y, horizontal: placement.horizontal, length, damage: new Array<boolean>(length).fill(false) };
+}
+
 export type LayoutCheck = { ok: true; ships: Ship[]; complete: boolean } | { ok: false; reason: string };
 
-/** True once every ship of `fleet` is in `ships`. */
-export function isComplete(ships: readonly Pick<Ship, 'id'>[], fleet: BattleshipsFleet): boolean {
-  return fleetShipIds(fleet).every((id) => ships.some((s) => s.id === id));
+/** True once every ship of the fleet is in `ships`. */
+export function isComplete(ships: readonly Pick<Ship, 'id'>[], lengths: readonly number[]): boolean {
+  return fleetShipIds(lengths).every((id) => ships.some((s) => s.id === id));
 }
 
 /**
@@ -71,14 +101,13 @@ export function isComplete(ships: readonly Pick<Ship, 'id'>[], fleet: Battleship
  * two overlapping (touching is fine), in ship-id order. A partial layout is a layout in progress
  * (`complete` says whether every ship has a spot). Fresh ships carry no damage.
  */
-export function validateLayout(placements: readonly ShipPlacement[], fleet: BattleshipsFleet, size: number): LayoutCheck {
-  const lengths = fleetLengths(fleet);
+export function validateLayout(placements: readonly ShipPlacement[], lengths: readonly number[], size: number): LayoutCheck {
   const ships: Ship[] = [];
   for (let i = 0; i < lengths.length; i++) {
     const found = placements.filter((p) => p.id === shipId(i));
     if (found.length > 1) return { ok: false, reason: `Ship ${shipId(i)} must be placed exactly once.` };
     if (found.length === 0) continue;
-    const ship: Ship = { ...found[0], length: lengths[i], hits: 0 };
+    const ship = newShip(found[0], lengths[i]);
     if (!inBounds(ship, size)) return { ok: false, reason: `Ship ${ship.id} is off the board.` };
     if (ships.some((other) => overlaps(ship, other))) return { ok: false, reason: `Ship ${ship.id} overlaps another ship.` };
     ships.push(ship);
@@ -93,7 +122,7 @@ function candidates(length: number, id: string, placed: readonly Ship[], size: n
   for (const horizontal of [true, false]) {
     for (let y = 0; y < size; y++) {
       for (let x = 0; x < size; x++) {
-        const ship: Ship = { id, x, y, length, horizontal, hits: 0 };
+        const ship = newShip({ id, x, y, horizontal }, length);
         if (fits(ship, placed, size)) out.push(ship);
       }
     }
@@ -102,13 +131,14 @@ function candidates(length: number, id: string, placed: readonly Ship[], size: n
 }
 
 /**
- * Fills in the ships of `fleet` missing from `placed` (a layout in progress, or nothing at all),
- * longest first, each picking uniformly among the positions still free. Room always exists on an
- * 8x8 board for either fleet, so no retries are needed. The result is in ship-id order.
+ * Fills in the ships of the fleet missing from `placed` (a layout in progress, or nothing at all),
+ * longest first, each picking uniformly among the positions still free. Every fleet covers well
+ * under a fifth of its board, so room always exists and no retries are needed. The result is in
+ * ship-id order.
  */
-export function completeLayout(placed: readonly Ship[], fleet: BattleshipsFleet, size: number, rng: () => number): Ship[] {
+export function completeLayout(placed: readonly Ship[], lengths: readonly number[], size: number, rng: () => number): Ship[] {
   const ships: Ship[] = [...placed];
-  fleetLengths(fleet).forEach((length, i) => {
+  lengths.forEach((length, i) => {
     if (ships.some((s) => s.id === shipId(i))) return;
     const options = candidates(length, shipId(i), ships, size);
     if (options.length === 0) throw new Error(`no room for a ship of length ${length} on a ${size}x${size} board`);
@@ -118,8 +148,8 @@ export function completeLayout(placed: readonly Ship[], fleet: BattleshipsFleet,
 }
 
 /** A random valid layout. */
-export function randomLayout(fleet: BattleshipsFleet, size: number, rng: () => number): Ship[] {
-  return completeLayout([], fleet, size, rng);
+export function randomLayout(lengths: readonly number[], size: number, rng: () => number): Ship[] {
+  return completeLayout([], lengths, size, rng);
 }
 
 export interface ShotOutcome {
@@ -129,17 +159,27 @@ export interface ShotOutcome {
   ship: Ship | null;
 }
 
-/** Resolves a shot against a fleet without touching it: the damaged fleet comes back as a new array. */
+/**
+ * Resolves a shot against a fleet without touching it: the damaged fleet comes back as a new
+ * array. A segment damaged before its ship moved onto an unshot square reads as a hit again but
+ * takes no new damage.
+ */
 export function resolveShot(ships: readonly Ship[], x: number, y: number): ShotOutcome {
-  const index = ships.findIndex((ship) => shipCells(ship).some((c) => c.x === x && c.y === y));
+  const index = ships.findIndex((ship) => segmentAt(ship, x, y) >= 0);
   if (index < 0) return { result: 'miss', ships: [...ships], ship: null };
-  const ship: Ship = { ...ships[index], hits: ships[index].hits + 1 };
+  const before = ships[index];
+  const segment = segmentAt(before, x, y);
+  const ship: Ship = { ...before, damage: before.damage.map((d, i) => d || i === segment) };
   const next = ships.map((s, i) => (i === index ? ship : s));
-  return { result: ship.hits >= ship.length ? 'sunk' : 'hit', ships: next, ship };
+  return { result: isSunk(ship) ? 'sunk' : 'hit', ships: next, ship };
 }
 
-export function isSunk(ship: Ship): boolean {
-  return ship.hits >= ship.length;
+export function hitCount(ship: Pick<Ship, 'damage'>): number {
+  return ship.damage.filter(Boolean).length;
+}
+
+export function isSunk(ship: Pick<Ship, 'damage'>): boolean {
+  return ship.damage.length > 0 && ship.damage.every(Boolean);
 }
 
 export function allSunk(ships: readonly Ship[]): boolean {
@@ -148,38 +188,6 @@ export function allSunk(ships: readonly Ship[]): boolean {
 
 export function shipsAfloat(ships: readonly Ship[]): number {
   return ships.filter((s) => !isSunk(s)).length;
-}
-
-/** The ship one cell further along its own axis ('forward' is right / down). */
-export function slid(ship: Ship, direction: MoveDirection): Ship {
-  const step = direction === 'forward' ? 1 : -1;
-  return ship.horizontal ? { ...ship, x: ship.x + step } : { ...ship, y: ship.y + step };
-}
-
-/**
- * An undamaged ship may slide into free, in-bounds cells that nobody has shot at: a cell already
- * marked is never shot again, so a ship under one could never be sunk.
- */
-export function canSlide(ships: readonly Ship[], ship: Ship, direction: MoveDirection, size: number, shots: Readonly<Record<string, CellMark>>): boolean {
-  if (ship.hits > 0) return false;
-  const next = slid(ship, direction);
-  return fits(next, ships, size) && shipCells(next).every((c) => !shots[cellKey(c.x, c.y)]);
-}
-
-export function movableShips(ships: readonly Ship[], size: number, shots: Readonly<Record<string, CellMark>>): Array<{ id: string; forward: boolean; back: boolean }> {
-  return ships
-    .map((ship) => ({ id: ship.id, forward: canSlide(ships, ship, 'forward', size, shots), back: canSlide(ships, ship, 'back', size, shots) }))
-    .filter((m) => m.forward || m.back);
-}
-
-export type MoveCheck = { ok: true; ships: Ship[] } | { ok: false; reason: string };
-
-export function moveShip(ships: readonly Ship[], shipId: string, direction: MoveDirection, size: number, shots: Readonly<Record<string, CellMark>>): MoveCheck {
-  const ship = ships.find((s) => s.id === shipId);
-  if (!ship) return { ok: false, reason: 'No such ship.' };
-  if (ship.hits > 0) return { ok: false, reason: 'A damaged ship cannot move.' };
-  if (!canSlide(ships, ship, direction, size, shots)) return { ok: false, reason: 'There is no room that way.' };
-  return { ok: true, ships: ships.map((s) => (s.id === shipId ? slid(s, direction) : s)) };
 }
 
 /** Cells of every ship, keyed, for a quick membership test. */
