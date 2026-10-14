@@ -6,7 +6,7 @@
 import { inBounds, isSunk } from '../../../shared/games/battleships/fleet.js';
 import { applyShipMove, checkShipMove } from '../../../shared/games/battleships/moves.js';
 import type { MovePlan, ShipMove } from '../../../shared/games/battleships/protocol.js';
-import { fail, nameOf, snapshot, systemMessage, type Gx, type SideData } from './state.js';
+import { fail, nameOf, systemMessage, type Gx, type SideData } from './state.js';
 import { beginTurn, recordTurn, shooterSide } from './turns.js';
 
 /** The shooter's side and the turn's roll when a move is open to them, or null (with the reason sent). */
@@ -52,5 +52,6 @@ export function plan(gx: Gx, playerId: string, next: MovePlan | null): void {
     if (next.move && !inBounds(applyShipMove(ship, next.move), gx.data.size)) return fail(gx, playerId, 'That is off the board.');
   }
   gx.data.phase.plan = next;
-  snapshot(gx);
+  // Only the mover's side sees a plan: a room-wide snapshot would tell the others a move is coming.
+  gx.effects.push({ type: 'snapshot', to: [...mover.side.memberIds] });
 }

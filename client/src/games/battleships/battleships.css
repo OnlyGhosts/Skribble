@@ -1092,11 +1092,8 @@
   }
 }
 
+/* The narrowest phones keep the shared 8px gutter for the bar, status, tabs and cards; only the boards give up their frame so the cells get the room. */
 @media (max-width: 340px) {
-  .bs {
-    padding-inline: 2px;
-  }
-
   /* "Move (up to 6)" keeps to one line on the narrowest phones. */
   .bs-turn__btn svg {
     display: none;

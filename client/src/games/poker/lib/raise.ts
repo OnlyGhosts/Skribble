@@ -15,6 +15,16 @@ export function raiseRange(actions: PokerActions): RaiseRange | null {
   return null;
 }
 
+/**
+ * Whether the amount row is a bet or a raise: what my actions offer on my turn; off my turn, what
+ * the table says (a bet on a street after the flop nobody has bet on yet, a raise otherwise, the
+ * blinds being bets), so the label does not change the moment my turn comes.
+ */
+export function wagerKind(view: Pick<PokerView, 'street' | 'players'>, range: RaiseRange | null): RaiseRange['kind'] {
+  if (range) return range.kind;
+  return view.street !== null && view.street !== 'preflop' && highestBet(view) === 0 ? 'bet' : 'raise';
+}
+
 export function clampAmount(amount: number, range: RaiseRange): number {
   if (!Number.isFinite(amount)) return range.min;
   return Math.max(range.min, Math.min(range.max, Math.round(amount)));

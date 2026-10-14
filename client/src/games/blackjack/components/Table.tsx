@@ -4,7 +4,7 @@ import { Chips } from '../../../platform/components/Chips';
 import { Deck, DiscardTray } from '../../../platform/table/Deck';
 import { TableRibbon } from '../../../platform/table/Ribbon';
 import { seatOrder } from '../hooks';
-import type { TableModel } from '../lib/table';
+import { discardedCount, type TableModel } from '../lib/table';
 import type { Frame } from '../lib/timeline';
 import { dealerRuleText, ribbonText } from '../lib/text';
 import { Dealer } from './Dealer';
@@ -15,19 +15,16 @@ interface Props {
   room: BlackjackRoomState;
   view: BlackjackView;
   meId: string;
+  /** The table in the latest snapshot (the frame may still show the old one leaving). */
+  truth: TableModel | null;
   frame: Frame;
   now: number;
   isPhone: boolean;
   chipsOf(id: string): number;
 }
 
-function cardsOn(table: TableModel | null): number {
-  if (!table) return 0;
-  return table.dealer.length + Object.values(table.hands).reduce((sum, hands) => sum + hands.reduce((n, h) => n + h.cards.length, 0), 0);
-}
-
 /** My hands, bottom centre: split hands side by side, the one in play lit; two empty slots before my first deal. */
-function MyHands({ view, meId, frame, now, isPhone }: Omit<Props, 'room' | 'chipsOf'>) {
+function MyHands({ view, meId, frame, now, isPhone }: Omit<Props, 'room' | 'chipsOf' | 'truth'>) {
   const { table, timeline, leaving } = frame;
   const hands = table?.hands[meId] ?? [];
   const seat = view.players[meId];
@@ -62,12 +59,12 @@ function MyHands({ view, meId, frame, now, isPhone }: Omit<Props, 'room' | 'chip
  * The table, Stake style: the discards top left, the dealer top centre, the shoe top right, the
  * ribbon across the middle, the other seats in a strip, my hands at the bottom.
  */
-export function Table({ room, view, meId, frame, now, isPhone, chipsOf }: Props) {
+export function Table({ room, view, meId, truth, frame, now, isPhone, chipsOf }: Props) {
   const { table, timeline, leaving } = frame;
   const settings = room.settings;
   const dealt = table?.order ?? [];
   const others = seatOrder(room, view, dealt).filter((id) => id !== meId);
-  const discarded = Math.max(0, settings.decks * 52 - view.shoeRemaining - cardsOn(view.dealer.cards.length > 0 ? table : null));
+  const discarded = discardedCount(settings.decks, view.shoeRemaining, truth, table);
   return (
     <section className={`tbl-felt bj-table${leaving ? ' bj-table--leaving' : ''}`} aria-label="Table" data-testid="bj-table" data-round={table?.round ?? 0} data-settled={table?.settled ?? false}>
       <div className="tbl-felt__top">

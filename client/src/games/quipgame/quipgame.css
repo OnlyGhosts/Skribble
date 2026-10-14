@@ -123,9 +123,12 @@ button.quip-answer {
   touch-action: manipulation;
 }
 
-button.quip-answer:hover:not(:disabled) {
-  border-color: var(--color-text-muted);
-  background: var(--color-surface-2);
+/* Hover only on a real pointer (phones keep :hover after a tap), and never over the chosen card. */
+@media (hover: hover) {
+  button.quip-answer:hover:not(:disabled):not(.quip-answer--selected) {
+    border-color: var(--color-text-muted);
+    background: var(--color-surface-2);
+  }
 }
 
 button.quip-answer:active:not(:disabled) {
@@ -138,6 +141,8 @@ button.quip-answer:disabled {
 }
 
 .quip-answer--selected,
+button.quip-answer.quip-answer--selected,
+button.quip-answer.quip-answer--selected:hover,
 button.quip-answer--selected:disabled {
   border-color: var(--color-secondary-text);
   background: var(--color-secondary-soft);

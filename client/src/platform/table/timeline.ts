@@ -166,6 +166,12 @@ export function cardShown<T>(timeline: Timeline<T>, key: string, now: number): b
   return at === undefined || now >= at;
 }
 
+/** The card has finished sliding into its slot (a total counts it from then on). */
+export function landed<T>(timeline: Timeline<T>, key: string, now: number): boolean {
+  const at = timeline.arrivals[key];
+  return at === undefined || now >= at + (timeline.moved[key] ? MOVE_MS : DEAL_MS);
+}
+
 /** How a card that is landing right now comes in: from the deck, from its old slot, or not at all. */
 export function cardMotion<T>(timeline: Timeline<T>, key: string, now: number): 'deal' | 'move' | null {
   const at = timeline.arrivals[key];
@@ -220,7 +226,7 @@ export function animating<T>(timeline: Timeline<T>, now: number): boolean {
 /** The next moment the drawing changes, for the screen's clock; null once everything has landed. */
 export function nextEvent<T>(timeline: Timeline<T>, now: number): number | null {
   const times: number[] = [timeline.endsAt];
-  for (const at of Object.values(timeline.arrivals)) times.push(at, at + DEAL_MS);
+  for (const [key, at] of Object.entries(timeline.arrivals)) times.push(at, at + DEAL_MS, ...(timeline.moved[key] ? [at + MOVE_MS] : []));
   for (const at of Object.values(timeline.flips)) times.push(at, at + FLIP_MS);
   for (const at of Object.values(timeline.departures)) times.push(at, at + DISCARD_MS);
   times.push(...Object.values(timeline.marks));

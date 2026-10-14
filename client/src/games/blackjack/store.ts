@@ -19,6 +19,11 @@ interface BlackjackState {
   /** The table as the last snapshot had it. */
   table: TableModel | null;
   timeline: Timeline;
+  /**
+   * The timeline the sounds follow: the same as `timeline`, except under reduced motion, where the
+   * table snaps but the sounds keep the deal's pacing (reduced motion is not a mute).
+   */
+  soundTimeline: Timeline;
 }
 
 interface BlackjackActions {
@@ -35,7 +40,7 @@ interface BlackjackActions {
 
 export type BlackjackStore = BlackjackState & BlackjackActions;
 
-const INITIAL: BlackjackState = { betText: null, lastBet: null, sheet: null, confirmEnd: false, table: null, timeline: EMPTY_TIMELINE };
+const INITIAL: BlackjackState = { betText: null, lastBet: null, sheet: null, confirmEnd: false, table: null, timeline: EMPTY_TIMELINE, soundTimeline: EMPTY_TIMELINE };
 
 export const useBlackjackStore = create<BlackjackStore>()((set, get) => ({
   ...INITIAL,
@@ -44,10 +49,11 @@ export const useBlackjackStore = create<BlackjackStore>()((set, get) => ({
   openSheet: (sheet) => set({ sheet, confirmEnd: false }),
   setConfirmEnd: (confirmEnd) => set({ confirmEnd }),
   applyView: (view, now, fresh, motion) => {
-    const { table: prevTable, timeline: prev } = get();
+    const { table: prevTable, timeline: prev, soundTimeline: prevSound } = get();
     const table = tableOf(view);
     const timeline = planTimeline(prev, prevTable, table, now, fresh, motion);
-    set({ table, timeline });
+    const soundTimeline = motion ? timeline : planTimeline(prevSound, prevTable, table, now, fresh, true);
+    set({ table, timeline, soundTimeline });
     return timeline;
   },
   snap: (now) => set((s) => ({ timeline: snapTimeline(s.table, now) })),

@@ -23,8 +23,12 @@ export function roundLabel(round: number, totalRounds: number): string {
   return totalRounds > 0 ? `Round ${round} of ${totalRounds}` : `Round ${round}`;
 }
 
-/** The small line under the round in the top bar. */
-export function phaseKicker(view: BlackjackView, turnName: string, mine: boolean): string {
+/**
+ * The small line under the round in the top bar. While the settled round's reveal still plays on
+ * screen (`dealerPlaying`) it is the dealer's turn, whatever the next phase already is.
+ */
+export function phaseKicker(view: BlackjackView, turnName: string, mine: boolean, dealerPlaying = false): string {
+  if (dealerPlaying && view.phase !== 'held') return "Dealer's turn";
   if (view.endRequested && view.phase === 'acting') return 'Last hand';
   switch (view.phase) {
     case 'betting':

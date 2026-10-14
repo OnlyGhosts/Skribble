@@ -2,7 +2,7 @@ import type { BlackjackRoomState, BlackjackView } from '@shared/games/blackjack/
 import { MiniSeat, SeatStrip, type SeatLine } from '../../../platform/table/SeatStrip';
 import { playerOf } from '../hooks';
 import type { TableHand, TableModel } from '../lib/table';
-import type { Timeline } from '../lib/timeline';
+import { outcomesShown, type Timeline } from '../lib/timeline';
 import { formatChips, outcomeLabel, payoutText } from '../lib/text';
 import { Hand, handOnScreen } from './Hand';
 
@@ -18,9 +18,13 @@ interface Props {
   chipsOf(id: string): number;
 }
 
-/** One short line under a seat: what it is doing, or how its round went. */
-export function seatLine(view: BlackjackView, id: string, hands: TableHand[], settledShown: boolean): SeatLine {
+/**
+ * One short line under a seat: what it is doing, or how its round went. While the dealer's reveal
+ * still plays (`dealerPlaying`) a seat with cards waits for it, so nothing runs ahead of the table.
+ */
+export function seatLine(view: BlackjackView, id: string, hands: TableHand[], settledShown: boolean, dealerPlaying = false): SeatLine {
   const seat = view.players[id];
+  if (dealerPlaying && hands.length > 0) return { state: 'waiting', text: 'Waiting', tone: 'quiet' };
   if (seat.bustedOut) return { state: 'out', text: 'Out', tone: 'bad' };
   const betting = view.phase === 'betting' && view.order.includes(id);
   if (betting && seat.bet > 0) return { state: 'bet', text: `Bet ${formatChips(seat.bet)}`, tone: 'quiet' };
@@ -57,6 +61,7 @@ export function Seats({ room, view, ids, table, timeline, now, leaving, chipsOf 
         if (!player || !seat) return null;
         const hands = table?.hands[id] ?? [];
         const settledShown = Boolean(table?.settled) && hands.some((h, i) => handOnScreen(id, i, h, timeline, now).outcome !== null);
+        const dealerPlaying = Boolean(table?.settled) && !outcomesShown(timeline, now);
         const turn = turnId === id;
         return (
           <MiniSeat
@@ -66,7 +71,7 @@ export function Seats({ room, view, ids, table, timeline, now, leaving, chipsOf 
             avatar={player.avatar}
             connected={player.connected}
             chips={chipsOf(id)}
-            line={seatLine(view, id, hands, settledShown)}
+            line={seatLine(view, id, hands, settledShown, dealerPlaying)}
             turn={turn}
             dimmed={seat.bustedOut}
             data={{ 'data-chips': seat.chips, 'data-bet': seat.bet }}

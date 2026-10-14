@@ -47,7 +47,7 @@ describe('Battleships: setup and placing', () => {
     expect(s.data.phase).toBe('playing');
     expect(data(s)).toMatchObject({ mode: 'solo', size: 10, fleet: [4, 3, 3, 2], moveOrFire: false, lastSide: -1, log: [], lastAction: null, turnsTaken: 0 });
     expect(data(s).sides.map((x) => x.id)).toEqual([alice, bob, carol]);
-    expect(data(s).sides[0]).toEqual({ id: alice, memberIds: [alice], ships: [], ready: false, shots: {}, alive: true, lastShooterId: null, movedLastTurn: false });
+    expect(data(s).sides[0]).toEqual({ id: alice, memberIds: [alice], ships: [], ready: false, shots: {}, alive: true, lastShooterId: null, movedLastTurn: false, pendingRoll: null });
     expect(chatTexts(s.effects)).toContain('Place your ships! You have 30 seconds.');
     expect(nextDeadline(s.data)).toBe(START + PLACE_MS);
 

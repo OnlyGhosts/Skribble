@@ -83,6 +83,8 @@ export interface Gx {
   ctx: Ctx;
   data: PokerData;
   effects: Effect[];
+  /** The hand and how many board cards the clients had before this event (what they animate from). */
+  shown: { hand: number; board: number };
 }
 
 export const MIN_PLAYERS = gameById('poker').minPlayers;

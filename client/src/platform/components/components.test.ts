@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createElement } from 'react';
@@ -21,7 +21,7 @@ const { Wordmark } = await import('./Wordmark');
 const { PlayerList } = await import('./PlayerList');
 const { PhoneBored, PhoneHappy } = await import('./Mascots');
 const { SiteHeader } = await import('./SiteHeader');
-const { connectionLabel } = await import('./ConnectionPill');
+const { connectionLabel, shownConnectionLabel } = await import('./ConnectionPill');
 const { ReadyControls, readyState } = await import('./ReadyControls');
 const { AvatarPicker } = await import('./AvatarPicker');
 const { GamePicker } = await import('./GamePicker');
@@ -325,10 +325,23 @@ describe('wordmark and mascots', () => {
     expect(connectionLabel('connected')).toBeNull();
     expect(connectionLabel('reconnecting')).toBe('Reconnecting…');
     expect(connectionLabel('connecting')).toBe('Connecting…');
-    // react-dom/server reads the store's initial state, which is connecting.
+    // A first connect waits out its grace in JS, so reduced motion (which cuts CSS animations short) cannot flash it.
+    expect(shownConnectionLabel('connecting', false)).toBeNull();
+    expect(shownConnectionLabel('connecting', true)).toBe('Connecting…');
+    expect(shownConnectionLabel('reconnecting', false)).toBe('Reconnecting…');
+    expect(shownConnectionLabel('connected', true)).toBeNull();
+    expect(stylesheet('components.css')).not.toMatch(/conn-pill--connecting\s*\{[^}]*animation/);
+    // react-dom/server reads the store's initial state, which is connecting: nothing on first paint.
     const html = renderToString(createElement(SiteHeader));
-    expect(tagWith(html, 'connection-status')).toContain('data-status="connecting"');
+    expect(html).not.toContain('connection-status');
     expect(html).not.toContain('Connected<');
+  });
+
+  it('ships no pre-Pocket-Party assets: no old game icons, nothing in the old purple', () => {
+    const pub = fileURLToPath(new URL('../../../public', import.meta.url));
+    expect(existsSync(`${pub}/icons/games`)).toBe(false);
+    const svgs = (readdirSync(pub, { recursive: true }) as string[]).filter((f) => f.endsWith('.svg'));
+    for (const f of svgs) expect(readFileSync(`${pub}/${f}`, 'utf8').toLowerCase(), f).not.toContain('#6c5ce7');
   });
 
   it('draws every game with its own line glyph on its accent token, never an emoji', () => {
@@ -474,8 +487,12 @@ describe('avatar picker', () => {
     expect(AVATAR_EMOJIS).toHaveLength(24);
     const css = stylesheet('components.css');
     expect(css).not.toMatch(/\.avatar-picker__emojis \{[^}]*(max-height|overflow)/);
-    // At least 40px a choice: a 256px row at 320px still fits five of them.
-    expect(ruleOf(css, '.avatar-picker__group')).toContain('minmax(40px, 1fr)');
+    // 44px a choice wherever there is room; the 40px floor only on the narrowest phones.
+    expect(ruleOf(css, '.avatar-picker__group')).toContain('minmax(44px, 1fr)');
+    const narrow = css.slice(css.indexOf('@media (max-width: 340px)'));
+    expect(narrow).toMatch(/^@media \(max-width: 340px\) \{\s*\.avatar-picker__group \{\s*grid-template-columns: repeat\(auto-fill, minmax\(40px, 1fr\)\);/);
+    // A colour dot stays round: square up to 48px, never squashed by a height cap.
+    expect(ruleOf(css, '.avatar-picker__group .swatch')).not.toContain('max-height');
   });
 });
 
@@ -525,6 +542,34 @@ describe('podium overlay', () => {
     expect(second).toContain('You came 2nd');
     const spectator = renderToString(createElement(PodiumOverlay, { ...ended('dan'), isHost: false }));
     expect(spectator).toContain('You sat this one out');
+  });
+
+  it('prints the standings like the headline: grouped thousands and "1 pt" for a single point', async () => {
+    const { pointsShort } = await import('../lib/format');
+    expect(pointsShort(1)).toBe('1 pt');
+    expect(pointsShort(0)).toBe('0 pts');
+    expect(pointsShort(1100)).toBe('1,100 pts');
+    const state = room({
+      phase: 'ended',
+      players: [player('host', { score: 1100 }), player('bob', { score: 1, joinOrder: 1 })],
+      podium: [
+        { playerId: 'host', score: 1100, rank: 1 },
+        { playerId: 'bob', score: 1, rank: 2 },
+      ],
+    });
+    const html = renderToString(createElement(PodiumOverlay, { room: state, meId: 'bob', isHost: false }));
+    expect(html).toContain('>1,100 points<');
+    expect(html).toContain('>1,100 pts<');
+    expect(html).toContain('>1 pt<');
+    expect(html).not.toContain('1 pts');
+    expect(html).not.toContain('1100 pts');
+    const list = renderToString(createElement(PlayerList, { room: room({ phase: 'playing', players: [player('host', { score: 1 }), player('bob', { score: 1100, joinOrder: 1 })] }), meId: 'host', isHost: true, mode: 'game', game: null }));
+    expect(list).toContain('>1 pt<');
+    expect(list).toContain('>1,100 pts<');
+  });
+
+  it('draws no focus ring around the podium card it focuses on opening (a container, not a control)', () => {
+    expect(ruleOf(stylesheet('components.css'), '.podium-card:focus-visible')).toContain('outline: none');
   });
 
   it('announces a tie instead of crowning the first of the tied players', () => {

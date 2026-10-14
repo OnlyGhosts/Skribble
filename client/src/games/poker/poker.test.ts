@@ -9,7 +9,7 @@
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
 import { renderToString } from 'react-dom/server';
 import { DEFAULT_POKER_SETTINGS, type Card, type PokerActions, type PokerPlayerView, type PokerResults, type PokerRoomState, type PokerView } from '@shared/games/poker/protocol';
@@ -22,7 +22,7 @@ const { registerGames } = await import('../../platform/registry');
 const { pokerClient } = await import('./module');
 const { usePokerStore } = await import('./store');
 const { seatRing } = await import('./hooks');
-const { amountFrom, clampAmount, potSized, raiseRange } = await import('./lib/raise');
+const { amountFrom, clampAmount, potSized, raiseRange, wagerKind } = await import('./lib/raise');
 const { categoryLabel, handHint, handLabel, lastActionLabel, panelStatus, phaseKicker, resultText, HOTKEY_HINT } = await import('./lib/text');
 const { committedBefore, dealingOrder, tableOf } = await import('./lib/table');
 const T = await import('./lib/timeline');
@@ -196,6 +196,18 @@ describe('the hand model', () => {
 describe('the animation timeline', () => {
   const plan = (prevView: PokerView | null, nextView: PokerView, prev = T.EMPTY_TIMELINE, now = NOW, me = 'host') => T.planTimeline(prev, tableOf(prevView, me), tableOf(nextView, me), me, now, false, true);
 
+  it("plays a whole run-out inside the server's reveal allowance, with the same timings", async () => {
+    const { POKER_ANIMATION: A, settleRevealMs } = await import('@shared/games/poker/reveal');
+    expect([T.DEAL_MS, T.DEAL_GAP_MS, T.FLIP_MS, T.CHIP_MS, T.DISCARD_MS, T.SWEEP_GAP_MS, T.STREET_GAP_MS, T.SHOWDOWN_GAP_MS, T.PAY_MS]).toEqual([A.deal, A.dealGap, A.flip, A.chip, A.discard, A.sweepGap, A.streetGap, A.showdownGap, A.pay]);
+    const preflop = hostTurn();
+    const prev = plan(null, preflop);
+    const at = prev.endsAt + 10;
+    const runOut = plan(preflop, showdown(), prev, at);
+    expect(runOut.endsAt - at).toBeLessThanOrEqual(settleRevealMs({ holeCards: 0, boardFrom: 0, boardTo: 5, contested: true }));
+    const dealtAndSettled = plan(null, showdown(), T.EMPTY_TIMELINE, NOW);
+    expect(dealtAndSettled.endsAt - NOW).toBeLessThanOrEqual(settleRevealMs({ holeCards: 6, boardFrom: 0, boardTo: 5, contested: true }));
+  });
+
   it('deals a new hand round from the button, two passes 150ms apart, while the blinds slide to their spots', () => {
     const tl = plan(null, hostTurn());
     expect(tl.arrivals).toEqual({
@@ -354,11 +366,54 @@ describe('the animation timeline', () => {
   });
 });
 
+describe('sounds', () => {
+  it('starts the game with hand 1 dealt (no game before it): the deal plays its sounds and the first to act hears the your-turn cue', async () => {
+    const { pokerSounds } = await import('./sounds');
+    const { CUES } = await import('../../platform/lib/sound');
+    vi.useFakeTimers();
+    try {
+      const play = vi.spyOn(pokerSounds, 'play');
+      const cue = vi.spyOn(CUES, 'play');
+      const lobby = pkRoom(null as unknown as PokerView, { phase: 'lobby' });
+      usePlatformStore.getState().handleServerMessage(welcome('host', lobby));
+      pokerClient.onWelcome?.(undefined);
+      pokerClient.onRoom?.(lobby, null);
+      snapshot(pkRoom(hostTurn({ hand: 1 })));
+      expect(Object.keys(usePokerStore.getState().timeline.arrivals)).toHaveLength(6);
+      vi.advanceTimersByTime(5000);
+      expect(play.mock.calls.filter(([name]) => name === 'deal')).toHaveLength(6);
+      expect(cue.mock.calls.map(([name]) => name)).toContain('yourTurn');
+    } finally {
+      vi.useRealTimers();
+      vi.restoreAllMocks();
+    }
+  });
+
+  it('keeps the sounds under reduced motion: the table snaps, the sound timeline still has every card and chip', () => {
+    const store = usePokerStore.getState();
+    store.applyView(view(), 'host', NOW, false, false);
+    store.applyView(flop(), 'host', NOW + 1000, false, false);
+    const { timeline, soundTimeline } = usePokerStore.getState();
+    expect(timeline.arrivals).toEqual({});
+    expect(Object.keys(soundTimeline.arrivals).filter((k) => k.startsWith('b/'))).toHaveLength(3);
+    usePokerStore.getState().applyView(showdown(), 'host', NOW + 2000, false, false);
+    const after = usePokerStore.getState();
+    expect(after.timeline.flights).toEqual([]);
+    expect(after.soundTimeline.flights.some((f) => f.from === T.POT_ANCHOR)).toBe(true);
+    expect(after.soundTimeline.marks.outcomes).toBeGreaterThan(NOW + 2000);
+  });
+});
+
 describe('the raise amount', () => {
   it('works out the window, reads the field and sizes half pot and pot bets and raises', () => {
     expect(raiseRange(HOST_ACTIONS)).toEqual({ kind: 'raise', min: 20, max: 1000 });
     expect(raiseRange({ ...NO_ACTIONS, canBet: true, minBet: 10, maxBet: 990 })).toEqual({ kind: 'bet', min: 10, max: 990 });
     expect(raiseRange(NO_ACTIONS)).toBeNull();
+    // Off my turn the row reads what the street offers: a bet on an unbet street after the flop, a raise preflop or facing a bet.
+    expect(wagerKind(flop(), null)).toBe('bet');
+    expect(wagerKind(view(), null)).toBe('raise');
+    expect(wagerKind(flop({ players: { ...flop().players, carol: seat({ bet: 20 }) } }), null)).toBe('raise');
+    expect(wagerKind(flop(), { kind: 'raise', min: 20, max: 100 })).toBe('raise');
     const raise = { kind: 'raise' as const, min: 20, max: 1000 };
     expect(amountFrom('', raise)).toBeNull();
     expect(amountFrom('12a', raise)).toBeNull();
@@ -388,8 +443,18 @@ describe('copy', () => {
     expect(handLabel({ hand: 3, totalHands: 0 })).toBe('Hand 3');
     expect(lastActionLabel({ kind: 'raise', amount: 1200 })).toBe('Raise to 1,200');
     expect(lastActionLabel({ kind: 'bigBlind', amount: 10 })).toBe('BB 10');
-    expect(phaseKicker(view())).toBe('Pre-flop · Blinds 5/10');
-    expect(phaseKicker(showdown())).toBe('Showdown · Blinds 5/10');
+    // The blinds lead, so a narrow phone that cuts the line still shows them.
+    expect(phaseKicker(view())).toBe('Blinds 5/10 · Pre-flop');
+    expect(phaseKicker(showdown())).toBe('Blinds 5/10 · Showdown');
+    // Short phones keep the side pots as one compact line rather than hiding them.
+    const css = readFileSync(join(import.meta.dirname, 'poker.css'), 'utf8');
+    expect(css).not.toMatch(/\.pk-pot__sides\s*\{\s*display:\s*none/);
+    // A seat's payout float sits at the seat's right edge, off the cards, without the centring translate.
+    const float = css.match(/\.pk \.tbl-seat \.tbl-payout \{([^}]*)\}/)?.[1] ?? '';
+    expect(float).toMatch(/left:\s*auto/);
+    expect(float).toMatch(/right:\s*6px/);
+    expect(float).toMatch(/animation-name:\s*pk-seat-rise/);
+    expect(css.match(/@keyframes pk-seat-rise \{[\s\S]*?\n\}/)?.[0]).not.toContain('-50%');
     expect(resultText(SHOWDOWN, (id) => (id === 'host' ? 'You' : 'Quinn'))).toBe('You win 25 with three of a kind, kings');
     expect(resultText(SHOWDOWN, () => 'Hana')).toBe('Hana wins 25 with three of a kind, kings');
     const base = { phase: 'acting' as const, seated: true, busted: false, connected: true, held: false, inHand: true, myTurn: false, turnName: 'Pia', result: null, won: false };
@@ -519,6 +584,13 @@ describe('seats and hooks', () => {
     expect(carol).toBe('Thinking');
     const later = render(pkRoom(flop({ turn: 'host', players: { ...flop().players, carol: seat({ chips: 990, committed: 10 }) } })), 'bob', false);
     expect(later.match(/data-player-id="carol"[\s\S]*?data-testid="seat-line"[^>]*>([^<]*)</)?.[1]).toBe('Check');
+  });
+
+  it('reads "Bet amount" and "Bet" while waiting on a flop nobody has bet on, as it will on my turn', () => {
+    const html = render(pkRoom(flop({ myCards: KINGS })), 'host');
+    expect(html).toContain('>Bet amount<');
+    expect(html).not.toContain('>Raise to<');
+    expect(attr(tagWith(html, 'action-raise'), 'data-kind')).toBe('bet');
   });
 });
 

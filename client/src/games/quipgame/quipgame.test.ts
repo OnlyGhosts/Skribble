@@ -440,6 +440,12 @@ describe('the stylesheet', () => {
     expect(css).toMatch(/\.quip-write__input \{[^}]*max\(1\.1rem, 16px\)/);
   });
 
+  it('keeps the chosen vote card in its selected colours after a tap: hover is pointer-only and never beats the selection', () => {
+    expect(css).toMatch(/@media \(hover: hover\) \{\s*button\.quip-answer:hover:not\(:disabled\):not\(\.quip-answer--selected\) \{/);
+    expect(css).not.toMatch(/\nbutton\.quip-answer:hover/);
+    expect(css).toMatch(/button\.quip-answer\.quip-answer--selected:hover[^{]*\{[^}]*background: var\(--color-secondary-soft\)/);
+  });
+
   it('lets the result name ellipsize in its own block, wraps the badge row and keeps the tag whole', () => {
     expect(css).toMatch(/\.quip-result__name-text \{[^}]*display: block;[^}]*overflow: hidden;[^}]*text-overflow: ellipsis;[^}]*white-space: nowrap;/);
     expect(css).not.toMatch(/\.quip-result__name \{[^}]*text-overflow/);

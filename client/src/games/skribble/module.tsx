@@ -92,7 +92,8 @@ export const skribbleClient = defineGameClient<SkribbleView, SkribbleSettings>({
     if (isNewTurn(prev, room) || room.phase === 'lobby') store.setGuessDraft('');
     if (next?.kind === 'choosing' && next.drawerId === me && !(before?.kind === 'choosing' && before.drawerId === me)) playCue('yourTurn');
     if (prev && next?.kind === 'drawing' && before?.kind === 'choosing') sfx.play('chosen', { volume: next.drawerId === me ? 1 : ONLOOKER_VOLUME });
-    if (next?.kind === 'turnEnd' && before?.kind !== 'turnEnd') {
+    // A welcome without a room before it (a join during the summary) never replays the end of a turn.
+    if (prev && next?.kind === 'turnEnd' && before?.kind !== 'turnEnd') {
       const timeUp = next.reason === 'timeUp';
       if (timeUp) sfx.play('timeUp');
       sounds.at(Date.now() + (timeUp ? BUZZER_MS : 0), () => sfx.play('turnEnd'));

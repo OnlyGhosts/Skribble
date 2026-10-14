@@ -3,7 +3,7 @@ import { Chips } from '../../../platform/components/Chips';
 import { PayoutFloat, TotalPill, outlineClass, type Tone } from '../../../platform/table/Outcome';
 import { TableCard } from '../../../platform/table/TableCard';
 import { cardKey, shownTotal, totalText, type TableHand } from '../lib/table';
-import { cardMotion, cardShown, outcomesShown, type Timeline } from '../lib/timeline';
+import { cardMotion, cardShown, landed, outcomesShown, type Timeline } from '../lib/timeline';
 import { outcomeLabel, payoutText } from '../lib/text';
 
 export type HandTone = Tone;
@@ -23,10 +23,13 @@ interface Props {
   testId: string;
 }
 
-/** The hand as the timeline shows it at `now`: the cards landed so far, their total and, once settled on screen, the outcome. */
+/**
+ * The hand as the timeline shows it at `now`: the cards on the felt so far (one may still be
+ * sliding in), the total of those that have landed and, once settled on screen, the outcome.
+ */
 export function handOnScreen(playerId: string, index: number, hand: TableHand, timeline: Timeline, now: number) {
   const cards = hand.cards.map((card, i) => ({ card, key: cardKey(playerId, index, i, card) })).filter((c) => cardShown(timeline, c.key, now));
-  const total = shownTotal(cards.map((c) => c.card));
+  const total = shownTotal(cards.filter((c) => landed(timeline, c.key, now)).map((c) => c.card));
   const outcome = hand.outcome !== null && outcomesShown(timeline, now) ? hand.outcome : null;
   return { cards, total, outcome };
 }

@@ -75,3 +75,8 @@ export function parseChipAmount(text: string, min: number, max: number): number 
   if (!Number.isFinite(n)) return null;
   return Math.max(min, Math.min(max, Math.round(n)));
 }
+
+/** A score in a list: "1,100 pts", and "1 pt" for a single point. */
+export function pointsShort(score: number): string {
+  return `${score.toLocaleString('en-US')} ${score === 1 ? 'pt' : 'pts'}`;
+}

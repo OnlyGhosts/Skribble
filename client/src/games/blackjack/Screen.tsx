@@ -53,6 +53,8 @@ export function BlackjackScreen({ room, meId, isHost }: GameScreenProps<Blackjac
   const seat = view.players[meId];
   const chipsOf = (id: string) => (view.players[id]?.chips ?? 0) - pendingPayout(frame.table, frame.timeline, now, id);
   const busy = animating(timeline, now);
+  // The settled round's reveal is still playing: every part of the screen says it is the dealer's turn.
+  const dealerPlaying = Boolean(frame.table?.settled) && !outcomesShown(frame.timeline, now);
   const status = panelStatus({
     phase: view.phase,
     seated: seat !== undefined,
@@ -67,7 +69,7 @@ export function BlackjackScreen({ room, meId, isHost }: GameScreenProps<Blackjac
     turnName,
     handIndex: view.turn?.handIndex ?? 0,
     handCount: seat?.hands.length ?? 0,
-    dealerPlaying: Boolean(frame.table?.settled) && !outcomesShown(frame.timeline, now),
+    dealerPlaying,
   });
   const timed = playing && !held && (view.phase === 'betting' || view.phase === 'acting' || view.phase === 'ending');
   const tickUnder = myTurn || (view.phase === 'betting' && view.order.includes(meId) && (seat?.bet ?? 0) === 0) ? 5 : undefined;
@@ -83,7 +85,7 @@ export function BlackjackScreen({ room, meId, isHost }: GameScreenProps<Blackjac
       isPhone={isPhone}
       status={
         <>
-          {roundLabel(view.round, view.totalRounds)} · <span data-testid="phase-kicker">{phaseKicker(view, turnName, myTurn)}</span>
+          {roundLabel(view.round, view.totalRounds)} · <span data-testid="phase-kicker">{phaseKicker(view, turnName, myTurn, dealerPlaying)}</span>
         </>
       }
       statusTestId="round-indicator"
@@ -94,7 +96,7 @@ export function BlackjackScreen({ room, meId, isHost }: GameScreenProps<Blackjac
       sheet={sheet}
       onSheet={openSheet}
       endControl={(variant) => isHost && playing && <EndGameControl variant={variant} phase={view.phase} requested={view.endRequested} />}
-      table={<Table room={room} view={view} meId={meId} frame={frame} now={now} isPhone={isPhone} chipsOf={chipsOf} />}
+      table={<Table room={room} view={view} meId={meId} truth={table} frame={frame} now={now} isPhone={isPhone} chipsOf={chipsOf} />}
       panel={<ControlPanel room={room} view={view} meId={meId} balance={chipsOf(meId)} status={status} canSend={playing && connected} busy={busy} hotkeys={!isPhone} />}
     />
   );

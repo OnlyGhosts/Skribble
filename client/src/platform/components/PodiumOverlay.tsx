@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { PlayerPublic, PodiumEntry, RoomState } from '@shared/platform/protocol';
+import { pointsShort } from '../lib/format';
 import { placeLine, podiumOrder, readyLine, winnerHeadline, winners } from '../lib/party';
 import { PLATFORM_SOUNDS } from '../lib/platformSounds';
 import { useModalFocus } from '../lib/useModalFocus';
@@ -100,7 +101,7 @@ export function PodiumOverlay({ room, meId, isHost }: { room: RoomState; meId: s
                     {player?.name ?? 'Left the game'}
                     {entry.playerId === meId && <span className="podium-standings__you">You</span>}
                   </span>
-                  <span className="podium-standings__score">{entry.score} pts</span>
+                  <span className="podium-standings__score">{pointsShort(entry.score)}</span>
                 </li>
               );
             })}

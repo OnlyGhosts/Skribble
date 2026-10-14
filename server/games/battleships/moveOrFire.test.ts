@@ -4,7 +4,12 @@ import { cellKey, isSunk, segmentAt, shipCells } from '../../../shared/games/bat
 import { shipOptions } from '../../../shared/games/battleships/moves.js';
 import { BATTLESHIPS_DIRECTIONS, BATTLESHIPS_POINTS, type ShipMove, type ShipPlacement } from '../../../shared/games/battleships/protocol.js';
 import { START, chatTexts, errorsOf, sim, startGame, type Sim } from '../../platform/engine/testHarness.js';
-import { TURN_MS, data, fire, placeAll, rollOf, score, shipsOf, steerable, view } from './testHarness.js';
+import type { Effect } from '../../platform/engine/effects.js';
+import { RESUME_SETTLE_MS } from '../waiting.js';
+import { TURN_MS, data, disconnect, fire, placeAll, reconnect, rollOf, score, shipsOf, steerable, view } from './testHarness.js';
+
+/** Who got a room snapshot among these effects. */
+const roomSentTo = (effects: Effect[]): string[] => effects.flatMap((e) => (e.type === 'send' && e.msg.t === 'room' ? (typeof e.to === 'string' ? [e.to] : Array.isArray(e.to) ? e.to : []) : []));
 
 /** The small fleet with s3 out in open water: s0 A1-D1, s1 A2-C2, s2 A3-C3, s3 E7-F7. */
 const MOVERS: ShipPlacement[] = [
@@ -261,6 +266,48 @@ describe('Battleships move or fire: secrecy', () => {
     expect(view(s, null).myBoard).toBeNull();
     expect(JSON.stringify(view(s, bob))).not.toContain('"plan":{');
     expect(JSON.stringify(view(s, null))).not.toContain('"plan"');
+  });
+
+  it('sends a plan step to the mover\'s side only: the others get no snapshot that gives the move away', () => {
+    const { s, set } = steerable();
+    const [alice, bob, carol, dave] = startGame(s, ['Alice', 'Bob', 'Carol', 'Dave'], { mode: 'teams', moveOrFire: true });
+    set(rollOf(4));
+    placeAll(s, [alice, bob]);
+    for (const plan of [{ shipId: 's0', move: null }, { shipId: 's0', move: shift('down', 2) }, null]) {
+      const sent = roomSentTo(s.game(alice, { t: 'plan', plan }));
+      expect([...sent].sort()).toEqual([alice, carol].sort());
+      expect(sent).not.toContain(bob);
+      expect(sent).not.toContain(dave);
+    }
+  });
+});
+
+describe('Battleships move or fire: one roll a turn', () => {
+  it('keeps the roll when the shooter drops and comes back: a reload never re-rolls', () => {
+    const { s, set, alice, bob } = duel(1);
+    expect(view(s).turn).toMatchObject({ shooterId: alice, roll: 1 });
+    disconnect(s, alice, 'Alice');
+    expect(view(s).turn).toBeNull();
+    set(rollOf(6));
+    reconnect(s, alice, 'Alice');
+    s.now += RESUME_SETTLE_MS;
+    s.tick();
+    expect(view(s).turn).toMatchObject({ shooterId: alice, roll: 1 });
+    expect(view(s).turnNumber).toBe(1);
+    // The roll goes with the turn once it is taken: the next turn rolls afresh.
+    fire(s, alice, bob, 9, 9);
+    expect(view(s).turn).toMatchObject({ shooterId: bob, roll: 6 });
+  });
+
+  it('keeps the side\'s roll when its shooter drops and a teammate takes the turn', () => {
+    const { s, set } = steerable();
+    const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol', 'Dave'], { mode: 'teams', moveOrFire: true });
+    set(rollOf(1));
+    placeAll(s, [alice, bob]);
+    expect(view(s).turn).toMatchObject({ sideId: 'A', shooterId: alice, roll: 1 });
+    set(rollOf(6));
+    disconnect(s, alice, 'Alice');
+    expect(view(s).turn).toMatchObject({ sideId: 'A', shooterId: carol, roll: 1 });
   });
 });
 

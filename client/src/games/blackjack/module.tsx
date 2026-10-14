@@ -89,14 +89,14 @@ export const blackjackClient = defineGameClient<BlackjackView, BlackjackSettings
       return;
     }
     const view = room.game;
-    const { timeline: before, table: prevTable } = store;
-    const timeline = store.applyView(view, Date.now(), fresh, !prefersReducedMotion());
+    const { soundTimeline: before, table: prevTable } = store;
+    store.applyView(view, Date.now(), fresh, !prefersReducedMotion());
     if (fresh || !prev?.game) {
       clearBlackjackSounds();
       return;
     }
     const me = usePlatformStore.getState().playerId;
-    const table = useBlackjackStore.getState().table;
+    const { table, soundTimeline: timeline } = useBlackjackStore.getState();
     playBlackjackSounds({ view, prevView: prev.game, table, prevTable, before, timeline, me });
     if (me !== null && isActing(view, me) && !isActing(prev.game, me)) {
       playCue('yourTurn');

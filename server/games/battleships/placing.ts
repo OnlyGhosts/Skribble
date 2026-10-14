@@ -6,7 +6,7 @@ import { aliveSides, captainOf, fail, sideName, sideOf, snapshot, systemMessage,
 import { beginTurn } from './turns.js';
 
 function newSide(id: string, memberIds: string[]): SideData {
-  return { id, memberIds, ships: [], ready: false, shots: {}, alive: true, lastShooterId: null, movedLastTurn: false };
+  return { id, memberIds, ships: [], ready: false, shots: {}, alive: true, lastShooterId: null, movedLastTurn: false, pendingRoll: null };
 }
 
 /** Solo: a side per participant in join order. Teams: A and B alternately by join order (an odd count gives A one more). */

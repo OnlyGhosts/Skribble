@@ -654,3 +654,15 @@ describe('settings rows', () => {
     expect(host + guest).not.toContain('\u2014');
   });
 });
+
+describe('the stylesheet', () => {
+  it('keeps the shared phone gutter at 320px: only the boards give up their frame', async () => {
+    const { readFileSync } = await import('node:fs');
+    const css = readFileSync(new URL('./battleships.css', import.meta.url), 'utf8');
+    const narrow = css.slice(css.indexOf('@media (max-width: 340px)'));
+    const block = narrow.slice(0, narrow.indexOf('\n}\n'));
+    expect(block).not.toMatch(/\n {2}\.bs \{/);
+    expect(block).not.toMatch(/padding-inline: 2px/);
+    expect(block).toMatch(/\.bs-own,\s*\.bs-target,\s*\.bs-place \{[^}]*padding-inline: 0/);
+  });
+});

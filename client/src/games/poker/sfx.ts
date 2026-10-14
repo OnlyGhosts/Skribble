@@ -18,7 +18,8 @@ export function clearPokerSounds(): void {
 
 export interface PokerMoment {
   view: PokerView;
-  prevView: PokerView;
+  /** Null for the snapshot that starts the game. */
+  prevView: PokerView | null;
   before: Timeline;
   timeline: Timeline;
   me: string | null;
@@ -29,7 +30,7 @@ const SEAT = 'seat:';
 export function playPokerSounds({ view, prevView, before, timeline, me }: PokerMoment): void {
   const level = (id: string | null) => (id !== null && id === me ? 1 : ONLOOKER_VOLUME);
   const move = view.lastMove;
-  const newMove = move !== null && move.seq !== prevView.lastMove?.seq ? move : null;
+  const newMove = move !== null && move.seq !== prevView?.lastMove?.seq ? move : null;
   if (newMove?.kind === 'check') sfx.play('check', { volume: level(newMove.playerId) });
   if (newMove?.kind === 'fold') sfx.play('fold', { volume: level(newMove.playerId) });
 

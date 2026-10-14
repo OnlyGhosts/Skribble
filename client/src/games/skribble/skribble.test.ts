@@ -250,6 +250,28 @@ describe('spectators', () => {
   });
 });
 
+describe('sounds', () => {
+  it('plays the buzzer and turn-end sting when a turn ends, but not to a player who joins during the summary', async () => {
+    const { skribbleSounds } = await import('./sounds');
+    // Timers only: the schedule and the module read the same (real) clock.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      const play = vi.spyOn(skribbleSounds, 'play');
+      const ended = inTurn({ kind: 'turnEnd', word: 'cat', drawerId: 'bob', points: {}, reason: 'timeUp', endsAt: Date.now() + 5_000 });
+      enter(ended, 'rae');
+      vi.advanceTimersByTime(3_000);
+      expect(play).not.toHaveBeenCalled();
+      enter(inTurn(drawingPhase('bob')), 'host');
+      snapshot(ended);
+      vi.advanceTimersByTime(3_000);
+      expect(play.mock.calls.map(([name]) => name)).toEqual(['timeUp', 'turnEnd']);
+    } finally {
+      vi.useRealTimers();
+      vi.restoreAllMocks();
+    }
+  });
+});
+
 describe('platform hold', () => {
   it('renders the screen with a neutral paused top bar and a frozen timer while the game waits for players', () => {
     const holding = inTurn(drawingPhase('bob'), {}, { waiting: { reason: 'players', missing: ['bob'], needed: 2, connected: 1 } });

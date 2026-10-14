@@ -19,6 +19,7 @@ import { aliveSides, connectedAliveSides, findPlayer, isShooter, sideOf, snapsho
 import { move, plan } from './moving.js';
 import { fire, fireTimedOut } from './shooting.js';
 import { beginTurn, memberLeft, resumeIfHeld, settleDue, shooterAway } from './turns.js';
+import { upgradeData } from './legacy.js';
 import { viewFor } from './view.js';
 
 type Result = GameResult<BattleshipsData, BattleshipsServerMessage>;
@@ -27,7 +28,8 @@ function start(ctx: Ctx): Result {
   return withDraft(initialData(ctx), (data, effects) => announceStart({ ctx, data, effects }));
 }
 
-function handle(ctx: Ctx, data: BattleshipsData, event: GameEvent<BattleshipsClientMessage>): Result {
+function handle(ctx: Ctx, stored: BattleshipsData, event: GameEvent<BattleshipsClientMessage>): Result {
+  const data = upgradeData(stored);
   if (data.phase.kind === 'gameOver') return { data, effects: [] };
   return withDraft(data, (draft, effects) => {
     const gx: Gx = { ctx, data: draft, effects };
@@ -116,7 +118,8 @@ function onTick(gx: Gx): void {
   }
 }
 
-function nextDeadline(data: BattleshipsData): number | null {
+function nextDeadline(stored: BattleshipsData): number | null {
+  const data = upgradeData(stored);
   switch (data.phase.kind) {
     case 'placing':
     case 'turn':
@@ -135,7 +138,7 @@ export const battleshipsModule: GameServerModule<BattleshipsSettings, Battleship
   start,
   handle,
   nextDeadline,
-  view: viewFor,
+  view: (data, viewerId, ctx) => viewFor(upgradeData(data), viewerId, ctx),
 };
 
 export type { BattleshipsData };

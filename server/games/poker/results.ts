@@ -1,6 +1,7 @@
 /** The end of a hand: the showdown with its side pots and payouts, the uncontested pot, and the results phase. */
 import { compareHands, evaluateBest, handName, type HandRank } from '../../../shared/games/poker/hands.js';
 import type { PokerPotResult, PokerRevealedHand } from '../../../shared/games/poker/protocol.js';
+import { settleRevealMs } from '../../../shared/games/poker/reveal.js';
 import { buildPots, splitPot } from './pots.js';
 import { adjustChips, contenders, nameOf, ringAfter, snapshot, systemMessage, type Gx } from './state.js';
 
@@ -37,7 +38,15 @@ function settle(gx: Gx, pots: PokerPotResult[], revealed: Record<string, PokerRe
   data.idleHands = data.acted ? 0 : data.idleHands + 1;
   const busted = data.order.filter((id) => data.seats[id].chips === 0 && !data.seats[id].gone);
   for (const id of busted) systemMessage(gx, `${nameOf(gx.ctx, id)} is out of chips.`);
-  data.phase = { kind: 'results', endsAt: gx.ctx.now + gx.ctx.settings.resultsSeconds * 1000, held: false, resumeAt: null };
+  // The pause starts once the clients have shown the end of the hand (a run-out deals the rest of the board first).
+  const newHand = gx.shown.hand !== data.hand;
+  const reveal = settleRevealMs({
+    holeCards: newHand ? data.order.reduce((n, id) => n + data.seats[id].cards.length, 0) : 0,
+    boardFrom: newHand ? 0 : gx.shown.board,
+    boardTo: data.community.length,
+    contested: !uncontested,
+  });
+  data.phase = { kind: 'results', endsAt: gx.ctx.now + reveal + gx.ctx.settings.resultsSeconds * 1000, held: false, resumeAt: null };
   snapshot(gx);
 }
 

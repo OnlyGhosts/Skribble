@@ -3,7 +3,7 @@ import { PlayingCard, type PlayingCardSize } from '../../../platform/components/
 import { TotalPill } from '../../../platform/table/Outcome';
 import { TableCard } from '../../../platform/table/TableCard';
 import { dealerKey, shownTotal, totalText, type TableModel } from '../lib/table';
-import { cardMotion, cardShown, holeFaceDown, holeFlipping, type Timeline } from '../lib/timeline';
+import { cardMotion, cardShown, holeFaceDown, holeFlipping, landed, type Timeline } from '../lib/timeline';
 
 interface Props {
   table: TableModel | null;
@@ -13,14 +13,14 @@ interface Props {
   size: PlayingCardSize;
 }
 
-/** The dealer's cards as they stand at `now`: the hole card face down until it turns over. */
+/** The dealer's cards as they stand at `now`: the hole card face down until it turns over; `landed` once in its slot. */
 export function dealerOnScreen(table: TableModel | null, timeline: Timeline, now: number) {
-  const cards: { key: string; card: Card | null; flipping: boolean }[] = [];
+  const cards: { key: string; card: Card | null; flipping: boolean; landed: boolean }[] = [];
   (table?.dealer ?? []).forEach((card, i) => {
     const key = dealerKey(i);
     if (!cardShown(timeline, key, now)) return;
     const down = card === null || (i === 1 && holeFaceDown(timeline, now));
-    cards.push({ key, card: down ? null : card, flipping: i === 1 && !down && holeFlipping(timeline, now) });
+    cards.push({ key, card: down ? null : card, flipping: i === 1 && !down && holeFlipping(timeline, now), landed: landed(timeline, key, now) });
   });
   return cards;
 }
@@ -29,7 +29,8 @@ export function dealerOnScreen(table: TableModel | null, timeline: Timeline, now
 export function Dealer({ table, timeline, now, leaving, size }: Props) {
   const cards = dealerOnScreen(table, timeline, now);
   const holeHidden = cards.some((c) => c.card === null);
-  const total = shownTotal(cards.map((c) => c.card));
+  // The total counts a card once it lands, not while it slides in.
+  const total = shownTotal(cards.filter((c) => c.landed).map((c) => c.card));
   const blackjack = !holeHidden && cards.length === 2 && total?.total === 21;
   const tone = total && total.total > 21 ? 'bust' : blackjack ? 'blackjack' : 'neutral';
   return (

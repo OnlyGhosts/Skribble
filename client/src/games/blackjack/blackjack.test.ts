@@ -8,7 +8,7 @@
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
 import { renderToString } from 'react-dom/server';
 import { REVEAL_CARD_MS, REVEAL_HOLE_MS, revealAllowanceMs } from '@shared/games/blackjack/cards';
@@ -29,7 +29,7 @@ const { usePlatformStore } = await import('../../platform/store/usePlatformStore
 const { registerGames } = await import('../../platform/registry');
 const { blackjackClient } = await import('./module');
 const { useBlackjackStore } = await import('./store');
-const { dealOrder, tableOf, totalText, shownTotal } = await import('./lib/table');
+const { dealOrder, discardedCount, tableOf, totalText, shownTotal } = await import('./lib/table');
 const T = await import('./lib/timeline');
 const { betAmount, betWindow, defaultBet, doubleBet, halfBet, parseBet } = await import('./lib/bet');
 const { panelStatus, roundLabel, ribbonText, payoutText, joinNames, phaseKicker, HOTKEY_HINT } = await import('./lib/text');
@@ -170,6 +170,18 @@ describe('the table model', () => {
     expect(dealOrder(table)).toEqual(['host/0/0/8S', 'bob/0/0/9S', 'd0', 'host/0/1/8D', 'bob/0/1/10C', 'd1', 'host/0/2/3C', 'bob/0/2/5H', 'd2']);
   });
 
+  it('counts the settled round on the felt, not in the discards, until its cards have slid to the tray', () => {
+    const settledTable = tableOf(nextBetting());
+    const deal3 = tableOf(acting({ round: 3 }));
+    // Six decks; three cards went to the tray in round 1, round 2's nine cards are still on the felt.
+    expect(discardedCount(6, 300, settledTable, settledTable)).toBe(3);
+    // Round 3 is dealt (six cards out of the shoe) while round 2 slides off: still three in the tray.
+    expect(discardedCount(6, 294, deal3, settledTable)).toBe(3);
+    // Once they reach the tray, round 2's cards count.
+    expect(discardedCount(6, 294, deal3, deal3)).toBe(12);
+    expect(discardedCount(1, 52, settledTable, settledTable)).toBe(0);
+  });
+
   it('shows soft totals both ways and counts a face-down card for nothing', () => {
     expect(totalText({ total: 17, soft: true })).toBe('7/17');
     expect(totalText({ total: 21, soft: true })).toBe('21');
@@ -200,6 +212,23 @@ describe('the animation timeline', () => {
     expect(T.animating(tl, NOW + 900)).toBe(true);
     expect(T.animating(tl, NOW + 1000)).toBe(false);
     expect(T.nextEvent(tl, NOW + 10)).toBe(NOW + 150);
+  });
+
+  it('updates a total pill when a card lands, not when it starts sliding in', async () => {
+    const { handOnScreen } = await import('./components/Hand');
+    const { dealerOnScreen } = await import('./components/Dealer');
+    const tl = plan(view(), acting());
+    const table = tableOf(acting());
+    if (!table) throw new Error('no table');
+    const host = table.hands.host[0];
+    // The 8D starts at +450 and lands at +700.
+    expect(handOnScreen('host', 0, host, tl, NOW + 500)).toMatchObject({ total: { total: 8 } });
+    expect(handOnScreen('host', 0, host, tl, NOW + 500).cards).toHaveLength(2);
+    expect(handOnScreen('host', 0, host, tl, NOW + 450 + T.DEAL_MS)).toMatchObject({ total: { total: 16 } });
+    expect(dealerOnScreen(table, tl, NOW + 310).map((c) => c.landed)).toEqual([false]);
+    expect(dealerOnScreen(table, tl, NOW + 300 + T.DEAL_MS).map((c) => c.landed)).toEqual([true]);
+    expect(T.landed(tl, 'host/0/1/8D', NOW + 449 + T.DEAL_MS)).toBe(false);
+    expect(T.nextEvent(tl, NOW + 451)).toBe(NOW + 300 + T.DEAL_MS);
   });
 
   it('slides in one card for a hit, after anything still landing', () => {
@@ -290,6 +319,37 @@ describe('the animation timeline', () => {
   });
 });
 
+describe('sounds under reduced motion', () => {
+  it('snaps the table but keeps the deal, the hole card flip and the collect on the sound timeline', async () => {
+    const { blackjackSounds } = await import('./sounds');
+    const { playBlackjackSounds } = await import('./sfx');
+    vi.useFakeTimers();
+    try {
+      const play = vi.spyOn(blackjackSounds, 'play');
+      const store = useBlackjackStore.getState();
+      const steps = [view(), acting(), nextBetting()];
+      store.applyView(steps[0], Date.now(), false, false);
+      for (let i = 1; i < steps.length; i++) {
+        const { soundTimeline: before, table: prevTable } = useBlackjackStore.getState();
+        useBlackjackStore.getState().applyView(steps[i], Date.now(), false, false);
+        const { timeline, soundTimeline, table } = useBlackjackStore.getState();
+        expect(timeline.arrivals).toEqual({});
+        playBlackjackSounds({ view: steps[i], prevView: steps[i - 1], table, prevTable, before, timeline: soundTimeline, me: 'host' });
+        vi.advanceTimersByTime(5000);
+      }
+      // The schedule reads the real clock while these plans were made on the faked one: let everything due run.
+      vi.advanceTimersByTime(20_000);
+      const names = play.mock.calls.map(([name]) => name);
+      expect(names.filter((n) => n === 'deal').length).toBeGreaterThanOrEqual(6);
+      expect(names).toContain('flip');
+      expect(names).toContain('collect');
+    } finally {
+      vi.useRealTimers();
+      vi.restoreAllMocks();
+    }
+  });
+});
+
 describe('the bet amount', () => {
   it('stays inside the table limits and the stack, remembers the last bet and walks with 1/2, 2x and MAX', () => {
     const w = betWindow(10, 500, 300, 0);
@@ -330,6 +390,18 @@ describe('copy', () => {
     expect(payoutText(220)).toBe('+220');
     expect(payoutText(0)).toBe('');
     expect(phaseKicker(acting({ endRequested: true }), 'Pia', false)).toBe('Last hand');
+  });
+
+  it("says it is the dealer's turn in the top bar and holds every seat line while the reveal still plays", async () => {
+    const { seatLine } = await import('./components/Seats');
+    const next = nextBetting();
+    expect(phaseKicker(next, 'Pia', false)).toBe('Place your bets');
+    expect(phaseKicker(next, 'Pia', false, true)).toBe("Dealer's turn");
+    expect(phaseKicker(view({ phase: 'held' }), 'Pia', false, true)).toBe('Waiting for players');
+    const bobHands = tableOf(next)?.hands.bob ?? [];
+    expect(seatLine(next, 'bob', bobHands, false, true)).toMatchObject({ state: 'waiting', text: 'Waiting' });
+    expect(seatLine(next, 'bob', bobHands, false, false)).toMatchObject({ state: 'betting', text: 'Betting' });
+    expect(seatLine(next, 'bob', bobHands, true, false)).toMatchObject({ state: 'settled', text: 'Lost' });
   });
 
   it('never shows an em dash or mentions insurance anywhere in the module', () => {

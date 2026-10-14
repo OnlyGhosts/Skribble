@@ -391,11 +391,17 @@ test('round two: the amount is remembered, Space bets on the desktop, and the ho
     await placeBetWith(p, () => p.page.getByTestId('place-bet').click(), amount);
     stakes[p.name] = amount;
   }
+  // A mouse click on a quick step lets go of the focus: Space then bets rather than pressing the step again.
+  const remembered = Number(await host.page.getByTestId('bj-panel').getAttribute('data-amount'));
+  await host.page.getByTestId('bet-half').click();
+  await expect(host.page.getByTestId('bet-half')).not.toBeFocused();
   const hanaAmount = Number(await host.page.getByTestId('bj-panel').getAttribute('data-amount'));
+  expect(hanaAmount).toBeLessThanOrEqual(remembered);
   stakes.Hana = hanaAmount;
   await expect(host.page.getByTestId('place-bet')).toBeEnabled();
-  await host.page.locator('body').click({ position: { x: 700, y: 450 } });
   await host.page.keyboard.press('Space');
+  // The host bets last, so the cards come straight out: the stake shows on the host's hand.
+  await expect(host.page.getByTestId('my-hand').first()).toHaveAttribute('data-bet', String(hanaAmount));
   for (const p of players) before[p.name] -= stakes[p.name];
 
   for (const p of players) await expect(p.page.getByTestId('my-hand')).toHaveCount(1);

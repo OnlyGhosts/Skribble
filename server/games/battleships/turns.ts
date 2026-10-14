@@ -42,7 +42,7 @@ function nextShooter(gx: Gx): { sideIndex: number; shooterId: string } | null {
 /**
  * The turn boundary: the next shooter, a hold while fewer than two sides have anybody connected,
  * or the end of the game once a single fleet is left afloat. Under move or fire the turn opens
- * with the side's die roll, which everyone sees.
+ * with the side's die roll, which everyone sees (rolled once per turn, see SideData.pendingRoll).
  */
 export function beginTurn(gx: Gx): void {
   const { ctx, data } = gx;
@@ -54,7 +54,9 @@ export function beginTurn(gx: Gx): void {
   if (!next) return hold(gx);
   if (data.phase.kind === 'held') gx.effects.push(resumeEffect());
   const side = data.sides[next.sideIndex];
-  const roll = data.moveOrFire ? rollDie(ctx) : null;
+  // One roll per turn: a turn that restarts before anything was done keeps the side's roll.
+  const roll = data.moveOrFire ? (side.pendingRoll ?? rollDie(ctx)) : null;
+  side.pendingRoll = roll;
   data.phase = { kind: 'turn', sideId: side.id, shooterId: next.shooterId, endsAt: ctx.now + ctx.settings.turnSeconds * 1000, roll, plan: null };
   snapshot(gx);
 }
@@ -97,6 +99,7 @@ export function recordTurn(gx: Gx, side: SideData, playerId: string, action: Tur
   const { data } = gx;
   side.lastShooterId = playerId;
   side.movedLastTurn = action.kind === 'move';
+  side.pendingRoll = null;
   data.lastSide = data.sides.indexOf(side);
   data.turnsTaken += 1;
   data.lastAction = action;

@@ -18,6 +18,11 @@ interface PokerState {
   /** The hand as the last snapshot had it. */
   table: PokerTable | null;
   timeline: Timeline;
+  /**
+   * The timeline the sounds follow: the same as `timeline`, except under reduced motion, where the
+   * table snaps but the sounds keep the deal's pacing (reduced motion is not a mute).
+   */
+  soundTimeline: Timeline;
 }
 
 interface PokerActions {
@@ -33,7 +38,7 @@ interface PokerActions {
 
 export type PokerStore = PokerState & PokerActions;
 
-const INITIAL: PokerState = { sheet: null, raiseText: null, confirmEnd: false, table: null, timeline: EMPTY_TIMELINE };
+const INITIAL: PokerState = { sheet: null, raiseText: null, confirmEnd: false, table: null, timeline: EMPTY_TIMELINE, soundTimeline: EMPTY_TIMELINE };
 
 export const usePokerStore = create<PokerStore>()((set, get) => ({
   ...INITIAL,
@@ -42,10 +47,11 @@ export const usePokerStore = create<PokerStore>()((set, get) => ({
   setConfirmEnd: (confirmEnd) => set({ confirmEnd }),
   newTurn: () => set({ raiseText: null }),
   applyView: (view, meId, now, fresh, motion) => {
-    const { table: prevTable, timeline: prev } = get();
+    const { table: prevTable, timeline: prev, soundTimeline: prevSound } = get();
     const table = tableOf(view, meId);
     const timeline = planTimeline(prev, prevTable, table, meId, now, fresh, motion);
-    set({ table, timeline });
+    const soundTimeline = motion ? timeline : planTimeline(prevSound, prevTable, table, meId, now, fresh, true);
+    set({ table, timeline, soundTimeline });
     return timeline;
   },
   reset: () => set(INITIAL),

@@ -21,15 +21,18 @@ export function blindsLabel(view: Pick<PokerView, 'blinds'>): string {
   return `${formatChips(view.blinds.small)}/${formatChips(view.blinds.big)}`;
 }
 
-/** The small line under the hand in the top bar: the street (or how the hand ended) and the blinds. */
+/**
+ * The small line under the hand in the top bar: the blinds first (a narrow phone cuts the end of
+ * the line, and the board already shows the street), then the street or how the hand ended.
+ */
 export function phaseKicker(view: PokerView): string {
   const blinds = `Blinds ${blindsLabel(view)}`;
   switch (view.phase) {
     case 'acting':
-      return `${streetLabel(view.street)} · ${blinds}`;
+      return `${blinds} · ${streetLabel(view.street)}`;
     case 'results':
       if (view.paused) return 'Paused';
-      return `${view.results?.uncontested ? 'Hand over' : 'Showdown'} · ${blinds}`;
+      return `${blinds} · ${view.results?.uncontested ? 'Hand over' : 'Showdown'}`;
     case 'gameOver':
       return 'Game over';
   }

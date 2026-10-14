@@ -229,6 +229,10 @@ test('create → "Who’s playing?" → the lobby, where picking a game comes fi
   await expect(host.page.getByRole('heading', { name: "Who's playing?" })).toBeVisible();
   await expect(host.page.getByTestId('room-code')).toHaveCount(0);
   await expect(host.page.getByTestId('avatar-picker')).toBeVisible();
+  // Every face and colour is a 44px target where there is room (40px is only for the narrowest phones).
+  const tiles = await host.page.locator('.emoji-choice, .avatar-picker__group .swatch').evaluateAll((els) => els.map((e) => Math.min(e.getBoundingClientRect().width, e.getBoundingClientRect().height)));
+  expect(tiles).toHaveLength(36);
+  expect(Math.min(...tiles)).toBeGreaterThanOrEqual(44);
   await expect(host.page.getByTestId('home-continue')).toHaveText('Continue');
   await host.page.getByTestId('home-continue').click();
   await expect(host.page.getByRole('alert')).toContainText(/pick a name/i);

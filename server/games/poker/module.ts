@@ -45,7 +45,7 @@ function start(ctx: Ctx): Result {
     lastMove: null,
   };
   return withDraft(seed, (data, effects) => {
-    const gx: Gx = { ctx, data, effects };
+    const gx: Gx = { ctx, data, effects, shown: { hand: 0, board: 0 } };
     for (const p of ctx.players) seatPlayer(gx, p.id);
     beginHand(gx);
   });
@@ -54,7 +54,7 @@ function start(ctx: Ctx): Result {
 function handle(ctx: Ctx, data: PokerData, event: GameEvent<PokerClientMessage>): Result {
   if (data.phase.kind === 'gameOver') return { data, effects: [] };
   return withDraft(data, (draft, effects) => {
-    const gx: Gx = { ctx, data: draft, effects };
+    const gx: Gx = { ctx, data: draft, effects, shown: { hand: draft.hand, board: draft.community.length } };
     switch (event.type) {
       case 'message':
         return onMessage(gx, event.playerId, event.msg);

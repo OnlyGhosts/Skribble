@@ -88,7 +88,9 @@ export const pokerClient = defineGameClient<PokerView, PokerSettings>({
   },
 
   onRoom(room, prev) {
-    const fresh = entry.take() || !prev?.game;
+    // A welcome (or no room before) is a fresh entry. The snapshot that starts the game comes after
+    // the lobby's room and already deals hand 1: it animates from an empty table, with its sounds and cue.
+    const fresh = entry.take() || prev === null;
     const store = usePokerStore.getState();
     if (room.phase === 'lobby' || !room.game) {
       cancelCue();
@@ -100,16 +102,18 @@ export const pokerClient = defineGameClient<PokerView, PokerSettings>({
     if (stepOf(prev) !== stepOf(room)) store.newTurn();
     if (room.phase !== 'playing') store.setConfirmEnd(false);
     const me = usePlatformStore.getState().playerId;
-    const before = store.timeline;
+    const before = store.soundTimeline;
     const timeline = store.applyView(view, me, Date.now(), fresh, !prefersReducedMotion());
+    const soundTimeline = usePokerStore.getState().soundTimeline;
     // A fresh entry (welcome) is not a turn starting under this player's feet.
-    if (fresh || !prev?.game) {
+    if (fresh) {
       clearPokerSounds();
       return;
     }
-    playPokerSounds({ view, prevView: prev.game, before, timeline, me });
+    const prevView = prev?.game ?? null;
+    playPokerSounds({ view, prevView, before, timeline: soundTimeline, me });
     if (me === null) return;
-    if (isMyTurn(view, me) && !isMyTurn(prev.game, me)) {
+    if (isMyTurn(view, me) && !isMyTurn(prevView, me)) {
       // The cue comes when my turn shows: once the cards that came with it have landed.
       cueAt(Math.max(Date.now(), timeline.endsAt), () => {
         playCue('yourTurn');

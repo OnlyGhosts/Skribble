@@ -25,6 +25,18 @@ interface ShellProps {
 }
 
 /**
+ * A button clicked with a mouse or a tap (`detail` > 0) lets go of the focus, so Space stays the
+ * table's shortcut (click MAX, then Space bets) instead of pressing that button again. A keyboard
+ * press (`detail` 0) keeps the focus where the player put it.
+ */
+export function releaseClickedButton(e: { detail: number; target: EventTarget | null }): void {
+  if (e.detail === 0) return;
+  const t = e.target as { closest?: (selector: string) => unknown } | null;
+  const button = t && typeof t.closest === 'function' ? (t.closest('button') as { blur?: () => void } | null) : null;
+  button?.blur?.();
+}
+
+/**
  * The control panel shell, the same place all game long: the status line (whose turn it is), then
  * the game's rows, then the shortcut hint on a desktop. A form, so Enter in the amount sends.
  */
@@ -34,7 +46,7 @@ export function PanelShell({ label, status, onSubmit, testId, data, hint, childr
     onSubmit();
   };
   return (
-    <form className="tbl-panel" onSubmit={submit} noValidate aria-label={label} data-testid={testId} {...data}>
+    <form className="tbl-panel" onSubmit={submit} onClick={releaseClickedButton} noValidate aria-label={label} data-testid={testId} {...data}>
       <p className={`tbl-panel__status tbl-panel__status--${status.tone}`} data-testid="turn-status" data-state={status.state} role="status" aria-live="polite">
         {status.text}
       </p>

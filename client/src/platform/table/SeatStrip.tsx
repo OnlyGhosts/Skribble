@@ -2,6 +2,7 @@ import { useEffect, useRef, type ReactNode } from 'react';
 import type { Avatar as AvatarData } from '@shared/platform/avatar';
 import { Avatar } from '../components/Avatar';
 import { Chips } from '../components/Chips';
+import { prefersReducedMotion } from '../lib/media';
 
 interface StripProps {
   /** The seat whose turn it is: lit and scrolled into view. */
@@ -16,23 +17,37 @@ interface StripProps {
  * The other players in one horizontal strip that never collapses: it scrolls sideways rather than
  * squeezing, and keeps the seat whose turn it is in view (back to the start between turns).
  */
+/** The parts of the strip's list element the scroll reads. */
+export interface ScrollableStrip {
+  clientWidth: number;
+  scrollTo?(options: ScrollToOptions): void;
+  querySelector<E extends Element = HTMLElement>(selector: string): E | null;
+}
+
+/**
+ * Brings the turn seat to the middle of the strip (back to the start with no turn, or when the turn
+ * is mine and `homeWhenAway`). Under reduced motion it jumps instead of gliding.
+ */
+export function scrollStrip(list: ScrollableStrip, turnId: string | undefined, homeWhenAway: boolean, reduced: boolean): void {
+  const behavior: ScrollBehavior = reduced ? 'auto' : 'smooth';
+  if (!turnId) {
+    list.scrollTo?.({ left: 0, behavior });
+    return;
+  }
+  const el = list.querySelector<HTMLElement>(`[data-player-id="${CSS.escape(turnId)}"]`);
+  if (!el) {
+    if (homeWhenAway) list.scrollTo?.({ left: 0, behavior });
+    return;
+  }
+  const left = el.offsetLeft - (list.clientWidth - el.offsetWidth) / 2;
+  list.scrollTo?.({ left: Math.max(0, left), behavior });
+}
+
 export function SeatStrip({ turnId, label, homeWhenAway = false, children }: StripProps) {
   const strip = useRef<HTMLUListElement>(null);
 
   useEffect(() => {
-    const list = strip.current;
-    if (!list) return;
-    if (!turnId) {
-      list.scrollTo?.({ left: 0, behavior: 'smooth' });
-      return;
-    }
-    const el = list.querySelector<HTMLElement>(`[data-player-id="${CSS.escape(turnId)}"]`);
-    if (!el) {
-      if (homeWhenAway) list.scrollTo?.({ left: 0, behavior: 'smooth' });
-      return;
-    }
-    const left = el.offsetLeft - (list.clientWidth - el.offsetWidth) / 2;
-    list.scrollTo?.({ left: Math.max(0, left), behavior: 'smooth' });
+    if (strip.current) scrollStrip(strip.current, turnId, homeWhenAway, prefersReducedMotion());
   }, [turnId, homeWhenAway]);
 
   return (

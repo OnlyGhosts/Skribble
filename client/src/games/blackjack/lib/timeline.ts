@@ -21,7 +21,7 @@ import {
 } from '../../../platform/table/timeline';
 import { dealOrder, dealerKey, seatCards, type TableModel } from './table';
 
-export { DEAL_GAP_MS, DEAL_MS, DISCARD_MS, FLIP_MS, MAX_BACKLOG_MS, MOVE_MS, OUTCOME_HOLD_MS, animating, cardMotion, cardShown, frameAt, nextEvent } from '../../../platform/table/timeline';
+export { DEAL_GAP_MS, DEAL_MS, DISCARD_MS, FLIP_MS, MAX_BACKLOG_MS, MOVE_MS, OUTCOME_HOLD_MS, animating, cardMotion, cardShown, frameAt, landed, nextEvent } from '../../../platform/table/timeline';
 
 export const DEALER_GAP_MS = 500;
 /** The beat between the dealer's last card and the outcomes. */

@@ -117,3 +117,19 @@ export function shownTotal(cards: readonly (Card | null)[]): ShownTotal | null {
 export function totalText({ total, soft }: ShownTotal, open = true): string {
   return open && soft && total < 21 ? `${total - 10}/${total}` : String(total);
 }
+
+/** Every card on a table: the dealer's (the hole card too) and every hand's. */
+export function cardsOnTable(table: TableModel | null): number {
+  if (!table) return 0;
+  return table.dealer.length + Object.values(table.hands).reduce((sum, hands) => sum + hands.reduce((n, h) => n + h.cards.length, 0), 0);
+}
+
+/**
+ * Cards in the discard tray: whatever has left the shoe and is not on the felt. The settled round
+ * stays on the felt until the next deal, and its cards count as discarded only once they have
+ * slid to the tray (`shown` is the table being drawn, the old one while it leaves).
+ */
+export function discardedCount(decks: number, shoeRemaining: number, truth: TableModel | null, shown: TableModel | null): number {
+  const onFelt = cardsOnTable(truth) + (shown !== null && shown !== truth ? cardsOnTable(shown) : 0);
+  return Math.max(0, decks * 52 - shoeRemaining - onFelt);
+}

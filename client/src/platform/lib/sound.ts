@@ -23,7 +23,8 @@ export function unlockAudio(): void {
   soundEngine.unlock();
 }
 
-const CUES = defineSounds<Cue>('cue', {
+/** The platform's cues (playCue); exported so tests can watch them. */
+export const CUES = defineSounds<Cue>('cue', {
   correct: {
     render: renderNotes([
       { freq: 523.25, at: 0, dur: 0.12, type: 'triangle' },

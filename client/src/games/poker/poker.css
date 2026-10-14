@@ -117,10 +117,38 @@
   padding: 5px 7px;
 }
 
-/* The payout rises inside the seat: the strip scrolls, so nothing may stick out of it. */
+/*
+ * The payout rises inside the seat (the strip scrolls, so nothing may stick out of it), anchored
+ * to the seat's right edge on a chip of the seat's surface, so a wide amount never covers the cards.
+ */
 .pk .tbl-seat .tbl-payout {
+  left: auto;
+  right: 6px;
   bottom: 6px;
+  z-index: 1;
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-2);
   font-size: 0.95rem;
+  animation-name: pk-seat-rise;
+}
+
+@keyframes pk-seat-rise {
+  0% {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  20% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  75% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
 }
 
 /* ---------- Dealer button ---------- */
@@ -307,8 +335,14 @@
     padding: 0 10px;
   }
 
+  /* Side pots stay on show as one compact line. */
   .pk-pot__sides {
-    display: none;
+    flex-wrap: nowrap;
+    max-width: 100%;
+    overflow: hidden;
+    gap: 6px;
+    font-size: 0.6rem;
+    line-height: 1.1;
   }
 
   .pk-board {

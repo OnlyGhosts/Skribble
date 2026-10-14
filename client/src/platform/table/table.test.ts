@@ -18,8 +18,8 @@ installBrowserGlobals();
 const T = await import('./timeline');
 const { hotkeyOf, typingIn } = await import('../lib/hotkeys');
 const { AmountField } = await import('./AmountField');
-const { MoveButton, PanelLabelRow, PanelMoves, PanelShell } = await import('./ControlPanel');
-const { MiniSeat, SeatStrip } = await import('./SeatStrip');
+const { MoveButton, PanelLabelRow, PanelMoves, PanelShell, releaseClickedButton } = await import('./ControlPanel');
+const { MiniSeat, SeatStrip, scrollStrip } = await import('./SeatStrip');
 const { Deck, DiscardTray } = await import('./Deck');
 const { TableRibbon } = await import('./Ribbon');
 const { PayoutFloat, TotalPill, outlineClass } = await import('./Outcome');
@@ -89,6 +89,11 @@ describe('the animation queue', () => {
     expect(T.cardMotion(tl, 'a', NOW + 10)).toBe('deal');
     expect(T.cardMotion(tl, 'm', NOW + 10)).toBe('move');
     expect(T.cardMotion(tl, 'a', NOW + T.DEAL_MS)).toBeNull();
+    // A card counts towards a total once it lands: a deal after DEAL_MS, a move after MOVE_MS.
+    expect(T.landed(tl, 'a', NOW + T.DEAL_MS - 1)).toBe(false);
+    expect(T.landed(tl, 'a', NOW + T.DEAL_MS)).toBe(true);
+    expect(T.landed(tl, 'm', NOW + T.MOVE_MS)).toBe(true);
+    expect(T.landed(tl, 'never-planned', NOW - 1)).toBe(true);
     expect(T.faceDown(tl, 'a', NOW + 499)).toBe(true);
     expect(T.flipping(tl, 'a', NOW + 500)).toBe(true);
     expect(T.flipping(tl, 'a', NOW + 500 + T.FLIP_MS)).toBe(false);
@@ -111,6 +116,27 @@ describe('the animation queue', () => {
   });
 });
 
+describe('the seat strip scroll', () => {
+  it('glides to the turn seat, and jumps there under reduced motion', () => {
+    const g = globalThis as { CSS?: { escape(s: string): string } };
+    g.CSS ??= { escape: (s: string) => s };
+    const calls: ScrollToOptions[] = [];
+    const seat = { offsetLeft: 400, offsetWidth: 100 };
+    const list = { clientWidth: 300, scrollTo: (o: ScrollToOptions) => void calls.push(o), querySelector: <E extends Element>(sel: string) => (sel.includes('pia') ? (seat as unknown as E) : null) };
+    scrollStrip(list, 'pia', false, false);
+    scrollStrip(list, 'pia', false, true);
+    scrollStrip(list, undefined, false, true);
+    scrollStrip(list, 'me', true, true);
+    scrollStrip(list, 'me', false, true);
+    expect(calls).toEqual([
+      { left: 300, behavior: 'smooth' },
+      { left: 300, behavior: 'auto' },
+      { left: 0, behavior: 'auto' },
+      { left: 0, behavior: 'auto' },
+    ]);
+  });
+});
+
 describe('desktop shortcuts', () => {
   const key = (k: string, over: Partial<Parameters<typeof hotkeyOf>[0]> = {}) => hotkeyOf({ key: k, repeat: false, altKey: false, ctrlKey: false, metaKey: false, target: null, ...over });
 
@@ -127,6 +153,17 @@ describe('desktop shortcuts', () => {
     const button = { tagName: 'BUTTON', closest: (s: string) => (s.includes('button') ? {} : null) } as unknown as EventTarget;
     expect(key(' ', { target: button })).toBeNull();
     expect(key('h', { target: button })).toBe('H');
+  });
+
+  it('lets a panel button clicked with the mouse let go of the focus (click MAX, then Space bets), not one pressed from the keyboard', () => {
+    let blurred = 0;
+    const button = { closest: (sel: string) => (sel === 'button' ? { blur: () => void (blurred += 1) } : null) } as unknown as EventTarget;
+    releaseClickedButton({ detail: 1, target: button });
+    expect(blurred).toBe(1);
+    releaseClickedButton({ detail: 0, target: button });
+    expect(blurred).toBe(1);
+    releaseClickedButton({ detail: 1, target: null });
+    expect(blurred).toBe(1);
   });
 });
 

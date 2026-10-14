@@ -1,6 +1,7 @@
 /** The round boundary: the next round's betting, the end of the game (with its final pause), the host's End game and the holds. */
 import { RESUME_SETTLE_MS, holdEffects, resumeEffect } from '../waiting.js';
 import { needsReshuffle } from '../../../shared/games/blackjack/cards.js';
+import { gameById } from '../../../shared/platform/games.js';
 import { MIN_PLAYERS, activePlayers, adjustChips, connectedActive, fail, rebuildShoe, snapshot, systemMessage, type Gx } from './state.js';
 
 /** Seats a newcomer (or a player without a seat yet) with the starting stack. */
@@ -10,9 +11,13 @@ export function seatPlayer(gx: Gx, playerId: string): void {
   adjustChips(gx, playerId, gx.ctx.settings.startingChips);
 }
 
+const MAX_SEATS = gameById('blackjack').maxPlayers ?? Infinity;
+
 /**
  * Whether the game is over at this boundary, with the line that says why: the host's End game,
  * the last round played, every stack gone, or (unlimited, two or more players) one stack left.
+ * A newcomer waiting for a seat keeps the game going (they are dealt in next), so the last one
+ * standing is always a seated player with chips.
  */
 function gameIsOver(gx: Gx): boolean {
   const { data, ctx } = gx;
@@ -24,11 +29,24 @@ function gameIsOver(gx: Gx): boolean {
   if (data.endRequested) return true;
   const { rounds } = ctx.settings;
   if (rounds > 0) return data.round >= rounds;
-  if (ctx.players.length >= 2 && active.length === 1) {
-    systemMessage(gx, `${active[0].name} is the last one standing.`);
+  const seated = active.filter((p) => data.seats[p.id]);
+  if (ctx.players.length >= 2 && seated.length === 1 && active.length === 1) {
+    systemMessage(gx, `${seated[0].name} is the last one standing.`);
     return true;
   }
   return false;
+}
+
+/** Deals in newcomers while the table has a free seat (busted-out players free theirs); the rest wait and watch. */
+function seatNewcomers(gx: Gx): void {
+  const { data, ctx } = gx;
+  const active = activePlayers(ctx, data);
+  let taken = active.filter((p) => data.seats[p.id]).length;
+  for (const p of active) {
+    if (data.seats[p.id] || taken >= MAX_SEATS) continue;
+    seatPlayer(gx, p.id);
+    taken += 1;
+  }
 }
 
 /**
@@ -61,10 +79,10 @@ export function beginRound(gx: Gx, revealMs = 0): void {
   if (data.phase.kind === 'held') gx.effects.push(resumeEffect());
 
   // Only a round that really starts seats the newcomers (with the starting stack).
-  for (const p of active) seatPlayer(gx, p.id);
+  seatNewcomers(gx);
   data.round += 1;
   data.reshuffled = false;
-  data.order = active.map((p) => p.id);
+  data.order = active.filter((p) => data.seats[p.id]).map((p) => p.id);
   for (const seat of Object.values(data.seats)) {
     seat.bet = 0;
     seat.hands = [];

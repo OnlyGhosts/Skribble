@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { PlayerPublic, RoomState } from '@shared/platform/protocol';
 import type { AnyGameClientModule } from '../game';
+import { pointsShort } from '../lib/format';
 import { isReady } from '../lib/party';
 import { kickPlayer, voteKick } from '../net/actions';
 import { Avatar } from './Avatar';
@@ -85,7 +86,7 @@ export function PlayerList({ room, meId, isHost, mode, game }: Props) {
                     </span>
                   ) : (
                     <span className="player__score" data-testid="player-score">
-                      {p.score} pts
+                      {pointsShort(p.score)}
                     </span>
                   )}
                   {meta}

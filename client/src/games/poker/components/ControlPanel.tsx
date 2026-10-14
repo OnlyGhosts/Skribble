@@ -4,7 +4,7 @@ import { useHotkeys } from '../../../platform/lib/hotkeys';
 import { AmountField } from '../../../platform/table/AmountField';
 import { MoveButton, PanelLabelRow, PanelMoves, PanelShell, type PanelStatus } from '../../../platform/table/ControlPanel';
 import { allIn, call, check, fold, wager } from '../actions';
-import { amountFrom, potSized, raiseRange } from '../lib/raise';
+import { amountFrom, potSized, raiseRange, wagerKind } from '../lib/raise';
 import { HOTKEY_HINT, formatChips } from '../lib/text';
 import { usePoker, usePokerStore } from '../store';
 
@@ -54,7 +54,7 @@ export function ControlPanel({ view, meId, balance, status, canSend, busy, hotke
   const checkOrCall = () => (actions.canCall ? call() : check());
   useHotkeys(hotkeys, { F: can.fold ? () => void fold() : null, C: can.checkCall ? () => void checkOrCall() : null, R: canWager ? send : null, A: can.allIn ? () => void allIn() : null });
 
-  const kind = range?.kind ?? (actions.canBet ? 'bet' : 'raise');
+  const kind = wagerKind(view, range);
   const wagerLabel = amount !== null ? (kind === 'bet' ? `Bet ${formatChips(amount)}` : `Raise to ${formatChips(amount)}`) : kind === 'bet' ? 'Bet' : 'Raise';
   const callLabel = actions.canCall ? `Call ${formatChips(actions.callAmount)}` : 'Check';
   const steps = range

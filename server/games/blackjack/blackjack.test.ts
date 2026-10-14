@@ -802,6 +802,26 @@ describe('Blackjack: unlimited rounds', () => {
     expect(chatTexts(act(left, carol, { t: 'stand' })).slice(-1)).toEqual(['Round 2: place your bets!']);
     expect(view(left)).toMatchObject({ phase: 'betting', round: 2, order: [carol] });
   });
+
+  it('never names a newcomer without a seat the last one standing: they are dealt in, and only a seated stack can win', () => {
+    const s = sim('blackjack');
+    const [alice] = startGame(s, ['Alice'], { rounds: 0, startingChips: 100, minBet: 60, maxBet: 100 });
+    s.apply({ type: 'join', name: 'Bob', avatar: AVATAR, connectionId: 'b' });
+    const bob = s.playerId('Bob');
+    rig(s, '10S', '9D', '6H', '8S');
+    act(s, alice, { t: 'bet', amount: 60 });
+    const settled = act(s, alice, { t: 'stand' });
+    expect(chatTexts(settled)).toEqual(['The dealer stands on 17.', 'Alice loses 60.', 'Alice is out of chips.', 'Round 2: place your bets!']);
+    expect(view(s)).toMatchObject({ phase: 'betting', round: 2, order: [bob] });
+    expect([chips(s, bob), score(s, bob)]).toEqual([100, 100]);
+
+    rig(s, '10S', '9D', 'KH', '8S');
+    act(s, bob, { t: 'bet', amount: 60 });
+    expect(chatTexts(act(s, bob, { t: 'stand' }))).toEqual(['The dealer stands on 17.', 'Bob wins 60.', 'Bob is the last one standing.']);
+    tick(s, 1200 + RESULTS_MS);
+    expect(s.data.phase).toBe('ended');
+    expect(s.data.podium?.[0]).toEqual({ playerId: bob, score: 160, rank: 1 });
+  });
 });
 
 describe('Blackjack: the host ends the game', () => {
@@ -875,6 +895,33 @@ describe('Blackjack: seats coming and going', () => {
     expect([chips(s, carol), score(s, carol)]).toEqual([1000, 1000]);
     act(s, carol, { t: 'bet', amount: 20 });
     expect(view(s).players[carol]).toMatchObject({ chips: 980, bet: 20, inRound: true });
+  });
+
+  it('never seats more than the table holds: a newcomer past seven waits and watches until a seat frees up', () => {
+    const s = sim('blackjack');
+    const names = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
+    const ids = startGame(s, names, { rounds: 0 });
+    expect(gameById('blackjack').maxPlayers).toBe(7);
+    s.apply({ type: 'join', name: 'H', avatar: AVATAR, connectionId: 'h' });
+    const h = s.playerId('H');
+    const playOut = (): void => {
+      betAll(s, view(s).order);
+      for (let guard = 0; view(s).phase === 'acting' && guard < 50; guard++) {
+        const turn = view(s).turn;
+        if (turn) act(s, turn.playerId, { t: 'stand' });
+      }
+    };
+    playOut();
+    expect(view(s)).toMatchObject({ phase: 'betting', round: 2, order: ids });
+    expect(data(s).seats[h]).toBeUndefined();
+    expect(view(s).players[h]).toMatchObject({ inRound: false, chips: 0 });
+    expect(errorsOf(act(s, h, { t: 'bet', amount: 10 }))).toEqual(['You cannot bet right now.']);
+
+    s.apply({ type: 'leave', playerId: ids[2] });
+    playOut();
+    expect(view(s).order).toEqual([...ids.slice(0, 2), ...ids.slice(3), h]);
+    expect(view(s).order).toHaveLength(7);
+    expect(chips(s, h)).toBe(1000);
   });
 
   it('ranks a newcomer who arrived during the final pause last, without a stack: nobody who never played decides the podium', () => {

@@ -20,6 +20,11 @@ export interface SideData {
   lastShooterId: string | null;
   /** The side's last turn was a move: its next one must be a shot. */
   movedLastTurn: boolean;
+  /**
+   * The die rolled for the side's turn that has not been taken yet: a turn that restarts (the
+   * shooter dropped, the game held) keeps it, so a reload never re-rolls. Cleared by a shot or a move.
+   */
+  pendingRoll: number | null;
 }
 
 export type PhaseData =
