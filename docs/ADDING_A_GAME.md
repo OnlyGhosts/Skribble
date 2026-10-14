@@ -748,8 +748,9 @@ Style rules that keep the look consistent (details in section 8):
   query, prefix overrides of platform classes with your root class** (`.wordle .timer--lg`),
   because an equal-specificity rule depends on bundle order.
 - Only tokens for colours, spacing, radii and shadows; the game's accent is `--game-<id>` (the
-  same value as `meta.accent`), always with ink (`--game-ink`) on top. Put the game's mark in its
-  header with `<GameMark game={meta} />` (the glyph on the accent plate).
+  same value as `meta.accent`), always with ink (`--game-ink`) on top; set
+  `--game-accent: var(--game-<id>)` on your root class so the platform's result kicker picks it up.
+  Every game screen opens with the platform's `GameTopBar` (section 8.3), never a header of its own.
 - Sends go through `socket.send({ t: 'guess', word })` from `client/src/platform/net/socket.ts`;
   wrap them in a small `actions.ts` once there are several (see Scribble's
   [`actions.ts`](../client/src/games/skribble/actions.ts)).
@@ -1091,63 +1092,87 @@ export const templateClient = defineGameClient<TemplateView, TemplateSettings>({
 
 The screen gets `{ room, meId, isHost }`. It reads the view from `room.game` and the game's
 settings from `room.settings` (typed through `GameScreenProps<TemplateView, TemplateSettings>`),
-sends `{ t: 'click' }` straight through the socket, and composes platform components: `SiteHeader`
-with a Leave button, `Timer`, `Avatar`, `Chat`. The podium is not its concern. Every interactive
-element carries a `data-testid` for the e2e test.
+sends `{ t: 'click' }` straight through the socket, and composes platform components: the
+`GameTopBar` every game uses (options, name and status, the clock, players; its `GameMenuSheet`
+holds the theme, sound and Leave), `Timer`, `Avatar`, `Chat`, `PlayerList` in a `BottomSheet`.
+The podium is not its concern. Every interactive element carries a `data-testid` for the e2e test.
 
 ```tsx
+import { useState } from 'react';
 import { gameById } from '@shared/platform/games';
 import type { TemplateSettings, TemplateView } from '@shared/games/template/protocol';
 import { Avatar } from '../../platform/components/Avatar';
+import { BottomSheet } from '../../platform/components/BottomSheet';
 import { Chat } from '../../platform/components/Chat';
-import { LogoutIcon } from '../../platform/components/Icons';
-import { SiteHeader } from '../../platform/components/SiteHeader';
+import { GameMenuSheet, GameTopBar } from '../../platform/components/GameTopBar';
+import { PlayerList } from '../../platform/components/PlayerList';
 import { Timer } from '../../platform/components/Timer';
 import type { GameScreenProps } from '../../platform/game';
-import { leaveRoom } from '../../platform/net/actions';
+import { PHONE_QUERY, useMediaQuery } from '../../platform/lib/media';
 import { socket } from '../../platform/net/socket';
+import { useActiveGame } from '../../platform/store/selectors';
 
 const meta = gameById('template');
 
-/** One big button, a live ranking and the clock. The platform draws the podium when the race ends. */
-export function ClickRaceScreen({ room, meId }: GameScreenProps<TemplateView, TemplateSettings>) {
+/**
+ * One big button, a live ranking and the clock. The platform draws the podium when the race ends.
+ * A player sitting this one out watches: their button is off and the standings list racers only.
+ */
+export function ClickRaceScreen({ room, meId, isHost }: GameScreenProps<TemplateView, TemplateSettings>) {
+  const game = useActiveGame();
+  const isPhone = useMediaQuery(PHONE_QUERY);
+  const [sheet, setSheet] = useState<'players' | 'menu' | null>(null);
   const view = room.game;
   if (!view) return null;
   const target = room.settings.targetClicks;
   const mine = view.clicks[meId] ?? 0;
-  const racing = room.phase === 'playing';
-  const ranking = room.players.slice().sort((a, b) => (view.clicks[b.id] ?? 0) - (view.clicks[a.id] ?? 0) || a.joinOrder - b.joinOrder);
+  const spectating = !room.players.find((p) => p.id === meId)?.participating;
+  const racing = room.phase === 'playing' && !spectating;
+  const racers = room.players.filter((p) => p.participating);
+  const ranking = racers.slice().sort((a, b) => (view.clicks[b.id] ?? 0) - (view.clicks[a.id] ?? 0) || a.joinOrder - b.joinOrder);
+  const watching = room.players.filter((p) => !p.participating);
 
   return (
     <div className="race">
-      <SiteHeader>
-        <button type="button" className="btn btn--ghost btn--sm" onClick={leaveRoom} data-testid="leave-room">
-          <LogoutIcon size={16} /> Leave
-        </button>
-      </SiteHeader>
+      {/* Every game's top bar: options, name and status, the clock, players (the chat is on screen here). */}
+      <GameTopBar
+        meta={meta}
+        isPhone={isPhone}
+        testId="race-header"
+        status={`First to ${target} taps`}
+        clock={<Timer endsAt={view.endsAt} warnUnder={5} tickUnder={3} />}
+        players={{ count: room.players.length, open: sheet === 'players', onOpen: () => setSheet('players') }}
+        menu={{ open: sheet === 'menu', onOpen: () => setSheet('menu') }}
+      />
       <div className="race__grid">
         <main className="card race__main">
-          <header className="race__head">
-            <div>
-              <p className="overlay__kicker">{meta.name}</p>
-              <h1 className="race__title">First to {target} taps wins</h1>
-            </div>
-            <Timer endsAt={view.endsAt} warnUnder={5} tickUnder={3} />
-          </header>
+          <h1 className="race__title">First to {target} taps wins</h1>
           <button
             type="button"
             className="race__button"
             style={{ background: meta.accent }}
             onClick={() => socket.send({ t: 'click' })}
             disabled={!racing}
-            aria-label={`Tap! ${mine} of ${target}`}
+            aria-label={spectating ? "You're sitting this one out" : `Tap! ${mine} of ${target}`}
             data-testid="click-button"
+            data-spectating={spectating}
           >
-            <span className="race__count" data-testid="click-count">
-              {mine}
-            </span>
-            <span className="race__target">/ {target}</span>
+            {spectating ? (
+              <span className="race__watching">Sitting out</span>
+            ) : (
+              <>
+                <span className="race__count" data-testid="click-count">
+                  {mine}
+                </span>
+                <span className="race__target">/ {target}</span>
+              </>
+            )}
           </button>
+          {spectating && (
+            <p className="race__note" data-testid="race-spectating">
+              You're sitting this one out. The race goes on without you.
+            </p>
+          )}
           <ol className="race__list" aria-label="Progress" data-testid="race-list">
             {ranking.map((p) => {
               const clicks = view.clicks[p.id] ?? 0;
@@ -1161,11 +1186,20 @@ export function ClickRaceScreen({ room, meId }: GameScreenProps<TemplateView, Te
               );
             })}
           </ol>
+          {watching.length > 0 && (
+            <p className="race__note player__status--sitting-out" data-testid="race-watching">
+              {`Watching: ${watching.map((p) => p.name).join(', ')}`}
+            </p>
+          )}
         </main>
         <aside className="card race__chat" aria-label="Chat">
           <Chat />
         </aside>
       </div>
+      <BottomSheet open={sheet === 'players'} title={`Players (${room.players.length})`} onClose={() => setSheet(null)} testId="players-sheet">
+        <PlayerList room={room} meId={meId} isHost={isHost} mode="game" game={game} />
+      </BottomSheet>
+      <GameMenuSheet open={sheet === 'menu'} onClose={() => setSheet(null)} />
     </div>
   );
 }
@@ -1247,14 +1281,6 @@ a 44px+ tap target. The accent colour comes from `meta.accent` inline, not from 
   gap: var(--space-5);
 }
 
-.race__head {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-}
-
 .race__title {
   font-size: 1.4rem;
   font-weight: 800;
@@ -1297,6 +1323,18 @@ a 44px+ tap target. The accent colour comes from `meta.accent` inline, not from 
   opacity: 0.85;
 }
 
+.race__watching {
+  font-size: 1.3rem;
+  font-weight: 800;
+}
+
+.race__note {
+  width: 100%;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
 .race__list {
   width: 100%;
   display: flex;
@@ -1328,7 +1366,7 @@ a 44px+ tap target. The accent colour comes from `meta.accent` inline, not from 
 .race__bar {
   width: 100%;
   height: 10px;
-  accent-color: var(--color-primary);
+  accent-color: var(--color-primary-text);
 }
 
 .race__clicks {
@@ -1630,7 +1668,7 @@ light theme swaps the `-text` variants for darker cuts while the fills stay lime
 | Buttons | `.btn` (48px, 8px corners, Inter 600) with `.btn--primary` (lime, ink text: the one loud action on a screen), `.btn--secondary` (1.5px strong outline), `.btn--ghost` (no border), `.btn--danger` (danger-soft fill, danger border), sizes `.btn--lg` / `.btn--sm` / `.btn--xs`, `.btn--block`, `.btn--choice` (big option buttons); `.text-btn` (a small link-style action with a 44px target); `.icon-btn`, `.icon-btn--sm`; `.segmented`; `.switch` |
 | Text inputs | `.input`, `.input--lg`, `.input.is-invalid`, `.textarea`, `.field`, `.field__label`, `.field__hint`, `.field__error`, `.field__ok` |
 | Badges | `.pill`, `.pill--accent`, `.banner`, `.banner--info`, `.banner--invite`, `.spinner`, `.ellipsis` (animated dots) |
-| Overlays | `.overlay__card`, `.overlay__card--wide`, `.overlay__kicker`, `.overlay__title`, `.overlay__hint`, `.overlay__footer` (the podium uses these; a game's own in-screen overlay can too) |
+| Overlays | `.overlay__card`, `.overlay__card--wide`, `.overlay__kicker`, `.overlay__title`, `.overlay__hint`, `.overlay__footer` (the podium uses these; a game's own in-screen overlay can too); a round result adds `.result-card`, `.result-kicker`, `.result-reveal*`, `.result-points*`, `.result-next` from `results.css` |
 | Player list | `.player-list`, `.player`, `.player--me`, `.player--offline`, `.player--guessed`, `.player__avatar`, `.player__badge`, `.player__badge--drawer`, `.player__badge--guessed`, `.player__rank`, `.player__name`, `.player__meta`, `.player__score`, `.player__turn-points` |
 | Chat | `.chat`, `.chat__log`, `.chat__form`, `.chat__input`, `.chat__send`, `.chat-msg` with the kind modifiers `.chat-msg--system/guessed/correct/close/hint` (a plain `chat` line has no modifier rule) |
 | Timer | `.timer`, `.timer--lg`, `.timer--md`, `.timer--urgent` |
@@ -1638,7 +1676,8 @@ light theme swaps the `-text` variants for darker cuts while the fills stay lime
 | Header | `.site-header`, `.site-header__actions`, `.brand` (the wordmark link), `.wordmark` (24px tall on phones, 30px on desktop, via `--wordmark-height`), `.wordmark__accent`, `.game-mark` (a game's glyph on its accent in its header), `.conn-pill` (only while the socket is down), `.settings-menu`, `.pref-row` |
 | Misc | `.avatar--sm/md/lg/xl`, `.swatch`, `.emoji-choice`, `.code-input`, `.range`, `.toggle`, `.setting*`, `.podium*`, `.hide-mobile`, `.sr-only` |
 
-The type-into-the-blanks guess bar (`.guess-*`, `.gtile*`) is the platform's `guess.css`, rendered
+The game top bar (`.gbar*`) is the platform's `gamebar.css` and the round results (`.result-*`)
+its `results.css`. The type-into-the-blanks guess bar (`.guess-*`, `.gtile*`) is the platform's `guess.css`, rendered
 by `GuessTiles`; playing cards, chip counts and the chip setting (`.playing-card*`, `.chip-count*`,
 `.chips-setting*`) are `cards.css`; the card-table kit (`.tbl*`) is `table.css`; the canvas and its toolbar (`.canvas-*`, `.toolbar*`) are the platform canvas's
 `canvas.css`. Game-specific classes live in the game's stylesheet; Scribble's `skribble.css` owns
@@ -1654,6 +1693,9 @@ is the reference for a scrolling column with a canvas and a keys panel.
 | [`Wordmark`](../client/src/platform/components/Wordmark.tsx) | `className?` | The outlined boredgames.io logo (Space Grotesk 700 paths) inline, accessible name "boredgames.io", "games" in `--color-primary-text` |
 | [`PhoneBored`](../client/src/platform/components/Mascots.tsx) / `PhoneHappy` | `className?` | The two phone characters from the brand pack, decorative (`aria-hidden`); Home and celebrations only |
 | [`GameGlyph`](../client/src/platform/components/GameGlyph.tsx) / `GameMark` | `game: GameMeta`, icon props / `size?: 'sm' \| 'md'` | The game's 24px line glyph, and the glyph on its accent plate for a game header |
+| [`GameTopBar`](../client/src/platform/components/GameTopBar.tsx) | `meta`, `isPhone`, `testId`, `className?`, `status`, `statusTestId?` ('round-indicator'), `statusData?`, `clock?`, `players: { count, label?, open, onOpen }`, `chat?: { open, onOpen }`, `menu: { open, onOpen }`, `extra?`, `actions?`, `middle?`, `below?` | Every game's compact top bar (`gamebar.css`, `.gbar*`): on a phone the options button first, then the game's name over the status line ("Round 2/3"), the timer ring, players and chat; on a desktop the game mark first and the connection pill, settings, `actions` (End game) and Leave last. Leave `chat` out where the chat is already on screen (a desktop column, Scribble's guess feed). Wrap the less important half of the status in `<span className="gbar__more">` and it gives way at 320px. `TableShell` renders it for the card tables |
+| `GameMenuSheet` | `open`, `onClose()`, `children?` | The phone options sheet behind the bar's menu button: theme and sound, your rows (the host's End game), Leave room (`menu-sheet`) |
+| [`ResultPoints`](../client/src/platform/components/RoundResult.tsx) / `ResultNext` / `earnersOf` | `rows`, `label`, `rowTestId?`, `empty` / `noun`, `endsAt`, `paused`, `settling`, `testId` / `players`, `points` | A round or turn result (`results.css`): put them in an `.overlay__card.result-card` after a `.result-kicker` (how it ended, on the game's accent) and a `.result-reveal` (the word, the spy); the points list shows avatar, name, role tag and `+points`; the footer counts down to the next turn, paused or "starting" when the time is up |
 | [`SettingsMenu`](../client/src/platform/components/Preferences.tsx) / `PreferenceRows` | none | The gear and its popover (theme, sound effects); the rows alone go in a phone options sheet |
 | [`ReadyControls`](../client/src/platform/components/ReadyControls.tsx) | `me`, `context: 'lobby' \| 'podium'` | Not ready: "I'm ready" plus a small "Sit this one out"; ready: "You're ready" (tap to undo); sitting out: only "Count me in" (back in and ready in one tap); the host: "You start the game" |
 | [`Avatar`](../client/src/platform/components/Avatar.tsx) | `avatar`, `size?: 'sm' \| 'md' \| 'lg' \| 'xl'`, `dimmed?`, `className?` | Dim disconnected players |
@@ -1673,7 +1715,7 @@ is the reference for a scrolling column with a canvas and a keys panel.
 | [`GuessTiles`](../client/src/platform/components/GuessTiles.tsx) | `mask`, `draft`, `onDraftChange(draft)`, `onSubmit(text): boolean`, `canSend`, `placeholder?`, `focusMemory?`, `inputTestId?`, `sendTestId?` | Type into the blanks of a masked word (layout in [`lib/wordMask.ts`](../client/src/platform/lib/wordMask.ts)); Scribble's guess bar and Hangman's whole-word guess |
 | [`Timer`](../client/src/platform/components/Timer.tsx) | `endsAt: number \| null \| undefined`, `warnUnder?` (10), `tickUnder?`, `size?: 'md' \| 'lg'` | Server-clock countdown; `tickUnder` plays a tick cue for the final seconds |
 | [`BottomSheet`](../client/src/platform/components/BottomSheet.tsx) | `open`, `title`, `onClose()`, `children`, `testId` | Phone sheet with focus trap and Escape; `${testId}-close`, `${testId}-backdrop` |
-| [`PodiumOverlay`](../client/src/platform/components/PodiumOverlay.tsx) | `room`, `isHost` | Rendered by the shell on `'ended'`; you never render it |
+| [`PodiumOverlay`](../client/src/platform/components/PodiumOverlay.tsx) | `room`, `isHost` | Rendered by the shell on `'ended'`; you never render it. The small happy phone (96px at most), "Alice wins!" and the points, the top three on small lime / lilac / graphite blocks (`podium-step`), every player in order (`podium-entry` with `data-rank`), Ready / Sit this one out, the host's Play again / Back to lobby and a brief confetti |
 | [`Toasts`](../client/src/platform/components/Toasts.tsx), [`ConnectionPill`](../client/src/platform/components/ConnectionPill.tsx) | none | Toasts is rendered once by the shell; add toasts with `usePlatformStore.getState().addToast(kind, text)` (errors stay until dismissed); the pill renders nothing while connected |
 | [`Icons`](../client/src/platform/components/Icons.tsx) | `Icon({ paths, size?, ...svg })` (1.8px round stroke) plus `DiceIcon`, `CrownIcon`, `CheckIcon`, `CopyIcon`, `ShareIcon`, `ChatIcon`, `GearIcon`, `AlertIcon`, `LinkIcon`, `SunIcon`, `MoonIcon`, `SoundOnIcon`, `SoundOffIcon`, `CloseIcon`, `UsersIcon`, `ChevronIcon`, `ArrowRightIcon`, `LogoutIcon`, `PlayIcon`, `KickIcon`, `SparkIcon`, `EditIcon`, `SendIcon`, `MoreIcon` | Build game icons from the `Icon` primitive (24×24 stroke paths), as Scribble's [`Icons.tsx`](../client/src/games/skribble/components/Icons.tsx) does |
 

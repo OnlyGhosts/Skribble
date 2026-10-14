@@ -250,7 +250,7 @@ test('a full first turn: choosing, mask, live drawing, undo, guesses and scoring
   await sendChat(g2.page, word);
   for (const p of players) await expect(p.page.getByTestId('chat-log')).toContainText(`${g2.name} guessed the word!`);
   await expect.poll(() => scoreOf(g1.page, g2.name)).toBeGreaterThan(0);
-  await expect(g2.page.getByTestId('chat-input')).toHaveAttribute('placeholder', /you guessed it/i);
+  await expect(g2.page.getByTestId('chat-input')).toHaveAttribute('placeholder', 'Chat with players who guessed...');
   await expect(g2.page.getByTestId('word-plain')).toContainText(word);
   await expect(g1.page.getByTestId('word-mask')).toBeVisible();
 

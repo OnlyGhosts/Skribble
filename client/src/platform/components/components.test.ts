@@ -29,6 +29,8 @@ const { Lobby } = await import('../screens/Lobby');
 const { GAME_LIST } = await import('@shared/platform/games');
 const { AVATAR_COLORS, AVATAR_EMOJIS } = await import('@shared/platform/avatar');
 const { remainingMs } = await import('../lib/useCountdown');
+const { GameTopBar } = await import('./GameTopBar');
+const { ResultNext, ResultPoints, earnersOf } = await import('./RoundResult');
 
 /** The z-index of the first rule whose selector list starts with `selector`. */
 function zIndexOf(css: string, selector: string): number {
@@ -66,6 +68,15 @@ function tagWith(html: string, testId: string): string {
   const match = html.match(new RegExp(`<[^>]*data-testid="${testId}"[^>]*>`));
   if (!match) throw new Error(`no element with data-testid=${testId} in ${html}`);
   return match[0];
+}
+
+/** Every tag carrying `data-testid="<id>"`, in document order. */
+function tagsWith(html: string, testId: string): string[] {
+  return html.match(new RegExp(`<[^>]*data-testid="${testId}"[^>]*>`, 'g')) ?? [];
+}
+
+function attr(tag: string, name: string): string | undefined {
+  return tag.match(new RegExp(`${name}="([^"]*)"`))?.[1];
 }
 
 beforeEach(resetStore);
@@ -496,13 +507,17 @@ describe('podium overlay', () => {
     return { room: state, meId };
   };
 
-  it('celebrates the winner by name, tells each player their place and ranks the podium with the winner in the middle', () => {
+  it('celebrates the winner by name and points, tells each player their place, ranks the podium with the winner in the middle and lists everyone', () => {
     const html = renderToString(createElement(PodiumOverlay, { ...ended('bob'), isHost: false }));
     expect(tagWith(html, 'overlay-game-end')).toContain('data-winner="true"');
     expect(html).toContain('bob wins!');
+    expect(html).toContain('>30 points<');
     expect(html).toContain('You won!');
     expect(html).toContain('data-testid="confetti"');
-    expect(html.match(/data-rank="(\d)"/g)).toEqual(['data-rank="2"', 'data-rank="1"', 'data-rank="3"']);
+    // The small happy phone, decorative.
+    expect(html).toMatch(/<svg class="mascot podium-hero__mascot"[^>]*aria-hidden="true"/);
+    expect(tagsWith(html, 'podium-step').map((t) => attr(t, 'data-rank'))).toEqual(['2', '1', '3']);
+    expect(tagsWith(html, 'podium-entry').map((t) => attr(t, 'data-rank'))).toEqual(['1', '2', '3']);
     const third = renderToString(createElement(PodiumOverlay, { ...ended('host'), isHost: true }));
     expect(third).toContain('You came 3rd');
     expect(tagWith(third, 'overlay-game-end')).toContain('data-winner="false"');
@@ -575,5 +590,64 @@ describe('podium overlay', () => {
     expect(dialog).toContain('role="dialog"');
     expect(dialog).toContain('aria-modal="true"');
     expect(tagWith(html, 'podium-card')).toContain('tabindex="-1"');
+  });
+});
+
+describe('GameTopBar', () => {
+  const noop = () => undefined;
+  const bar = (isPhone: boolean, chat: boolean) =>
+    renderToString(
+      createElement(GameTopBar, {
+        meta: gameById('spygame'),
+        isPhone,
+        testId: 'spygame-header',
+        status: 'Round 2/5',
+        statusData: { 'data-round': 2 },
+        clock: createElement('span', { 'data-testid': 'clock' }),
+        players: { count: 4, label: 'Scores', open: false, onOpen: noop },
+        chat: chat ? { open: false, onOpen: noop } : undefined,
+        menu: { open: false, onOpen: noop },
+      }),
+    );
+
+  it('reads options, name and round, the timer ring, players and chat on a phone, options first', () => {
+    const html = bar(true, true);
+    expect(html).toContain('The Spy Game');
+    expect(attr(tagWith(html, 'round-indicator'), 'data-round')).toBe('2');
+    expect(html).toContain('Round 2/5');
+    const order = ['game-menu', 'round-indicator', 'clock', 'players-toggle', 'chat-toggle'].map((id) => html.indexOf(`data-testid="${id}"`));
+    expect(order.every((i) => i > -1)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    expect(tagWith(html, 'players-toggle')).toContain('aria-label="Scores (4)"');
+    // Settings and Leave live in the options sheet on a phone.
+    expect(html).not.toContain('data-testid="leave-room"');
+  });
+
+  it('has the game mark, settings and Leave on a desktop, and no chat button where the chat is on screen', () => {
+    const html = bar(false, false);
+    expect(html).toContain('data-testid="game-mark"');
+    expect(html).toContain('data-testid="leave-room"');
+    expect(html).not.toContain('data-testid="game-menu"');
+    expect(html).not.toContain('data-testid="chat-toggle"');
+    const css = stylesheet('gamebar.css');
+    expect(ruleOf(css, '.gbar__btn')).toContain('width: 44px');
+    expect(ruleOf(css, '.gbar__players')).toContain('min-height: 44px');
+  });
+});
+
+describe('RoundResult', () => {
+  it('lists who scored, highest first with role tags and +points, then what comes next', () => {
+    const players = [player('host'), player('bob', { joinOrder: 1 }), player('carol', { joinOrder: 2 })];
+    const earners = earnersOf(players, { host: 50, bob: 120, carol: 0 });
+    expect(earners.map((e) => e.player.id)).toEqual(['bob', 'host']);
+    const rows = earners.map(({ player: p, points }) => ({ id: p.id, player: p, name: p.name, points, tag: p.id === 'host' ? 'drawer' : undefined }));
+    const html = renderToString(createElement(ResultPoints, { rows, label: 'Points', rowTestId: 'row', empty: 'Nobody scored.' }));
+    expect(tagsWith(html, 'row')).toHaveLength(2);
+    expect(html).toContain('+120');
+    expect(html).toContain('drawer');
+    expect(renderToString(createElement(ResultPoints, { rows: [], label: 'Points', empty: 'Nobody scored.' }))).toContain('Nobody scored.');
+    const paused = renderToString(createElement(ResultNext, { noun: 'Next turn', endsAt: null, paused: true, settling: false, testId: 'next' }));
+    expect(tagWith(paused, 'next')).toContain('data-countdown="paused"');
+    expect(paused).toContain('Next turn is paused');
   });
 });

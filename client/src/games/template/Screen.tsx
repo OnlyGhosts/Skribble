@@ -1,13 +1,16 @@
+import { useState } from 'react';
 import { gameById } from '@shared/platform/games';
 import type { TemplateSettings, TemplateView } from '@shared/games/template/protocol';
 import { Avatar } from '../../platform/components/Avatar';
+import { BottomSheet } from '../../platform/components/BottomSheet';
 import { Chat } from '../../platform/components/Chat';
-import { LogoutIcon } from '../../platform/components/Icons';
-import { SiteHeader } from '../../platform/components/SiteHeader';
+import { GameMenuSheet, GameTopBar } from '../../platform/components/GameTopBar';
+import { PlayerList } from '../../platform/components/PlayerList';
 import { Timer } from '../../platform/components/Timer';
 import type { GameScreenProps } from '../../platform/game';
-import { leaveRoom } from '../../platform/net/actions';
+import { PHONE_QUERY, useMediaQuery } from '../../platform/lib/media';
 import { socket } from '../../platform/net/socket';
+import { useActiveGame } from '../../platform/store/selectors';
 
 const meta = gameById('template');
 
@@ -15,7 +18,10 @@ const meta = gameById('template');
  * One big button, a live ranking and the clock. The platform draws the podium when the race ends.
  * A player sitting this one out watches: their button is off and the standings list racers only.
  */
-export function ClickRaceScreen({ room, meId }: GameScreenProps<TemplateView, TemplateSettings>) {
+export function ClickRaceScreen({ room, meId, isHost }: GameScreenProps<TemplateView, TemplateSettings>) {
+  const game = useActiveGame();
+  const isPhone = useMediaQuery(PHONE_QUERY);
+  const [sheet, setSheet] = useState<'players' | 'menu' | null>(null);
   const view = room.game;
   if (!view) return null;
   const target = room.settings.targetClicks;
@@ -28,20 +34,19 @@ export function ClickRaceScreen({ room, meId }: GameScreenProps<TemplateView, Te
 
   return (
     <div className="race">
-      <SiteHeader>
-        <button type="button" className="btn btn--ghost btn--sm" onClick={leaveRoom} data-testid="leave-room">
-          <LogoutIcon size={16} /> Leave
-        </button>
-      </SiteHeader>
+      {/* Every game's top bar: options, name and status, the clock, players (the chat is on screen here). */}
+      <GameTopBar
+        meta={meta}
+        isPhone={isPhone}
+        testId="race-header"
+        status={`First to ${target} taps`}
+        clock={<Timer endsAt={view.endsAt} warnUnder={5} tickUnder={3} />}
+        players={{ count: room.players.length, open: sheet === 'players', onOpen: () => setSheet('players') }}
+        menu={{ open: sheet === 'menu', onOpen: () => setSheet('menu') }}
+      />
       <div className="race__grid">
         <main className="card race__main">
-          <header className="race__head">
-            <div>
-              <p className="overlay__kicker">{meta.name}</p>
-              <h1 className="race__title">First to {target} taps wins</h1>
-            </div>
-            <Timer endsAt={view.endsAt} warnUnder={5} tickUnder={3} />
-          </header>
+          <h1 className="race__title">First to {target} taps wins</h1>
           <button
             type="button"
             className="race__button"
@@ -91,6 +96,10 @@ export function ClickRaceScreen({ room, meId }: GameScreenProps<TemplateView, Te
           <Chat />
         </aside>
       </div>
+      <BottomSheet open={sheet === 'players'} title={`Players (${room.players.length})`} onClose={() => setSheet(null)} testId="players-sheet">
+        <PlayerList room={room} meId={meId} isHost={isHost} mode="game" game={game} />
+      </BottomSheet>
+      <GameMenuSheet open={sheet === 'menu'} onClose={() => setSheet(null)} />
     </div>
   );
 }
