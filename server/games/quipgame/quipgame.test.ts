@@ -38,7 +38,7 @@ describe('Quip Game: round setup', () => {
     }
     expect(view(s, null)).toMatchObject({ isSpectator: true, myPrompts: [], spectators: [] });
     expect(nextDeadline(s.data)).toBe(START + WRITE_MS);
-    expect(chatTexts(s.effects)).toContain('Round 1 of 2 — write your answers!');
+    expect(chatTexts(s.effects)).toContain('Round 1 of 2: write your answers!');
   });
 
   it('shuffles the writing order but publishes the round players in join order, so the list gives nothing away', () => {
@@ -58,7 +58,7 @@ describe('Quip Game: round setup', () => {
     writeAll(s);
     playRound(s, alice);
     expect(view(s, alice)).toMatchObject({ phase: 'writing', round: 2, totalRounds: 3, multiplier: 2 });
-    expect(chatTexts(s.effects)).toContain('Round 2 of 3 — write your answers! Double points!');
+    expect(chatTexts(s.effects)).toContain('Round 2 of 3: write your answers! Double points!');
   });
 });
 
@@ -70,12 +70,10 @@ describe('Quip Game: the prompt pool', () => {
   });
   const custom = Array.from({ length: 10 }, (_, i) => `Custom prompt ${i}`);
 
-  it('follows the room content mode (family: clean; cheeky: clean + cheeky; unhinged: cheeky + unhinged), merges custom prompts and can be custom-only', () => {
+  it('follows the room content mode (family: clean; unhinged: cheeky + unhinged), merges custom prompts and can be custom-only', () => {
     const settings = { ...PLATFORM, ...DEFAULT_QUIPGAME_SETTINGS };
     const clean = promptPool(settings);
     expect(clean).toEqual(PROMPTS.filter((p) => p.tier === 'clean').map((p) => p.text));
-    const cheeky = promptPool({ ...settings, contentMode: 'cheeky' });
-    expect(cheeky).toEqual(PROMPTS.filter((p) => p.tier === 'clean' || p.tier === 'cheeky').map((p) => p.text));
     const unhinged = promptPool({ ...settings, contentMode: 'unhinged' });
     expect(unhinged).toEqual(PROMPTS.filter((p) => p.tier === 'cheeky' || p.tier === 'unhinged').map((p) => p.text));
     expect(unhinged.length).toBeGreaterThanOrEqual(100);
@@ -173,7 +171,7 @@ describe('Quip Game: writing', () => {
     s.game(carol, { t: 'answer', promptId: 'r1-p1', text: 'one' });
     expect(data(s).phase).toBe('writing');
     const effects = s.game(carol, { t: 'answer', promptId: 'r1-p2', text: 'two' });
-    expect(chatTexts(effects)).toEqual(["Everyone's in — time to vote!"]);
+    expect(chatTexts(effects)).toEqual(["Everyone's in. Time to vote!"]);
     expect(data(s)).toMatchObject({ phase: 'voting', matchupIndex: 0, endsAt: START + VOTE_MS });
     expect(data(s).matchups).toHaveLength(3);
     expect(data(s).answers).toHaveLength(6);
@@ -191,7 +189,7 @@ describe('Quip Game: writing', () => {
     expect(s.tick()).toEqual([]);
     s.now += 1;
     const effects = s.tick();
-    expect(chatTexts(effects)).toEqual(["Time's up — time to vote!"]);
+    expect(chatTexts(effects)).toEqual(["Time's up. Time to vote!"]);
     const mine = data(s).answers.filter((a) => a.authorId === alice);
     expect(mine).toHaveLength(2);
     for (const a of mine) {
@@ -246,7 +244,7 @@ describe('Quip Game: matchups and votes', () => {
     const erin = s.playerId('Erin');
     expect(authors(s)).toEqual([alice, bob]);
     expect(voters(s)).toEqual([carol, dave, erin]);
-    expect(errors(s.game(alice, { t: 'vote', choice: 'a' }))).toEqual(["This one's yours — sit tight."]);
+    expect(errors(s.game(alice, { t: 'vote', choice: 'a' }))).toEqual(["This one's yours. Sit tight."]);
     expect(view(s, erin)).toMatchObject({ isSpectator: true, canVote: true });
     s.game(erin, { t: 'vote', choice: 'b' });
     s.game(carol, { t: 'vote', choice: 'a' });
@@ -259,7 +257,7 @@ describe('Quip Game: matchups and votes', () => {
     const effects = s.game(dave, { t: 'vote', choice: 'b' });
     expect(data(s).phase).toBe('result');
     expect(matchup(s).result).toEqual({ votes: { a: 0, b: 3 }, points: { a: 0, b: 1250 }, flawless: 'b', outcome: 'b' });
-    expect(chatTexts(effects)).toEqual(['Bob took it 3-0 (+1250) — flawless!']);
+    expect(chatTexts(effects)).toEqual(['Bob took it 3-0 (+1250), flawless!']);
     expect(score(s, bob)).toBe(1250);
     expect(score(s, alice)).toBe(0);
     expect(errors(s.game(carol, { t: 'vote', choice: 'a' }))).toEqual(['There is no matchup to vote on.']);
@@ -367,7 +365,7 @@ describe('Quip Game: matchups and votes', () => {
     expect(data(s).phase).toBe('result');
     // Without the kicked 'b' the sweep is flawless; with it the matchup would have been 2-1.
     expect(matchup(s).result).toEqual({ votes: { a: 2, b: 0 }, points: { a: 1250, b: 0 }, flawless: 'a', outcome: 'a' });
-    expect(chatTexts(effects)).toEqual([`${nameA} took it 2-0 (+1250) — flawless!`]);
+    expect(chatTexts(effects)).toEqual([`${nameA} took it 2-0 (+1250), flawless!`]);
 
     // Leaving on one's own withdraws the vote the same way; the resolved result above is untouched.
     s.game(alice, { t: 'next' });
@@ -403,7 +401,7 @@ describe('Quip Game: matchups and votes', () => {
     s.now += VOTE_MS;
     effects = s.tick();
     expect(matchup(s).result).toEqual({ votes: { a: 0, b: 0 }, points: { a: 0, b: 0 }, flawless: null, outcome: 'noVotes' });
-    expect(chatTexts(effects)).toEqual([`Nobody voted on "${data(s).prompts[1].text}" — no points.`]);
+    expect(chatTexts(effects)).toEqual([`Nobody voted on "${data(s).prompts[1].text}". No points.`]);
     expect([score(s, bob), score(s, carol), score(s, dave)]).toEqual([0, 0, 0]);
   });
 });

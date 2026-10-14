@@ -228,7 +228,7 @@ test.afterAll(async () => {
 
 test('the host creates a Battleships party, two phones join by code and the host tunes the settings', async () => {
   roomCode = await createParty(host.page, host.name, 'battleships');
-  await expect(host.page.getByTestId('site-header')).toContainText('Battleships');
+  await expect(host.page.getByTestId('game-picker-meta')).toContainText('Battleships');
   await expect(host.page.getByTestId('game-picker').locator('[data-testid="game-tile"][data-game="battleships"]')).toHaveAttribute('aria-checked', 'true');
   for (const p of phones()) await joinByCode(p.page, p.name, roomCode);
   await expect(host.page.getByTestId('player-item')).toHaveCount(3);
@@ -432,7 +432,7 @@ test("everyone hits until Pia's fleet is sunk: she is out and watches, the other
     if (sunk === 4) break;
   }
   expect(sunk).toBe(4);
-  await expect(host.page.getByTestId('chat-log')).toContainText(`${pia.name}'s fleet is sunk — they are out!`);
+  await expect(host.page.getByTestId('chat-log')).toContainText(`${pia.name}'s fleet is sunk. They are out!`);
   await expect(pia.page.getByTestId('eliminated-banner')).toBeVisible();
   await expect(pia.page.getByTestId('fire')).toHaveCount(0);
   await expect(pia.page.getByTestId('my-ships-left')).toHaveAttribute('data-left', '0');
@@ -454,7 +454,7 @@ test("the host sinks Quinn's fleet too and wins: the podium ranks the host first
     if ((await screen(host).getAttribute('data-phase')) === 'gameOver') break;
   }
   await expect(screen(host)).toHaveAttribute('data-phase', 'gameOver');
-  await expect(host.page.getByTestId('chat-log')).toContainText(`${host.name} wins — the last fleet afloat!`);
+  await expect(host.page.getByTestId('chat-log')).toContainText(`${host.name} wins with the last fleet afloat!`);
   for (const p of players) {
     const end = p.page.getByTestId('overlay-game-end');
     await expect(end).toBeVisible({ timeout: 15_000 });

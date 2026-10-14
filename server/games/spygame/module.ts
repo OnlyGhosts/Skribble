@@ -95,7 +95,7 @@ function onPlayerDisconnected(gx: Gx, playerId: string): void {
   data.current.spyAway = true;
   pauseClock(gx);
   // The pause can last the whole reconnect grace (10 min), so say how to end it sooner.
-  systemMessage(gx, `${nameOf(ctx, playerId)} lost connection — the clock is paused until they are back. The host can remove them from the players list.`);
+  systemMessage(gx, `${nameOf(ctx, playerId)} lost connection. The clock is paused until they are back. The host can remove them from the players list.`);
   snapshot(gx);
 }
 

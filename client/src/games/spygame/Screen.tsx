@@ -1,11 +1,12 @@
 import type { SpygameSettings, SpygameView } from '@shared/games/spygame/protocol';
 import { gameById } from '@shared/platform/games';
 import { BottomSheet } from '../../platform/components/BottomSheet';
+import { GameMark } from '../../platform/components/GameGlyph';
 import { Chat } from '../../platform/components/Chat';
 import { ConnectionPill } from '../../platform/components/ConnectionPill';
 import { LogoutIcon, MoreIcon, UsersIcon } from '../../platform/components/Icons';
 import { PlayerList } from '../../platform/components/PlayerList';
-import { SoundToggle, ThemeToggle } from '../../platform/components/ThemeToggle';
+import { PreferenceRows, SettingsMenu } from '../../platform/components/Preferences';
 import type { GameScreenProps } from '../../platform/game';
 import { PHONE_QUERY, useMediaQuery } from '../../platform/lib/media';
 import { useAppMode } from '../../platform/lib/useViewport';
@@ -81,9 +82,7 @@ export function SpyGameScreen({ room, meId, isHost }: GameScreenProps<SpygameVie
         ) : (
           <>
             <div className="spy__brand">
-              <span className="brand__mark brand__mark--sm" style={{ background: meta.accent }} aria-hidden="true">
-                <SpyIcon size={16} />
-              </span>
+              <GameMark game={meta} size="sm" />
               <div className="spy__round" data-testid="round-indicator">
                 <strong>
                   Round {view.round} of {view.totalRounds}
@@ -97,8 +96,7 @@ export function SpyGameScreen({ room, meId, isHost }: GameScreenProps<SpygameVie
             <div className="spy__side">
               {playersButton}
               <ConnectionPill />
-              <SoundToggle />
-              <ThemeToggle />
+              <SettingsMenu />
               <button type="button" className="btn btn--ghost btn--sm" onClick={leaveRoom} data-testid="leave-room" aria-label="Leave room">
                 <LogoutIcon size={16} /> <span className="hide-mobile">Leave</span>
               </button>
@@ -148,18 +146,7 @@ export function SpyGameScreen({ room, meId, isHost }: GameScreenProps<SpygameVie
           </BottomSheet>
           <BottomSheet open={menuOpen} title="Options" onClose={closeSheet} testId="menu-sheet">
             <div className="menu-sheet">
-              <div className="menu-sheet__row">
-                <span className="menu-sheet__label">Connection</span>
-                <ConnectionPill />
-              </div>
-              <div className="menu-sheet__row">
-                <span className="menu-sheet__label">Sound</span>
-                <SoundToggle />
-              </div>
-              <div className="menu-sheet__row">
-                <span className="menu-sheet__label">Theme</span>
-                <ThemeToggle />
-              </div>
+              <PreferenceRows />
               <button type="button" className="btn btn--ghost btn--block menu-sheet__leave" onClick={leaveRoom} data-testid="leave-room">
                 <LogoutIcon size={16} /> Leave room
               </button>

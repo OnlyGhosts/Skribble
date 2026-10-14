@@ -3,11 +3,12 @@ import type { BattleshipsSettings, BattleshipsView } from '@shared/games/battles
 import { gameById } from '@shared/platform/games';
 import type { RoomState } from '@shared/platform/protocol';
 import { BottomSheet } from '../../platform/components/BottomSheet';
+import { GameMark } from '../../platform/components/GameGlyph';
 import { Chat } from '../../platform/components/Chat';
 import { ConnectionPill } from '../../platform/components/ConnectionPill';
 import { DiceIcon, LogoutIcon, MoreIcon, UsersIcon } from '../../platform/components/Icons';
 import { PlayerList } from '../../platform/components/PlayerList';
-import { SoundToggle, ThemeToggle } from '../../platform/components/ThemeToggle';
+import { PreferenceRows, SettingsMenu } from '../../platform/components/Preferences';
 import { Timer } from '../../platform/components/Timer';
 import type { GameScreenProps } from '../../platform/game';
 import { PHONE_QUERY, useMediaQuery } from '../../platform/lib/media';
@@ -51,7 +52,7 @@ export function statusOf(room: RoomState, view: BattleshipsView, meId: string, h
       return { kicker: `${team}${shooter}`, text: 'is taking aim…' };
     }
     case 'gameOver':
-      return view.winnerSideId ? { kicker: 'Game over', text: `${sideLabel(room, view, view.winnerSideId)} wins — the last fleet afloat!` } : { kicker: 'Game over', text: 'No fleet is left afloat.' };
+      return view.winnerSideId ? { kicker: 'Game over', text: `${sideLabel(room, view, view.winnerSideId)} wins with the last fleet afloat!` } : { kicker: 'Game over', text: 'No fleet is left afloat.' };
   }
 }
 
@@ -132,9 +133,7 @@ export function BattleshipsScreen({ room, meId, isHost }: GameScreenProps<Battle
       <header className="bs__top card" data-testid="battleships-header">
         <div className="bs__brand">
           {!isPhone && (
-            <span className="brand__mark brand__mark--sm" style={{ background: meta.accent }} aria-hidden="true">
-              <ShipIcon size={16} />
-            </span>
+            <GameMark game={meta} size="sm" />
           )}
           <div className="bs__turn" data-testid="turn-indicator" data-turn={view.turnNumber}>
             <strong>{turnKicker(view.phase, view.turnNumber, narrow, isPhone)}</strong>
@@ -161,8 +160,7 @@ export function BattleshipsScreen({ room, meId, isHost }: GameScreenProps<Battle
           ) : (
             <>
               <ConnectionPill />
-              <SoundToggle />
-              <ThemeToggle />
+              <SettingsMenu />
               <button type="button" className="btn btn--ghost btn--sm" onClick={leaveRoom} data-testid="leave-room" aria-label="Leave room">
                 <LogoutIcon size={16} /> <span className="hide-mobile">Leave</span>
               </button>
@@ -268,18 +266,7 @@ export function BattleshipsScreen({ room, meId, isHost }: GameScreenProps<Battle
           </BottomSheet>
           <BottomSheet open={sheet === 'menu'} title="Options" onClose={closeSheet} testId="menu-sheet">
             <div className="menu-sheet">
-              <div className="menu-sheet__row">
-                <span className="menu-sheet__label">Connection</span>
-                <ConnectionPill />
-              </div>
-              <div className="menu-sheet__row">
-                <span className="menu-sheet__label">Sound</span>
-                <SoundToggle />
-              </div>
-              <div className="menu-sheet__row">
-                <span className="menu-sheet__label">Theme</span>
-                <ThemeToggle />
-              </div>
+              <PreferenceRows />
               <button type="button" className="btn btn--ghost btn--block menu-sheet__leave" onClick={leaveRoom} data-testid="leave-room">
                 <LogoutIcon size={16} /> Leave room
               </button>

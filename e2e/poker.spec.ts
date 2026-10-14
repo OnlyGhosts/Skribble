@@ -196,7 +196,7 @@ test.afterAll(async () => {
 
 test('the host creates a Poker party, two phones join, the host sets the stacks, the blinds and two hands, and everyone readies up', async () => {
   roomCode = await createParty(host.page, host.name, 'poker');
-  await expect(host.page.getByTestId('site-header')).toContainText('Poker');
+  await expect(host.page.getByTestId('game-picker-meta')).toContainText('Poker');
   await expect(host.page.getByTestId('game-picker').locator('[data-testid="game-tile"][data-game="poker"]')).toHaveAttribute('aria-checked', 'true');
   for (const p of phones()) await joinByCode(p.page, p.name, roomCode);
   await expect(host.page.getByTestId('player-item')).toHaveCount(3);

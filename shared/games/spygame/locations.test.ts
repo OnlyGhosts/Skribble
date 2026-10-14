@@ -29,9 +29,8 @@ describe('the location pack', () => {
     expect(isLocationId('nowhere')).toBe(false);
   });
 
-  it('adds the cheeky and unhinged tiers by content mode, with unique ids and names across every tier', () => {
+  it('adds the cheeky and unhinged tiers in an Unhinged room, with unique ids and names across every tier', () => {
     expect(locationsForMode('family')).toEqual(SPY_LOCATIONS);
-    expect(locationsForMode('cheeky')).toEqual([...SPY_LOCATIONS, ...CHEEKY_LOCATIONS]);
     expect(locationsForMode('unhinged')).toEqual([...SPY_LOCATIONS, ...CHEEKY_LOCATIONS, ...UNHINGED_LOCATIONS]);
     expect(CHEEKY_LOCATIONS.length).toBeGreaterThanOrEqual(10);
     expect(UNHINGED_LOCATIONS.length).toBeGreaterThanOrEqual(10);

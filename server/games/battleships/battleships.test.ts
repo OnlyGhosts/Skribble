@@ -182,7 +182,7 @@ describe('Battleships: setup and placing', () => {
     s.game(bob, { t: 'place', ships: BLOCKED });
     s.now += PLACE_MS;
     const effects = s.tick();
-    expect(chatTexts(effects)).toEqual(["Time's up — the remaining fleets took their positions.", 'All fleets are in position. Fire at will!']);
+    expect(chatTexts(effects)).toEqual(["Time's up. The remaining fleets took their positions.", 'All fleets are in position. Fire at will!']);
     expect(view(s).phase).toBe('playing');
     expect(view(s).sides.every((x) => x.ready && x.shipsLeft === 4)).toBe(true);
     // Alice kept her layout, Bob his unlocked one, Carol got a random fleet.
@@ -287,7 +287,7 @@ describe('Battleships: shooting', () => {
     s.now += TURN_MS;
     const effects = s.tick();
     // rng () => 0: the first open cell of the first opponent, A1, which ROWS covers.
-    expect(chatTexts(effects)).toEqual(['Alice ran out of time — a shot is fired for them.', 'Alice fires at Bob A1: hit!']);
+    expect(chatTexts(effects)).toEqual(['Alice ran out of time. A shot is fired for them.', 'Alice fires at Bob A1: hit!']);
     expect(view(s).lastShot).toMatchObject({ shooterId: alice, targetId: bob, x: 0, y: 0, result: 'hit', auto: true });
     expect(view(s)).toMatchObject({ turn: { shooterId: bob }, endsAt: s.now + TURN_MS });
     expect(nextDeadline(s.data)).toBe(s.now + TURN_MS);
@@ -325,7 +325,7 @@ describe('Battleships: shooting', () => {
       fire(s, who, bob, c.x, c.y);
     }
     expect(view(s).sides[1]).toMatchObject({ id: bob, alive: false, shipsLeft: 0 });
-    expect(chatTexts(s.effects)).toContain("Bob's fleet is sunk — they are out!");
+    expect(chatTexts(s.effects)).toContain("Bob's fleet is sunk. They are out!");
     expect(view(s).phase).toBe('playing');
     // Bob is out: the turns go Alice, Carol, Alice...
     const order: string[] = [];
@@ -354,7 +354,7 @@ describe('Battleships: shooting', () => {
       }
     }
     expect(s.data.phase).toBe('ended');
-    expect(chatTexts(last)).toEqual(['Alice fires at Bob B4: sunk a 2-ship!', "Bob's fleet is sunk — they are out!", 'Alice wins — the last fleet afloat!', 'Game over! Alice wins with 340 points.']);
+    expect(chatTexts(last)).toEqual(['Alice fires at Bob B4: sunk a 2-ship!', "Bob's fleet is sunk. They are out!", 'Alice wins with the last fleet afloat!', 'Game over! Alice wins with 340 points.']);
     // 12 hits, 4 sinks, the win.
     expect(score(s, alice)).toBe(12 * BATTLESHIPS_POINTS.hit + 4 * BATTLESHIPS_POINTS.sink + BATTLESHIPS_POINTS.win);
     expect(s.data.podium).toEqual([
@@ -387,7 +387,7 @@ describe('Battleships: dice and moves', () => {
     expect(view(s).lastShot?.dice).toBe(1);
     set(0.99);
     const high = fire(s, bob, alice, 7, 7);
-    expect(chatTexts(high)).toEqual(['Bob fires at Alice H8: miss.', 'Bob rolls a 6 — a ship may slip away!']);
+    expect(chatTexts(high)).toEqual(['Bob fires at Alice H8: miss.', 'Bob rolls a 6. A ship may slip away!']);
     expect(view(s)).toMatchObject({ phase: 'moving', dice: 6, turn: { sideId: bob, shooterId: bob }, endsAt: s.now + MOVE_MS });
     expect(nextDeadline(s.data)).toBe(s.now + MOVE_MS);
     expect(view(s, bob).myBoard?.movable).toEqual([
@@ -403,7 +403,7 @@ describe('Battleships: dice and moves', () => {
 
   it('slides an undamaged ship one cell along its axis in secret: recorded shots stay put', () => {
     const { s, alice, bob } = openWindow();
-    expect(chatTexts(fire(s, alice, bob, 4, 0))).toEqual(['Alice fires at Bob E1: miss.', 'Alice rolls a 6 — a ship may slip away!']);
+    expect(chatTexts(fire(s, alice, bob, 4, 0))).toEqual(['Alice fires at Bob E1: miss.', 'Alice rolls a 6. A ship may slip away!']);
     // Alice's window: her own fleet moves, Bob's view of her grid stays as it was.
     expect(errorsOf(s.game(bob, { t: 'move', shipId: 's0', direction: 'forward' }))).toEqual(['You have no move right now.']);
     expect(errorsOf(s.game(alice, { t: 'move', shipId: 's0', direction: 'back' }))).toEqual(['There is no room that way.']);
@@ -454,7 +454,7 @@ describe('Battleships: dice and moves', () => {
     for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) data(s).sides[1].shots[cellKey(x, y)] = 'miss';
     s.now += TURN_MS;
     const effects = s.tick();
-    expect(chatTexts(effects)).toEqual(['No cell is left to shoot at — the battle is a draw.', 'Game over! Alice and Bob tie with 0 points.']);
+    expect(chatTexts(effects)).toEqual(['No cell is left to shoot at. The battle is a draw.', 'Game over! Alice and Bob tie with 0 points.']);
     expect(s.data.phase).toBe('ended');
     expect(view(s)).toMatchObject({ phase: 'gameOver', winnerSideId: null });
     expect(score(s, alice)).toBe(0);
@@ -487,7 +487,7 @@ describe('Battleships: dice and moves', () => {
   it('opens the window with the same line even when no ship has room (the shooter alone sees an empty list), and never rolls with dice off', () => {
     const { s, alice, bob } = openWindow(BLOCKED);
     const effects = fire(s, alice, bob, 7, 7);
-    expect(chatTexts(effects)).toEqual(['Alice fires at Bob H8: miss.', 'Alice rolls a 6 — a ship may slip away!']);
+    expect(chatTexts(effects)).toEqual(['Alice fires at Bob H8: miss.', 'Alice rolls a 6. A ship may slip away!']);
     expect(view(s)).toMatchObject({ phase: 'moving', dice: 6, turn: { shooterId: alice }, endsAt: s.now + MOVE_MS });
     expect(view(s, alice).myBoard?.movable).toEqual([]);
     expect(view(s, bob).myBoard?.movable).toEqual([]);
@@ -568,7 +568,7 @@ describe('Battleships: teams', () => {
       }
     }
     expect(s.data.phase).toBe('ended');
-    expect(chatTexts(last).slice(-3)).toEqual(["Team B's fleet is sunk — Team B is out!", 'Team A wins — the last fleet afloat!', 'Game over! Carol wins with 250 points.']);
+    expect(chatTexts(last).slice(-3)).toEqual(["Team B's fleet is sunk. Team B is out!", 'Team A wins with the last fleet afloat!', 'Game over! Carol wins with 250 points.']);
     expect(view(s, alice).targets[0].shots['0,0']).toBe('sunk');
     // Alice fired 6 of the 12 shots (one sink), Carol the other 6 (three sinks), both took the bonus.
     expect(score(s, alice)).toBe(6 * BATTLESHIPS_POINTS.hit + BATTLESHIPS_POINTS.sink + BATTLESHIPS_POINTS.win);
@@ -638,7 +638,7 @@ describe('Battleships: teams', () => {
     fire(s, bob, 'A', 7, 7);
     expect(view(s).turn?.shooterId).toBe(carol);
     const effects = s.apply({ type: 'leave', playerId: bob });
-    expect(chatTexts(effects)).toContain('Team B has nobody left — back to the lobby.');
+    expect(chatTexts(effects)).toContain('Team B has nobody left. Back to the lobby.');
     expect(s.data.phase).toBe('lobby');
     expect(s.data.game).toBeNull();
   });
@@ -654,7 +654,7 @@ describe('Battleships: holds, leaves and joiners', () => {
     expect(view(s).phase).toBe('placing');
     s.now += PLACE_MS;
     const effects = s.tick();
-    expect(chatTexts(effects)).toEqual(["Time's up — the remaining fleets took their positions.", 'All fleets are in position. Fire at will!', 'Waiting for Bob to reconnect…']);
+    expect(chatTexts(effects)).toEqual(["Time's up. The remaining fleets took their positions.", 'All fleets are in position. Fire at will!', 'Waiting for Bob to reconnect…']);
     expect(view(s)).toMatchObject({ phase: 'playing', paused: true, turn: null, endsAt: null });
     expect(waiting(s)).toEqual([bob]);
     expect(gameDeadline(s)).toBeNull();
@@ -725,7 +725,7 @@ describe('Battleships: holds, leaves and joiners', () => {
     const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol'], { diceMoves: true });
     placeAll(s, [alice, bob, carol]);
     const effects = disconnect(s, alice, 'Alice');
-    expect(chatTexts(effects)).toContain('Alice is away — skipping their turn.');
+    expect(chatTexts(effects)).toContain('Alice is away. Skipping their turn.');
     expect(view(s)).toMatchObject({ paused: false, turn: { shooterId: bob } });
     expect(waiting(s)).toBeNull();
     set(0.99);
@@ -733,7 +733,7 @@ describe('Battleships: holds, leaves and joiners', () => {
     expect(view(s).phase).toBe('moving');
     const away = disconnect(s, bob, 'Bob');
     // The window closes with the fleet where it was; Carol alone means a hold, which Bob's return ends.
-    expect(chatTexts(away)).toContain('Bob is away — skipping their turn.');
+    expect(chatTexts(away)).toContain('Bob is away. Skipping their turn.');
     expect(view(s)).toMatchObject({ phase: 'playing', paused: true, turn: null });
     expect(waiting(s)).toEqual([alice, bob]);
     set(0);
@@ -766,7 +766,7 @@ describe('Battleships: holds, leaves and joiners', () => {
     expect(view(s).turn?.shooterId).toBe(carol);
     // Carol leaves on her turn: Alice is the last fleet afloat.
     const last = s.apply({ type: 'leave', playerId: carol });
-    expect(chatTexts(last)).toEqual(['Carol left', 'Their fleet drifts away.', 'Alice wins — the last fleet afloat!', 'Game over! Alice wins with 100 points.']);
+    expect(chatTexts(last)).toEqual(['Carol left', 'Their fleet drifts away.', 'Alice wins with the last fleet afloat!', 'Game over! Alice wins with 100 points.']);
     expect(s.data.phase).toBe('ended');
     expect(s.data.podium).toEqual([
       { playerId: alice, score: 100, rank: 1 },
@@ -779,7 +779,7 @@ describe('Battleships: holds, leaves and joiners', () => {
     const [alice, bob] = startGame(s, ['Alice', 'Bob']);
     placeAll(s, [alice, bob]);
     const effects = s.apply({ type: 'leave', playerId: bob });
-    expect(chatTexts(effects)).toEqual(['Bob left', 'Not enough players — back to the lobby.']);
+    expect(chatTexts(effects)).toEqual(['Bob left', 'Not enough players. Back to the lobby.']);
     expect(s.data.phase).toBe('lobby');
   });
 

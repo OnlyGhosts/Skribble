@@ -115,7 +115,7 @@ test.afterAll(async () => {
 
 test('the host creates a Hangman party, two phones join by code and the host tunes the settings', async () => {
   roomCode = await createParty(host.page, host.name, 'hangman');
-  await expect(host.page.getByTestId('site-header')).toContainText('Hangman');
+  await expect(host.page.getByTestId('game-picker-meta')).toContainText('Hangman');
   await expect(host.page.getByTestId('game-picker').locator('[data-testid="game-tile"][data-game="hangman"]')).toHaveAttribute('aria-checked', 'true');
   for (const p of phones()) await joinByCode(p.page, p.name, roomCode);
   await expect(host.page.getByTestId('player-item')).toHaveCount(3);
@@ -191,7 +191,7 @@ test('the phones guess letters in join order: a right letter scores and reveals,
     await expect(key(p, 'E')).toHaveAttribute('data-state', 'correct');
     await expect(key(p, 'E')).toBeDisabled();
   }
-  await expect(host.page.getByTestId('chat-log')).toContainText('E — 2 letters!');
+  await expect(host.page.getByTestId('chat-log')).toContainText('E: 2 letters!');
   await expect(host.page.locator(`[data-testid="player-item"][data-name="${pia.name}"]`)).toHaveAttribute('data-score', '20');
 
   // Quinn is up; Z is not in the word: a life is lost and the host draws section 1.
@@ -260,9 +260,9 @@ test('a wrong word puts Pia out; section 2 clears only its own strokes; Quinn na
     await expect(p.page.getByTestId('hangman-lives')).toHaveAttribute('data-lives', '8');
   }
   await expect(pia.page.getByTestId('guess-panel')).toHaveAttribute('data-state', 'out');
-  await expect(pia.page.getByTestId('guess-status')).toContainText("you're out");
+  await expect(pia.page.getByTestId('guess-status')).toContainText("You're out");
   await expect(host.page.locator(`[data-testid="player-item"][data-name="${pia.name}"]`)).toHaveClass(/player--out/);
-  await expect(host.page.getByTestId('chat-log')).toContainText(`${pia.name} guessed “ICE CUBES” — wrong, and out for this word (2 of 10).`);
+  await expect(host.page.getByTestId('chat-log')).toContainText(`${pia.name} guessed “ICE CUBES”: wrong, and out for this word (2 of 10).`);
 
   // Section 2: a stroke of its own, then a clear that keeps section 1's base.
   await expect(host.page.getByTestId('draw-bar')).toHaveAttribute('data-section', '2');

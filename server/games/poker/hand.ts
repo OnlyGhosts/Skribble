@@ -19,7 +19,7 @@ export function seatPlayer(gx: Gx, playerId: string): void {
 export function beginHand(gx: Gx): void {
   const { data, ctx } = gx;
   if (ctx.players.length < MIN_PLAYERS) {
-    gx.effects.push({ type: 'abort', reason: 'Not enough players — back to the lobby.' });
+    gx.effects.push({ type: 'abort', reason: 'Not enough players. Back to the lobby.' });
     return;
   }
   // Seats of players who left are cleared at the boundary (their chips in a hand went to its pots).
@@ -28,7 +28,7 @@ export function beginHand(gx: Gx): void {
   if (stacked.length < MIN_PLAYERS) {
     // Too few stacks because a player walked off with theirs: nobody won the table.
     if (data.stackLeft) {
-      gx.effects.push({ type: 'abort', reason: 'Not enough players with chips — back to the lobby.' });
+      gx.effects.push({ type: 'abort', reason: 'Not enough players with chips. Back to the lobby.' });
       return;
     }
     if (stacked.length === 1) systemMessage(gx, `${stacked[0].name} has all the chips!`);
@@ -36,7 +36,7 @@ export function beginHand(gx: Gx): void {
   }
   if (ctx.settings.hands > 0 && data.hand >= ctx.settings.hands) return finishGame(gx);
   if (data.idleHands >= IDLE_HANDS_LIMIT) {
-    systemMessage(gx, `Nobody played for ${IDLE_HANDS_LIMIT} hands — the game is over.`);
+    systemMessage(gx, `Nobody played for ${IDLE_HANDS_LIMIT} hands. The game is over.`);
     return finishGame(gx);
   }
   if (stacked.filter((p) => p.connected).length < MIN_PLAYERS) return hold(gx);
@@ -88,7 +88,7 @@ export function endGame(gx: Gx, playerId: string): void {
       seat.committed = 0;
     }
     data.toAct = [];
-    systemMessage(gx, `${nameOf(ctx, playerId)} ended the game — the hand is void and every stake goes back.`);
+    systemMessage(gx, `${nameOf(ctx, playerId)} ended the game. The hand is void and every stake goes back.`);
   } else if (data.phase.held) gx.effects.push(resumeEffect());
   finishGame(gx);
 }

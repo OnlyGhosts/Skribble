@@ -2,18 +2,25 @@ import { z } from 'zod';
 import type { GameMeta } from './games.js';
 
 /**
- * Content mode for every game in the room, chosen by the host:
- * family = clean for any table; cheeky = rude but harmless; unhinged = adults only, crude.
- * Games pick their word lists, prompts and locations from it.
+ * Content mode for every game in the room, chosen by the host: family = clean for any table;
+ * unhinged = adults only (the rude-but-harmless tiers and the crude ones together). Games that
+ * read it (GameMeta.contentModes) pick their word lists, prompts and locations from it.
  */
-export const CONTENT_MODES = ['family', 'cheeky', 'unhinged'] as const;
+export const CONTENT_MODES = ['family', 'unhinged'] as const;
 export type ContentMode = (typeof CONTENT_MODES)[number];
 
 export const CONTENT_MODE_INFO: Record<ContentMode, { label: string; blurb: string }> = {
   family: { label: 'Family', blurb: 'Clean content for any table.' },
-  cheeky: { label: 'Cheeky', blurb: 'Rude but harmless.' },
-  unhinged: { label: 'Unhinged', blurb: 'Adults only. Crude, filthy, no holds barred.' },
+  unhinged: { label: 'Unhinged', blurb: 'Adults only. Crude and filthy.' },
 };
+
+/**
+ * A stored content mode read back as one that exists: rooms saved before the middle tier was
+ * dropped carry 'cheeky' (or nothing at all), and both play as a family room.
+ */
+export function upgradeContentMode(mode: unknown): ContentMode {
+  return mode === 'unhinged' ? 'unhinged' : 'family';
+}
 
 /** Hard cap on seats in any room; games with a smaller table sit the extra players out. */
 export const ROOM_HARD_CAP = 24;

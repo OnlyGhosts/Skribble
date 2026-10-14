@@ -4,7 +4,7 @@ import type { AnyGameClientModule } from '../game';
 import { isReady } from '../lib/party';
 import { kickPlayer, voteKick } from '../net/actions';
 import { Avatar } from './Avatar';
-import { CrownIcon, EyeIcon, KickIcon } from './Icons';
+import { CheckIcon, CrownIcon, EyeIcon, KickIcon } from './Icons';
 
 interface Props {
   room: RoomState;
@@ -24,7 +24,7 @@ function sortPlayers(players: PlayerPublic[], mode: Props['mode']): PlayerPublic
 
 /** What a player is up to between games: readied up, sitting the next one out, or still deciding. */
 export function lobbyStatus(player: PlayerPublic): { label: string; state: 'ready' | 'sittingOut' | 'notReady' | 'offline' } {
-  if (!player.connected) return { label: 'reconnecting…', state: 'offline' };
+  if (!player.connected) return { label: 'Reconnecting…', state: 'offline' };
   if (player.sittingOut) return { label: 'Sitting out', state: 'sittingOut' };
   if (isReady(player)) return { label: 'Ready', state: 'ready' };
   return { label: 'Not ready', state: 'notReady' };
@@ -69,38 +69,38 @@ export function PlayerList({ room, meId, isHost, mode, game }: Props) {
             </span>
             <span className="player__body">
               <span className="player__name">
+                <span className="player__name-text">{p.name}</span>
+                {isMe && <span className="player__tag player__you">You</span>}
                 {p.isHost && (
-                  <span className="player__crown" title="Host" aria-label="Host" data-testid="host-crown">
-                    <CrownIcon size={14} />
+                  <span className="player__tag player__host" data-testid="host-crown">
+                    <CrownIcon size={12} /> Host
                   </span>
                 )}
-                <span className="player__name-text">{p.name}</span>
-                {isMe && <span className="player__you">you</span>}
               </span>
-              <span className="player__meta">
-                {mode === 'game' ? (
-                  <>
-                    {spectating ? (
-                      <span className="player__status player__status--sitting-out" data-testid="player-sitting-out">
-                        sitting out
-                      </span>
-                    ) : (
-                      <span className="player__score" data-testid="player-score">
-                        {p.score} pts
-                      </span>
-                    )}
-                    {meta}
-                  </>
-                ) : (
-                  status && (
-                    <span className={`player__status player__status--${status.state}`} data-testid="player-status">
-                      {status.label}
+              {mode === 'game' && (
+                <span className="player__meta">
+                  {spectating ? (
+                    <span className="player__status player__status--sitting-out" data-testid="player-sitting-out">
+                      sitting out
                     </span>
-                  )
-                )}
-                {mode === 'game' && !p.connected && <span className="player__status player__status--offline">offline</span>}
-              </span>
+                  ) : (
+                    <span className="player__score" data-testid="player-score">
+                      {p.score} pts
+                    </span>
+                  )}
+                  {meta}
+                  {!p.connected && <span className="player__status player__status--offline">offline</span>}
+                </span>
+              )}
             </span>
+            {status && (
+              <span className={`player__status player__status--${status.state}`} data-testid="player-status">
+                {status.state === 'ready' && <CheckIcon size={14} />}
+                {status.label}
+              </span>
+            )}
+            {/* Your own row keeps the kick button's width empty, so every status lines up. */}
+            {isMe && <span className="player__actions player__actions--spacer" aria-hidden="true" />}
             {!isMe && (
               <span className="player__actions">
                 {confirming ? (

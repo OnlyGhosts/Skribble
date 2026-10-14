@@ -114,7 +114,7 @@ export function finishPlacing(gx: Gx): void {
     side.ships = completeLayout(side.ships, data.fleet, data.size, ctx.rng);
     side.ready = true;
   }
-  if (late.length > 0) systemMessage(gx, 'Time\'s up — the remaining fleets took their positions.');
+  if (late.length > 0) systemMessage(gx, 'Time\'s up. The remaining fleets took their positions.');
   systemMessage(gx, 'All fleets are in position. Fire at will!');
   beginTurn(gx);
 }

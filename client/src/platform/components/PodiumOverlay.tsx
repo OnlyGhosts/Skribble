@@ -7,10 +7,9 @@ import { leaveRoom, playAgain, returnToLobby } from '../net/actions';
 import { Avatar } from './Avatar';
 import { BottomSheet } from './BottomSheet';
 import { Confetti } from './Confetti';
-import { ConnectionPill } from './ConnectionPill';
 import { LogoutIcon, MoreIcon, PartyIcon, RefreshIcon } from './Icons';
 import { ReadyControls } from './ReadyControls';
-import { SoundToggle, ThemeToggle } from './ThemeToggle';
+import { PreferenceRows } from './Preferences';
 
 const MEDALS = ['🥇', '🥈', '🥉'];
 
@@ -145,18 +144,7 @@ export function PodiumOverlay({ room, meId, isHost }: { room: RoomState; meId: s
         testId="podium-menu-sheet"
       >
         <div className="menu-sheet">
-          <div className="menu-sheet__row">
-            <span className="menu-sheet__label">Connection</span>
-            <ConnectionPill />
-          </div>
-          <div className="menu-sheet__row">
-            <span className="menu-sheet__label">Sound</span>
-            <SoundToggle />
-          </div>
-          <div className="menu-sheet__row">
-            <span className="menu-sheet__label">Theme</span>
-            <ThemeToggle />
-          </div>
+          <PreferenceRows />
           {confirmLeave ? (
             <div className="start-confirm" role="group" aria-label="Confirm leaving the party" data-testid="podium-leave-confirm">
               <p className="start-confirm__text">Leave the party? You'd need the code to come back in.</p>

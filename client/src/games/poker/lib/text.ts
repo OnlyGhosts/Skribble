@@ -25,8 +25,8 @@ export function blindsLabel(view: Pick<PokerView, 'blinds'>): string {
 export function phaseKicker(view: PokerView, turnName: string, mine: boolean, short = false): string {
   switch (view.phase) {
     case 'acting':
-      if (mine) return short ? 'Your move' : `${streetLabel(view.street)} — your move`;
-      return short ? `${turnName}'s move` : `${streetLabel(view.street)} — ${turnName} to act`;
+      if (mine) return short ? 'Your move' : `${streetLabel(view.street)}: your move`;
+      return short ? `${turnName}'s move` : `${streetLabel(view.street)}: ${turnName} to act`;
     case 'results':
       if (view.paused) return 'Paused';
       return view.results?.uncontested ? 'Hand over' : 'Showdown';

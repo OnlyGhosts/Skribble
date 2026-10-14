@@ -82,6 +82,15 @@ export function setSitOut(sitOut: boolean): void {
   socket.send({ t: 'sitOut', sitOut });
 }
 
+/**
+ * "Count me in" for a player sitting out: back in and ready in one tap (sitOut false, then ready,
+ * in that order on the one socket). The host only comes back in; pressing Start readies them.
+ */
+export function countMeIn(isHost: boolean): void {
+  setSitOut(false);
+  if (!isHost) setReady(true);
+}
+
 export function startGame(): void {
   socket.send({ t: 'start' });
 }

@@ -17,7 +17,7 @@ describe('location tiles', () => {
     const images = pickImages(globbed());
     const missing = ALL_SPY_LOCATIONS.filter((l) => !images[l.id]).map((l) => l.id);
     expect(missing).toEqual([]);
-    for (const mode of ['family', 'cheeky', 'unhinged'] as const) {
+    for (const mode of ['family', 'unhinged'] as const) {
       expect(locationsForMode(mode).every((l) => images[l.id] !== undefined)).toBe(true);
     }
   });

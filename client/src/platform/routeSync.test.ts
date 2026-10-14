@@ -58,8 +58,8 @@ describe('leaving the room through the address bar', () => {
 
   it('mirroring the room into the address bar and a snapshot do not leave it', () => {
     enterRoom();
-    navigate('/skribble/ABCD', { replace: true });
-    navigate('/skribble/abcd', { replace: true });
+    navigate('/scribble/ABCD', { replace: true });
+    navigate('/scribble/abcd', { replace: true });
     state().handleServerMessage({ t: 'room', room: room() });
     expect(state().room).not.toBeNull();
     expect(onLeave).not.toHaveBeenCalled();
@@ -87,7 +87,7 @@ describe('leaving the room through the address bar', () => {
   });
 
   it('a room entered from a join link is left when Back leaves the link', () => {
-    setLocation('/skribble/ABCD');
+    setLocation('/scribble/ABCD');
     refreshRoute();
     state().handleServerMessage(welcome('bob', room()));
     goBackTo('/');

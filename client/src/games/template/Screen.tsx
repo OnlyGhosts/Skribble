@@ -28,7 +28,7 @@ export function ClickRaceScreen({ room, meId }: GameScreenProps<TemplateView, Te
 
   return (
     <div className="race">
-      <SiteHeader crumb={meta.name}>
+      <SiteHeader>
         <button type="button" className="btn btn--ghost btn--sm" onClick={leaveRoom} data-testid="leave-room">
           <LogoutIcon size={16} /> Leave
         </button>
@@ -65,7 +65,7 @@ export function ClickRaceScreen({ room, meId }: GameScreenProps<TemplateView, Te
           </button>
           {spectating && (
             <p className="race__note" data-testid="race-spectating">
-              You're sitting this one out — the race goes on without you.
+              You're sitting this one out. The race goes on without you.
             </p>
           )}
           <ol className="race__list" aria-label="Progress" data-testid="race-list">

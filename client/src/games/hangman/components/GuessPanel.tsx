@@ -36,7 +36,7 @@ function statusLine(room: HangmanRoomState, view: HangmanView, meId: string): { 
     if (view.phase === 'drawing' && view.section !== null) return { text: `Draw ${sectionLabel(view.section, view.maxWrong).toLowerCase()}.`, state: 'drawing' };
     return { text: view.guesserId ? `${nameOf(room, view.guesserId)} is guessing your word.` : 'Waiting for a guesser.', state: 'hangman' };
   }
-  if (isOut(view, meId)) return { text: "Wrong word — you're out until the next word.", state: 'out' };
+  if (isOut(view, meId)) return { text: "Wrong word. You're out until the next word.", state: 'out' };
   if (view.phase === 'drawing' && view.section !== null) return { text: `${hangman} is drawing ${sectionLabel(view.section, view.maxWrong).toLowerCase()}.`, state: 'drawing' };
   if (view.phase === 'guessing') return { text: view.guesserId ? `${nameOf(room, view.guesserId)} is guessing.` : 'Waiting for a guesser to reconnect.', state: 'waiting' };
   return { text: '', state: view.phase };
@@ -66,7 +66,7 @@ export function GuessPanel({ room, view, meId }: Props) {
       {mine ? (
         <div className="hm-panel__head">
           <strong className="hm-panel__title" data-testid="guess-prompt">
-            {mode === 'word' ? 'Type the whole word' : 'Your turn — pick a letter'}
+            {mode === 'word' ? 'Type the whole word' : 'Your turn: pick a letter'}
           </strong>
           {mode === 'word' && modeButton}
         </div>

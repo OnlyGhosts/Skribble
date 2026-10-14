@@ -171,7 +171,7 @@ export function resetToLobby(cx: Cx): void {
  */
 export function ensureEnoughSeated(cx: Cx): boolean {
   if (cx.data.phase !== 'playing' || hasEnoughSeated(cx.data)) return false;
-  systemMessage(cx, 'Not enough players — back to the lobby.');
+  systemMessage(cx, 'Not enough players. Back to the lobby.');
   resetToLobby(cx);
   return true;
 }

@@ -3,10 +3,10 @@ import { randomAvatar, type Avatar as AvatarData } from '@shared/platform/avatar
 import { NAME_MAX_LENGTH } from '@shared/platform/constants';
 import { GAME_LIST, gameById, type GameMeta } from '@shared/platform/games';
 import { ROOM_CODE_LENGTH, isValidRoomCode, roomCodeHint } from '@shared/platform/roomCode';
-import { SITE_DESCRIPTION, SITE_NAME } from '@shared/platform/site';
+import { SITE_NAME } from '@shared/platform/site';
 import { AvatarPicker } from '../components/AvatarPicker';
 import { CodeInput, type CodeInputHandle } from '../components/CodeInput';
-import { LinkIcon } from '../components/Icons';
+import { AlertIcon, LinkIcon } from '../components/Icons';
 import { PhoneBored, PhoneHappy } from '../components/Mascots';
 import { SiteHeader } from '../components/SiteHeader';
 import { enteredLength, padCode } from '../lib/codeInput';
@@ -68,7 +68,8 @@ interface Props {
 }
 
 /**
- * The front door: two paths and nothing else. Join a room with the four boxes, or create one.
+ * The front door: two paths and nothing else (no tagline, no footer). Join a room with the four
+ * boxes, or create one.
  * Both need a name and an avatar for the real create/join handlers; a saved name skips the
  * "Who's playing?" step, a first visit sees it after the tap. Create starts the party on the
  * first live game; the host picks the game in the lobby.
@@ -205,22 +206,17 @@ export function Home({ code: linkedCode, game: linkedGame }: Props) {
 
   return (
     <div className="home">
-      <SiteHeader showSound={false} />
+      <SiteHeader
+        aside={
+          <span className="home__mascots" aria-hidden="true">
+            <PhoneHappy className="mascot--happy" />
+            <PhoneBored className="mascot--bored" />
+          </span>
+        }
+      />
 
       <main className="home__main">
-        <section className="hero" aria-labelledby="hero-title">
-          <div className="hero__text">
-            <h1 className="hero__title" id="hero-title">
-              <span className="hero__line">Less bored.</span>
-              <span className="hero__line hero__accent">More games.</span>
-            </h1>
-            <p className="hero__tagline">{SITE_DESCRIPTION}</p>
-          </div>
-          <div className="hero__mascots" aria-hidden="true">
-            <PhoneBored className="mascot--bored" />
-            <PhoneHappy className="mascot--happy" />
-          </div>
-        </section>
+        <h1 className="sr-only">{SITE_NAME}</h1>
 
         {view === 'rejoining' && (
           <div className="banner banner--info home__banner" role="status" data-testid="rejoining-banner">
@@ -247,7 +243,7 @@ export function Home({ code: linkedCode, game: linkedGame }: Props) {
                   onJoin();
                 }}
               >
-                <div className="field">
+                <div className="field code-field">
                   <span className="field__label" id="code-label">
                     Room code
                   </span>
@@ -265,6 +261,7 @@ export function Home({ code: linkedCode, game: linkedGame }: Props) {
                   <div className="code-preview" id="code-status" aria-live="polite" data-testid="room-preview">
                     {joinErrorText ? (
                       <span className="field__error" data-testid={codeHint ? 'code-hint' : 'join-error'}>
+                        <AlertIcon size={16} />
                         {joinErrorText}
                       </span>
                     ) : preview.status === 'ok' && preview.preview.exists ? (
@@ -272,13 +269,13 @@ export function Home({ code: linkedCode, game: linkedGame }: Props) {
                     ) : null}
                   </div>
                 </div>
-                <button ref={joinRef} type="submit" className="btn btn--secondary btn--lg btn--block panel__action" data-testid="home-join" disabled={joinPending} aria-busy={busy('join')}>
+                <button ref={joinRef} type="submit" className="btn btn--primary btn--block panel__action" data-testid="home-join" disabled={joinPending} aria-busy={busy('join')}>
                   {busy('join') ? (
                     <>
                       <span className="spinner" aria-hidden="true" /> {pendingLabel('Joining…')}
                     </>
                   ) : (
-                    'Join room'
+                    'Join'
                   )}
                 </button>
               </form>
@@ -288,8 +285,8 @@ export function Home({ code: linkedCode, game: linkedGame }: Props) {
               <h2 className="panel__title" id="create-heading">
                 Create a room
               </h2>
-              <p className="panel__text">Start something. Send the code.</p>
-              <button type="button" className="btn btn--primary btn--lg btn--block panel__action" data-testid="home-create" onClick={onCreate} disabled={joinPending} aria-busy={busy('create')}>
+              <p className="panel__text">Pick the game once you're in.</p>
+              <button type="button" className="btn btn--secondary btn--block panel__action" data-testid="home-create" onClick={onCreate} disabled={joinPending} aria-busy={busy('create')}>
                 {busy('create') ? (
                   <>
                     <span className="spinner" aria-hidden="true" /> {pendingLabel('Creating…')}
@@ -300,6 +297,7 @@ export function Home({ code: linkedCode, game: linkedGame }: Props) {
               </button>
               {errorFor('create') && (
                 <p className="field__error" role="alert" data-testid="create-error">
+                  <AlertIcon size={16} />
                   {errorFor('create')}
                 </p>
               )}
@@ -309,73 +307,73 @@ export function Home({ code: linkedCode, game: linkedGame }: Props) {
 
         {view !== 'rejoining' && step === 'name' && (
           <section className="card panel panel--who" aria-labelledby="who-heading" data-testid="name-step">
-            <h2 className="panel__title" id="who-heading">
-              Who's playing?
-            </h2>
-            <p className="panel__text">
-              {intent === 'join' ? (
-                <>
-                  Joining room <strong className="panel__code">{code}</strong>. Pick a name and a face.
-                </>
-              ) : (
-                "You'll be the host. Pick a name and a face."
-              )}
-            </p>
+            <div className="panel__head">
+              <h2 className="panel__title" id="who-heading">
+                Who's playing?
+              </h2>
+              <p className="panel__text">
+                {intent === 'join' ? (
+                  <>
+                    Joining room <strong className="panel__code">{code}</strong>
+                  </>
+                ) : (
+                  "You'll host the room."
+                )}
+              </p>
+            </div>
             <form className="panel__form" noValidate onSubmit={onNameSubmit}>
-              <div className="who__grid">
-                <div className="field">
-                  <label className="field__label" htmlFor="home-name">
-                    Name
-                  </label>
-                  <input
-                    id="home-name"
-                    ref={nameRef}
-                    className={`input input--lg${nameError ? ' is-invalid' : ''}`}
-                    data-testid="home-name"
-                    type="text"
-                    value={name}
-                    maxLength={NAME_MAX_LENGTH}
-                    placeholder="What should we call you?"
-                    autoComplete="nickname"
-                    autoCorrect="off"
-                    enterKeyHint="go"
-                    aria-invalid={nameError ? true : undefined}
-                    aria-describedby={nameError ? 'home-name-error' : 'home-name-hint'}
-                    onChange={(e) => {
-                      setName(e.target.value);
-                      if (nameError) setNameError(null);
-                    }}
-                  />
-                  {nameError ? (
-                    <p className="field__error" id="home-name-error" role="alert">
-                      {nameError}
-                    </p>
-                  ) : (
-                    <p className="field__hint" id="home-name-hint">
-                      Up to {NAME_MAX_LENGTH} characters. Remembered on this device.
-                    </p>
-                  )}
-                </div>
-                <AvatarPicker value={avatar} onChange={setAvatar} />
+              <div className="field">
+                <label className="field__label" htmlFor="home-name">
+                  Name
+                </label>
+                <input
+                  id="home-name"
+                  ref={nameRef}
+                  className={`input${nameError ? ' is-invalid' : ''}`}
+                  data-testid="home-name"
+                  type="text"
+                  value={name}
+                  maxLength={NAME_MAX_LENGTH}
+                  placeholder="What should we call you?"
+                  autoComplete="nickname"
+                  autoCorrect="off"
+                  enterKeyHint="go"
+                  aria-invalid={nameError ? true : undefined}
+                  aria-describedby={nameError ? 'home-name-error' : 'home-name-hint'}
+                  onChange={(e) => {
+                    setName(e.target.value);
+                    if (nameError) setNameError(null);
+                  }}
+                />
+                {nameError ? (
+                  <p className="field__error" id="home-name-error" role="alert">
+                    <AlertIcon size={16} />
+                    {nameError}
+                  </p>
+                ) : (
+                  <p className="field__hint" id="home-name-hint">
+                    Up to {NAME_MAX_LENGTH} characters. Saved on this device.
+                  </p>
+                )}
               </div>
+              <AvatarPicker value={avatar} onChange={setAvatar} />
               <div className="panel__actions">
-                <button type="submit" className="btn btn--primary btn--lg panel__action" data-testid="home-continue" disabled={joinPending} aria-busy={joinPending}>
+                <button type="submit" className="btn btn--primary panel__action" data-testid="home-continue" disabled={joinPending} aria-busy={joinPending}>
                   {joinPending ? (
                     <>
                       <span className="spinner" aria-hidden="true" /> {pendingLabel(intent === 'join' ? 'Joining…' : 'Creating…')}
                     </>
-                  ) : intent === 'join' ? (
-                    'Join room'
                   ) : (
-                    'Create room'
+                    'Continue'
                   )}
                 </button>
-                <button type="button" className="btn btn--secondary btn--lg" data-testid="home-back" onClick={() => setStep('home')} disabled={joinPending}>
+                <button type="button" className="btn btn--secondary" data-testid="home-back" onClick={() => setStep('home')} disabled={joinPending}>
                   Back
                 </button>
               </div>
               {errorFor('create') && (
                 <p className="field__error" role="alert" data-testid="create-error">
+                  <AlertIcon size={16} />
                   {errorFor('create')}
                 </p>
               )}
@@ -383,10 +381,6 @@ export function Home({ code: linkedCode, game: linkedGame }: Props) {
           </section>
         )}
       </main>
-
-      <footer className="home__footer">
-        <p>Made for one more round.</p>
-      </footer>
     </div>
   );
 }

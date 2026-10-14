@@ -4,7 +4,7 @@ import type { ChatMessage } from '@shared/platform/protocol';
 import { sendChat } from '../net/actions';
 import { useActiveGame } from '../store/selectors';
 import { usePlatformStore } from '../store/usePlatformStore';
-import { ChevronIcon } from './Icons';
+import { CheckIcon, ChevronIcon } from './Icons';
 
 /** How close to the bottom (px) still counts as "following" new messages. */
 const FOLLOW_THRESHOLD = 48;
@@ -13,6 +13,7 @@ const DEFAULT_PLACEHOLDER = 'Chat...';
 function MessageRow({ message }: { message: ChatMessage }) {
   return (
     <li className={`chat-msg chat-msg--${message.kind}`} data-testid="chat-message" data-kind={message.kind}>
+      {message.kind === 'correct' && <CheckIcon size={14} className="chat-msg__icon" />}
       {message.name && (message.kind === 'chat' || message.kind === 'guessed') && <span className="chat-msg__name">{message.name}</span>}
       <span className="chat-msg__text">{message.text}</span>
     </li>

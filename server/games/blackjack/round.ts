@@ -19,12 +19,12 @@ export function seatPlayer(gx: Gx, playerId: string): void {
 export function beginRound(gx: Gx): void {
   const { data, ctx } = gx;
   if (ctx.players.length < MIN_PLAYERS) {
-    gx.effects.push({ type: 'abort', reason: 'Not enough players — back to the lobby.' });
+    gx.effects.push({ type: 'abort', reason: 'Not enough players. Back to the lobby.' });
     return;
   }
   const active = activePlayers(ctx, data);
   if (active.length === 0) {
-    systemMessage(gx, 'Everyone is out of chips — the house wins.');
+    systemMessage(gx, 'Everyone is out of chips. The house wins.');
     return finishGame(gx);
   }
   if (data.round >= ctx.settings.rounds) return finishGame(gx);
@@ -45,7 +45,7 @@ export function beginRound(gx: Gx): void {
   // The table is clear, so a rebuild here puts the last round's cards back in the shoe.
   if (needsReshuffle(data.shoe.length, ctx.settings.decks)) rebuildShoe(gx, 'Under a quarter of the shoe is left');
   data.phase = { kind: 'betting', endsAt: ctx.now + ctx.settings.betSeconds * 1000 };
-  systemMessage(gx, `Round ${data.round} of ${ctx.settings.rounds} — place your bets!`);
+  systemMessage(gx, `Round ${data.round} of ${ctx.settings.rounds}: place your bets!`);
   snapshot(gx);
 }
 

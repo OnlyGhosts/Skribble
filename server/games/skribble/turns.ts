@@ -52,7 +52,7 @@ export function beginNextTurn(gx: Gx): void {
   const { data, ctx } = gx;
   clearTurnGrace(gx);
   if (ctx.players.length < MIN_PLAYERS) {
-    gx.effects.push({ type: 'abort', reason: 'Not enough players — back to the lobby.' });
+    gx.effects.push({ type: 'abort', reason: 'Not enough players. Back to the lobby.' });
     return;
   }
   // A game with no turn left is over whoever is connected: the podium neither waits for an absent
@@ -72,7 +72,7 @@ export function beginNextTurn(gx: Gx): void {
     const drawer = findPlayer(ctx, data.turnQueue[data.turnIndex]);
     if (!drawer || !drawer.connected) {
       // Skipped drawers leave the schedule so turn/turnsInRound stay accurate (and get back in on return).
-      if (drawer) systemMessage(gx, `${drawer.name} is away — skipping their turn.`);
+      if (drawer) systemMessage(gx, `${drawer.name} is away. Skipping their turn.`);
       data.turnQueue.splice(data.turnIndex, 1);
       data.turnIndex -= 1;
       continue;
@@ -199,7 +199,7 @@ function finishGame(gx: Gx): void {
 /** Announces that the drawer's reconnect grace ran out (the caller ends the turn). */
 export function systemMessageForDrawerGone(gx: Gx): void {
   const drawer = gx.data.turn ? findPlayer(gx.ctx, gx.data.turn.drawerId) : undefined;
-  if (drawer) systemMessage(gx, `${drawer.name} lost connection — skipping their turn.`);
+  if (drawer) systemMessage(gx, `${drawer.name} lost connection. Skipping their turn.`);
 }
 
 /**

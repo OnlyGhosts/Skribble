@@ -31,7 +31,7 @@ export function vote(gx: Gx, playerId: string, yes: boolean): void {
   const { data } = gx;
   if (data.phase !== 'voting' || !data.vote) return fail(gx, playerId, 'There is no vote running.');
   if (!data.vote.eligible.includes(playerId)) return fail(gx, playerId, "You can't vote in this one.");
-  if (playerId === data.vote.accuserId) return fail(gx, playerId, 'You started this vote — you count as Yes.');
+  if (playerId === data.vote.accuserId) return fail(gx, playerId, 'You started this vote. You count as Yes.');
   data.vote.votes[playerId] = yes;
   if (!resolveIfComplete(gx)) snapshot(gx);
 }
@@ -67,7 +67,7 @@ export function resolveVote(gx: Gx): void {
     return endRound(gx, v.accusedId === data.current.spyId ? 'spyCaught' : 'wrongAccusation', { accuserId: v.accuserId, accusedId: v.accusedId });
   }
   // Never print the padded count: yes + no is the eligible count, which differs by one when the accused is the spy.
-  systemMessage(gx, 'The vote failed — play on.');
+  systemMessage(gx, 'The vote failed. Play on.');
   data.vote = null;
   data.phase = 'playing';
   resumeClock(gx);
@@ -84,7 +84,7 @@ export function voterLeft(gx: Gx, playerId: string): void {
   const v = data.vote;
   if (data.phase !== 'voting' || !v) return;
   if (playerId === v.accusedId || playerId === v.accuserId) {
-    systemMessage(gx, playerId === v.accusedId ? 'The accused left — the vote is off.' : 'The accuser left — the vote is off.');
+    systemMessage(gx, playerId === v.accusedId ? 'The accused left. The vote is off.' : 'The accuser left. The vote is off.');
     data.current.accusers = data.current.accusers.filter((id) => id !== v.accuserId);
     data.vote = null;
     data.phase = 'playing';

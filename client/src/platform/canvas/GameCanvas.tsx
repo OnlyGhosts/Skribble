@@ -123,7 +123,7 @@ export function GameCanvas({ session, canDraw, settings, turnKey, children, foot
             className="game-canvas"
             data-testid="canvas"
             role="img"
-            aria-label={canDraw ? 'Drawing canvas — draw here' : 'Drawing canvas'}
+            aria-label={canDraw ? 'Drawing canvas, draw here' : 'Drawing canvas'}
             width={CANVAS_WIDTH}
             height={CANVAS_HEIGHT}
           />

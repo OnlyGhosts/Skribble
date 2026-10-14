@@ -82,7 +82,9 @@ test.afterAll(async () => {
 test('the front door has exactly two action paths, four visible boxes and no catalogue or menu', async () => {
   await host.page.goto('/');
   await expect(host.page).toHaveTitle('boredgames.io');
-  await expect(host.page.getByTestId('connection-status')).toHaveAttribute('data-status', 'connected');
+  // Connected: no status badge at all (it only shows while the socket is down).
+  await expect(host.page.getByTestId('home-create')).toBeVisible();
+  await expect(host.page.getByTestId('connection-status')).toHaveCount(0);
   await expect(host.page.locator('html')).toHaveAttribute('data-theme', 'dark');
 
   // The wordmark is outlined vector art with an accessible name, never live text or a controller icon.
@@ -91,10 +93,16 @@ test('the front door has exactly two action paths, four visible boxes and no cat
   await expect(header.locator('svg[data-testid="wordmark"] path')).toHaveCount(2);
   await expect(header.locator('svg[data-testid="wordmark"] text')).toHaveCount(0);
   await expect(header.locator('.brand__mark')).toHaveCount(0);
-  await expect(header.getByTestId('theme-toggle')).toBeVisible();
+  // The theme lives in the settings menu behind the gear, not as a header button of its own.
+  await expect(header.getByTestId('settings-menu')).toBeVisible();
+  await expect(host.page.getByTestId('theme-toggle')).toHaveCount(0);
+  await expect(header.locator('.home__mascots svg')).toHaveCount(2);
 
-  await expect(host.page.getByRole('heading', { level: 1 })).toHaveText('Less bored.More games.');
-  await expect(host.page.getByText('Get your people together. A room code is all it takes.')).toBeVisible();
+  // No tagline, no sub-line, no footer.
+  await expect(host.page.getByText('Less bored')).toHaveCount(0);
+  await expect(host.page.getByText('A room code is all it takes')).toHaveCount(0);
+  await expect(host.page.getByText('Made for one more round.')).toHaveCount(0);
+  await expect(host.page.locator('footer')).toHaveCount(0);
 
   // Two panels, in order: Join then Create. Nothing else to click on the page.
   const panels = host.page.locator('.home__panels > section');
@@ -103,11 +111,10 @@ test('the front door has exactly two action paths, four visible boxes and no cat
   await expect(panels.nth(1)).toHaveAttribute('data-testid', 'create-panel');
   await expect(host.page.getByRole('heading', { name: 'Join a room' })).toBeVisible();
   await expect(host.page.getByRole('heading', { name: 'Create a room' })).toBeVisible();
-  await expect(host.page.getByText('Start something. Send the code.')).toBeVisible();
+  await expect(host.page.getByText("Pick the game once you're in.")).toBeVisible();
   await expect(host.page.locator('nav')).toHaveCount(0);
   await expect(host.page.getByTestId('game-card')).toHaveCount(0);
   await expect(host.page.getByRole('link')).toHaveCount(1); // the wordmark
-  await expect(host.page.getByText('Made for one more round.')).toBeVisible();
 
   // Four separate boxes before anything is clicked, labelled, empty, with faint A/B/C/D placeholders.
   const group = host.page.getByRole('group', { name: 'Room code' });
@@ -122,14 +129,27 @@ test('the front door has exactly two action paths, four visible boxes and no cat
     await expect(box).toHaveAttribute('autocomplete', 'off');
     await expect(box).toHaveAttribute('inputmode', 'text');
   }
-  await expect(host.page.getByTestId('home-join')).toHaveText('Join room');
+  await expect(host.page.getByTestId('home-join')).toHaveText('Join');
   await expect(host.page.getByTestId('home-create')).toHaveText('Create room');
-  // The lime primary carries ink text; the one glowing thing on the page is the button itself.
-  const createStyle = await host.page.getByTestId('home-create').evaluate((el) => {
-    const s = getComputedStyle(el);
-    return { bg: s.backgroundColor, color: s.color, shadow: s.boxShadow };
-  });
-  expect(createStyle).toEqual({ bg: 'rgb(199, 233, 118)', color: 'rgb(20, 21, 20)', shadow: 'none' });
+  // Join is the lime primary with ink text; Create is outlined. Nothing glows.
+  const style = (id: string) =>
+    host.page.getByTestId(id).evaluate((el) => {
+      const s = getComputedStyle(el);
+      return { bg: s.backgroundColor, color: s.color, shadow: s.boxShadow };
+    });
+  expect(await style('home-join')).toEqual({ bg: 'rgb(199, 233, 118)', color: 'rgb(20, 21, 20)', shadow: 'none' });
+  expect(await style('home-create')).toEqual({ bg: 'rgba(0, 0, 0, 0)', color: 'rgb(241, 240, 232)', shadow: 'none' });
+  // Space Grotesk headings, Inter text, IBM Plex Mono code boxes, all self-hosted.
+  await expect(host.page.getByRole('heading', { name: 'Join a room' })).toHaveCSS('font-family', /^"Space Grotesk"/);
+  await expect(host.page.locator('body')).toHaveCSS('font-family', /^Inter/);
+  await expect(host.page.getByTestId('code-input-0')).toHaveCSS('font-family', /^"IBM Plex Mono"/);
+  expect(await host.page.evaluate(() => document.fonts.check('700 16px "Space Grotesk"'))).toBe(true);
+
+  // The Join panel is compact: no empty band between the boxes and the button while there is no error.
+  const lastBox = await host.page.getByTestId('code-input-3').boundingBox();
+  const joinButton = await host.page.getByTestId('home-join').boundingBox();
+  expect((joinButton?.y ?? 0) - ((lastBox?.y ?? 0) + (lastBox?.height ?? 0))).toBeLessThanOrEqual(17);
+  await expect(host.page.getByTestId('room-preview')).toHaveAttribute('aria-live', 'polite');
 });
 
 test('typing uppercases and advances; Backspace and the arrow keys move between the boxes; nothing submits by itself', async () => {
@@ -209,7 +229,7 @@ test('create → "Who’s playing?" → the lobby, where picking a game comes fi
   await expect(host.page.getByRole('heading', { name: "Who's playing?" })).toBeVisible();
   await expect(host.page.getByTestId('room-code')).toHaveCount(0);
   await expect(host.page.getByTestId('avatar-picker')).toBeVisible();
-  await expect(host.page.getByTestId('home-continue')).toHaveText('Create room');
+  await expect(host.page.getByTestId('home-continue')).toHaveText('Continue');
   await host.page.getByTestId('home-continue').click();
   await expect(host.page.getByRole('alert')).toContainText(/pick a name/i);
   await host.page.getByTestId('home-name').fill(host.name);
@@ -218,14 +238,18 @@ test('create → "Who’s playing?" → the lobby, where picking a game comes fi
   // A real room on the first live game, the picker at the top of the lobby, the host already able to switch.
   skribbleCode = (await host.page.getByTestId('room-code').textContent())?.replace(/\s+/g, '') ?? '';
   expect(skribbleCode).toMatch(/^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{4}$/);
-  await expect(host.page).toHaveURL(new RegExp(`/skribble/${skribbleCode}$`));
+  await expect(host.page).toHaveURL(new RegExp(`/scribble/${skribbleCode}$`));
   await expect(host.page).toHaveTitle(`boredgames.io · ${skribbleCode}`);
   await expect(host.page.getByTestId('site-header').getByRole('img', { name: 'boredgames.io' })).toBeVisible();
   const picker = host.page.getByTestId('game-picker');
   await expect(picker).toHaveAttribute('data-game', 'skribble');
   await expect(host.page.getByRole('heading', { name: 'Pick a game' })).toBeVisible();
   await expect(picker.locator('button[data-testid="game-tile"]')).toHaveCount(7);
-  await expect(host.page.locator('.lobby > section').first()).toHaveAttribute('data-testid', 'game-picker');
+  // The compact room bar comes first, then the picker.
+  await expect(host.page.locator('.lobby > section').first()).toHaveAttribute('data-testid', 'room-bar');
+  await expect(host.page.getByTestId('room-bar').getByTestId('room-code')).toHaveText(skribbleCode);
+  await expect(picker.locator('[data-testid="game-tile"][data-game="skribble"]')).toContainText('Scribble');
+  await expect(picker.locator('[data-testid="game-tile"] svg[data-glyph]')).toHaveCount(7);
   expect(await (await host.page.request.get(`/api/rooms/${skribbleCode}`)).json()).toMatchObject({ exists: true, players: 1, gameId: 'skribble' });
   await expect(host.page.locator(`[data-testid="player-item"][data-name="${host.name}"]`)).toBeVisible();
   await expect(host.page.getByTestId('start-game')).toBeDisabled();
@@ -237,7 +261,7 @@ test('create → "Who’s playing?" → the lobby, where picking a game comes fi
   await host.page.getByTestId('home-create').click();
   await expect(host.page.getByTestId('name-step')).toHaveCount(0);
   skribbleCode = (await host.page.getByTestId('room-code').textContent())?.replace(/\s+/g, '') ?? '';
-  await expect(host.page).toHaveURL(new RegExp(`/skribble/${skribbleCode}$`));
+  await expect(host.page).toHaveURL(new RegExp(`/scribble/${skribbleCode}$`));
 });
 
 test('a second browser joins the real room by code; an unknown code is refused with the code kept and the first box focused', async () => {
@@ -257,11 +281,11 @@ test('a second browser joins the real room by code; an unknown code is refused w
   await page.getByTestId('code-input-0').click();
   await page.keyboard.type(skribbleCode, { delay: 20 });
   await expect(page.getByTestId('join-error')).toHaveCount(0);
-  await expect(page.getByTestId('room-preview')).toContainText(/1 player in the party · Skribble/);
+  await expect(page.getByTestId('room-preview')).toContainText(/1 player in the party · Scribble/);
   await page.getByTestId('home-join').click();
   await expect(page.getByTestId('name-step')).toHaveCount(0);
   await expect(page.getByTestId('room-code')).toHaveText(skribbleCode);
-  await expect(page).toHaveURL(new RegExp(`/skribble/${skribbleCode}$`));
+  await expect(page).toHaveURL(new RegExp(`/scribble/${skribbleCode}$`));
   await expect(host.page.getByTestId('player-item')).toHaveCount(2);
   await expect(page.getByTestId('game-picker-note')).toHaveText(`${host.name} picks the game`);
   await expect(page.getByTestId('copy-link')).toBeVisible();
@@ -274,7 +298,7 @@ test('Back and the wordmark link leave the room and land on the front door', asy
   await expect(guest.page.getByTestId('room-code')).toHaveCount(0);
   await expect(host.page.getByTestId('player-item')).toHaveCount(1);
 
-  await joinByLink(guest.page, guest.name, `/skribble/${skribbleCode}`, skribbleCode);
+  await joinByLink(guest.page, guest.name, `/scribble/${skribbleCode}`, skribbleCode);
   await expect(host.page.getByTestId('player-item')).toHaveCount(2);
   await guest.page.getByTestId('brand-link').click();
   await expect(guest.page).toHaveURL(/\/$/);
@@ -286,7 +310,12 @@ test('Back and the wordmark link leave the room and land on the front door', asy
 
 test('deep links fill the boxes and focus Join room; the old per-game pages and unknown pages come home', async () => {
   // '/:slug/:CODE' (the invite link)
+  await phone.page.goto(`/scribble/${skribbleCode}`);
+  expect(await boxes(phone.page)).toEqual(skribbleCode.split(''));
+  await expect(phone.page.getByTestId('home-join')).toBeFocused();
+  // An invite from before the rename ('/skribble/CODE') still works: the address bar is rewritten in place.
   await phone.page.goto(`/skribble/${skribbleCode}`);
+  await expect(phone.page).toHaveURL(new RegExp(`/scribble/${skribbleCode}$`));
   expect(await boxes(phone.page)).toEqual(skribbleCode.split(''));
   await expect(phone.page.getByTestId('home-join')).toBeFocused();
   await expect(phone.page.getByTestId('room-code')).toHaveCount(0);
@@ -301,6 +330,8 @@ test('deep links fill the boxes and focus Join room; the old per-game pages and 
   expect(await boxes(phone.page)).toEqual(skribbleCode.split(''));
 
   // '/:slug' redirects to '/', with empty boxes and both panels.
+  await phone.page.goto('/scribble');
+  await expect(phone.page).toHaveURL(/\/$/);
   await phone.page.goto('/skribble');
   await expect(phone.page).toHaveURL(/\/$/);
   await expect(phone.page.getByTestId('create-panel')).toBeVisible();
@@ -339,7 +370,8 @@ test('the hidden template game plays a whole Click Race between two players', as
   await expect(guest.page.getByTestId('settings-value-timeLimit')).toHaveText('30s');
   await expect(guest.page.getByTestId('settings-allowMidGameJoin')).toBeDisabled();
   await expect(guest.page.getByTestId('settings-maxPlayers')).toHaveCount(0);
-  await expect(guest.page.getByTestId('content-mode-family')).toBeDisabled();
+  // Click Race never reads the content mode, so the lobby does not offer it.
+  await expect(guest.page.getByTestId('settings-contentMode')).toHaveCount(0);
 
   await readyAll([guest.page]);
   await host.page.getByTestId('start-game').click();
@@ -388,30 +420,41 @@ test('the hidden template game plays a whole Click Race between two players', as
   for (const p of [host, guest]) await p.page.getByTestId('leave-room').click();
 });
 
-test('the theme toggle switches to the light variant and the choice survives a reload; dark is the default', async ({ browser }) => {
+test('the settings menu switches to the light theme and the choice survives a reload; dark is the default', async ({ browser }) => {
   const context = await browser.newContext();
   const page = await context.newPage();
   await page.goto('/');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   const pageColor = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
   const panelColor = () => page.getByTestId('join-panel').evaluate((el) => getComputedStyle(el).backgroundColor);
+  const games = page.getByTestId('site-header').locator('.wordmark__accent');
   expect(await pageColor()).toBe('rgb(20, 21, 20)');
   expect(await panelColor()).toBe('rgb(32, 34, 31)');
-  expect(await page.evaluate(() => getComputedStyle(document.body, '::before').content)).toBe('none');
-  // "More games." is the brand lilac itself on dark (#A699D5), the darker cut only on off-white.
-  const accent = page.locator('.hero__accent');
-  await expect(accent).toHaveCSS('color', 'rgb(166, 153, 213)');
+  // "games" in the wordmark is lime on dark and the deep olive on light.
+  await expect(games).toHaveCSS('color', 'rgb(199, 233, 118)');
 
-  await page.getByTestId('theme-toggle').click();
+  await page.getByTestId('settings-menu').click();
+  await expect(page.getByTestId('settings-popover')).toBeVisible();
+  await expect(page.getByTestId('theme-dark')).toHaveAttribute('aria-checked', 'true');
+  await page.getByTestId('theme-light').click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
-  expect(await pageColor()).toBe('rgb(241, 240, 232)');
+  expect(await pageColor()).toBe('rgb(245, 246, 239)');
   expect(await panelColor()).toBe('rgb(255, 255, 255)');
-  await expect(page.getByTestId('home-create')).toHaveCSS('background-color', 'rgb(199, 233, 118)');
-  await expect(accent).toHaveCSS('color', 'rgb(90, 74, 156)');
+  await expect(page.getByTestId('home-join')).toHaveCSS('background-color', 'rgb(199, 233, 118)');
+  await expect(games).toHaveCSS('color', 'rgb(64, 93, 23)');
+  // Escape closes the menu and gives the focus back to the gear.
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('settings-popover')).toHaveCount(0);
+  await expect(page.getByTestId('settings-menu')).toBeFocused();
+
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
-  await page.getByTestId('theme-toggle').click();
+  await page.getByTestId('settings-menu').click();
+  await page.getByTestId('theme-dark').click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  // A tap outside closes it.
+  await page.getByTestId('join-panel').click({ position: { x: 5, y: 5 } });
+  await expect(page.getByTestId('settings-popover')).toHaveCount(0);
   await context.close();
 });
 
@@ -421,7 +464,8 @@ for (const width of [320, 390, 700, 768, 1440]) {
     const context = await browser.newContext({ viewport: { width, height }, isMobile: width < 768, hasTouch: width < 768 });
     const page = await context.newPage();
     await page.goto('/');
-    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-status', 'connected');
+    await expect(page.getByTestId('home-create')).toBeVisible();
+    await expect(page.getByTestId('connection-status')).toHaveCount(0);
     await noHorizontalOverflow(page, width);
     for (const id of ['home-join', 'home-create']) {
       const box = await page.getByTestId(id).boundingBox();
@@ -453,9 +497,13 @@ for (const width of [320, 390, 700, 768, 1440]) {
       expect(join?.x).toBe(create?.x);
       expect((join?.y ?? 0) + (join?.height ?? 0)).toBeLessThanOrEqual(create?.y ?? 0);
     }
-    // The mascots show only while the hero is two-column; single-column (large phones, small tablets in
-    // portrait included) they would take a row of their own and push Create below the fold.
-    await expect(page.locator('.hero__mascots')).toBeVisible({ visible: width >= 768 });
+    // The mascots sit beside the wordmark at every width, small: 70px tall at most on phones, 112px on desktop.
+    for (const mascot of await page.locator('.home__mascots svg').all()) {
+      const m = await mascot.evaluate((el) => el.getBoundingClientRect().height / Math.cos((8 * Math.PI) / 180));
+      expect(m).toBeLessThanOrEqual(width >= 1024 ? 112 * 1.2 : width >= 768 ? 96 * 1.2 : 70 * 1.2);
+    }
+    const mascotsBottom = await page.locator('.home__mascots').evaluate((el) => el.getBoundingClientRect().bottom);
+    expect(mascotsBottom, 'the mascots stay above the panels').toBeLessThanOrEqual(join?.y ?? 0);
     if (width < 768) {
       expect((createBtn?.y ?? 0) + (createBtn?.height ?? 0), 'Create room sits inside the first screen').toBeLessThanOrEqual(height);
     }
@@ -476,7 +524,8 @@ test('a create or join the server never answers is reported where the user is: u
   // The socket link is cut before it reaches the server: the client keeps reconnecting, every request times out as OFFLINE.
   await page.routeWebSocket(/\/ws$/, (route) => route.close({ code: 1006, reason: 'cut' }));
   await page.goto('/');
-  await expect(page.getByTestId('connection-status')).not.toHaveAttribute('data-status', 'connected');
+  // While the socket is down a small status pill says so, in place of the old Connected badge.
+  await expect(page.getByTestId('connection-status')).toHaveAttribute('data-status', /connecting|reconnecting/);
 
   // Create: a first visit goes through "Who's playing?"; the failure must show there, not only after Back.
   await page.getByTestId('home-create').click();
@@ -487,7 +536,7 @@ test('a create or join the server never answers is reported where the user is: u
   await expect(page.getByTestId('create-error')).toContainText(/can't reach the server/i, { timeout: 15_000 });
   await expect(page.getByTestId('name-step')).toBeVisible();
   await expect(page.getByTestId('home-continue')).toBeEnabled();
-  await expect(page.getByTestId('home-continue')).toHaveText('Create room');
+  await expect(page.getByTestId('home-continue')).toHaveText('Continue');
   await expect(page.getByTestId('home-name')).toHaveValue('Olga');
   await expect(page.getByRole('alert')).toHaveCount(1);
 

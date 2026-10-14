@@ -268,17 +268,17 @@ describe('reconnect timing', () => {
     vi.advanceTimersByTime(SLOW_RECONNECT_MS - 100);
     expect(toasts).toEqual([]);
     vi.advanceTimersByTime(100);
-    expect(toasts).toEqual(['Connection lost — reconnecting…']);
+    expect(toasts).toEqual(['Connection lost. Reconnecting…']);
     // Further failed attempts add nothing.
     for (let i = 0; i < 4; i++) {
       vi.advanceTimersByTime(10_000);
       for (const sock of FakeWebSocket.instances) if (sock.readyState === FakeWebSocket.CONNECTING) sock.drop(1006);
     }
     vi.advanceTimersByTime(10_000);
-    expect(toasts).toEqual(['Connection lost — reconnecting…']);
+    expect(toasts).toEqual(['Connection lost. Reconnecting…']);
     const next = FakeWebSocket.latest();
     next.open();
-    expect(toasts).toEqual(['Connection lost — reconnecting…', 'Reconnected']);
+    expect(toasts).toEqual(['Connection lost. Reconnecting…', 'Reconnected']);
   });
 
   it('shows the pill, not a toast, for a reconnect that goes through quickly', () => {
@@ -373,7 +373,7 @@ describe('seat recovery from localStorage', () => {
 
   it('rejoins from the localStorage seat when the tab was discarded (no session seat)', () => {
     saveSeat({ code: 'ABCD', token: 'tok-old', playerId: 'bob', savedAt: Date.now() - 120_000 });
-    setLocation('/skribble/ABCD');
+    setLocation('/scribble/ABCD');
     const socket = new GameSocket();
     socket.start();
     expect(usePlatformStore.getState().rejoining).toBe(true);
@@ -388,7 +388,7 @@ describe('seat recovery from localStorage', () => {
 
   it('shows the join form (no rejoin) for a seat older than the reconnect grace', () => {
     saveSeat({ code: 'ABCD', token: 'tok-old', playerId: 'bob', savedAt: Date.now() - 11 * 60_000 });
-    setLocation('/skribble/ABCD');
+    setLocation('/scribble/ABCD');
     const socket = new GameSocket();
     socket.start();
     expect(usePlatformStore.getState().rejoining).toBe(false);
@@ -399,7 +399,7 @@ describe('seat recovery from localStorage', () => {
 
   it('drops the entry when the server refuses the rejoin, on an explicit leave and on a kick', () => {
     saveSeat({ code: 'ABCD', token: 'tok-old', playerId: 'bob', savedAt: Date.now() });
-    setLocation('/skribble/ABCD');
+    setLocation('/scribble/ABCD');
     const socket = new GameSocket();
     socket.start();
     const ws = FakeWebSocket.latest();

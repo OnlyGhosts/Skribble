@@ -31,7 +31,7 @@ import { startMatchup } from './vote.js';
 export function beginRound(gx: Gx): void {
   const { data, ctx } = gx;
   if (ctx.players.length < MIN_PLAYERS) {
-    gx.effects.push({ type: 'abort', reason: 'Not enough players — back to the lobby.' });
+    gx.effects.push({ type: 'abort', reason: 'Not enough players. Back to the lobby.' });
     return;
   }
   if (connectedCount(ctx) < MIN_PLAYERS) return hold(gx);
@@ -98,7 +98,7 @@ export function startRound(gx: Gx): void {
   data.phase = 'writing';
   data.endsAt = ctx.now + ctx.settings.writeSeconds * 1000;
   const extra = data.round === QUIPGAME_REGULAR_ROUNDS ? ' Double points!' : '';
-  systemMessage(gx, `Round ${data.round} of ${data.totalRounds} — write your answers!${extra}`);
+  systemMessage(gx, `Round ${data.round} of ${data.totalRounds}: write your answers!${extra}`);
   snapshot(gx);
 }
 
@@ -149,7 +149,7 @@ export function finishWriting(gx: Gx, why: 'everyoneIn' | 'timeUp'): void {
       data.answers.push({ id: ctx.newId(), promptId: prompt.id, authorId, authorName: nameOf(ctx, authorId), text: pickOne(FALLBACK_ANSWERS, ctx.rng), fallback: true });
     }
   }
-  systemMessage(gx, why === 'everyoneIn' ? "Everyone's in — time to vote!" : "Time's up — time to vote!");
+  systemMessage(gx, why === 'everyoneIn' ? "Everyone's in. Time to vote!" : "Time's up. Time to vote!");
   if (isFinalRound(data)) return startFinalVoting(gx);
   data.matchups = data.prompts.map((prompt): MatchupData => {
     const ids = prompt.authorIds.map((authorId) => answerFor(data, prompt.id, authorId)?.id ?? '');

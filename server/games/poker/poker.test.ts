@@ -431,16 +431,16 @@ describe('Poker: timeouts', () => {
     act(s, bob, { t: 'call' });
     expect(nextDeadline(s.data)).toBe(s.now + ACT_MS);
     const checked = tick(s, ACT_MS);
-    expect(chatTexts(checked)).toEqual(['Carol ran out of time — checks.']);
+    expect(chatTexts(checked)).toEqual(['Carol ran out of time and checks.']);
     expect(data(s)).toMatchObject({ street: 'flop', toAct: [bob, carol, alice] });
     act(s, bob, { t: 'bet', amount: 20 });
     const folded = tick(s, ACT_MS);
-    expect(chatTexts(folded)).toEqual(['Carol ran out of time — folds.']);
+    expect(chatTexts(folded)).toEqual(['Carol ran out of time and folds.']);
     expect(data(s).seats[carol].status).toBe('folded');
     expect(data(s).toAct).toEqual([alice]);
     expect(nextDeadline(s.data)).toBe(s.now + ACT_MS);
     const won = tick(s, ACT_MS);
-    expect(chatTexts(won)).toEqual(['Alice ran out of time — folds.', 'Bob takes the pot (30).']);
+    expect(chatTexts(won)).toEqual(['Alice ran out of time and folds.', 'Bob takes the pot (30).']);
     expect(chips(s, bob)).toBe(1020);
     expect(nextDeadline(s.data)).toBe(s.now + RESULTS_MS);
   });
@@ -456,7 +456,7 @@ describe('Poker: timeouts', () => {
       tick(s, RESULTS_MS);
     }
     expect(s.data.phase).toBe('ended');
-    expect(chatTexts(s.effects)).toContain('Nobody played for 3 hands — the game is over.');
+    expect(chatTexts(s.effects)).toContain('Nobody played for 3 hands. The game is over.');
   });
 
   it('counts a hand with a real move as played', () => {
@@ -690,7 +690,7 @@ describe('Poker: hands and the game', () => {
     act(s, carol, { t: 'call' });
     expect(errorsOf(act(s, bob, { t: 'endGame' }))).toEqual(['Only the host can end the game.']);
     const ended = act(s, alice, { t: 'endGame' });
-    expect(chatTexts(ended)).toEqual(['Alice ended the game — the hand is void and every stake goes back.', 'Game over! Carol wins with 1005 points.']);
+    expect(chatTexts(ended)).toEqual(['Alice ended the game. The hand is void and every stake goes back.', 'Game over! Carol wins with 1005 points.']);
     expect([alice, bob, carol].map((id) => chips(s, id))).toEqual([1000, 995, 1005]);
     expect(totalChips(s)).toBe(3000);
     expect(s.data.phase).toBe('ended');
@@ -789,7 +789,7 @@ describe('Poker: seats coming and going', () => {
     s.advance(RESULTS_MS);
     const ended = s.tick();
     expect(s.data.phase).toBe('lobby');
-    expect(chatTexts(ended)).toContain('Not enough players with chips — back to the lobby.');
+    expect(chatTexts(ended)).toContain('Not enough players with chips. Back to the lobby.');
     expect(chatTexts(s.effects).join('\n')).not.toMatch(/has all the chips|Game over/);
   });
 
@@ -807,7 +807,7 @@ describe('Poker: seats coming and going', () => {
     expect(view(s).paused).toBe(true);
     s.apply({ type: 'leave', playerId: carol });
     expect(s.data.phase).toBe('lobby');
-    expect(chatTexts(s.effects)).toContain('Not enough players with chips — back to the lobby.');
+    expect(chatTexts(s.effects)).toContain('Not enough players with chips. Back to the lobby.');
   });
 
   it('hands the pot to the last player left when the others leave, and aborts when a seat loss drops below two', () => {
@@ -817,7 +817,7 @@ describe('Poker: seats coming and going', () => {
     expect(data(s)).toMatchObject({ toAct: [alice, carol] });
     s.apply({ type: 'leave', playerId: alice });
     expect(s.data.phase).toBe('lobby');
-    expect(chatTexts(s.effects).at(-1)).toBe('Not enough players — back to the lobby.');
+    expect(chatTexts(s.effects).at(-1)).toBe('Not enough players. Back to the lobby.');
   });
 
   it('plays a disconnected player by the clock mid-hand and holds the next hand until they are back', () => {
@@ -827,12 +827,12 @@ describe('Poker: seats coming and going', () => {
     act(s, alice, { t: 'call' });
     expect(view(s)).toMatchObject({ phase: 'acting', turn: bob, paused: false });
     const checked = tick(s, ACT_MS);
-    expect(chatTexts(checked)).toEqual(['Bob ran out of time — checks.']);
+    expect(chatTexts(checked)).toEqual(['Bob ran out of time and checks.']);
     expect(data(s).street).toBe('flop');
     tick(s, ACT_MS);
     act(s, alice, { t: 'bet', amount: 20 });
     const won = tick(s, ACT_MS);
-    expect(chatTexts(won)).toEqual(['Bob ran out of time — folds.', 'Alice takes the pot (20).']);
+    expect(chatTexts(won)).toEqual(['Bob ran out of time and folds.', 'Alice takes the pot (20).']);
     const held = tick(s, RESULTS_MS);
     expect(chatTexts(held)).toEqual(['Waiting for Bob to reconnect…']);
     expect(view(s)).toMatchObject({ phase: 'results', hand: 1, paused: true, endsAt: null });

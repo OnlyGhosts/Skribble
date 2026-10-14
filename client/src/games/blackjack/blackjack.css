@@ -148,7 +148,7 @@
   flex-direction: column;
   gap: 6px;
   padding: var(--space-2);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-item);
   border: 1px solid transparent;
 }
 
@@ -312,7 +312,7 @@
   min-width: 132px;
   max-width: 220px;
   padding: var(--space-2) 10px;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-item);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
 }
@@ -569,7 +569,7 @@
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-item);
   background: var(--color-surface-2);
   border: 1px solid var(--color-border);
 }
@@ -678,7 +678,7 @@
   flex: 1 1 auto;
   min-height: 40px;
   padding: 0 10px;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-item);
   border: 1px solid var(--color-border);
   background: var(--color-surface-2);
   color: var(--color-text);
@@ -744,7 +744,7 @@
     align-items: center;
     gap: 6px;
     padding: 6px 8px;
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-item);
     min-height: 56px;
   }
 
@@ -784,7 +784,7 @@
   }
 
   .bj__scroll > .card {
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-item);
   }
 
   .bj-dealer,

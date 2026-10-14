@@ -115,7 +115,7 @@
 /* ---------- Shared pieces ---------- */
 .quip-prompt {
   padding: var(--space-4) var(--space-5);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-item);
   background: var(--color-surface-2);
   border: 1px solid var(--color-border);
   font-size: 1.35rem;
@@ -153,7 +153,7 @@
   width: 100%;
   min-height: 64px;
   padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-item);
   border: 2px solid var(--color-border-strong);
   background: var(--color-surface);
   color: var(--color-text);
@@ -294,7 +294,7 @@ button.quip-answer--selected:disabled {
   align-items: center;
   gap: var(--space-3);
   padding: 8px 10px;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-item);
   background: var(--color-surface-2);
 }
 
@@ -396,7 +396,7 @@ button.quip-answer--selected:disabled {
   align-items: center;
   gap: 2px;
   padding: var(--space-3);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-item);
   background: var(--color-warning-soft);
   color: var(--color-warning-text);
   text-align: center;
@@ -438,7 +438,7 @@ button.quip-answer--selected:disabled {
   flex-direction: column;
   gap: var(--space-2);
   padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-item);
   border: 2px solid var(--color-border);
   background: var(--color-surface-2);
 }
@@ -637,7 +637,7 @@ button.quip-final__answer--own:disabled {
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-item);
   border: 2px solid var(--color-border);
   background: var(--color-surface-2);
 }
@@ -695,7 +695,7 @@ button.quip-final__answer--own:disabled {
     align-items: center;
     gap: 6px;
     padding: 6px 8px;
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-item);
     min-height: 56px;
   }
 
@@ -742,7 +742,7 @@ button.quip-final__answer--own:disabled {
   }
 
   .quip__main > .card {
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-item);
   }
 
   .quip-prompt {

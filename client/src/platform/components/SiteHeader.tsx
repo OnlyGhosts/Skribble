@@ -1,45 +1,42 @@
 import type { ReactNode } from 'react';
 import { navigate } from '../router';
 import { ConnectionPill } from './ConnectionPill';
-import { SoundToggle, ThemeToggle } from './ThemeToggle';
+import { SettingsMenu } from './Preferences';
 import { Wordmark } from './Wordmark';
 
 interface Props {
-  /** A small label after the wordmark: the game's name inside a room. */
-  crumb?: string;
-  /** Extra controls after the toggles (a Leave button, say). */
+  /** Extra controls before the settings gear (a Leave button, say). */
   children?: ReactNode;
-  /** Hide the connection pill. */
-  showConnection?: boolean;
-  /** Hide the sound toggle (the front door has nothing to hear). */
-  showSound?: boolean;
+  /** Something beside the wordmark (the Home mascots). */
+  aside?: ReactNode;
 }
 
 /**
- * The wordmark (a link back to the front door), the connection state and the theme (and sound)
- * toggles. Inside a room the wordmark link leaves it: routeSync leaves whenever the address bar
- * stops naming the room.
+ * The wordmark (a link back to the front door), a status pill only while the socket is not
+ * connected, and the settings gear. Inside a room the wordmark link leaves it: routeSync leaves
+ * whenever the address bar stops naming the room.
  */
-export function SiteHeader({ crumb, children, showConnection = true, showSound = true }: Props) {
+export function SiteHeader({ children, aside }: Props) {
   return (
     <header className="site-header" data-testid="site-header">
-      <a
-        className="brand"
-        href="/"
-        data-testid="brand-link"
-        onClick={(e) => {
-          e.preventDefault();
-          navigate('/');
-        }}
-      >
-        <Wordmark />
-        {crumb && <span className="brand__crumb">{crumb}</span>}
-      </a>
+      <div className="site-header__brand">
+        <a
+          className="brand"
+          href="/"
+          data-testid="brand-link"
+          onClick={(e) => {
+            e.preventDefault();
+            navigate('/');
+          }}
+        >
+          <Wordmark />
+        </a>
+        {aside}
+      </div>
       <div className="site-header__actions">
-        {showConnection && <ConnectionPill />}
-        {showSound && <SoundToggle />}
-        <ThemeToggle />
+        <ConnectionPill />
         {children}
+        <SettingsMenu />
       </div>
     </header>
   );

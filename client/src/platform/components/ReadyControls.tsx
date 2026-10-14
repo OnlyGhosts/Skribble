@@ -1,7 +1,7 @@
 import type { PlayerPublic } from '@shared/platform/protocol';
 import { isReady } from '../lib/party';
-import { setReady, setSitOut } from '../net/actions';
-import { CheckIcon, EyeIcon } from './Icons';
+import { countMeIn, setReady, setSitOut } from '../net/actions';
+import { CheckIcon } from './Icons';
 
 interface Props {
   me: PlayerPublic;
@@ -9,44 +9,63 @@ interface Props {
   context: 'lobby' | 'podium';
 }
 
+/** Which controls a player gets between games; never two buttons that do the same job. */
+export type ReadyState = 'host' | 'notReady' | 'ready' | 'sittingOut';
+
+export function readyState(me: PlayerPublic): ReadyState {
+  if (me.sittingOut) return 'sittingOut';
+  if (me.isHost) return 'host';
+  return isReady(me) ? 'ready' : 'notReady';
+}
+
 /**
- * The two choices everyone makes between games: ready up for the next one, or sit it out while
- * staying in the party. Sitting out clears the ready state (the server does the same). The host
- * is in by pressing Start, so their toggle shows as ready and says so instead of asking.
+ * The choice everyone makes between games. Not ready: one "I'm ready" plus a small "Sit this one
+ * out". Ready: the same button checked ("You're ready", tap to undo) and the same small link.
+ * Sitting out: only "Count me in", which comes back in and readies in one tap. The host is in by
+ * pressing Start, so their button is a statement rather than a question.
  */
 export function ReadyControls({ me, context }: Props) {
-  const readyLabel = context === 'podium' ? 'Ready for the next game' : "I'm ready";
-  const ready = isReady(me);
-  const hostStarts = me.isHost && !me.sittingOut;
+  const state = readyState(me);
+  const ready = state === 'ready' || state === 'host';
   return (
-    <div className="ready-controls" data-testid="ready-controls" data-ready={ready} data-sitting-out={me.sittingOut}>
-      <button
-        type="button"
-        className={`btn btn--lg btn--block ready-toggle${hostStarts ? ' ready-toggle--host' : ''}${ready ? ' is-ready' : ' btn--primary'}`}
-        aria-pressed={ready}
-        disabled={me.sittingOut || hostStarts}
-        onClick={() => setReady(!me.ready)}
-        data-testid="ready-toggle"
-      >
-        {hostStarts ? (
-          <>
-            <CheckIcon size={18} /> You're in — you start the game
-          </>
-        ) : ready ? (
-          <>
-            <CheckIcon size={18} /> You're ready
-          </>
-        ) : (
-          readyLabel
-        )}
-      </button>
-      <button type="button" className={`btn btn--ghost btn--block sitout-toggle${me.sittingOut ? ' is-sitting-out' : ''}`} aria-pressed={me.sittingOut} onClick={() => setSitOut(!me.sittingOut)} data-testid="sitout-toggle">
-        <EyeIcon size={16} /> {me.sittingOut ? "Count me in" : 'Sit this one out'}
-      </button>
-      {me.sittingOut && (
-        <p className="field__hint" data-testid="sitout-hint">
-          You stay in the party and watch the next game.
-        </p>
+    <div className="ready-controls" data-testid="ready-controls" data-ready={isReady(me)} data-sitting-out={me.sittingOut} data-state={state}>
+      {state === 'sittingOut' ? (
+        <>
+          <button type="button" className="btn btn--primary btn--lg btn--block" aria-pressed={true} onClick={() => countMeIn(me.isHost)} data-testid="sitout-toggle">
+            Count me in
+          </button>
+          <p className="field__hint ready-controls__hint" data-testid="sitout-hint">
+            You'll watch the next game.
+          </p>
+        </>
+      ) : (
+        <>
+          <button
+            type="button"
+            className={`btn btn--lg btn--block ready-toggle${state === 'host' ? ' ready-toggle--host' : ''}${ready ? ' is-ready' : ' btn--primary'}`}
+            aria-pressed={ready}
+            disabled={state === 'host'}
+            onClick={() => setReady(!me.ready)}
+            data-testid="ready-toggle"
+          >
+            {state === 'host' ? (
+              <>
+                <CheckIcon size={18} /> You start the game
+              </>
+            ) : ready ? (
+              <>
+                <CheckIcon size={18} /> You're ready
+              </>
+            ) : context === 'podium' ? (
+              'Ready for the next game'
+            ) : (
+              "I'm ready"
+            )}
+          </button>
+          <button type="button" className="text-btn sitout-toggle" aria-pressed={false} onClick={() => setSitOut(true)} data-testid="sitout-toggle">
+            Sit this one out
+          </button>
+        </>
       )}
     </div>
   );

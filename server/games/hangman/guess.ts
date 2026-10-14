@@ -33,11 +33,11 @@ export function guessLetter(gx: Gx, playerId: string, raw: string): void {
   const found = countLetter(turn.word, letter);
   if (found === 0) {
     turn.wrongLetters.push(letter);
-    gx.effects.push({ type: 'chat', to: 'all', kind: 'close', text: `${nameOf(gx.ctx, playerId)}: ${letter} — not in the word (${turn.wrong + 1} of ${HANGMAN_MAX_WRONG}).` });
+    gx.effects.push({ type: 'chat', to: 'all', kind: 'close', text: `${nameOf(gx.ctx, playerId)}: ${letter} is not in the word (${turn.wrong + 1} of ${HANGMAN_MAX_WRONG}).` });
     return startDrawing(gx);
   }
   award(gx, playerId, found * HANGMAN_POINTS.letter);
-  gx.effects.push({ type: 'chat', to: 'all', kind: 'guessed', playerId, text: `${letter} — ${found === 1 ? 'one letter' : `${found} letters`}!` });
+  gx.effects.push({ type: 'chat', to: 'all', kind: 'guessed', playerId, text: `${letter}: ${found === 1 ? 'one letter' : `${found} letters`}!` });
   if (isFullyRevealed(turn.word, turn.usedLetters)) {
     // The last letter: a solve bonus on top of the letters themselves.
     award(gx, playerId, HANGMAN_POINTS.solveLastLetter + HANGMAN_POINTS.perLife * livesLeft(turn));
@@ -60,6 +60,6 @@ export function guessWord(gx: Gx, playerId: string, text: string): void {
   }
   // A wrong word costs a life like a wrong letter, and the guesser sits the rest of this word out.
   turn.out.push(playerId);
-  gx.effects.push({ type: 'chat', to: 'all', kind: 'close', text: `${nameOf(gx.ctx, playerId)} guessed “${word}” — wrong, and out for this word (${turn.wrong + 1} of ${HANGMAN_MAX_WRONG}).` });
+  gx.effects.push({ type: 'chat', to: 'all', kind: 'close', text: `${nameOf(gx.ctx, playerId)} guessed “${word}”: wrong, and out for this word (${turn.wrong + 1} of ${HANGMAN_MAX_WRONG}).` });
   startDrawing(gx);
 }

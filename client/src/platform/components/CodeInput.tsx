@@ -1,6 +1,6 @@
 import { useEffect, useImperativeHandle, useRef, type ChangeEvent, type ClipboardEvent, type KeyboardEvent, type Ref } from 'react';
 import { ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH, extractRoomCode } from '@shared/platform/roomCode';
-import { clearChar, padCode, writeChars } from '../lib/codeInput';
+import { clearChar, padCode, typedText, writeChars } from '../lib/codeInput';
 
 /** Faint hints in the empty boxes; never a prefilled value. */
 const PLACEHOLDERS = ['A', 'B', 'C', 'D'];
@@ -72,7 +72,7 @@ export function CodeInput({ value, onChange, onSubmit, onInvalidChar, disabled, 
       return;
     }
     // A full box receiving another key keeps the newest character (replace-and-advance).
-    const typed = raw.length > 1 && chars[i] && raw.startsWith(chars[i]) ? raw.slice(1) : raw;
+    const typed = typedText(raw, chars[i]);
     const { accepted, rejected } = filterChars(typed);
     if (rejected) onInvalidChar();
     if (accepted) writeFrom(i, accepted);

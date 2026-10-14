@@ -16,10 +16,18 @@ const { PodiumOverlay } = await import('./PodiumOverlay');
 const { WaitingOverlay, missingPlayers, waitingTitle } = await import('./WaitingOverlay');
 const { ReconnectingBanner, reconnectLabel } = await import('./ReconnectingBanner');
 const { gameById } = await import('@shared/platform/games');
-const { cleanName, firstInvalidBox, focusAfterRefusal, homeView, initialGame } = await import('../screens/Home');
-const { Monogram, Wordmark } = await import('./Wordmark');
+const { Home, cleanName, firstInvalidBox, focusAfterRefusal, homeView, initialGame } = await import('../screens/Home');
+const { Wordmark } = await import('./Wordmark');
+const { PlayerList } = await import('./PlayerList');
 const { PhoneBored, PhoneHappy } = await import('./Mascots');
 const { SiteHeader } = await import('./SiteHeader');
+const { connectionLabel } = await import('./ConnectionPill');
+const { ReadyControls, readyState } = await import('./ReadyControls');
+const { AvatarPicker } = await import('./AvatarPicker');
+const { GamePicker } = await import('./GamePicker');
+const { Lobby } = await import('../screens/Lobby');
+const { GAME_LIST } = await import('@shared/platform/games');
+const { AVATAR_COLORS, AVATAR_EMOJIS } = await import('@shared/platform/avatar');
 const { remainingMs } = await import('../lib/useCountdown');
 
 /** The z-index of the first rule whose selector list starts with `selector`. */
@@ -229,23 +237,34 @@ describe('front door', () => {
     }
   });
 
-  it('sets "More games." in the brand lilac on dark and the darker cut only on the light theme', () => {
-    const css = stylesheet('home.css');
-    expect(ruleOf(css, '.hero__accent')).toContain('color: var(--color-secondary)');
-    expect(ruleOf(css, '.hero__accent')).not.toContain('--color-secondary-text');
-    expect(ruleOf(css, ":root[data-theme='light'] .hero__accent")).toContain('color: var(--color-secondary-text)');
-    const tokens = stylesheet('tokens.css');
-    expect(tokens).toMatch(/\n:root \{[^]*?--color-secondary: #a699d5;/);
+  it('has no tagline, sub-line or footer: the wordmark, the mascots and two panels only', () => {
+    const html = renderToString(createElement(Home, { code: null, game: null }));
+    expect(html).not.toContain('Less bored');
+    expect(html).not.toContain('Get your people together');
+    expect(html).not.toContain('one more round');
+    expect(html).not.toContain('<footer');
+    expect(html).toContain('data-testid="join-panel"');
+    expect(html).toContain('data-testid="create-panel"');
+    // The status line under the boxes stays in the DOM as a polite live region, empty until there is something to say.
+    expect(tagWith(html, 'room-preview')).toContain('aria-live="polite"');
+    expect(html).toMatch(/data-testid="room-preview"><\/div>/);
   });
 
-  it('hides the mascots wherever the hero is single-column, so they never push Create below the fold', () => {
+  it('gives the empty status line no height and keeps Join and Create level on desktop', () => {
     const css = stylesheet('home.css');
-    expect(ruleOf(css, '.hero__mascots')).toContain('display: flex');
-    // The hero drops to one column at 767px; the mascots go with it, not at some narrower width of their own.
-    const phone = mediaBlock(css, '(max-width: 767px)');
-    expect(phone).toMatch(/\.hero \{[^}]*grid-template-columns: minmax\(0, 1fr\);/);
-    expect(phone).toMatch(/\.hero__mascots \{[^}]*display: none;/);
-    expect(css).not.toContain('639px');
+    expect(ruleOf(css, '.code-field .code-preview:empty')).toContain('margin-top: -8px');
+    expect(ruleOf(css, '.code-field')).toContain('gap: 8px');
+    const desktop = mediaBlock(css, '(min-width: 768px)');
+    expect(desktop).toMatch(/\.home__panels \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);[^}]*align-items: stretch;/);
+    expect(ruleOf(css, '.panel__action')).toContain('margin-top: auto');
+  });
+
+  it('keeps the mascots small and angled: 70px on phones, 112px on desktop, -8 and +8 degrees', () => {
+    const css = stylesheet('home.css');
+    expect(ruleOf(css, '.mascot')).toContain('height: 70px');
+    expect(mediaBlock(css, '(min-width: 1024px)')).toContain('height: 112px');
+    expect(ruleOf(css, '.mascot--happy')).toContain('rotate(-8deg)');
+    expect(ruleOf(css, '.mascot--bored')).toContain('rotate(8deg)');
   });
 
   it('cleans a name the way the handlers want it', () => {
@@ -261,12 +280,11 @@ describe('wordmark and mascots', () => {
     expect(html).toContain('boredgames.io</title>');
     expect(html).toContain('role="img"');
     expect(html.match(/<path /g)?.length).toBe(2);
+    expect(html).toContain('class="wordmark__accent"');
     expect(html).not.toContain('<text');
-    expect(html).toContain('fill="currentColor"');
     expect(html).not.toMatch(/font-family/);
-    const mono = renderToString(createElement(Monogram));
-    expect(mono).toContain('boredgames.io</title>');
-    expect(mono).toContain('<rect');
+    // "games" follows the theme: lime on dark, the deep olive cut on light.
+    expect(ruleOf(stylesheet('components.css'), '.wordmark__accent')).toContain('color: var(--color-primary-text)');
   });
 
   it('renders the pack mascots flat and decorative: solid fills, a hard shadow, no screen lines', () => {
@@ -275,18 +293,45 @@ describe('wordmark and mascots', () => {
       expect(html).toContain('aria-hidden="true"');
       expect(html).not.toMatch(/gradient|filter|opacity/);
       expect(html.match(/<rect /g)?.length).toBe(2);
+      expect(html).toContain('viewBox="0 0 190 270"');
     }
     expect(renderToString(createElement(PhoneBored))).toContain('#A699D5');
     expect(renderToString(createElement(PhoneHappy))).toContain('#C7E976');
   });
 
-  it('puts the wordmark (no controller icon, no live site name) in the site header', () => {
+  it('puts the wordmark (no controller icon, no live site name) and the settings gear in the site header', () => {
     const html = renderToString(createElement(SiteHeader));
     expect(html).toContain('data-testid="wordmark"');
     expect(html).not.toContain('brand__mark');
     // The only "boredgames.io" in the markup is the SVG's accessible title, never a live-text span.
     expect(html.replace(/<title[^>]*>boredgames\.io<\/title>/, '')).not.toContain('boredgames.io');
-    expect(html).toContain('data-testid="theme-toggle"');
+    expect(tagWith(html, 'settings-menu')).toContain('aria-label="Settings"');
+    // The theme lives in the settings menu, not as a header button of its own.
+    expect(html).not.toContain('theme-toggle');
+  });
+
+  it('shows the connection pill only while the socket is not connected (no "Connected" badge)', () => {
+    expect(connectionLabel('connected')).toBeNull();
+    expect(connectionLabel('reconnecting')).toBe('Reconnecting…');
+    expect(connectionLabel('connecting')).toBe('Connecting…');
+    // react-dom/server reads the store's initial state, which is connecting.
+    const html = renderToString(createElement(SiteHeader));
+    expect(tagWith(html, 'connection-status')).toContain('data-status="connecting"');
+    expect(html).not.toContain('Connected<');
+  });
+
+  it('draws every game with its own line glyph on its accent token, never an emoji', () => {
+    const tokens = stylesheet('tokens.css');
+    for (const g of GAME_LIST) {
+      expect(tokens).toContain(`--game-${g.id}: ${g.accent};`);
+    }
+    const html = renderToString(createElement(GamePicker, { room: room(), isHost: true }));
+    for (const g of GAME_LIST.filter((x) => x.status === 'live')) expect(html).toContain(`data-glyph="${g.id}"`);
+    expect(html).toContain('Scribble');
+    expect(html).not.toContain('✏️');
+    expect(tagWith(html, 'game-tile')).toContain('aria-checked="true"');
+    expect(html).toContain('game-tile__check');
+    expect(ruleOf(stylesheet('lobby.css'), '.game-picker__list')).toContain('grid-template-columns: repeat(3, minmax(0, 1fr))');
   });
 });
 
@@ -302,11 +347,15 @@ describe('chat while reconnecting', () => {
 });
 
 describe('platform settings', () => {
-  it('offers the three content modes to the host, with the adults-only tag on Unhinged', () => {
+  it('offers the two content modes (no Cheeky) to the host, with the adults-only tag on Unhinged', () => {
     const html = renderToString(createElement(SettingsPanel, { room: room(), isHost: true, game: null }));
     expect(html).not.toContain('settings-maxPlayers');
     expect(tagWith(html, 'settings-contentMode')).toContain('data-value="family"');
-    for (const mode of ['family', 'cheeky', 'unhinged']) expect(tagWith(html, `content-mode-${mode}`)).not.toContain('disabled');
+    for (const mode of ['family', 'unhinged']) expect(tagWith(html, `content-mode-${mode}`)).not.toContain('disabled');
+    expect(html).not.toContain('content-mode-cheeky');
+    expect(html).not.toContain('Cheeky');
+    expect(html).toContain('Clean content for any table.');
+    expect(html).toContain('Adults only. Crude and filthy.');
     expect(tagWith(html, 'content-mode-family')).toContain('aria-checked="true"');
     expect(html).toContain('18+');
     expect(html).toContain('Adults only');
@@ -327,10 +376,109 @@ describe('platform settings', () => {
     const html = renderToString(createElement(SettingsPanel, { room: unhinged, isHost: false, game: null }));
     expect(tagWith(html, 'settings-value-contentMode')).toBeTruthy();
     expect(html).toContain('Unhinged');
-    for (const mode of ['family', 'cheeky', 'unhinged']) expect(tagWith(html, `content-mode-${mode}`)).toContain('disabled');
+    for (const mode of ['family', 'unhinged']) expect(tagWith(html, `content-mode-${mode}`)).toContain('disabled');
     expect(tagWith(html, 'content-mode-unhinged')).toContain('aria-checked="true"');
     expect(tagWith(html, 'settings-allowMidGameJoin')).toContain('disabled');
     expect(html).toContain('Only the host can change settings.');
+  });
+});
+
+describe('content mode only where it matters', () => {
+  it('shows the content mode for the games that read it and hides it (keeping the stored value) for the others', () => {
+    for (const g of GAME_LIST) {
+      const r = room({ gameId: g.id, settings: { ...room().settings, contentMode: 'unhinged' } });
+      const html = renderToString(createElement(SettingsPanel, { room: r, isHost: true, game: null }));
+      expect(html.includes('data-testid="settings-contentMode"'), g.id).toBe(g.contentModes);
+      expect(r.settings.contentMode).toBe('unhinged');
+    }
+  });
+
+  it("reads a stale 'cheeky' snapshot as Family", () => {
+    const stale = room({ settings: { ...room().settings, contentMode: 'cheeky' as 'family' } });
+    const html = renderToString(createElement(SettingsPanel, { room: stale, isHost: true, game: null }));
+    expect(tagWith(html, 'settings-contentMode')).toContain('data-value="family"');
+    expect(tagWith(html, 'content-mode-family')).toContain('aria-checked="true"');
+  });
+});
+
+describe('ready controls', () => {
+  const html = (overrides: Parameters<typeof player>[1], context: 'lobby' | 'podium' = 'lobby') =>
+    renderToString(createElement(ReadyControls, { me: player('bob', { participating: false, ...overrides }), context }));
+  const buttons = (markup: string) => markup.match(/<button[^>]*>/g) ?? [];
+
+  it("not ready: one I'm ready plus a small Sit this one out", () => {
+    const markup = html({});
+    expect(readyState(player('bob'))).toBe('notReady');
+    expect(buttons(markup)).toHaveLength(2);
+    expect(tagWith(markup, 'ready-toggle')).toContain('aria-pressed="false"');
+    expect(markup).toContain('I&#x27;m ready');
+    expect(tagWith(markup, 'sitout-toggle')).toContain('text-btn');
+    expect(markup).toContain('Sit this one out');
+    expect(markup).not.toContain('Count me in');
+  });
+
+  it("ready: the same button checked (You're ready, tap to undo) and the same small Sit this one out", () => {
+    const markup = html({ ready: true });
+    expect(buttons(markup)).toHaveLength(2);
+    expect(tagWith(markup, 'ready-toggle')).toContain('aria-pressed="true"');
+    expect(tagWith(markup, 'ready-toggle')).not.toContain('disabled');
+    expect(markup).toContain('You&#x27;re ready');
+    expect(markup).toContain('Sit this one out');
+  });
+
+  it('sitting out: only Count me in, with the hint; no disabled ready button', () => {
+    const markup = html({ sittingOut: true });
+    expect(readyState(player('bob', { sittingOut: true }))).toBe('sittingOut');
+    expect(buttons(markup)).toHaveLength(1);
+    expect(markup).not.toContain('data-testid="ready-toggle"');
+    expect(tagWith(markup, 'sitout-toggle')).toContain('btn--primary');
+    expect(markup).toContain('Count me in');
+    expect(markup).toContain('You&#x27;ll watch the next game.');
+  });
+
+  it('the host is in by pressing Start: their control says so, with no em dash', () => {
+    const markup = renderToString(createElement(ReadyControls, { me: player('host', { participating: false }), context: 'lobby' }));
+    expect(tagWith(markup, 'ready-toggle')).toContain('disabled');
+    expect(markup).toContain('You start the game');
+    expect(markup).not.toContain('—');
+  });
+});
+
+describe('player rows', () => {
+  it('label You and Host in text and never squeeze the name out of a narrow column', () => {
+    const markup = renderToString(createElement(PlayerList, { room: room(), meId: 'host', isHost: true, mode: 'game', game: null }));
+    expect(markup).toContain('>You</span>');
+    expect(markup).toContain('Host</span>');
+    expect(markup).toContain('player__name-text">host<');
+    const css = stylesheet('components.css');
+    expect(ruleOf(css, '.player__name')).toContain('flex-wrap: wrap');
+  });
+});
+
+describe('avatar picker', () => {
+  it('shows every face and colour at once, with no scrolling box', () => {
+    const markup = renderToString(createElement(AvatarPicker, { value: { color: 0, emoji: 0 }, onChange: () => undefined }));
+    expect(markup.match(/class="emoji-choice/g)).toHaveLength(AVATAR_EMOJIS.length);
+    expect(markup.match(/class="swatch/g)).toHaveLength(AVATAR_COLORS.length);
+    expect(AVATAR_EMOJIS).toHaveLength(24);
+    const css = stylesheet('components.css');
+    expect(css).not.toMatch(/\.avatar-picker__emojis \{[^}]*(max-height|overflow)/);
+    // At least 40px a choice: a 256px row at 320px still fits five of them.
+    expect(ruleOf(css, '.avatar-picker__group')).toContain('minmax(40px, 1fr)');
+  });
+});
+
+describe('lobby', () => {
+  it('opens with the compact room bar (code, Copy code, Copy invite link, Share) above the game picker; the old invite card is gone', () => {
+    // The bar is outside every host-only branch, so host and guests get the same one.
+    const markup = renderToString(createElement(Lobby, { room: room(), game: null }));
+    const bar = markup.indexOf('data-testid="room-bar"');
+    expect(bar).toBeGreaterThan(-1);
+    expect(bar).toBeLessThan(markup.indexOf('data-testid="game-picker"'));
+    expect(markup).toContain('aria-label="Room code A B C D">ABCD</span>');
+    for (const id of ['copy-code', 'copy-link', 'share-invite']) expect(markup).toContain(`data-testid="${id}"`);
+    expect(markup).not.toContain('code-card');
+    expect(markup).not.toContain('Invite your friends');
   });
 });
 
@@ -395,7 +543,7 @@ describe('podium overlay', () => {
     // The host is counted as ready (Play again starts the game), and their toggle says so rather than asking.
     expect(tagWith(host, 'ready-toggle')).toContain('aria-pressed="true"');
     expect(tagWith(host, 'ready-toggle')).toContain('disabled');
-    expect(host).toContain('you start the game');
+    expect(host).toContain('You start the game');
     expect(host).toContain('1 of 3 ready');
     expect(tagWith(host, 'sitout-toggle')).not.toContain('disabled');
   });

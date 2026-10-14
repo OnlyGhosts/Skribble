@@ -172,7 +172,7 @@ test.afterAll(async () => {
 test('the host creates a Quip Game room, two phones join by code and the host tunes the settings', async () => {
   roomCode = await createParty(host.page, host.name, 'quipgame');
   await expect(host.page.getByTestId('site-header').getByRole('img', { name: 'boredgames.io' })).toBeVisible();
-  await expect(host.page.getByTestId('site-header')).toContainText('Quip Game');
+  await expect(host.page.getByTestId('game-picker-meta')).toContainText('Quip Game');
   await expect(host.page.getByTestId('start-game')).toBeDisabled();
 
   for (const p of [pia, quinn]) {
@@ -207,7 +207,7 @@ test('the host creates a Quip Game room, two phones join by code and the host tu
     await expect(p.page.getByTestId('round-indicator')).toHaveAttribute('data-total', '3');
     await expect(p.page.getByTestId('quipgame-header').getByTestId('timer')).toBeVisible();
   }
-  await expect(host.page.getByTestId('chat-log')).toContainText('Round 1 of 3 — write your answers!');
+  await expect(host.page.getByTestId('chat-log')).toContainText('Round 1 of 3: write your answers!');
 });
 
 test('round one: the phone layout fits, everyone writes two answers and the room moves on to voting', async () => {
@@ -223,7 +223,7 @@ test('round one: the phone layout fits, everyone writes two answers and the room
   }
   // The first phone writes one answer and sees the second prompt slide in; the waiting card lists both answers with Edit.
   await writeRound(2, 'r1-');
-  await expect(host.page.getByTestId('chat-log')).toContainText("Everyone's in — time to vote!");
+  await expect(host.page.getByTestId('chat-log')).toContainText("Everyone's in. Time to vote!");
   for (const p of players) await expect(p.page.locator('[data-testid="quipgame-screen"][data-phase="voting"]')).toBeVisible();
 });
 
@@ -240,7 +240,7 @@ test('round one: three matchups with one voter each; authors are revealed with 1
   await playMatchup(1, 'b', 1000, false);
   await playMatchup(2, 'a', 1000, false);
   for (const p of players) await expect(p.page.getByTestId('round-indicator')).toHaveAttribute('data-round', '2');
-  await expect(host.page.getByTestId('chat-log')).toContainText('Round 2 of 3 — write your answers! Double points!');
+  await expect(host.page.getByTestId('chat-log')).toContainText('Round 2 of 3: write your answers! Double points!');
   // Three matchups at 1000 each: the scores add up to 3000 whoever won them.
   const scores = await scoresOn(host);
   expect(scores.reduce((a, b) => a + b, 0)).toBe(3000);
@@ -257,7 +257,7 @@ test('round two doubles the pool: 2000 to each winner; then the final round open
     await expect(p.page.getByTestId('round-indicator')).toHaveAttribute('data-round', '3');
     await expect(p.page.getByTestId('write-progress')).toHaveAttribute('data-total', '1');
   }
-  await expect(host.page.getByTestId('chat-log')).toContainText('Final round — one prompt, everyone answers!');
+  await expect(host.page.getByTestId('chat-log')).toContainText('Final round: one prompt, everyone answers!');
   const scores = await scoresOn(host);
   expect(scores.reduce((a, b) => a + b, 0)).toBe(9000);
 });

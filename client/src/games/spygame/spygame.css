@@ -227,7 +227,7 @@
   gap: 8px;
   width: 100%;
   padding: 4px 8px 4px 4px;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-item);
   border: 2px solid transparent;
   background: var(--color-surface-2);
   color: var(--color-text);
@@ -336,7 +336,7 @@ button.spy-tile:disabled {
   width: 100%;
   aspect-ratio: 16 / 9;
   max-height: 240px;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-item);
   box-shadow: var(--shadow-sm);
 }
 
@@ -475,7 +475,7 @@ button.spy-tile:disabled {
   width: 100%;
   min-height: 56px;
   padding: 8px 10px;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-item);
   border: 2px solid transparent;
   background: var(--color-surface-2);
   color: var(--color-text);
@@ -702,7 +702,7 @@ button.spy-accuse__row:disabled {
   align-items: start;
   align-items: safe center;
   padding: var(--space-4);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   background: var(--overlay-bg);
   animation: fade-in 0.2s ease;
   overflow-y: auto;
@@ -867,7 +867,7 @@ button.spy-accuse__row:disabled {
     align-items: center;
     gap: 6px;
     padding: 6px 8px;
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-item);
     min-height: 56px;
   }
 
@@ -915,11 +915,11 @@ button.spy-accuse__row:disabled {
   }
 
   .spy__main > .card {
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-item);
   }
 
   .spy-reveal {
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-item);
     padding: var(--space-3);
   }
 

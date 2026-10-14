@@ -220,7 +220,7 @@ test.afterAll(async () => {
 test('the phone front door fits the viewport and its primary buttons are 44px targets', async () => {
   await phone.page.goto('/');
   await expect(phone.page.getByTestId('home-create')).toBeVisible();
-  await expect(phone.page.getByTestId('connection-status')).toHaveAttribute('data-status', 'connected');
+  await expect(phone.page.getByTestId('connection-status')).toHaveCount(0);
   await expectNoHorizontalOverflow(phone.page, PORTRAIT.width);
   for (const id of ['home-create', 'home-join', 'code-input-0']) {
     await expectTallEnough(phone.page.getByTestId(id), id);
@@ -235,10 +235,10 @@ test('the phone front door fits the viewport and its primary buttons are 44px ta
   await phone.page.getByTestId('home-back').click();
   await expect(phone.page.getByTestId('join-panel')).toBeVisible();
 
-  // The narrowest phones: the header bar must not push the theme toggle off screen.
+  // The narrowest phones: the header bar must not push the settings gear off screen.
   await phone.page.setViewportSize(SMALL_PORTRAIT);
   await expectNoHorizontalOverflow(phone.page, SMALL_PORTRAIT.width);
-  await expectInsideViewport(phone.page.locator('.site-header__actions button').last(), SMALL_PORTRAIT, 'theme toggle at 320px');
+  await expectInsideViewport(phone.page.locator('.site-header__actions button').last(), SMALL_PORTRAIT, 'settings gear at 320px');
   await phone.page.setViewportSize(PORTRAIT);
 });
 

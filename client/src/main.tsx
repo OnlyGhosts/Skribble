@@ -1,4 +1,5 @@
 // The platform stylesheets come first so a game's stylesheet (imported by its module) can override them.
+import './platform/styles/fonts.css';
 import './platform/styles/tokens.css';
 import './platform/styles/base.css';
 import './platform/styles/components.css';

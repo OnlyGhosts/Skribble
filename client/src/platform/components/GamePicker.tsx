@@ -1,7 +1,9 @@
+import type { CSSProperties } from 'react';
 import { GAME_LIST, gameById, type GameMeta } from '@shared/platform/games';
 import type { RoomState } from '@shared/platform/protocol';
 import { playerCountLabel } from '../lib/party';
 import { selectGame } from '../net/actions';
+import { GameGlyph } from './GameGlyph';
 import { CheckIcon } from './Icons';
 
 interface Props {
@@ -15,7 +17,7 @@ export function pickableGames(current: GameMeta): GameMeta[] {
 }
 
 /**
- * The top of the lobby: which game the party plays next. The host taps a card to switch (the
+ * Which game the party plays next. The host taps a tile in the three-column grid to switch (the
  * room, its code and everyone's seat stay); the others see the current game and who decides.
  */
 export function GamePicker({ room, isHost }: Props) {
@@ -23,27 +25,32 @@ export function GamePicker({ room, isHost }: Props) {
   const host = room.players.find((p) => p.id === room.hostId);
   if (!isHost) {
     return (
-      <section className="card game-picker game-picker--readonly" aria-label="Next game" data-testid="game-picker" data-game={current.id}>
-        <GameTile game={current} selected readonly />
-        <p className="game-picker__note" data-testid="game-picker-note">
-          {host?.name ?? 'The host'} picks the game
-        </p>
+      <section className="card game-picker game-picker--readonly" aria-labelledby="game-picker-heading" data-testid="game-picker" data-game={current.id}>
+        <h2 className="card__title" id="game-picker-heading">
+          Next game
+        </h2>
+        <div className="game-picker__current">
+          <GameTile game={current} selected readonly />
+          <p className="game-picker__note" data-testid="game-picker-note">
+            {host?.name ?? 'The host'} picks the game
+          </p>
+        </div>
       </section>
     );
   }
   return (
     <section className="card game-picker" aria-labelledby="game-picker-heading" data-testid="game-picker" data-game={current.id}>
-      <div className="card__head">
-        <h2 className="card__title" id="game-picker-heading">
-          Pick a game
-        </h2>
-        <span className="pill pill--accent">Host</span>
-      </div>
+      <h2 className="card__title" id="game-picker-heading">
+        Pick a game
+      </h2>
       <div className="game-picker__list" role="radiogroup" aria-labelledby="game-picker-heading">
         {pickableGames(current).map((game) => (
           <GameTile key={game.id} game={game} selected={game.id === current.id} onSelect={() => selectGame(game.id)} />
         ))}
       </div>
+      <p className="game-picker__meta" data-testid="game-picker-meta">
+        {current.name} · {playerCountLabel(current)}
+      </p>
     </section>
   );
 }
@@ -51,18 +58,13 @@ export function GamePicker({ room, isHost }: Props) {
 function GameTile({ game, selected, readonly = false, onSelect }: { game: GameMeta; selected: boolean; readonly?: boolean; onSelect?(): void }) {
   const body = (
     <>
-      <span className="game-tile__icon" style={{ background: game.accent }} aria-hidden="true">
-        {game.icon}
+      <span className="game-tile__icon" style={{ '--tile-accent': `var(--game-${game.id}, ${game.accent})` } as CSSProperties} aria-hidden="true">
+        <GameGlyph game={game} size={22} />
       </span>
-      <span className="game-tile__body">
-        <span className="game-tile__name">{game.name}</span>
-        <span className="game-tile__meta">
-          {game.tagline} · {playerCountLabel(game)}
-        </span>
-      </span>
-      {selected && !readonly && (
+      <span className="game-tile__name">{game.name}</span>
+      {selected && (
         <span className="game-tile__check" aria-hidden="true">
-          <CheckIcon size={16} />
+          <CheckIcon size={14} />
         </span>
       )}
     </>

@@ -16,7 +16,7 @@ export function shotSummary(shot: ShotEvent): string {
 
 /** The toast for a roll that opens a move window; lower rolls only show in the dice pill and the log. */
 export function diceText(shooter: string, dice: number): string {
-  return `${shooter} rolled a ${dice} — a ship may slip away!`;
+  return `${shooter} rolled a ${dice}. A ship may slip away!`;
 }
 
 /** The shot counter in the top bar: the narrowest phones get a number, not a word. */

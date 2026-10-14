@@ -46,7 +46,7 @@ export class FakeStorage {
 export function installBrowserGlobals(): void {
   const g = globalThis as Record<string, unknown>;
   if (g.window === globalThis) return;
-  const location = { protocol: 'http:', host: 'localhost:4173', origin: 'http://localhost:4173', pathname: '/', search: '' };
+  const location = { protocol: 'http:', host: 'localhost:4173', origin: 'http://localhost:4173', pathname: '/', search: '', hash: '' };
   const history = {
     replaceState(_state: unknown, _title: string, url: string) {
       const u = new URL(url, 'http://localhost:4173');
@@ -77,7 +77,7 @@ export function installFakeStorage(): { local: FakeStorage; session: FakeStorage
   return { local, session };
 }
 
-/** Points the fake address bar at a path such as "/skribble/ABCD". */
+/** Points the fake address bar at a path such as "/scribble/ABCD". */
 export function setLocation(pathname: string, search = ''): void {
   const location = (globalThis as { location: { pathname: string; search: string } }).location;
   location.pathname = pathname;

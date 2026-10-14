@@ -105,7 +105,7 @@ export function ActionBar({ view, meId, myTurn, canSend }: Props) {
   if (seat.status === 'allIn') {
     return (
       <div className="pk-actions pk-actions--note" data-testid="actions" data-my-turn="false">
-        <p className="pk-actions__note">You are all in — sit back and watch the cards.</p>
+        <p className="pk-actions__note">You are all in. Sit back and watch the cards.</p>
       </div>
     );
   }

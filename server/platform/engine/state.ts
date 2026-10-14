@@ -9,7 +9,7 @@
 import type { Avatar } from '../../../shared/platform/avatar.js';
 import { gameById, type GameId } from '../../../shared/platform/games.js';
 import type { ChatMessage, PodiumEntry, RoomPhase } from '../../../shared/platform/protocol.js';
-import { defaultPlatformSettings, type PlatformSettings } from '../../../shared/platform/settings.js';
+import { defaultPlatformSettings, upgradeContentMode, type PlatformSettings } from '../../../shared/platform/settings.js';
 import { moduleFor } from './module.js';
 
 export interface PlatformPlayerData {
@@ -82,17 +82,19 @@ export const MAX_KICKED_TOKENS = 50;
 
 /**
  * Rooms stored before the party fields existed load with them filled in: a running game counts
- * every seat as playing, and a settings record from before content modes reads as a family room
- * (the games index their content packs by it, so it must never be missing).
+ * every seat as playing, and a settings record from before content modes, or from when 'cheeky'
+ * was a mode, reads as a family room (the games index their content packs by it, so it must
+ * always name a mode that exists).
  */
 export function upgradeRoomData(data: PlatformRoomData): PlatformRoomData {
   const players = data.players as Array<Partial<PlatformPlayerData> & PlatformPlayerData>;
   const settings = data.settings as Partial<RoomSettingsData> & Record<string, unknown>;
   const playersCurrent = players.every((p) => typeof p.ready === 'boolean' && typeof p.sittingOut === 'boolean' && typeof p.participating === 'boolean');
-  if (playersCurrent && typeof settings.contentMode === 'string') return data;
+  const contentMode = upgradeContentMode(settings.contentMode);
+  if (playersCurrent && settings.contentMode === contentMode) return data;
   return {
     ...data,
-    settings: { ...data.settings, contentMode: settings.contentMode ?? 'family' },
+    settings: { ...data.settings, contentMode },
     players: players.map((p) => ({
       ...p,
       ready: p.ready ?? false,

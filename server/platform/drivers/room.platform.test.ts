@@ -382,7 +382,7 @@ describe.each(GAME_IDS)('platform room (%s)', (gameId: GameId) => {
         expect(h.room.getPlayer(bob)).toBeUndefined();
         expect(h.transport.chats(alice).slice(-2)).toEqual([
           { kind: 'system', text: 'Bob left' },
-          { kind: 'system', text: 'Not enough players — back to the lobby.' },
+          { kind: 'system', text: 'Not enough players. Back to the lobby.' },
         ]);
         const state = h.transport.last(alice, 'room').room;
         expect(state.game).toBeNull();
@@ -412,7 +412,7 @@ describe.each(GAME_IDS)('platform room (%s)', (gameId: GameId) => {
         h.transport.clear();
         h.room.leave(bob);
         expect(h.room.phase).toBe('lobby');
-        expect(h.transport.chats(alice).map((c) => c.text)).toEqual(['Bob left', 'Not enough players — back to the lobby.']);
+        expect(h.transport.chats(alice).map((c) => c.text)).toEqual(['Bob left', 'Not enough players. Back to the lobby.']);
       });
     }
   });
@@ -579,10 +579,10 @@ describe.each(GAME_IDS)('platform room (%s)', (gameId: GameId) => {
       expect(h.room.settings.contentMode).toBe('family');
       h.transport.clear();
 
-      h.send(alice, { t: 'updateSettings', settings: { contentMode: 'cheeky', allowMidGameJoin: false } });
-      expect(h.room.settings).toMatchObject({ contentMode: 'cheeky', allowMidGameJoin: false });
+      h.send(alice, { t: 'updateSettings', settings: { contentMode: 'unhinged', allowMidGameJoin: false } });
+      expect(h.room.settings).toMatchObject({ contentMode: 'unhinged', allowMidGameJoin: false });
       expect(h.transport.ofType(bob, 'room')).toHaveLength(1);
-      expect(h.transport.last(bob, 'room').room.settings.contentMode).toBe('cheeky');
+      expect(h.transport.last(bob, 'room').room.settings.contentMode).toBe('unhinged');
       // The retired room cap is an unknown key now: stripped, never a limit.
       h.send(alice, { t: 'updateSettings', settings: { maxPlayers: 2 } });
       expect(h.room.settings).not.toHaveProperty('maxPlayers');
@@ -593,9 +593,13 @@ describe.each(GAME_IDS)('platform room (%s)', (gameId: GameId) => {
       h.transport.clear();
       h.send(alice, { t: 'updateSettings', settings: { contentMode: 'filthy' } });
       expect(h.transport.errors(alice)).toEqual(['INVALID_MESSAGE']);
-      expect(h.room.settings.contentMode).toBe('cheeky');
+      // The retired middle tier is refused like any unknown mode.
+      h.send(alice, { t: 'updateSettings', settings: { contentMode: 'cheeky' } });
+      expect(h.transport.errors(alice)).toEqual(['INVALID_MESSAGE', 'INVALID_MESSAGE']);
+      expect(h.room.settings.contentMode).toBe('unhinged');
+      h.transport.clear();
       h.send(alice, { t: 'updateSettings', settings: { bogus: true, allowMidGameJoin: false } });
-      expect(h.transport.errors(alice)).toEqual(['INVALID_MESSAGE']);
+      expect(h.transport.errors(alice)).toEqual([]);
       expect(h.room.settings).not.toHaveProperty('bogus');
       expect(h.room.settings.allowMidGameJoin).toBe(false);
 
@@ -603,7 +607,7 @@ describe.each(GAME_IDS)('platform room (%s)', (gameId: GameId) => {
       h.send(alice, { t: 'start' });
       expect(h.room.phase).toBe('playing');
       h.send(alice, { t: 'updateSettings', settings: { allowMidGameJoin: true } });
-      expect(h.transport.errors(alice)).toEqual(['INVALID_MESSAGE', 'NOT_ALLOWED']);
+      expect(h.transport.errors(alice)).toEqual(['NOT_ALLOWED']);
       expect(h.room.settings.allowMidGameJoin).toBe(false);
     });
 

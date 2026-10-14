@@ -81,7 +81,7 @@ describe('Blackjack: the table', () => {
     expect([score(s, alice), score(s, bob)]).toEqual([1000, 1000]);
     // A single deck, shuffled with the injected rng.
     expect(data(s).shoe).toEqual(shuffle(freshShoe(1), () => 0));
-    expect(chatTexts(s.effects)).toContain('Round 1 of 1 — place your bets!');
+    expect(chatTexts(s.effects)).toContain('Round 1 of 1: place your bets!');
     expect(nextDeadline(s.data)).toBe(START + BET_MS);
     expect(view(s, alice)).toEqual({
       phase: 'betting',
@@ -176,7 +176,7 @@ describe('Blackjack: betting', () => {
     expect(view(s)).toMatchObject({ phase: 'acting', round: 1, order: [alice], turn: { playerId: alice, handIndex: 0 } });
     expect(chips(s, alice)).toBe(990);
     const stood = tick(s, ACT_MS);
-    expect(chatTexts(stood)).toEqual(['Alice ran out of time — standing.', 'The dealer stands on 19.', 'Alice loses 10.']);
+    expect(chatTexts(stood)).toEqual(['Alice ran out of time and stands.', 'The dealer stands on 19.', 'Alice loses 10.']);
     expect(view(s)).toMatchObject({ phase: 'results', round: 1 });
     // Round 1 was played; round 2 waits for her rather than being burned.
     const held = tick(s, RESULTS_MS);
@@ -184,7 +184,7 @@ describe('Blackjack: betting', () => {
     expect(view(s)).toMatchObject({ phase: 'results', round: 1, paused: true });
     reconnect(s, alice, 'Alice');
     const resumed = tick(s, RESUME_SETTLE_MS);
-    expect(chatTexts(resumed)).toEqual(['Round 2 of 2 — place your bets!']);
+    expect(chatTexts(resumed)).toEqual(['Round 2 of 2: place your bets!']);
     expect(view(s)).toMatchObject({ phase: 'betting', round: 2, order: [alice], paused: false });
     expect(s.data.phase).toBe('playing');
   });
@@ -198,7 +198,7 @@ describe('Blackjack: betting', () => {
     expectScoresMatchChips(s);
     expect(view(s)).toMatchObject({ phase: 'betting', round: 1, order: [] });
     const effects = tick(s, BET_MS);
-    expect(chatTexts(effects)).toEqual(['Round 1 of 2 — place your bets!']);
+    expect(chatTexts(effects)).toEqual(['Round 1 of 2: place your bets!']);
     expect(view(s)).toMatchObject({ phase: 'betting', round: 1, order: [carol] });
     expect([chips(s, carol), score(s, carol)]).toEqual([1000, 1000]);
     expect(s.data.phase).toBe('playing');
@@ -401,7 +401,7 @@ describe('Blackjack: dealing and the moves', () => {
     rig(s, '10S', '5H', '9D', '6H', '6C', '7S', '2C');
     betAll(s, [alice, bob]);
     const effects = tick(s, ACT_MS);
-    expect(chatTexts(effects)).toEqual(['Alice ran out of time — standing.']);
+    expect(chatTexts(effects)).toEqual(['Alice ran out of time and stands.']);
     expect(handsOf(s, alice)[0].status).toBe('stood');
     expect(view(s).turn).toEqual({ playerId: bob, handIndex: 0 });
     expect(nextDeadline(s.data)).toBe(s.now + ACT_MS);
@@ -480,7 +480,7 @@ describe('Blackjack: rounds, results and the end', () => {
     expect(view(s).phase).toBe('results');
     expect(errorsOf(act(s, bob, { t: 'next' }))).toEqual(['Only the host can skip ahead.']);
     const skipped = act(s, alice, { t: 'next' });
-    expect(chatTexts(skipped)).toEqual(['Round 2 of 3 — place your bets!']);
+    expect(chatTexts(skipped)).toEqual(['Round 2 of 3: place your bets!']);
     expect(view(s)).toMatchObject({ phase: 'betting', round: 2, endsAt: s.now + BET_MS, dealer: { cards: [], holeHidden: true } });
     // Last round's settled hands stay on show through the betting; the stakes and hands are fresh.
     expect(view(s).results).toHaveLength(2);
@@ -490,7 +490,7 @@ describe('Blackjack: rounds, results and the end', () => {
     tick(s, ACT_MS);
     expect(view(s).phase).toBe('results');
     const next = tick(s, RESULTS_MS);
-    expect(chatTexts(next)).toEqual(['Round 3 of 3 — place your bets!']);
+    expect(chatTexts(next)).toEqual(['Round 3 of 3: place your bets!']);
     expect(view(s).round).toBe(3);
   });
 
@@ -552,7 +552,7 @@ describe('Blackjack: rounds, results and the end', () => {
     const last = act(s, bob, { t: 'stand' });
     expect(chatTexts(last)).toEqual(['The dealer stands on 17.', 'Bob loses 50.', 'Bob is out of chips.']);
     const over = tick(s, RESULTS_MS);
-    expect(chatTexts(over)).toEqual(['Everyone is out of chips — the house wins.', 'Game over! Alice and Bob tie with 0 points.']);
+    expect(chatTexts(over)).toEqual(['Everyone is out of chips. The house wins.', 'Game over! Alice and Bob tie with 0 points.']);
     expect(s.data.phase).toBe('ended');
   });
 
@@ -565,7 +565,7 @@ describe('Blackjack: rounds, results and the end', () => {
     expect(chatTexts(stood)).toEqual(['The dealer stands on 19.', 'Alice loses 10.']);
     expect(view(s).shoeRemaining).toBe(7);
     const next = tick(s, RESULTS_MS);
-    expect(chatTexts(next)).toEqual(['Under a quarter of the shoe is left — the shoe is reshuffled.', 'Round 2 of 2 — place your bets!']);
+    expect(chatTexts(next)).toEqual(['Under a quarter of the shoe is left. The shoe is reshuffled.', 'Round 2 of 2: place your bets!']);
     expect(view(s)).toMatchObject({ reshuffled: true, shoeRemaining: 52 });
 
     const empties = sim('blackjack');
@@ -574,7 +574,7 @@ describe('Blackjack: rounds, results and the end', () => {
     betAll(empties, [bob]);
     expect(view(empties).shoeRemaining).toBe(0);
     const hit = act(empties, bob, { t: 'hit' });
-    expect(chatTexts(hit)[0]).toBe('The shoe ran out — the shoe is reshuffled.');
+    expect(chatTexts(hit)[0]).toBe('The shoe ran out. The shoe is reshuffled.');
     expect(handsOf(empties, bob)[0].cards).toHaveLength(3);
     expect(view(empties)).toMatchObject({ reshuffled: true, shoeRemaining: 52 - 5 });
     // The rebuilt shoe leaves out the cards on the table: the deck is whole and nothing is dealt twice.
@@ -676,7 +676,7 @@ describe('Blackjack: seats coming and going', () => {
     expect(data(s).phase).toMatchObject({ held: true, resumeAt: s.now + RESUME_SETTLE_MS });
     expect(tick(s, RESUME_SETTLE_MS - 1)).toEqual([]);
     const resumed = tick(s, 1);
-    expect(chatTexts(resumed)).toEqual(['Round 2 of 2 — place your bets!']);
+    expect(chatTexts(resumed)).toEqual(['Round 2 of 2: place your bets!']);
     expect(waiting(s)).toBeNull();
     expect(view(s)).toMatchObject({ phase: 'betting', round: 2, order: [alice, bob], paused: false });
   });
@@ -693,7 +693,7 @@ describe('Blackjack: seats coming and going', () => {
     act(s, alice, { t: 'stand' });
     disconnect(s, bob, 'Bob');
     const effects = tick(s, ACT_MS);
-    expect(chatTexts(effects)).toEqual(['Bob ran out of time — standing.', 'The dealer stands on 18.', 'Alice loses 10, Bob loses 10.']);
+    expect(chatTexts(effects)).toEqual(['Bob ran out of time and stands.', 'The dealer stands on 18.', 'Alice loses 10, Bob loses 10.']);
     expect(view(s).phase).toBe('results');
     // Alice alone is enough for the next round; Bob keeps his seat and bets the minimum at the deadline.
     tick(s, RESULTS_MS);

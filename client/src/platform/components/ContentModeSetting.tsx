@@ -1,4 +1,5 @@
-import { CONTENT_MODES, CONTENT_MODE_INFO, type ContentMode } from '@shared/platform/settings';
+import { CONTENT_MODES, CONTENT_MODE_INFO, upgradeContentMode, type ContentMode } from '@shared/platform/settings';
+import { CheckIcon } from './Icons';
 
 interface Props {
   value: ContentMode;
@@ -7,10 +8,12 @@ interface Props {
 }
 
 /**
- * The room's content mode: three cards the host taps (a radio group), read-only for everyone
- * else. Every game draws its words, prompts and locations from the chosen mode.
+ * The room's content mode: two cards the host taps (a radio group), read-only for everyone else.
+ * The games that read it draw their words, prompts and locations from the chosen mode.
  */
-export function ContentModeSetting({ value, canEdit, onChange }: Props) {
+export function ContentModeSetting({ value: stored, canEdit, onChange }: Props) {
+  // A snapshot from an older server could still say 'cheeky'; it plays as Family.
+  const value = upgradeContentMode(stored);
   return (
     <div className="setting" data-testid="settings-row-contentMode">
       <div className="setting__head">
@@ -38,9 +41,10 @@ export function ContentModeSetting({ value, canEdit, onChange }: Props) {
             >
               <span className="content-mode__head">
                 <span className="content-mode__label">{info.label}</span>
-                {mode === 'unhinged' && (
-                  <span className="pill content-mode__age" aria-label="Adults only">
-                    18+
+                {mode === 'unhinged' && <span className="pill content-mode__age">18+</span>}
+                {selected && (
+                  <span className="content-mode__check" aria-hidden="true">
+                    <CheckIcon size={14} />
                   </span>
                 )}
               </span>

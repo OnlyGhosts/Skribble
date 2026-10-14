@@ -1,4 +1,8 @@
 import { expect, type Page } from '@playwright/test';
+import { GAME_LIST } from '../shared/platform/games';
+
+/** The slug a new party starts on: the first live game (Scribble, whose internal id stays 'skribble'). */
+export const FIRST_LIVE_SLUG = (GAME_LIST.find((g) => g.status === 'live') ?? GAME_LIST[0]).slug;
 
 /**
  * Shared steps for the party lobby. A game only starts with the players who readied up (the host
@@ -6,6 +10,9 @@ import { expect, type Page } from '@playwright/test';
  */
 export async function readyAll(pages: Page[]): Promise<void> {
   for (const page of pages) {
+    // A player sitting out has one button, Count me in, which comes back in and readies at once.
+    const countMeIn = page.locator('[data-testid="ready-controls"][data-sitting-out="true"] [data-testid="sitout-toggle"]');
+    if (await countMeIn.isVisible()) await countMeIn.click();
     const toggle = page.getByTestId('ready-toggle');
     await expect(toggle).toBeVisible();
     if ((await toggle.getAttribute('aria-pressed')) !== 'true') await toggle.click();
@@ -53,7 +60,7 @@ export async function createParty(page: Page, name: string, gameSlug?: string, b
   await page.getByTestId('home-create').click();
   await enterNameIfAsked(page, name);
   const code = await readRoomCode(page);
-  await expect(page).toHaveURL(new RegExp(`/${gameSlug ?? 'skribble'}/${code}$`));
+  await expect(page).toHaveURL(new RegExp(`/${gameSlug ?? FIRST_LIVE_SLUG}/${code}$`));
   return code;
 }
 

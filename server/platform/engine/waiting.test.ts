@@ -34,7 +34,7 @@ describe.each(GAME_IDS)('holding for disconnected players (%s)', (gameId) => {
     for (const id of others) disconnect(s, id);
     expect(s.data.players.filter((p) => p.connected).map((p) => p.id)).toEqual([alice]);
     expect(s.data.phase).toBe('playing');
-    expect(chatTexts(s.effects)).not.toContain('Not enough players — back to the lobby.');
+    expect(chatTexts(s.effects)).not.toContain('Not enough players. Back to the lobby.');
     const kinds = pendingDeadlines(s.data).map((d) => d.kind);
     expect(kinds.filter((k) => k === 'reconnectExpiry')).toHaveLength(others.length);
     expect(kinds.every((k) => k === 'game' || k === 'reconnectExpiry')).toBe(true);
@@ -57,7 +57,7 @@ describe.each(GAME_IDS)('holding for disconnected players (%s)', (gameId) => {
 
       s.now = dropAt + RECONNECT_GRACE_MS;
       const effects = s.tick();
-      expect(chatTexts(effects).slice(-2)).toEqual(['Bob left', 'Not enough players — back to the lobby.']);
+      expect(chatTexts(effects).slice(-2)).toEqual(['Bob left', 'Not enough players. Back to the lobby.']);
       expect(s.data).toMatchObject({ phase: 'lobby', game: null, waiting: null, podium: null });
       expect(s.data.players.map((p) => p.id)).not.toContain(bob);
       expect(s.data.players.every((p) => p.score === 0)).toBe(true);

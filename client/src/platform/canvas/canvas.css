@@ -13,7 +13,7 @@
   -webkit-touch-callout: none;
   gap: 10px 16px;
   padding: 10px 14px;
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   box-shadow: var(--shadow-md);
@@ -119,7 +119,7 @@
   position: relative;
   width: 100%;
   aspect-ratio: 4 / 3;
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   overflow: hidden;
   background: var(--canvas-bg);
   box-shadow: var(--shadow-md);
@@ -164,7 +164,7 @@
   }
 
   .canvas-frame {
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-item);
   }
 
   /*
@@ -176,7 +176,7 @@
     flex-wrap: wrap;
     gap: 6px 8px;
     padding: 6px 8px;
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-item);
   }
 
   .toolbar::before {

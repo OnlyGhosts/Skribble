@@ -41,3 +41,15 @@ export function clearChar(code: string, index: number): string {
 export function enteredLength(code: string): number {
   return padCode(code).filter(Boolean).length;
 }
+
+/**
+ * What the user typed into a box that already held `previous`: the browser hands over both
+ * characters, the old one before or after the new one depending on where the caret was (a click on
+ * a filled box can leave it on either side). Typing replaces the box, so the old character goes.
+ */
+export function typedText(raw: string, previous: string): string {
+  if (raw.length < 2 || !previous) return raw;
+  if (raw.startsWith(previous)) return raw.slice(previous.length);
+  if (raw.endsWith(previous)) return raw.slice(0, -previous.length);
+  return raw;
+}

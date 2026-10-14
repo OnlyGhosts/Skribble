@@ -23,7 +23,8 @@ export type JoinRequest = PlatformClientMessageOf<'create'> | PlatformClientMess
 
 const CHAT_CAP = 300;
 const MAX_TOASTS = 4;
-const TOAST_MS = 4500;
+/** Informational toasts go after this long; errors stay until dismissed. */
+const TOAST_MS = 4000;
 const JOIN_ERROR_CODES: ReadonlySet<ErrorCode> = new Set<ErrorCode>(['ROOM_NOT_FOUND', 'ROOM_FULL', 'GAME_IN_PROGRESS', 'INVALID_CODE']);
 
 interface PlatformState {
@@ -167,7 +168,7 @@ export const usePlatformStore = create<PlatformStore>()((set, get) => ({
   addToast: (kind, text) => {
     const id = ++toastSeq;
     set((s) => ({ toasts: [...s.toasts.slice(-(MAX_TOASTS - 1)), { id, kind, text }] }));
-    window.setTimeout(() => get().dismissToast(id), TOAST_MS);
+    if (kind !== 'error') window.setTimeout(() => get().dismissToast(id), TOAST_MS);
   },
   dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
 

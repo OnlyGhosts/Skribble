@@ -2,7 +2,7 @@
 import type { PlayerPublic, RoomPreview, RoomState, WaitingState, WelcomeMessage } from '../../../shared/platform/protocol.js';
 import { moduleFor } from './module.js';
 import { findPlayer, gameSeatLimit, inProgress, isJoinable, minPlayers, participants, platformPlayers, platformSpectators, sortedPlayers } from './players.js';
-import type { PlatformPlayerData, PlatformRoomData } from './state.js';
+import { upgradeRoomData, type PlatformPlayerData, type PlatformRoomData } from './state.js';
 
 export function publicPlayer(p: PlatformPlayerData, hostId: string): PlayerPublic {
   return {
@@ -20,7 +20,9 @@ export function publicPlayer(p: PlatformPlayerData, hostId: string): PlayerPubli
 }
 
 /** Snapshot for one recipient (`null` for a role-less view used by HTTP previews and tests). */
-export function viewFor(data: PlatformRoomData, playerId: string | null, now: number): RoomState {
+export function viewFor(stored: PlatformRoomData, playerId: string | null, now: number): RoomState {
+  // A room loaded straight from storage may predate the current settings (a 'cheeky' content mode).
+  const data = upgradeRoomData(stored);
   const game = moduleFor(data.gameId);
   const players = platformPlayers(data);
   const spectators = platformSpectators(data);

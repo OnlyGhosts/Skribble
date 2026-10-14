@@ -348,7 +348,7 @@ describe('the screen while playing', () => {
     store().setHighlight(null);
     enter(inGame(asViewer(view(), 'bob')), 'bob');
     snapshot(inGame(asViewer(moving, 'bob')));
-    expect(platform().toasts.map((t) => t.text)).toEqual(['host rolled a 6 — a ship may slip away!']);
+    expect(platform().toasts.map((t) => t.text)).toEqual(['host rolled a 6. A ship may slip away!']);
     const bobs = render(inGame(asViewer(moving, 'bob')), 'bob');
     expect(tagWith(bobs, 'move-notice')).toBeTruthy();
     // The dots stay on the sentence's line: one span holds both, the clock follows.
@@ -377,7 +377,7 @@ describe('the screen while playing', () => {
     enter(inGame(view()), 'bob');
     const sunk = view({ sides: view().sides.map((s) => (s.id === 'bob' ? { ...s, alive: false, shipsLeft: 0 } : s)), turnNumber: 9 });
     snapshot(inGame(asViewer(sunk, 'bob', ownBoard({ sideId: 'bob', ships: LAYOUT.map((s) => ship(s.id, s.x, s.y, s.length, s.horizontal, s.length)) }))));
-    expect(platform().toasts.map((t) => t.text)).toContain('Your fleet is sunk — you can watch the rest of the battle.');
+    expect(platform().toasts.map((t) => t.text)).toContain('Your fleet is sunk. You can watch the rest of the battle.');
     const html = render(platform().room as BattleshipsRoomState, 'bob');
     expect(tagWith(html, 'eliminated-banner')).toBeTruthy();
     expect(battleshipsClient.playerClassName?.(platform().room as BattleshipsRoomState, player('bob'))).toBe('player--sunk');

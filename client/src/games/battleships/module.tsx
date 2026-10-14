@@ -94,7 +94,7 @@ export const battleshipsClient = defineGameClient<BattleshipsView, BattleshipsSe
     if (view.phase === 'moving' && before?.phase !== 'moving' && isShooter(view, me)) store.selectTab(null);
     if (prev && mySideSunk(before, view, me)) {
       playCue('turnEnd');
-      addToast('warning', 'Your fleet is sunk — you can watch the rest of the battle.');
+      addToast('warning', 'Your fleet is sunk. You can watch the rest of the battle.');
     }
   },
 

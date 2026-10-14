@@ -45,7 +45,7 @@
   width: min(260px, 70vw);
   aspect-ratio: 1;
   border-radius: 50%;
-  color: #fff;
+  color: var(--game-ink);
   box-shadow: var(--shadow-lg);
   transition: transform 0.06s ease;
   user-select: none;
@@ -98,7 +98,7 @@
   align-items: center;
   gap: 10px;
   padding: 6px 10px;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-item);
   background: var(--color-surface-2);
 }
 

@@ -1,6 +1,6 @@
 /**
- * Extra Spy Game locations by content mode: 'cheeky' for a rude-but-harmless table, 'unhinged'
- * for adults only. Ids double as image file names (client/src/games/spygame/assets/locations);
+ * Extra Spy Game locations for an Unhinged room, in two tiers: 'cheeky' (rude but harmless) and
+ * 'unhinged' (crude). Ids double as image file names (client/src/games/spygame/assets/locations);
  * re-run scripts/spygame-location-images.mjs after editing. The pool for a mode is built in
  * ./locations.ts (locationsForMode).
  */

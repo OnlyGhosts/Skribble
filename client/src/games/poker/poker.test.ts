@@ -375,7 +375,7 @@ describe('text and hooks', () => {
     expect(lastActionLabel({ kind: 'bigBlind', amount: 10 })).toBe('BB 10');
     expect(lastActionLabel(null)).toBe('');
     expect(phaseKicker(view(), 'Bob', false, true)).toBe("Bob's move");
-    expect(phaseKicker(view(), 'Bob', true, false)).toBe('Pre-flop — your move');
+    expect(phaseKicker(view(), 'Bob', true, false)).toBe('Pre-flop: your move');
     expect(netLabel(150)).toBe('+150');
     expect(netLabel(-20)).toBe('−20');
     expect(netLabel(0)).toBe('±0');

@@ -195,7 +195,7 @@ test('the second drawer draws, is cut off, and rejoins through the other instanc
   const back = await newPlayer(browser, `${second.name}-back`, otherBase);
   await back.page.goto(`${otherBase}/`);
   await back.page.evaluate(([key, value]) => sessionStorage.setItem(key, value), [SESSION_KEY, stored ?? ''] as const);
-  await back.page.goto(`${otherBase}/skribble/${code}`);
+  await back.page.goto(`${otherBase}/scribble/${code}`);
 
   // Same seat: still the drawer, same word, same score, the drawing restored, nobody duplicated.
   await expect(back.page.getByTestId('toolbar')).toBeVisible({ timeout: 15_000 });

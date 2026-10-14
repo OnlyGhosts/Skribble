@@ -24,10 +24,10 @@ export function roundLabel(view: QuipgameView, long: boolean): string {
 export function phaseKicker(view: QuipgameView, short = false): string {
   switch (view.phase) {
     case 'writing':
-      if (short) return view.multiplier > 1 ? 'Write — double points' : 'Write your answers';
-      return view.multiplier > 1 ? 'Write — double points!' : 'Write your answers';
+      if (short) return view.multiplier > 1 ? 'Write: double points' : 'Write your answers';
+      return view.multiplier > 1 ? 'Write: double points!' : 'Write your answers';
     case 'finalWriting':
-      return short ? 'One answer each' : 'Final round — one answer';
+      return short ? 'One answer each' : 'Final round: one answer';
     case 'voting':
       return short ? 'Vote!' : 'Vote for the funnier one';
     case 'finalVoting':

@@ -53,7 +53,7 @@ export function SkribbleSettingsFields({ settings, canEdit, patch }: SettingsFie
         canEdit={canEdit}
         parse={parseCustomWords}
         onCommit={(customWords) => patch({ customWords })}
-        placeholder="cat, dog, hot dog — comma or newline separated"
+        placeholder="cat, dog, hot dog (comma or new line)"
         maxLength={L.customWords.maxCount * (L.customWords.maxLength + 1)}
       />
       <ToggleSetting

@@ -7,7 +7,7 @@ import { SITE_NAME } from '@shared/platform/site';
 import { AvatarPicker } from '../components/AvatarPicker';
 import { Chat } from '../components/Chat';
 import { GamePicker } from '../components/GamePicker';
-import { CopyIcon, EditIcon, LinkIcon, LogoutIcon, PlayIcon, SendIcon } from '../components/Icons';
+import { CopyIcon, EditIcon, LinkIcon, LogoutIcon, PlayIcon, ShareIcon } from '../components/Icons';
 import { PlayerList } from '../components/PlayerList';
 import { ReadyControls } from '../components/ReadyControls';
 import { SettingsPanel } from '../components/SettingsPanel';
@@ -52,12 +52,12 @@ export function Lobby({ room, game }: Props) {
 
   const copy = async (text: string, label: string) => {
     const ok = await copyText(text);
-    addToast(ok ? 'success' : 'error', ok ? `${label} copied to clipboard` : `Couldn't copy the ${label.toLowerCase()} — select it manually.`);
+    addToast(ok ? 'success' : 'error', ok ? `${label} copied` : `Couldn't copy the ${label.toLowerCase()}. Select it and copy it yourself.`);
   };
 
   /** The native share sheet where it exists (phones); otherwise the link lands on the clipboard. */
   const share = async () => {
-    const data: ShareData = { title: `${meta.name} · ${SITE_NAME}`, text: `Join my ${meta.name} party with code ${room.code}`, url: link };
+    const data: ShareData = { title: SITE_NAME, text: `Join my room on ${SITE_NAME}. Code: ${room.code}.`, url: link };
     if (typeof navigator.share === 'function' && (typeof navigator.canShare !== 'function' || navigator.canShare(data))) {
       try {
         await navigator.share(data);
@@ -70,90 +70,100 @@ export function Lobby({ room, game }: Props) {
   };
 
   return (
-    <div className="lobby">
-      <SiteHeader crumb={meta.name}>
+    <div className="lobby" data-testid="lobby">
+      <SiteHeader>
         <button type="button" className="btn btn--ghost btn--sm" onClick={leaveRoom} data-testid="leave-room">
           <LogoutIcon size={16} /> Leave
         </button>
       </SiteHeader>
 
-      <GamePicker room={room} isHost={isHost} />
-
-      <section className="card code-card" aria-labelledby="code-heading">
-        <div className="code-card__text">
-          <h1 className="code-card__title" id="code-heading">
-            Invite your friends
-          </h1>
-          <p className="card__text">Share this code — or the link — and they'll land right here. The party stays together between games.</p>
+      <section className="card room-bar" aria-label="Room code" data-testid="room-bar">
+        <div className="room-bar__code">
+          <span className="room-bar__label" aria-hidden="true">
+            Room code
+          </span>
+          <span className="room-bar__value" data-testid="room-code" aria-label={`Room code ${room.code.split('').join(' ')}`}>
+            {room.code}
+          </span>
         </div>
-        <div className="code-card__code" data-testid="room-code" aria-label={`Room code ${room.code.split('').join(' ')}`}>
-          {room.code.split('').map((ch, i) => (
-            <span key={i} className="code-card__char">
-              {ch}
-            </span>
-          ))}
-        </div>
-        <div className="code-card__actions">
-          <button type="button" className="btn btn--primary" onClick={() => void copy(room.code, 'Code')} data-testid="copy-code">
-            <CopyIcon size={16} /> Copy code
+        <div className="room-bar__actions">
+          <button type="button" className="room-bar__btn" onClick={() => void copy(room.code, 'Code')} data-testid="copy-code">
+            <CopyIcon size={18} /> <span>Copy code</span>
           </button>
-          <button type="button" className="btn btn--secondary" onClick={() => void copy(link, 'Invite link')} data-testid="copy-link">
-            <LinkIcon size={16} /> Copy invite link
+          <button type="button" className="room-bar__btn" onClick={() => void copy(link, 'Invite link')} aria-label="Copy invite link" data-testid="copy-link">
+            <LinkIcon size={18} /> <span>Copy link</span>
           </button>
-          <button type="button" className="btn btn--ghost" onClick={() => void share()} data-testid="share-invite">
-            <SendIcon size={16} /> Share invite
+          <button type="button" className="room-bar__btn" onClick={() => void share()} aria-label="Share invite" data-testid="share-invite">
+            <ShareIcon size={18} /> <span>Share</span>
           </button>
         </div>
       </section>
 
       <div className="lobby__grid">
-        <section className="card lobby__players" aria-labelledby="players-heading">
-          <div className="card__head">
-            <h2 className="card__title" id="players-heading">
-              Players
-            </h2>
-            <span className="pill" data-testid="player-count" data-ready={readyPlayers(room).length} data-players={room.players.length}>
-              {readyLine(room)}
-            </span>
-          </div>
-          <PlayerList room={room} meId={playerId} isHost={isHost} mode="lobby" game={game} />
-          {me && <ReadyControls me={me} context="lobby" />}
-          {me && (
-            <div className="profile-edit">
-              <button type="button" className="btn btn--ghost btn--sm" onClick={() => setEditing((v) => !v)} aria-expanded={editing} data-testid="edit-profile">
-                <EditIcon size={16} /> {editing ? 'Done' : 'Change my look'}
-              </button>
-              {editing && <ProfileEditor me={{ name: me.name, avatar: me.avatar }} onClose={() => setEditing(false)} />}
+        <div className="lobby__col">
+          <GamePicker room={room} isHost={isHost} />
+
+          <section className="card lobby__players" aria-labelledby="players-heading">
+            <div className="card__head">
+              <h2 className="card__title" id="players-heading">
+                Players
+              </h2>
+              <span className="pill" data-testid="player-count" data-ready={readyPlayers(room).length} data-players={room.players.length}>
+                {readyLine(room)}
+              </span>
             </div>
-          )}
-          <div className="lobby__start" ref={startRef}>
-            {isHost ? (
-              <StartControls room={room} />
-            ) : (
+            <PlayerList room={room} meId={playerId} isHost={isHost} mode="lobby" game={game} />
+            {room.players.length === 1 && (
+              <p className="lobby__alone" data-testid="lobby-alone">
+                No one else is here yet. Share the code.
+              </p>
+            )}
+            {me && isHost && <ReadyControls me={me} context="lobby" />}
+            {me && (
+              <div className="profile-edit">
+                <button type="button" className="text-btn" onClick={() => setEditing((v) => !v)} aria-expanded={editing} data-testid="edit-profile">
+                  <EditIcon size={16} /> {editing ? 'Done' : 'Change my look'}
+                </button>
+                {editing && <ProfileEditor me={{ name: me.name, avatar: me.avatar }} onClose={() => setEditing(false)} />}
+              </div>
+            )}
+          </section>
+        </div>
+
+        <div className="lobby__col">
+          <section className="card lobby__settings" aria-labelledby="settings-heading">
+            <div className="card__head">
+              <h2 className="card__title" id="settings-heading">
+                Settings
+              </h2>
+              {isHost && <span className="pill pill--accent">Host</span>}
+            </div>
+            <SettingsPanel room={room} isHost={isHost} game={game} />
+          </section>
+
+          <section className="card lobby__chat" aria-label="Lobby chat">
+            <div className="card__head">
+              <h2 className="card__title">Chat</h2>
+            </div>
+            <Chat />
+          </section>
+        </div>
+      </div>
+
+      <div className="lobby__footer" ref={startRef} data-testid="lobby-footer">
+        <div className="lobby__footer-inner">
+          {isHost ? (
+            <StartControls room={room} />
+          ) : (
+            <>
+              {me && <ReadyControls me={me} context="lobby" />}
               <p className="lobby__waiting" data-testid="waiting-for-host">
                 Waiting for {host?.name ?? 'the host'} to start {meta.name}
                 <span className="ellipsis" aria-hidden="true" />
               </p>
-            )}
-          </div>
-        </section>
-
-        <section className="card lobby__settings" aria-labelledby="settings-heading">
-          <div className="card__head">
-            <h2 className="card__title" id="settings-heading">
-              {meta.name} settings
-            </h2>
-            {isHost && <span className="pill pill--accent">You're the host</span>}
-          </div>
-          <SettingsPanel room={room} isHost={isHost} game={game} />
-        </section>
-
-        <section className="card lobby__chat" aria-label="Lobby chat">
-          <div className="card__head">
-            <h2 className="card__title">Chat</h2>
-          </div>
-          <Chat />
-        </section>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -187,7 +197,7 @@ function StartControls({ room }: { room: RoomState }) {
       {confirming ? (
         <div className="start-confirm" role="group" aria-label="Start with players not ready" data-testid="start-confirm">
           <p className="start-confirm__text">
-            Not everyone is ready — {listNames(notReady.map((p) => p.name))} {notReady.length === 1 ? "isn't" : "aren't"} ready yet and would sit this one out.
+            {listNames(notReady.map((p) => p.name))} {notReady.length === 1 ? "isn't" : "aren't"} ready yet and would sit this one out.
           </p>
           <div className="start-confirm__actions">
             <button type="button" className="btn btn--primary" onClick={onStart} data-testid="start-anyway">

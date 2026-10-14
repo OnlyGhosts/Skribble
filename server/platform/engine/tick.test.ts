@@ -97,7 +97,7 @@ describe('tick', () => {
     s.now = dropAt + RECONNECT_GRACE_MS;
     const expiry = s.tick();
     expect(s.data.players.map((p) => p.id)).toEqual([alice]);
-    expect(chatTexts(expiry)).toEqual(['Bob left', 'Not enough players — back to the lobby.']);
+    expect(chatTexts(expiry)).toEqual(['Bob left', 'Not enough players. Back to the lobby.']);
     expect(s.data).toMatchObject({ phase: 'lobby', game: null, waiting: null });
     expect(viewFor(s.data, alice, s.now).waiting).toBeNull();
     expect(nextDeadline(s.data)).toBeNull();
@@ -125,7 +125,7 @@ describe('tick', () => {
     const effects = s.tick();
     expect(game(s).phase).toMatchObject({ kind: 'turnEnd', reason: 'drawerLeft' });
     expect(game(s).grace).toMatchObject({ drawerGoneAt: null, allGuessedAt: null });
-    expect(chatTexts(effects)).toEqual(['Alice lost connection — skipping their turn.', 'The word was: apple']);
+    expect(chatTexts(effects)).toEqual(['Alice lost connection. Skipping their turn.', 'The word was: apple']);
   });
 
   it('ends a Click Race at its time limit and ranks everyone by clicks', () => {

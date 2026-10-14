@@ -5,7 +5,7 @@ import { GAMES } from '../../games/index.js';
 import { GAME_TEST_FIXTURES } from '../../games/testFixtures.js';
 import { gameCtx } from './delegate.js';
 import { applyAction } from './reduce.js';
-import type { PlatformPlayerData, PlatformRoomData, RoomSettingsData } from './state.js';
+import { upgradeRoomData, type PlatformPlayerData, type PlatformRoomData, type RoomSettingsData } from './state.js';
 import { AVATAR, Ids, chatTexts, ctxAt, errorsOf, readyUp, sim, startGame, type Sim } from './testHarness.js';
 import { previewOf, viewFor } from './view.js';
 
@@ -56,12 +56,12 @@ describe.each(GAME_IDS)('party (%s)', (gameId) => {
     const s = sim(gameId);
     s.apply({ type: 'create', gameId, name: 'Alice', avatar: AVATAR, connectionId: 'a' });
     const alice = s.playerId('Alice');
-    s.platform(alice, { t: 'updateSettings', settings: { contentMode: 'cheeky', ...GAME_TEST_FIXTURES[gameId].settings } });
+    s.platform(alice, { t: 'updateSettings', settings: { contentMode: 'unhinged', ...GAME_TEST_FIXTURES[gameId].settings } });
     const other = GAME_IDS.find((id) => id !== gameId);
     if (!other) throw new Error('need two games');
     const effects = s.platform(alice, { t: 'selectGame', gameId: other });
     expect(s.data.gameId).toBe(other);
-    expect(s.data.settings).toEqual({ allowMidGameJoin: true, contentMode: 'cheeky', ...(GAMES[other].settings.defaults as Record<string, unknown>) });
+    expect(s.data.settings).toEqual({ allowMidGameJoin: true, contentMode: 'unhinged', ...(GAMES[other].settings.defaults as Record<string, unknown>) });
     expect(chatTexts(effects)).toEqual([`Host switched the party to ${gameById(other).name}`]);
     // A game with a side store leaves nothing behind for the next game.
     expect(effects.some((e) => e.type === 'side')).toBe(GAMES[gameId].createSideStore !== undefined);
@@ -127,6 +127,38 @@ describe.each(GAME_IDS)('rooms stored before content modes existed (%s)', (gameI
   });
 });
 
+describe.each(GAME_IDS)('rooms stored while Cheeky was a content mode (%s)', (gameId) => {
+  it("play as a family room: the snapshot, a running game and a fresh start all read 'family'", () => {
+    const s = sim(gameId);
+    const [alice] = startGame(s, ['Alice', 'Bob', 'Carol']);
+    const legacy: PlatformRoomData = { ...structuredClone(s.data), settings: { ...s.data.settings, contentMode: 'cheeky' } as unknown as RoomSettingsData };
+
+    // A snapshot rendered straight from storage never hands the client a mode it does not know.
+    expect(viewFor(legacy, alice, s.now).settings.contentMode).toBe('family');
+    const played = applyAction(legacy, { type: 'tick' }, ctxAt(s.now + 60 * 60_000, new Ids()));
+    expect(played.data.settings.contentMode).toBe('family');
+    expect(['playing', 'ended']).toContain(played.data.phase);
+
+    const lobby = structuredClone(legacy);
+    lobby.phase = 'lobby';
+    lobby.game = null;
+    lobby.podium = null;
+    for (const p of lobby.players) {
+      p.participating = false;
+      p.ready = true;
+    }
+    const started = applyAction(lobby, { type: 'platformMessage', playerId: alice, msg: { t: 'start' } }, ctxAt(s.now, new Ids()));
+    expect(started.data.phase).toBe('playing');
+    expect(started.data.settings.contentMode).toBe('family');
+  });
+
+  it('keep an Unhinged room unhinged', () => {
+    const s = sim(gameId);
+    startGame(s, ['Alice', 'Bob', 'Carol'], { contentMode: 'unhinged' });
+    expect(upgradeRoomData(s.data)).toBe(s.data);
+  });
+});
+
 describe('a host who sits the game out', () => {
   it('still ends a Spy Game from the reveal, while their other moves stay refused', () => {
     const s = sim('spygame');
@@ -142,7 +174,7 @@ describe('a host who sits the game out', () => {
     s.tick();
     expect(gamePhase(s)).toBe('reveal');
     expect(errorsOf(s.game(bob, { t: 'endGame' }))).toEqual(['Only the host can end the game.']);
-    expect(chatTexts(s.game(alice, { t: 'endGame' }))).toContain('The host ended the game — back to the lobby.');
+    expect(chatTexts(s.game(alice, { t: 'endGame' }))).toContain('The host ended the game. Back to the lobby.');
     expect(s.data.phase).toBe('lobby');
   });
 

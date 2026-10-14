@@ -1,11 +1,13 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import type { SkribblePhase, SkribbleSettings, SkribbleView } from '@shared/games/skribble/protocol';
+import { gameById } from '@shared/platform/games';
 import { BottomSheet } from '../../platform/components/BottomSheet';
+import { GameMark } from '../../platform/components/GameGlyph';
 import { Chat } from '../../platform/components/Chat';
 import { ConnectionPill } from '../../platform/components/ConnectionPill';
 import { LogoutIcon, MoreIcon, UsersIcon } from '../../platform/components/Icons';
 import { PlayerList } from '../../platform/components/PlayerList';
-import { SoundToggle, ThemeToggle } from '../../platform/components/ThemeToggle';
+import { PreferenceRows, SettingsMenu } from '../../platform/components/Preferences';
 import { Timer } from '../../platform/components/Timer';
 import type { GameScreenProps } from '../../platform/game';
 import { PHONE_QUERY, useMediaQuery } from '../../platform/lib/media';
@@ -17,10 +19,12 @@ import { usePlatformStore } from '../../platform/store/usePlatformStore';
 import { DEFAULT_DRAWING_SETTINGS, GameCanvas, Toolbar, type DrawingSettings } from '../../platform/canvas';
 import { clearCanvas, rateDrawing, undoStroke } from './actions';
 import { skribbleCanvas } from './canvas';
-import { PencilIcon, ThumbDownIcon, ThumbUpIcon } from './components/Icons';
+import { ThumbDownIcon, ThumbUpIcon } from './components/Icons';
 import { ChoosingOverlay, DrawingCaption, TurnEndOverlay } from './components/Overlays';
 import { WordDisplay } from './components/WordDisplay';
 import { drawerIdOf, hasGuessed } from './hooks';
+
+const meta = gameById('skribble');
 
 type DrawingPhase = Extract<SkribblePhase, { kind: 'drawing' }>;
 
@@ -189,9 +193,7 @@ export function SkribbleScreen({ room, meId, isHost }: GameScreenProps<SkribbleV
         ) : (
           <>
             <div className="game__brand">
-              <span className="brand__mark brand__mark--sm brand__mark--skribble" aria-hidden="true">
-                <PencilIcon size={16} />
-              </span>
+              <GameMark game={meta} size="sm" />
               <div className="game__round" data-testid="round-indicator">
                 <strong>
                   Round {view.round} of {view.totalRounds}
@@ -209,8 +211,7 @@ export function SkribbleScreen({ room, meId, isHost }: GameScreenProps<SkribbleV
               {timer}
               <div className="game__controls">
                 <ConnectionPill />
-                <SoundToggle />
-                <ThemeToggle />
+                <SettingsMenu />
                 <button type="button" className="btn btn--ghost btn--sm" onClick={leaveRoom} data-testid="leave-room" aria-label="Leave room">
                   <LogoutIcon size={16} /> <span className="hide-mobile">Leave</span>
                 </button>
@@ -251,18 +252,7 @@ export function SkribbleScreen({ room, meId, isHost }: GameScreenProps<SkribbleV
           </BottomSheet>
           <BottomSheet open={menuOpen} title="Options" onClose={() => setMenuOpen(false)} testId="menu-sheet">
             <div className="menu-sheet">
-              <div className="menu-sheet__row">
-                <span className="menu-sheet__label">Connection</span>
-                <ConnectionPill />
-              </div>
-              <div className="menu-sheet__row">
-                <span className="menu-sheet__label">Sound</span>
-                <SoundToggle />
-              </div>
-              <div className="menu-sheet__row">
-                <span className="menu-sheet__label">Theme</span>
-                <ThemeToggle />
-              </div>
+              <PreferenceRows />
               <button type="button" className="btn btn--ghost btn--block menu-sheet__leave" onClick={leaveRoom} data-testid="leave-room">
                 <LogoutIcon size={16} /> Leave room
               </button>

@@ -36,7 +36,7 @@ describe('leaving a room', () => {
   it('lands on the front door after leaving and tells the game module', () => {
     const onLeave = vi.fn();
     registerGames(registryOf({ onLeave }));
-    setLocation('/skribble/ABCD');
+    setLocation('/scribble/ABCD');
     state().handleServerMessage(welcome('bob', room()));
     state().resetRoom();
     expect(window.location.pathname).toBe('/');
@@ -46,7 +46,7 @@ describe('leaving a room', () => {
   });
 
   it('leaves the address bar alone when it no longer names the room (Back out of a room)', () => {
-    setLocation('/skribble/ABCD');
+    setLocation('/scribble/ABCD');
     state().handleServerMessage(welcome('bob', room()));
     // The browser already moved to the previous entry (the front door) before the app learnt about it.
     setLocation('/');
@@ -54,7 +54,7 @@ describe('leaving a room', () => {
     expect(window.location.pathname).toBe('/');
     expect(state().room).toBeNull();
 
-    setLocation('/skribble/ABCD');
+    setLocation('/scribble/ABCD');
     state().handleServerMessage(welcome('bob', room({ gameId: 'template' })));
     setLocation('/WXYZ');
     state().resetRoom();
@@ -62,16 +62,16 @@ describe('leaving a room', () => {
   });
 
   it('keeps the join link when the seat expired but the room may still exist', () => {
-    setLocation('/skribble/ABCD');
+    setLocation('/scribble/ABCD');
     state().handleServerMessage(welcome('bob', room()));
     state().handleServerMessage({ t: 'error', code: 'REJOIN_FAILED', message: 'expired' });
-    expect(window.location.pathname).toBe('/skribble/ABCD');
+    expect(window.location.pathname).toBe('/scribble/ABCD');
     expect(state().room).toBeNull();
     expect(state().toasts.map((t) => t.text)).toEqual([expect.stringMatching(/rejoin/i)]);
   });
 
   it('tells a removed player so, and an expired seat so, instead of guessing that the room closed', () => {
-    setLocation('/skribble/ABCD');
+    setLocation('/scribble/ABCD');
     state().handleServerMessage(welcome('bob', room()));
     state().handleServerMessage({ t: 'error', code: 'REJOIN_FAILED', message: 'You were removed from this room.' });
     expect(state().room).toBeNull();
@@ -89,7 +89,7 @@ describe('leaving a room', () => {
     // No reason given: the generic line.
     state().handleServerMessage(welcome('bob', room()));
     state().handleServerMessage({ t: 'error', code: 'REJOIN_FAILED', message: '' });
-    expect(state().toasts.at(-1)?.text).toBe("Couldn't rejoin your previous seat — the room may have closed.");
+    expect(state().toasts.at(-1)?.text).toBe("Couldn't rejoin your previous seat. The room may have closed.");
   });
 
   it('a kick clears the room with a toast', () => {

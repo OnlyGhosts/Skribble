@@ -148,7 +148,7 @@ export function rebuildShoe(gx: Gx, reason: string): void {
   });
   gx.data.shoe = shuffle(fresh, gx.ctx.rng);
   gx.data.reshuffled = true;
-  systemMessage(gx, `${reason} — the shoe is reshuffled.`);
+  systemMessage(gx, `${reason}. The shoe is reshuffled.`);
 }
 
 /** The next card from the shoe; an empty shoe is rebuilt first. */

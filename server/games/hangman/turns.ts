@@ -46,7 +46,7 @@ export function tooFewForNextTurn(gx: Gx): boolean {
 export function beginNextTurn(gx: Gx): void {
   const { data, ctx } = gx;
   if (ctx.players.length < MIN_PLAYERS) {
-    gx.effects.push({ type: 'abort', reason: 'Not enough players — back to the lobby.' });
+    gx.effects.push({ type: 'abort', reason: 'Not enough players. Back to the lobby.' });
     return;
   }
   // A game with no turn left is over whoever is connected.
@@ -66,7 +66,7 @@ export function beginNextTurn(gx: Gx): void {
     }
     const hangman = findPlayer(ctx, data.turnQueue[data.turnIndex]);
     if (!hangman || !hangman.connected) {
-      if (hangman) systemMessage(gx, `${hangman.name} is away — skipping their turn.`);
+      if (hangman) systemMessage(gx, `${hangman.name} is away. Skipping their turn.`);
       data.turnQueue.splice(data.turnIndex, 1);
       data.turnIndex -= 1;
       continue;
@@ -94,7 +94,7 @@ function startChoosing(gx: Gx, hangman: PlatformPlayer): void {
     outcome: null,
   };
   data.phase = { kind: 'choosing', clock: running(gx, HANGMAN_CHOOSE_SECONDS) };
-  systemMessage(gx, `${hangman.name} is the hangman — choosing a word…`);
+  systemMessage(gx, `${hangman.name} is the hangman. Choosing a word…`);
   snapshot(gx);
 }
 
@@ -194,7 +194,7 @@ export function guessTimedOut(gx: Gx): void {
   turn.idleTimeouts += 1;
   if (turn.idleTimeouts >= eligibleGuessers(gx).length) {
     turn.idleTimeouts = 0;
-    gx.effects.push({ type: 'chat', to: 'all', kind: 'close', text: `Nobody guessed for a whole lap — that costs a life (${turn.wrong + 1} of ${HANGMAN_MAX_WRONG}).` });
+    gx.effects.push({ type: 'chat', to: 'all', kind: 'close', text: `Nobody guessed for a whole lap. That costs a life (${turn.wrong + 1} of ${HANGMAN_MAX_WRONG}).` });
     return startDrawing(gx);
   }
   nextGuesser(gx);
@@ -276,14 +276,14 @@ export function endTurn(gx: Gx, outcome: HangmanOutcome): void {
       break;
     case 'hangmanWins':
       award(gx, turn.hangmanId, HANGMAN_POINTS.hangmanWins);
-      systemMessage(gx, turn.wrong >= HANGMAN_MAX_WRONG ? `The figure is complete — ${nameOf(ctx, turn.hangmanId)} wins! The word was ${word}.` : `Nobody is left to guess — ${nameOf(ctx, turn.hangmanId)} wins! The word was ${word}.`);
+      systemMessage(gx, turn.wrong >= HANGMAN_MAX_WRONG ? `The figure is complete. ${nameOf(ctx, turn.hangmanId)} wins! The word was ${word}.` : `Nobody is left to guess. ${nameOf(ctx, turn.hangmanId)} wins! The word was ${word}.`);
       break;
     case 'hangmanLeft':
       // Points already scored this turn stay with the guessers; the word itself earns nobody anything.
-      systemMessage(gx, word ? `The hangman left — the word was ${word}.` : 'The hangman left before choosing a word.');
+      systemMessage(gx, word ? `The hangman left. The word was ${word}.` : 'The hangman left before choosing a word.');
       break;
     case 'noGuessers':
-      systemMessage(gx, word ? `Nobody was left to guess — the word was ${word}.` : 'Nobody was left to guess.');
+      systemMessage(gx, word ? `Nobody was left to guess. The word was ${word}.` : 'Nobody was left to guess.');
       break;
   }
   if (wasPaused) gx.effects.push(resumeEffect());

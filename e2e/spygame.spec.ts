@@ -115,7 +115,7 @@ test.afterAll(async () => {
 
 test('the host creates a Spy Game room, two phones join by code and the host tunes the settings', async () => {
   roomCode = await createParty(host.page, host.name, 'spygame');
-  await expect(host.page.getByTestId('site-header')).toContainText('The Spy Game');
+  await expect(host.page.getByTestId('game-picker-meta')).toContainText('The Spy Game');
   // Three players are needed.
   await expect(host.page.getByTestId('start-game')).toBeDisabled();
 
@@ -147,7 +147,7 @@ test('the host creates a Spy Game room, two phones join by code and the host tun
     await expect(p.page.getByTestId('round-indicator')).toContainText('Round 1');
     await expect(clock(p)).toBeVisible();
   }
-  await expect(host.page.getByTestId('chat-log')).toContainText('Round 1 of 2 — look at your phone');
+  await expect(host.page.getByTestId('chat-log')).toContainText('Round 1 of 2: look at your phone');
 });
 
 test('exactly one spy; the agents share the location, the spy sees none and gets 24 tiles in two columns of twelve', async () => {
@@ -235,7 +235,7 @@ test('an accusation pauses the clock and opens the vote sheet; a tie fails and p
     expect(box.height, `${id} is a 44px target`).toBeGreaterThanOrEqual(MIN_TARGET);
   }
   // "Yes, spy" is ink on the restrained salmon danger fill (7.7:1), never white on it.
-  await expect(other.page.getByTestId('vote-yes')).toHaveCSS('background-color', 'rgb(239, 141, 127)');
+  await expect(other.page.getByTestId('vote-yes')).toHaveCSS('background-color', 'rgb(255, 155, 167)');
   await expect(other.page.getByTestId('vote-yes')).toHaveCSS('color', 'rgb(20, 21, 20)');
   // The accuser's auto-Yes is already on the board. Nothing says how many may still vote: that would name the spy.
   await expect(other.page.getByTestId('vote-tally')).toHaveAttribute('data-yes', '1');
@@ -255,7 +255,7 @@ test('an accusation pauses the clock and opens the vote sheet; a tie fails and p
 
   // A No makes it 1-1: a tie fails, the clock resumes, the accuser's accusation is spent.
   await other.page.getByTestId('vote-no').click();
-  await expect(host.page.getByTestId('chat-log')).toContainText('The vote failed — play on.');
+  await expect(host.page.getByTestId('chat-log')).toContainText('The vote failed. Play on.');
   await expect(host.page.getByTestId('chat-log')).not.toContainText('The vote failed (');
   for (const p of players) {
     await expect(p.page.getByTestId('vote-panel')).toHaveCount(0);
@@ -294,7 +294,7 @@ test('the other agent accuses the spy, the vote passes and the reveal shows spyC
     await expect(p.page.getByTestId('spygame-next-round')).toHaveCount(0);
     await noHorizontalOverflow(p);
   }
-  await expect(host.page.getByTestId('chat-log')).toContainText(`${spy.name} was the spy — caught!`);
+  await expect(host.page.getByTestId('chat-log')).toContainText(`${spy.name} was the spy and got caught!`);
 });
 
 test('the host starts round two; the spy guesses right for +4; the podium lists three players', async () => {

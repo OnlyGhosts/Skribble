@@ -16,7 +16,7 @@ export function Announcer({ matchup }: { matchup: QuipgameMatchupView }) {
   return (
     <section className="card quip-announce" aria-label="Read this out" data-testid="quip-announcer">
       <p className="quip-announce__kicker">
-        <MegaphoneIcon size={16} /> You're the announcer — read this out
+        <MegaphoneIcon size={16} /> You're the announcer: read this out
       </p>
       <p className="quip-announce__prompt">{matchup.prompt}</p>
       <ol className="quip-announce__answers">

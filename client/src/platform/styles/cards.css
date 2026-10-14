@@ -2,8 +2,8 @@
 .playing-card {
   /* Cards are white in both themes, like the canvas; their ink and the red suits are fixed too. */
   --card-face: #ffffff;
-  --card-ink: #141514;
-  --card-red: #c5303a;
+  --card-ink: #171717;
+  --card-red: #af233b;
   --card-w: 56px;
   --card-h: 78px;
   --card-font: 1.05rem;
@@ -17,7 +17,7 @@
   color: var(--card-ink);
   border: 1px solid var(--color-border-strong);
   font-family: var(--font-display);
-  font-weight: 900;
+  font-weight: 700;
   line-height: 1;
   user-select: none;
   -webkit-user-select: none;
@@ -100,9 +100,12 @@
   align-items: flex-start;
 }
 
-/* A face-down card: lilac back with an inset frame, no rank or suit anywhere in the markup. */
+/* A face-down card: a lilac back with a fine diamond lattice and an inset frame, no rank or suit anywhere in the markup. */
 .playing-card--down {
-  background: var(--color-secondary);
+  background-color: var(--color-secondary);
+  /* A flat diamond lattice in ink at low opacity (an SVG tile, no shading). */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10'%3E%3Cpath d='M5 0 10 5 5 10 0 5Z' fill='none' stroke='%23141514' stroke-opacity='.18' stroke-width='1.2'/%3E%3C/svg%3E");
+  background-size: 10px 10px;
   border-color: var(--color-secondary);
 }
 
@@ -134,7 +137,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-weight: 800;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -161,7 +164,7 @@
   flex: 1 1 auto;
   min-height: 40px;
   padding: 0 10px;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-item);
   border: 1px solid var(--color-border);
   background: var(--color-surface-2);
   color: var(--color-text);

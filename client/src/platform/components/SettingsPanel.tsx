@@ -1,3 +1,4 @@
+import { gameById } from '@shared/platform/games';
 import type { RoomState } from '@shared/platform/protocol';
 import type { AnyGameClientModule } from '../game';
 import { updateSettings } from '../net/actions';
@@ -10,7 +11,11 @@ interface Props {
   game: AnyGameClientModule | null;
 }
 
-/** The platform's own settings (content mode, mid-game joins), then the game's `SettingsFields` under them. Only the host sends patches. */
+/**
+ * The platform's own settings (content mode, mid-game joins), then the game's `SettingsFields`
+ * under them. Only the host sends patches. The content mode only shows for a game that reads it
+ * (GameMeta.contentModes); for the others it stays stored, so switching back restores it.
+ */
 export function SettingsPanel({ room, isHost, game }: Props) {
   const settings = room.settings;
   const send = (patch: Record<string, unknown>) => {
@@ -21,7 +26,7 @@ export function SettingsPanel({ room, isHost, game }: Props) {
   return (
     <div className={`settings${isHost ? '' : ' settings--readonly'}`} data-testid="settings-panel">
       {!isHost && <p className="settings__note">Only the host can change settings.</p>}
-      <ContentModeSetting value={settings.contentMode} canEdit={isHost} onChange={(contentMode) => send({ contentMode })} />
+      {gameById(room.gameId).contentModes && <ContentModeSetting value={settings.contentMode} canEdit={isHost} onChange={(contentMode) => send({ contentMode })} />}
       <ToggleSetting
         id="allowMidGameJoin"
         checked={settings.allowMidGameJoin}

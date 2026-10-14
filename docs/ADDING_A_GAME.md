@@ -17,7 +17,7 @@ Contents
 4. [Pure-reducer rules](#4-pure-reducer-rules)
 5. [The recipe, step by step](#5-the-recipe-step-by-step)
 6. [The template game, in full](#6-the-template-game-in-full)
-7. [Advanced: side stores (how Skribble streams drawing)](#7-advanced-side-stores-how-skribble-streams-drawing)
+7. [Advanced: side stores (how Scribble streams drawing)](#7-advanced-side-stores-how-scribble-streams-drawing)
 8. [The design system](#8-the-design-system)
 9. [Platform APIs a game may call](#9-platform-apis-a-game-may-call)
 10. [Verification checklist](#10-verification-checklist)
@@ -45,6 +45,10 @@ they need about each game from the registries and that record.
 The two existing games are the reference: [`template`](../server/games/template/module.ts) (Click
 Race, the hidden copy base) and [`skribble`](../server/games/skribble/module.ts) (the full-size
 game with the advanced side-store path).
+
+The drawing game is shown as **Scribble** (name, `/scribble/` links; old `/skribble/` links redirect)
+but its internal id stays `'skribble'`, as do its folders, CSS classes and test ids: stored rooms in
+Redis carry the id, so renaming it would break live rooms.
 
 Import conventions: files under `shared/`, `server/` and `api/` use relative imports **with the
 `.js` extension** (`'../../platform/game.js'`), because `api/server.ts` is compiled by Vercel
@@ -74,8 +78,8 @@ game in the lobby (`selectGame`; the game settings reset to the new game's defau
 settings and everyone's ready flags carry over, a system line says "Host switched the party to
 <game>"), everyone readies up (`ready`) or sits the next game out (`sitOut`, which clears ready
 and persists until the player changes it; both accepted in the lobby and on the podium), and the
-host starts. The lobby screen, the invite card (code, copy link, native share), the profile
-editor, the platform settings `allowMidGameJoin` and `contentMode` (`'family' | 'cheeky' |
+host starts. The lobby screen, the room bar at its top (code, copy code, copy link, native share),
+the profile editor, the platform settings `allowMidGameJoin` and `contentMode` (`'family' |
 'unhinged'`, [`shared/platform/settings.ts`](../shared/platform/settings.ts)), validation of
 settings patches (platform schema merged with your game's `patchSchema`), the start rule, scores
 reset to 0 on start, and `returnToLobby` after a game ends (the host's "play again" too) are all
@@ -101,23 +105,27 @@ newcomer can join between games (lobby and podium alike) whatever `allowMidGameJ
 setting only governs joins while the room is `'playing'`.
 
 **Content modes.** `settings.contentMode` is the room's single switch for what the packs contain:
-`family` is clean, `cheeky` adds rude-but-harmless content, `unhinged` is adults only. Every game
-reads it from `ctx.settings.contentMode` and picks its content with a shared pure helper:
-Quip Game's prompt tiers (`promptsForContentMode` in
+`family` is clean, `unhinged` is adults only (it plays the rude-but-harmless "cheeky" tiers and the
+crude "unhinged" ones together; there is no middle mode, and a room stored with the retired
+`'cheeky'` mode loads as `family`). A game that reads it sets `contentModes: true` in its
+`GameMeta`, which is what makes the lobby offer the choice (Scribble, The Spy Game, Quip Game and
+Hangman do; for the others the setting is hidden but kept). Such a game reads it from
+`ctx.settings.contentMode` and picks its content with a shared pure helper: Quip Game's prompt
+tiers (`promptsForContentMode` in
 [`shared/games/quipgame/prompts.ts`](../shared/games/quipgame/prompts.ts): family = clean,
-cheeky = clean + cheeky, unhinged = cheeky + unhinged), Skribble's words (`wordPoolForMode` /
+unhinged = cheeky + unhinged), Scribble's words (`wordPoolForMode` /
 `buildWordPool(lang, custom, customOnly, mode)` in
 [`shared/games/skribble/words/index.ts`](../shared/games/skribble/words/index.ts), which any word
 game may reuse) and The Spy Game's locations (`locationsForMode` in
 [`shared/games/spygame/locations.ts`](../shared/games/spygame/locations.ts), with the tiers in
-`locationTiers.ts` and generated tiles for every tier). A game never ships its own "cheeky"
-switch; it reads the room's mode.
+`locationTiers.ts` and generated tiles for every tier). A game never ships its own content switch;
+it reads the room's mode.
 
 **Chat.** The chat panel, rate limiting (6 lines per 4 s per socket, in
 [`server/platform/connection.ts`](../server/platform/connection.ts)), history for late joiners
 (`CHAT_HISTORY_LENGTH` = 60), system lines for joins, leaves, host changes, kicks, start and game
 over. Every chat line is offered to the running game first (a `'chat'` event) so a game can treat
-chat as input (Skribble's guesses).
+chat as input (Scribble's guesses).
 
 **Scores and podium.** Players carry a `score`; your game adds to it with `score` effects. When
 the game emits `gameOver` the platform ranks the participants (ties share a rank), stores
@@ -198,10 +206,14 @@ export interface GameMeta {
   minPlayers: number;
   /** Seats the game can hold at once, or null when any number may play. Extra players sit a game out and stay in the party. */
   maxPlayers: number | null;
-  /** Emoji shown on the game tile. */
-  icon: string;
-  /** Accent colour (#rrggbb) for the game tile and the game's screens; it must read on the dark panels (#20221F). */
+  /** Slugs the game used before a rename: old links on them redirect to `slug`. */
+  formerSlugs?: readonly string[];
+  /** The game's 24px line glyph: SVG path data for a 24x24 viewBox, drawn with a 1.8px round stroke in currentColor. */
+  glyph: string;
+  /** Accent colour (#rrggbb), the same as `--game-<id>` in tokens.css: icon plates and decorations, always with ink on top. */
   accent: string;
+  /** Whether the game reads `settings.contentMode`; the lobby only offers Family / Unhinged for these. */
+  contentModes: boolean;
   /** 'hidden' games are never offered in the lobby picker but a party can start on one through '/?game=slug' (development, tests). */
   status: GameStatus;
 }
@@ -219,7 +231,7 @@ to; `'soon'` and `'hidden'` games are not offered (a hidden game is only reachab
 party through `/?game=<slug>`, which is how Click Race ships for its tests; the picker still shows
 it as the current game then). [`shared/platform/games.test.ts`](../shared/platform/games.test.ts)
 checks every entry: lowercase-letter slug, never 4 characters, unique id and slug, a non-empty
-name/tagline/howToPlay, a `#rrggbb` accent, `1 <= minPlayers` (and `minPlayers <= maxPlayers` when a
+name/tagline/howToPlay, path-data `glyph`, a boolean `contentModes`, a `#rrggbb` accent, `1 <= minPlayers` (and `minPlayers <= maxPlayers` when a
 limit is set; `seatLimit(meta)` in `settings.ts` turns `null` into the room's hard cap), and that
 `gameIdSchema` in `protocol.ts` lists every id.
 
@@ -257,7 +269,7 @@ export interface RoomState<V = unknown, S = Record<string, unknown>> {
 }
 ```
 
-Anything game-specific about a player (Skribble: `guessedThisTurn`, `turnPoints`) lives inside
+Anything game-specific about a player (Scribble: `guessedThisTurn`, `turnPoints`) lives inside
 `V`, keyed by player id, never on `PlayerPublic`.
 
 Your `shared/games/<id>/protocol.ts` declares, with zod where it is validated:
@@ -449,7 +461,7 @@ is exactly the set of participants: ready, not sitting out, connected, within th
 
 **Views.** `view(data, viewerId, ctx)` is called once per recipient for every snapshot, with the
 viewer's id when they are seated and `null` for spectators (the HTTP preview, tests). Hide
-secrets per viewer here (Skribble sends the word only to the drawer and solved guessers).
+secrets per viewer here (Scribble sends the word only to the drawer and solved guessers).
 
 ### 3.4 Client module: `GameClientModule`
 
@@ -529,7 +541,7 @@ inbound message:
   clears, so the seat is still yours if something must be flushed.
 
 Game-specific client state belongs in the game's own zustand store
-(`client/src/games/<id>/store.ts`, see Skribble's [`store.ts`](../client/src/games/skribble/store.ts)),
+(`client/src/games/<id>/store.ts`, see Scribble's [`store.ts`](../client/src/games/skribble/store.ts)),
 never in the platform store.
 
 ---
@@ -549,7 +561,7 @@ same record plus your `settings.defaults`; it should pass for a new game without
 
 1. **No clock, randomness or timers.** Nothing under `server/games/` may contain `Date.now`,
    `new Date`, `Math.random`, `setTimeout`, `setInterval`, `process.`, `node:crypto`,
-   `randomUUID` or `randomBytes` (the only exemption is Skribble's `canvas.ts`). Use `ctx.now`,
+   `randomUUID` or `randomBytes` (the only exemption is Scribble's `canvas.ts`). Use `ctx.now`,
    `ctx.rng()`, `ctx.newId()`. The same holds for the engine itself.
 2. **Never mutate the input.** `handle` receives a frozen copy in the determinism test; spread
    into new objects (`{ ...data, clicks: { ...data.clicks, [id]: n } }`) or use `withDraft`,
@@ -569,7 +581,7 @@ same record plus your `settings.defaults`; it should pass for a new game without
    `MaybePromise` / `after`). What a module needs is `shared/`, `server/platform/game.js` and, for
    side stores, `server/platform/storage.js` and `server/platform/cas.js`.
 7. **Settings must pass their own schema.** `settings.defaults` must satisfy `settings.schema`,
-   `patchSchema` must accept `{}`, and both must strip platform fields (`{ contentMode: 'cheeky' }`
+   `patchSchema` must accept `{}`, and both must strip platform fields (`{ contentMode: 'unhinged' }`
    parses to `{}`), which a `z.object(...)` does by default. Content lives behind
    `settings.contentMode`, never behind a per-game switch.
 8. **Game modules don't import each other** and the platform never imports a game by name; the
@@ -580,7 +592,7 @@ same record plus your `settings.defaults`; it should pass for a new game without
 ## 5. The recipe, step by step
 
 Pick an id (`GameId`, a lowercase identifier), a slug (lowercase letters, **never exactly 4
-characters**), a name, an emoji and an accent. Below the new game is called `wordle` as an example;
+characters**), a name, a 24px line glyph and an accent. Below the new game is called `wordle` as an example;
 replace throughout.
 
 ### Step 1: registry entry
@@ -600,8 +612,9 @@ export type GameId = 'skribble' | 'template' | 'wordle';
   howToPlay: ['Type a five-letter word.', 'Green is right, yellow is misplaced.', 'Solve it in the fewest tries.'],
   minPlayers: 1,
   maxPlayers: null, // or a number when the game cannot seat everyone; the rest sit a game out
-  icon: '🟩',
-  accent: '#16a34a',
+  glyph: 'M4 4h16v16H4z M4 10h16 M10 4v16', // 24px line icon, path data only
+  accent: '#a0d8a0', // also add --game-wordle to tokens.css
+  contentModes: false, // true when the game reads settings.contentMode
   status: 'hidden', // flip to 'live' when ready; 'soon' shows a muted card
 },
 ```
@@ -714,10 +727,11 @@ Style rules that keep the look consistent (details in section 8):
 - Platform CSS is imported first in `main.tsx`, so a game stylesheet wins ties. **Inside a media
   query, prefix overrides of platform classes with your root class** (`.wordle .timer--lg`),
   because an equal-specificity rule depends on bundle order.
-- Only tokens for colours, spacing, radii and shadows; `meta.accent` is the one literal colour,
-  applied inline (`style={{ background: meta.accent }}`) as the template and the lobby game tile do.
+- Only tokens for colours, spacing, radii and shadows; the game's accent is `--game-<id>` (the
+  same value as `meta.accent`), always with ink (`--game-ink`) on top. Put the game's mark in its
+  header with `<GameMark game={meta} />` (the glyph on the accent plate).
 - Sends go through `socket.send({ t: 'guess', word })` from `client/src/platform/net/socket.ts`;
-  wrap them in a small `actions.ts` once there are several (see Skribble's
+  wrap them in a small `actions.ts` once there are several (see Scribble's
   [`actions.ts`](../client/src/games/skribble/actions.ts)).
 
 Unit tests for client modules live next to them (`client/src/games/wordle/wordle.test.ts`) and
@@ -754,12 +768,13 @@ The platform test ids you will use: `home-create`, `home-join`, `code-input-0..3
 `settings-value-<id>`, `settings-<id>`, `start-game`, `start-hint`, `waiting-for-host`,
 `leave-room`, `chat-input`, `chat-send`, `chat-log`, `chat-message` (with `data-kind`), `timer`
 (with `data-seconds`), `overlay-game-end`, `podium-entry`, `back-to-lobby`, `podium-leave`,
-`toast`, `connection-status` (with `data-status`), `site-header`, `brand-link`, `wordmark`.
+`toast`, `connection-status` (with `data-status`; only rendered while the socket is not
+connected), `settings-menu`, `site-header`, `brand-link`, `wordmark`.
 
 ### Step 6: ship it
 
-Set `status: 'live'` in `GameMeta`. The game tile (icon in an accent tile, name, tagline,
-`min-max players`) appears in the lobby picker from `GAME_LIST`; `/wordle/CODE` already routes;
+Set `status: 'live'` in `GameMeta`. The game tile (the glyph on its accent, the name, a check when
+selected) appears in the lobby picker from `GAME_LIST`; `/wordle/CODE` already routes;
 the PWA, Vercel function and Redis driver need no change.
 
 ---
@@ -1085,7 +1100,7 @@ export function ClickRaceScreen({ room, meId }: GameScreenProps<TemplateView, Te
 
   return (
     <div className="race">
-      <SiteHeader crumb={meta.name}>
+      <SiteHeader>
         <button type="button" className="btn btn--ghost btn--sm" onClick={leaveRoom} data-testid="leave-room">
           <LogoutIcon size={16} /> Leave
         </button>
@@ -1234,7 +1249,7 @@ a 44px+ tap target. The accent colour comes from `meta.accent` inline, not from 
   width: min(260px, 70vw);
   aspect-ratio: 1;
   border-radius: 50%;
-  color: #fff;
+  color: var(--game-ink);
   box-shadow: var(--shadow-lg);
   transition: transform 0.06s ease;
   user-select: none;
@@ -1275,7 +1290,7 @@ a 44px+ tap target. The accent colour comes from `meta.accent` inline, not from 
   align-items: center;
   gap: 10px;
   padding: 6px 10px;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-item);
   background: var(--color-surface-2);
 }
 
@@ -1404,11 +1419,11 @@ describe('Click Race settings rows', () => {
 
 ---
 
-## 7. Advanced: side stores (how Skribble streams drawing) and the shared canvas
+## 7. Advanced: side stores (how Scribble streams drawing) and the shared canvas
 
 Most games do not need this; the template deliberately does not use it. Reach for a side store
 only when a game has a **high-rate stream whose every message would be wasteful to run through
-the reducer** (Skribble's drawing: dozens of batches a second that must reach the other players
+the reducer** (Scribble's drawing: dozens of batches a second that must reach the other players
 with minimal latency and be replayed for late joiners). Everything else belongs in the reducer.
 
 ### 7.1 The shared canvas, ready to use
@@ -1421,7 +1436,7 @@ A game that needs a drawing canvas does not write a side store: the platform shi
   `CANVAS_WIDTH` / `CANVAS_HEIGHT`, the client messages (`canvasClientMessageOptions` to spread into
   your own discriminated union, `canvasClientMessageSchema`, `CanvasClientMessage`), the server
   stream `CanvasServerMessage` (`draw` / `undo` / `clear` / `canvas`), `CANVAS_SIDE_MESSAGE_TYPES`
-  and `CanvasWelcomeExtra` / `isCanvasWelcomeExtra` for `welcome.extra`. Skribble's protocol and
+  and `CanvasWelcomeExtra` / `isCanvasWelcomeExtra` for `welcome.extra`. Scribble's protocol and
   constants files re-export all of these under their old names.
 - Server store: [`server/platform/sideStores/canvas.ts`](../server/platform/sideStores/canvas.ts)
   — `createCanvasStore(policy)` returns the `createSideStore` function for your module;
@@ -1450,7 +1465,7 @@ export const myModule = { /* ... */ sideMessages: CANVAS_SIDE_MESSAGE_TYPES, cre
 Then, in your reducer, mint a fresh `canvasId` with `ctx.newId()` whenever the canvas must be
 emptied and emit `{ type: 'side', name: 'reset', payload: { stamp: canvasId } }` plus
 `{ type: 'send', to: 'all', msg: { t: 'clear' } }` (see `resetCanvas` in
-[`server/games/skribble/turns.ts`](../server/games/skribble/turns.ts)). Skribble's whole opt-in is
+[`server/games/skribble/turns.ts`](../server/games/skribble/turns.ts)). Scribble's whole opt-in is
 [`server/games/skribble/canvas.ts`](../server/games/skribble/canvas.ts): `skribbleCanvasPolicy`
 and `createSkribbleCanvasStore`. The store is tested over `MemoryStorage` in
 [`server/platform/sideStores/canvas.test.ts`](../server/platform/sideStores/canvas.test.ts) and
@@ -1463,7 +1478,7 @@ canvas.handleServerMessage`, `onWelcome: canvas.onWelcome`, `onLeave: canvas.onL
 `canvas.store.getState().clear()` at turn boundaries), and renders `<GameCanvas session={canvas}
 canDraw settings turnKey footer={<Toolbar ... onUndo={canvas.undo} onClear={canvas.clear} />} />`.
 The renderer, flood fill, the drawing hook, the batching `DrawQueue` with its offline parking and
-the toolbar's 44px phone styles (`canvas.css`) all live there; Skribble's whole opt-in is
+the toolbar's 44px phone styles (`canvas.css`) all live there; Scribble's whole opt-in is
 [`client/src/games/skribble/canvas.ts`](../client/src/games/skribble/canvas.ts).
 
 ### 7.2 Writing a side store of your own
@@ -1517,7 +1532,7 @@ How it flows:
    `clientMessageSchema` and calls `store.handleMessage(room, playerId, msg, now)` instead of
    dispatching an engine action ([`drivers/room.ts`](../server/platform/drivers/room.ts),
    [`drivers/redis.ts`](../server/platform/drivers/redis.ts)). The reducer still receives these
-   types in its `CMsg` union; Skribble's `handle` simply ignores `draw` / `undo` / `clear`. A
+   types in its `CMsg` union; Scribble's `handle` simply ignores `draw` / `undo` / `clear`. A
    party may switch games, so both drivers resolve the store from the room's *current* `gameId`
    (one store per game, built on first use over the same storage).
 2. **Storage.** `MemoryStorage` ([`storage.ts`](../server/platform/storage.ts)) and
@@ -1529,7 +1544,7 @@ How it flows:
 3. **Fan-out.** The driver broadcasts `outcome.sends` (memory: straight to sockets; Redis: a
    `{ kind: 'side', seq, stamp, sends }` channel message every instance applies to its own
    sockets, skipping changes a joiner's welcome snapshot already included).
-4. **Stamps.** The reducer mints a new id for each "round" of side data (Skribble: `canvasId` via
+4. **Stamps.** The reducer mints a new id for each "round" of side data (Scribble: `canvasId` via
    `ctx.newId()`) and emits `{ type: 'side', name: 'reset', payload: { stamp } }`; the driver
    empties the store and stamps it. `handleMessage` compares `stamp(room)` with the stored stamp and
    refuses writes authorised against stale data. Platform-level lobby transitions (abort, return to
@@ -1554,25 +1569,29 @@ clocks and timers). Document the stream in the game's protocol file and test the
 Everything a game screen needs to look like the rest of the site is in
 `client/src/platform/styles/` and `client/src/platform/components/`. Use these; add game CSS only
 for what is truly game-specific. The brand itself (palette, type, voice, the wordmark and the
-mascots) is documented in [`branding/`](../branding/README.md): dark charcoal and graphite
-surfaces, warm off-white type, lime for the one primary action, lilac sparingly; fine 1px
-borders, 8px controls and 12px panels, flat surfaces. No glow, gradients, blur or glossy effects
-anywhere, in a game stylesheet included.
+mascots) is the Pocket Party pack in [`branding/pocket-party/`](../branding/pocket-party/START_HERE.md)
+(specs in `specs/*.md`; the owner's later decisions win where they differ): a near-black page,
+flat graphite panels on fine borders, off-white type, lime for action and brand, lilac for
+selection; 8px controls, 10px items inside panels, 14px panels, 20px sheets and modals. No glow,
+gradients, blur or glossy effects anywhere, in a game stylesheet included. Copy is short and
+plain, with no em dashes in anything a player sees or hears.
 
 ### 8.1 Tokens ([`tokens.css`](../client/src/platform/styles/tokens.css))
 
 Defined on `:root` (the dark theme, which is the default), redefined under
 `:root[data-theme='light']` (the theme attribute is set before first paint by the inline script
-in `index.html` and kept by the `ThemeToggle`; the operating system preference is not consulted).
+in `index.html` and changed in the settings menu behind the header's gear, `SettingsMenu`; the
+operating system preference is not consulted).
 
 | Group | Tokens |
 | --- | --- |
-| Type | `--font-sans` (body, system sans), `--font-display` (headings: `'Arial Black', 'Helvetica Neue', Arial, system-ui`, weight 900, tight tracking), `--font-mono` (room codes and small labels only) |
+| Type | `--font-sans` (Inter, body), `--font-display` (Space Grotesk 700, headings), `--font-mono` (IBM Plex Mono, room codes and values); self-hosted latin subsets in `client/public/fonts/` (`fonts.css`) |
 | Spacing | `--space-1` 4px, `--space-2` 8px, `--space-3` 12px, `--space-4` 16px, `--space-5` 24px, `--space-6` 32px, `--space-7` 48px, `--space-8` 64px, `--gutter` 16px |
-| Radii | `--radius-sm` 8px (inputs, buttons), `--radius-md` 8px, `--radius-lg` 12px (panels), `--radius-pill` |
+| Radii | `--radius-sm` 8px (inputs, buttons), `--radius-item` 10px (choice cards, code boxes, toasts), `--radius-md` 14px (panels), `--radius-lg` 20px (sheets, modals), `--radius-pill` |
 | Shadows | `--shadow-sm` and `--shadow-md` are `none` (flat surfaces sit on their border); `--shadow-lg` is a soft drop for floating layers only (sheets, toasts) |
-| Surfaces | `--color-bg` #141514, `--color-surface` #20221F, `--color-surface-2`, `--color-surface-3`, `--color-border` #45483F, `--color-border-strong` |
-| Text | `--color-text` #F1F0E8, `--color-text-muted` #B4B7AE, `--color-text-faint` (small text, AA on the panels) |
+| Surfaces | `--color-bg` #141514, `--color-surface` #20221F, `--color-surface-2` #2B2E29 (raised), `--color-surface-3` #191C19 (inset wells: inputs, lists), `--color-border` #454A43, `--color-border-strong` #747D6F (control borders) |
+| Text | `--color-text` #F1F0E8, `--color-text-muted` #B9C0B3, `--color-text-faint` (small text, AA on the panels) |
+| Games | `--game-<id>` per game (the same hex as `GameMeta.accent`) and `--game-ink` for the glyph on top |
 | Brand | `--color-primary` (lime #C7E976, a FILL that always carries `--color-primary-contrast` ink text), `--color-primary-hover`, `--color-primary-soft`, `--color-primary-text` (lime as text/border/stroke on dark, a dark olive on white); `--color-secondary*` (lilac #A699D5) with the same five |
 | Status | `--color-success`, `-soft`, `-text`; `--color-warning*`; `--color-danger*`; `--color-info-soft`; `--color-focus` (flat, restrained, AA on the panels) |
 | Chat | `--chat-correct-bg/fg`, `--chat-close-bg/fg`, `--chat-guessed-bg/fg` |
@@ -1587,8 +1606,8 @@ light theme swaps the `-text` variants for darker cuts while the fills stay lime
 
 | Purpose | Classes |
 | --- | --- |
-| Layout | `.card` (surface, 1px border, `--radius-lg`, `--space-5` padding, no shadow), `.card__head`, `.card__title`, `.card__text` |
-| Buttons | `.btn` with `.btn--primary` (lime, ink text: the one loud action on a screen), `.btn--secondary` (outlined), `.btn--ghost`, `.btn--danger`, sizes `.btn--lg` / `.btn--sm` / `.btn--xs`, `.btn--block`, `.btn--choice` (big option buttons); `.icon-btn`, `.icon-btn--sm` |
+| Layout | `.card` (surface, 1px border, `--radius-md`, 16px padding on phones and 24px on desktop, no shadow), `.card__head`, `.card__title`, `.card__text` |
+| Buttons | `.btn` (48px, 8px corners, Inter 600) with `.btn--primary` (lime, ink text: the one loud action on a screen), `.btn--secondary` (1.5px strong outline), `.btn--ghost` (no border), `.btn--danger` (danger-soft fill, danger border), sizes `.btn--lg` / `.btn--sm` / `.btn--xs`, `.btn--block`, `.btn--choice` (big option buttons); `.text-btn` (a small link-style action with a 44px target); `.icon-btn`, `.icon-btn--sm`; `.segmented`; `.switch` |
 | Text inputs | `.input`, `.input--lg`, `.input.is-invalid`, `.textarea`, `.field`, `.field__label`, `.field__hint`, `.field__error`, `.field__ok` |
 | Badges | `.pill`, `.pill--accent`, `.banner`, `.banner--info`, `.banner--invite`, `.spinner`, `.ellipsis` (animated dots) |
 | Overlays | `.overlay__card`, `.overlay__card--wide`, `.overlay__kicker`, `.overlay__title`, `.overlay__hint`, `.overlay__footer` (the podium uses these; a game's own in-screen overlay can too) |
@@ -1596,13 +1615,13 @@ light theme swaps the `-text` variants for darker cuts while the fills stay lime
 | Chat | `.chat`, `.chat__log`, `.chat__form`, `.chat__input`, `.chat__send`, `.chat-msg` with the kind modifiers `.chat-msg--system/guessed/correct/close/hint` (a plain `chat` line has no modifier rule) |
 | Timer | `.timer`, `.timer--lg`, `.timer--md`, `.timer--urgent` |
 | Sheets and toasts | `.sheet*`, `.menu-sheet*` (a phone options sheet: `.menu-sheet__row`, `.menu-sheet__label`, `.menu-sheet__leave`), `.toasts`, `.toast` with `.toast--success/warning/error` (an `info` toast uses the base style) |
-| Header | `.site-header`, `.site-header__actions`, `.brand` (the wordmark link), `.wordmark` (sized by `--wordmark-width`), `.wordmark--lilac-io`, `.monogram`, `.brand__mark` (a game's own small mark in its in-game header), `.brand__crumb`, `.conn-pill` |
+| Header | `.site-header`, `.site-header__actions`, `.brand` (the wordmark link), `.wordmark` (24px tall on phones, 30px on desktop, via `--wordmark-height`), `.wordmark__accent`, `.game-mark` (a game's glyph on its accent in its header), `.conn-pill` (only while the socket is down), `.settings-menu`, `.pref-row` |
 | Misc | `.avatar--sm/md/lg/xl`, `.swatch`, `.emoji-choice`, `.code-input`, `.range`, `.toggle`, `.setting*`, `.podium*`, `.hide-mobile`, `.sr-only` |
 
 The type-into-the-blanks guess bar (`.guess-*`, `.gtile*`) is the platform's `guess.css`, rendered
 by `GuessTiles`; playing cards, chip counts and the chip setting (`.playing-card*`, `.chip-count*`,
 `.chips-setting*`) are `cards.css`; the canvas and its toolbar (`.canvas-*`, `.toolbar*`) are the platform canvas's
-`canvas.css`. Game-specific classes live in the game's stylesheet; Skribble's `skribble.css` owns
+`canvas.css`. Game-specific classes live in the game's stylesheet; Scribble's `skribble.css` owns
 `.word*`, `.tile*`, `.rating*`, `.overlay` (its in-canvas overlay position), and the whole `.game`
 layout, which is a good reference for a non-scrolling phone game; Hangman's `hangman.css` (`.hm*`)
 is the reference for a scrolling column with a canvas and a keys panel.
@@ -1611,9 +1630,12 @@ is the reference for a scrolling column with a canvas and a keys panel.
 
 | Component | Props | Notes |
 | --- | --- | --- |
-| [`SiteHeader`](../client/src/platform/components/SiteHeader.tsx) | `crumb?: string`, `children?`, `showConnection?: boolean` (default true), `showSound?: boolean` (default true) | The wordmark links to `/` (inside a room that leaves the room: any navigation away from `/:slug/:CODE` does); renders the connection pill and the sound/theme toggles; put a Leave button in `children` |
-| [`Wordmark`](../client/src/platform/components/Wordmark.tsx) / `Monogram` | `className?`, `lilacIo?` | The outlined boredgames.io logo as inline vector paths (`currentColor`, accessible name "boredgames.io", never live text) and the "bg." tile for tight spaces |
-| [`PhoneBored`](../client/src/platform/components/Mascots.tsx) / `PhoneHappy` | `className?` | The two phone characters from the brand pack, decorative (`aria-hidden`) |
+| [`SiteHeader`](../client/src/platform/components/SiteHeader.tsx) | `children?`, `aside?` | The wordmark links to `/` (inside a room that leaves the room: any navigation away from `/:slug/:CODE` does); the connection pill while the socket is down (nothing while connected) and the settings gear; put a Leave button in `children`, the Home mascots in `aside` |
+| [`Wordmark`](../client/src/platform/components/Wordmark.tsx) | `className?` | The outlined boredgames.io logo (Space Grotesk 700 paths) inline, accessible name "boredgames.io", "games" in `--color-primary-text` |
+| [`PhoneBored`](../client/src/platform/components/Mascots.tsx) / `PhoneHappy` | `className?` | The two phone characters from the brand pack, decorative (`aria-hidden`); Home and celebrations only |
+| [`GameGlyph`](../client/src/platform/components/GameGlyph.tsx) / `GameMark` | `game: GameMeta`, icon props / `size?: 'sm' \| 'md'` | The game's 24px line glyph, and the glyph on its accent plate for a game header |
+| [`SettingsMenu`](../client/src/platform/components/Preferences.tsx) / `PreferenceRows` | none | The gear and its popover (theme, sound effects); the rows alone go in a phone options sheet |
+| [`ReadyControls`](../client/src/platform/components/ReadyControls.tsx) | `me`, `context: 'lobby' \| 'podium'` | Not ready: "I'm ready" plus a small "Sit this one out"; ready: "You're ready" (tap to undo); sitting out: only "Count me in" (back in and ready in one tap); the host: "You start the game" |
 | [`Avatar`](../client/src/platform/components/Avatar.tsx) | `avatar`, `size?: 'sm' \| 'md' \| 'lg' \| 'xl'`, `dimmed?`, `className?` | Dim disconnected players |
 | [`AvatarPicker`](../client/src/platform/components/AvatarPicker.tsx) | `value`, `onChange(next)`, `compact?` | Used by the front door's "Who's playing?" step and the lobby |
 | [`CodeInput`](../client/src/platform/components/CodeInput.tsx) | `value`, `onChange(code)`, `onSubmit()`, `onInvalidChar()`, `disabled?`, `invalid?`, `autoFocus?`, `labelledBy?`, `describedBy?`, `ref?: Ref<CodeInputHandle>` | The 4-box code field (A/B/C/D placeholders, uppercase, auto-advance, Backspace, arrows, paste of a code or an invite link, Enter submits, never auto-submits); `ref.focus(i)` moves to a box |
@@ -1624,27 +1646,27 @@ is the reference for a scrolling column with a canvas and a keys panel.
 | `RangeControl` | `id`, `value`, `min`, `max`, `step?`, `onCommit(v)`, `label`, `revision` | Debounced 150 ms; test id `settings-<id>` |
 | `RangeSetting` | `RangeControl` props + `canEdit`, `display?`, `hint?`, `rowLabel?` | A row with the slider for editors and the value for everyone |
 | `ToggleSetting` | `id`, `checked`, `onChange(checked)`, `label`, `disabled?`, `hint?` | Test ids `settings-row-<id>`, `settings-<id>` |
-| `WordListSetting` | `id`, `label`, `words`, `canEdit`, `parse(text)`, `onCommit(words)`, `placeholder?`, `maxLength?` | A custom word list: a debounced textarea for editors, the list for everyone (Skribble's and Hangman's custom words); test ids `settings-row-<id>`, `settings-<id>-count`, `settings-<id>` |
+| `WordListSetting` | `id`, `label`, `words`, `canEdit`, `parse(text)`, `onCommit(words)`, `placeholder?`, `maxLength?` | A custom word list: a debounced textarea for editors, the list for everyone (Scribble's and Hangman's custom words); test ids `settings-row-<id>`, `settings-<id>-count`, `settings-<id>` |
 | [`PlayingCard`](../client/src/platform/components/PlayingCard.tsx) | `card: Card \| null`, `size?: 'sm' \| 'md' \| 'lg' \| 'xl'`, `testId?` ('card'), `slot?`, `highlight?`, `className?` | A white CSS card in both themes; a face-down card's markup carries no rank or suit (`data-face`, `data-rank`, `data-suit` on face-up cards); `cardName(card)` is its accessible name. Blackjack and Poker |
 | [`Chips`](../client/src/platform/components/Chips.tsx) | `value`, `size?`, `className?`, `testId?` | A chip count with the coin (`data-chips`); `ChipIcon` alone for inputs |
 | [`ChipsSetting`](../client/src/platform/components/ChipsSetting.tsx) | `id`, `label`, `value`, `min`, `max`, `presets`, `canEdit`, `onCommit(v)`, `hint?`, `display?` | A chip amount row: preset buttons and a numeric field committed on blur or Enter, clamped; test ids `settings-<id>`, `settings-<id>-<preset>` |
-| [`GuessTiles`](../client/src/platform/components/GuessTiles.tsx) | `mask`, `draft`, `onDraftChange(draft)`, `onSubmit(text): boolean`, `canSend`, `placeholder?`, `focusMemory?`, `inputTestId?`, `sendTestId?` | Type into the blanks of a masked word (layout in [`lib/wordMask.ts`](../client/src/platform/lib/wordMask.ts)); Skribble's guess bar and Hangman's whole-word guess |
+| [`GuessTiles`](../client/src/platform/components/GuessTiles.tsx) | `mask`, `draft`, `onDraftChange(draft)`, `onSubmit(text): boolean`, `canSend`, `placeholder?`, `focusMemory?`, `inputTestId?`, `sendTestId?` | Type into the blanks of a masked word (layout in [`lib/wordMask.ts`](../client/src/platform/lib/wordMask.ts)); Scribble's guess bar and Hangman's whole-word guess |
 | [`Timer`](../client/src/platform/components/Timer.tsx) | `endsAt: number \| null \| undefined`, `warnUnder?` (10), `tickUnder?`, `size?: 'md' \| 'lg'` | Server-clock countdown; `tickUnder` plays a tick cue for the final seconds |
 | [`BottomSheet`](../client/src/platform/components/BottomSheet.tsx) | `open`, `title`, `onClose()`, `children`, `testId` | Phone sheet with focus trap and Escape; `${testId}-close`, `${testId}-backdrop` |
 | [`PodiumOverlay`](../client/src/platform/components/PodiumOverlay.tsx) | `room`, `isHost` | Rendered by the shell on `'ended'`; you never render it |
-| [`Toasts`](../client/src/platform/components/Toasts.tsx), [`ConnectionPill`](../client/src/platform/components/ConnectionPill.tsx), [`ThemeToggle`](../client/src/platform/components/ThemeToggle.tsx) / `SoundToggle` | none | Toasts is rendered once by the shell; add toasts with `usePlatformStore.getState().addToast(kind, text)` |
-| [`Icons`](../client/src/platform/components/Icons.tsx) | `Icon({ paths, size?, ...svg })` plus `DiceIcon`, `CrownIcon`, `CheckIcon`, `CopyIcon`, `LinkIcon`, `SunIcon`, `MoonIcon`, `SoundOnIcon`, `SoundOffIcon`, `CloseIcon`, `UsersIcon`, `ChevronIcon`, `ArrowRightIcon`, `LogoutIcon`, `PlayIcon`, `KickIcon`, `SparkIcon`, `EditIcon`, `SendIcon`, `MoreIcon` | Build game icons from the `Icon` primitive (24×24 stroke paths), as Skribble's [`Icons.tsx`](../client/src/games/skribble/components/Icons.tsx) does |
+| [`Toasts`](../client/src/platform/components/Toasts.tsx), [`ConnectionPill`](../client/src/platform/components/ConnectionPill.tsx) | none | Toasts is rendered once by the shell; add toasts with `usePlatformStore.getState().addToast(kind, text)` (errors stay until dismissed); the pill renders nothing while connected |
+| [`Icons`](../client/src/platform/components/Icons.tsx) | `Icon({ paths, size?, ...svg })` (1.8px round stroke) plus `DiceIcon`, `CrownIcon`, `CheckIcon`, `CopyIcon`, `ShareIcon`, `ChatIcon`, `GearIcon`, `AlertIcon`, `LinkIcon`, `SunIcon`, `MoonIcon`, `SoundOnIcon`, `SoundOffIcon`, `CloseIcon`, `UsersIcon`, `ChevronIcon`, `ArrowRightIcon`, `LogoutIcon`, `PlayIcon`, `KickIcon`, `SparkIcon`, `EditIcon`, `SendIcon`, `MoreIcon` | Build game icons from the `Icon` primitive (24×24 stroke paths), as Scribble's [`Icons.tsx`](../client/src/games/skribble/components/Icons.tsx) does |
 
 ### 8.4 Mobile layout rules
 
 - **Breakpoint 760px.** `@media (max-width: 760px)` is the phone layout everywhere; the lobby
   also collapses columns at 1100px. Width-check at 390×844 (portrait), 320×568 (small portrait),
   375×375 / 360×304 / 320×310 (keyboard open) and 844×390 (landscape); `e2e/mobile.spec.ts` runs
-  Skribble through all of them.
+  Scribble through all of them.
 - **`PHONE_QUERY`** in [`lib/media.ts`](../client/src/platform/lib/media.ts)
   (`(max-width: 760px), (min-aspect-ratio: 3/2) and (max-height: 520px)`) with
   `useMediaQuery(PHONE_QUERY)` decides between desktop columns and phone stacking in JS when CSS
-  alone is not enough (Skribble swaps its players and chat columns for `BottomSheet`s).
+  alone is not enough (Scribble swaps its players and chat columns for `BottomSheet`s).
 - **Non-scrolling screens.** `useAppMode(isPhone)` from [`lib/useViewport.ts`](../client/src/platform/lib/useViewport.ts)
   puts `html.is-app` on the document (page never scrolls, `height: 100%`), and the shell publishes
   the visible viewport height as `--app-height` so a fixed layout sits above the on-screen
@@ -1654,7 +1676,7 @@ is the reference for a scrolling column with a canvas and a keys panel.
   more (`base.css` enforces `max(1em, 16px)`) so iOS does not zoom.
 - **Order and specificity.** Platform CSS is imported first by `main.tsx`; a game stylesheet is
   imported by its module. Overriding a platform class inside a media query needs your root class
-  in front (`.game .timer--lg` in Skribble), otherwise the result depends on bundle order.
+  in front (`.game .timer--lg` in Scribble), otherwise the result depends on bundle order.
 - `prefers-reduced-motion` is honoured globally in `base.css`; `touch-action: manipulation` on
   buttons removes the double-tap delay.
 
@@ -1722,7 +1744,7 @@ Run from the repository root; everything is green at HEAD.
    (`.github/workflows/ci.yml`) installs Chromium with `npx playwright install --with-deps chromium`.
 5. Phone viewport: add at least one e2e check for your screen at 390×844 (`isMobile`, `hasTouch`)
    asserting no horizontal overflow (`document.documentElement.scrollWidth <= 390`) and 44px
-   targets, as `home.spec.ts` does for the front door and `mobile.spec.ts` for Skribble.
+   targets, as `home.spec.ts` does for the front door and `mobile.spec.ts` for Scribble.
 6. Manual pass: two browser tabs (or a phone on the same network via `npm run dev`), reload one
    mid-game (the seat survives, the view comes back from the snapshot and `welcome.extra`), let a
    player leave mid-game, join mid-game with the code, kick someone, finish a game and return to
@@ -1737,7 +1759,7 @@ Run from the repository root; everything is green at HEAD.
 
 - **Slugs and codes share the URL.** A slug of exactly 4 characters would be parsed as a room
   code; the registry test refuses it.
-- **Codes are one namespace across games.** A code typed on Skribble's home can belong to a
+- **Codes are one namespace across games.** A code typed on Scribble's home can belong to a
   Click Race room; the preview says so and joining it enters that game. Don't assume the game from
   the URL before the room arrives; `room.gameId` is the truth.
 - **`room.game` is `null` in the lobby** and your `Screen` is not mounted then. `PlayerList`,

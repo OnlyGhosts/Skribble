@@ -132,11 +132,12 @@ test('the front door renders and the host creates a room with a readable 4-chara
   await host.page.goto('/');
   await expect(host.page.getByTestId('home-create')).toBeVisible();
   await expect(host.page.getByTestId('home-join')).toBeVisible();
-  await expect(host.page.getByTestId('connection-status')).toHaveAttribute('data-status', 'connected');
+  // Connected: no status badge (it only shows while the socket is down).
+  await expect(host.page.getByTestId('connection-status')).toHaveCount(0);
 
   roomCode = await createParty(host.page, host.name);
   expect(roomCode).toMatch(ROOM_CODE_RE);
-  await expect(host.page).toHaveURL(new RegExp(`/skribble/${roomCode}$`));
+  await expect(host.page).toHaveURL(new RegExp(`/scribble/${roomCode}$`));
   await expect(playerItem(host.page, host.name).getByTestId('host-crown')).toBeVisible();
   await expect(host.page.getByTestId('start-game')).toBeDisabled();
   await expect(host.page.getByTestId('start-hint')).toBeVisible();
@@ -166,14 +167,14 @@ test('player 2 joins by typing the code and player 3 joins through the share lin
   await expect(bob.page.getByTestId('name-step')).toHaveCount(0);
   await expect(bob.page.getByTestId('room-code')).toHaveText(roomCode);
 
-  await joinByLink(carol.page, carol.name, `/skribble/${roomCode}`, roomCode);
+  await joinByLink(carol.page, carol.name, `/scribble/${roomCode}`, roomCode);
 
   for (const p of players) {
     await expect(p.page.getByTestId('player-item')).toHaveCount(3);
     await expect(playerItem(p.page, host.name).getByTestId('host-crown')).toBeVisible();
     await expect(playerItem(p.page, bob.name).getByTestId('host-crown')).toHaveCount(0);
     await expect(playerItem(p.page, carol.name).getByTestId('host-crown')).toHaveCount(0);
-    await expect(p.page).toHaveURL(new RegExp(`/skribble/${roomCode}$`));
+    await expect(p.page).toHaveURL(new RegExp(`/scribble/${roomCode}$`));
   }
   await expect(host.page.getByTestId('chat-log')).toContainText(`${bob.name} joined`);
   await expect(host.page.getByTestId('chat-log')).toContainText(`${carol.name} joined`);
@@ -296,7 +297,7 @@ test('pressing Enter (and Tab) on the podium never takes a player out of the roo
     await p.page.keyboard.press('Enter');
     await p.page.waitForTimeout(400);
     await expect(p.page.getByTestId('overlay-game-end')).toBeVisible();
-    await expect(p.page).toHaveURL(new RegExp(`/skribble/${roomCode}$`));
+    await expect(p.page).toHaveURL(new RegExp(`/scribble/${roomCode}$`));
     await expect(p.page.getByTestId('podium-leave')).toHaveCount(0);
   }
   for (const p of players) await expect(p.page.getByTestId('player-item')).toHaveCount(3);

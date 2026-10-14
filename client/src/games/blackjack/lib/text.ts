@@ -26,7 +26,7 @@ export function phaseKicker(view: BlackjackView, turnName: string, mine: boolean
     case 'betting':
       return short ? 'Bet now' : 'Place your bets';
     case 'acting':
-      if (mine) return short ? 'Your move' : 'Your move — hit or stand?';
+      if (mine) return short ? 'Your move' : 'Your move: hit or stand?';
       return short ? `${turnName}'s move` : `${turnName} is playing`;
     case 'results':
       return view.paused ? 'Paused' : 'Results';

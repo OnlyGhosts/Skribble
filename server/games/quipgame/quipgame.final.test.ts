@@ -34,7 +34,7 @@ describe('Quip Game: the final round', () => {
     const s = sim('quipgame');
     const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol'], { finalRound: true });
     reachFinal(s, alice);
-    expect(chatTexts(s.effects)).toContain('Final round — one prompt, everyone answers!');
+    expect(chatTexts(s.effects)).toContain('Final round: one prompt, everyone answers!');
     expect(data(s).prompts).toEqual([{ id: 'r3-p0', text: expect.any(String), authorIds: [alice, bob, carol] }]);
     expect(data(s).final).toEqual({ order: [], rankings: {}, announcerId: null, result: null });
     for (const id of [alice, bob, carol]) {
@@ -308,7 +308,7 @@ describe('Quip Game: holding for missing players', () => {
     expect(viewFor(s.data, alice, s.now).waiting).toBeNull();
     s.now += RESUME_SETTLE_MS;
     const started = s.tick();
-    expect(chatTexts(started)).toEqual(['Round 2 of 2 — write your answers! Double points!']);
+    expect(chatTexts(started)).toEqual(['Round 2 of 2: write your answers! Double points!']);
     expect(data(s)).toMatchObject({ phase: 'writing', round: 2, roundPlayers: [alice, bob, carol], endsAt: s.now + 30_000, resumeAt: null });
     expect(viewFor(s.data, alice, s.now).waiting).toBeNull();
     expect(view(s, bob).myPrompts).toHaveLength(2);
@@ -367,7 +367,7 @@ describe('Quip Game: holding for missing players', () => {
     const { droppedAt } = holdAtRoundEnd(expired, alice, [bob]);
     expired.now = droppedAt + RECONNECT_GRACE_MS;
     const effects = expired.tick();
-    expect(chatTexts(effects)).toEqual(['Bob left', 'Not enough players — back to the lobby.']);
+    expect(chatTexts(effects)).toEqual(['Bob left', 'Not enough players. Back to the lobby.']);
     expect(expired.data).toMatchObject({ phase: 'lobby', game: null, podium: null, waiting: null });
     expect(expired.data.players.map((p) => p.id)).not.toContain(bob);
     expect(expired.data.players.every((p) => p.score === 0)).toBe(true);

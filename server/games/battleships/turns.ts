@@ -130,12 +130,12 @@ export function fireTimedOut(gx: Gx): void {
   if (!side) return beginTurn(gx);
   const targets = aliveSides(data).filter((s) => s.id !== side.id && openCells(gx, s).length > 0);
   if (targets.length === 0) {
-    systemMessage(gx, 'No cell is left to shoot at — the battle is a draw.');
+    systemMessage(gx, 'No cell is left to shoot at. The battle is a draw.');
     return finishGame(gx, null);
   }
   const target = pick(ctx, targets);
   const cell = pick(ctx, openCells(gx, target));
-  systemMessage(gx, `${nameOf(ctx, shooterId)} ran out of time — a shot is fired for them.`);
+  systemMessage(gx, `${nameOf(ctx, shooterId)} ran out of time. A shot is fired for them.`);
   applyShot(gx, side, shooterId, target, cell.x, cell.y, true);
 }
 
@@ -165,7 +165,7 @@ function applyShot(gx: Gx, side: SideData, shooterId: string, target: SideData, 
 
   if (target.ships.every((s) => s.hits >= s.length)) {
     target.alive = false;
-    systemMessage(gx, `${sideName(ctx, data, target)}'s fleet is sunk — ${data.mode === 'teams' ? `Team ${target.id} is` : 'they are'} out!`);
+    systemMessage(gx, `${sideName(ctx, data, target)}'s fleet is sunk. ${data.mode === 'teams' ? `Team ${target.id} is` : 'They are'} out!`);
     if (aliveSides(data).length < 2) return beginTurn(gx);
   }
 
@@ -177,7 +177,7 @@ function applyShot(gx: Gx, side: SideData, shooterId: string, target: SideData, 
     // room that every afloat ship is damaged or boxed in. The shooter's own view lists what can go.
     if (roll >= BATTLESHIPS_MOVE_ROLL) {
       data.phase = { kind: 'moving', sideId: side.id, shooterId, endsAt: ctx.now + BATTLESHIPS_MOVE_SECONDS * 1000 };
-      gx.effects.push({ type: 'chat', to: 'all', kind: 'hint', text: `${shooter} rolls a ${roll} — a ship may slip away!` });
+      gx.effects.push({ type: 'chat', to: 'all', kind: 'hint', text: `${shooter} rolls a ${roll}. A ship may slip away!` });
       return snapshot(gx);
     }
   }
@@ -209,7 +209,7 @@ export function endMove(gx: Gx): void {
 export function shooterAway(gx: Gx, playerId: string): void {
   const { ctx, data } = gx;
   if ((data.phase.kind !== 'turn' && data.phase.kind !== 'moving') || data.phase.shooterId !== playerId) return;
-  systemMessage(gx, `${nameOf(ctx, playerId)} is away — skipping their turn.`);
+  systemMessage(gx, `${nameOf(ctx, playerId)} is away. Skipping their turn.`);
   beginTurn(gx);
 }
 
@@ -225,7 +225,7 @@ export function memberLeft(gx: Gx, playerId: string): void {
   }
   side.memberIds = side.memberIds.filter((id) => id !== playerId);
   if (side.memberIds.length === 0 && data.mode === 'teams') {
-    gx.effects.push({ type: 'abort', reason: `Team ${side.id} has nobody left — back to the lobby.` });
+    gx.effects.push({ type: 'abort', reason: `Team ${side.id} has nobody left. Back to the lobby.` });
     return;
   }
   if (side.memberIds.length === 0 && side.alive) {
@@ -242,7 +242,7 @@ function finishGame(gx: Gx, winner: SideData | null): void {
   data.phase = { kind: 'gameOver', winnerSideId: winner?.id ?? null };
   if (winner) {
     for (const id of winner.memberIds) award(gx, id, BATTLESHIPS_POINTS.win);
-    systemMessage(gx, `${sideName(ctx, data, winner)} wins — the last fleet afloat!`);
+    systemMessage(gx, `${sideName(ctx, data, winner)} wins with the last fleet afloat!`);
   }
   gx.effects.push({ type: 'gameOver' });
 }

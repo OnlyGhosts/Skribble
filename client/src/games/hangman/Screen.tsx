@@ -3,11 +3,12 @@ import type { HangmanSettings, HangmanView } from '@shared/games/hangman/protoco
 import { gameById } from '@shared/platform/games';
 import { DEFAULT_DRAWING_SETTINGS, GameCanvas, Toolbar, type DrawingSettings } from '../../platform/canvas';
 import { BottomSheet } from '../../platform/components/BottomSheet';
+import { GameMark } from '../../platform/components/GameGlyph';
 import { Chat } from '../../platform/components/Chat';
 import { ConnectionPill } from '../../platform/components/ConnectionPill';
 import { LogoutIcon, MoreIcon, UsersIcon } from '../../platform/components/Icons';
 import { PlayerList } from '../../platform/components/PlayerList';
-import { SoundToggle, ThemeToggle } from '../../platform/components/ThemeToggle';
+import { PreferenceRows, SettingsMenu } from '../../platform/components/Preferences';
 import { Timer } from '../../platform/components/Timer';
 import type { GameScreenProps } from '../../platform/game';
 import { PHONE_QUERY, useMediaQuery } from '../../platform/lib/media';
@@ -120,9 +121,7 @@ export function HangmanScreen({ room, meId, isHost }: GameScreenProps<HangmanVie
       <header className="hm__top card" data-testid="hangman-header">
         <div className="hm__brand">
           {!isPhone && (
-            <span className="brand__mark brand__mark--sm" style={{ background: meta.accent }} aria-hidden="true">
-              <RopeIcon size={16} />
-            </span>
+            <GameMark game={meta} size="sm" />
           )}
           <div className="hm__round" data-testid="round-indicator" data-round={view.round} data-turn={view.turn}>
             <strong>{isPhone ? `Round ${view.round}/${view.totalRounds}` : `Round ${view.round} of ${view.totalRounds}`}</strong>
@@ -164,8 +163,7 @@ export function HangmanScreen({ room, meId, isHost }: GameScreenProps<HangmanVie
           ) : (
             <>
               <ConnectionPill />
-              <SoundToggle />
-              <ThemeToggle />
+              <SettingsMenu />
               <button type="button" className="btn btn--ghost btn--sm" onClick={leaveRoom} data-testid="leave-room" aria-label="Leave room">
                 <LogoutIcon size={16} /> <span className="hide-mobile">Leave</span>
               </button>
@@ -226,18 +224,7 @@ export function HangmanScreen({ room, meId, isHost }: GameScreenProps<HangmanVie
           </BottomSheet>
           <BottomSheet open={sheet === 'menu'} title="Options" onClose={closeSheet} testId="menu-sheet">
             <div className="menu-sheet">
-              <div className="menu-sheet__row">
-                <span className="menu-sheet__label">Connection</span>
-                <ConnectionPill />
-              </div>
-              <div className="menu-sheet__row">
-                <span className="menu-sheet__label">Sound</span>
-                <SoundToggle />
-              </div>
-              <div className="menu-sheet__row">
-                <span className="menu-sheet__label">Theme</span>
-                <ThemeToggle />
-              </div>
+              <PreferenceRows />
               <button type="button" className="btn btn--ghost btn--block menu-sheet__leave" onClick={leaveRoom} data-testid="leave-room">
                 <LogoutIcon size={16} /> Leave room
               </button>

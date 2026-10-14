@@ -1,3 +1,5 @@
+> Superseded by the Pocket Party pack in [`branding/pocket-party/`](../../pocket-party/START_HERE.md); kept for reference only.
+
 # boredgames.io rebrand handoff
 
 Unzip into your existing project as `branding/`. Give Claude Code `CLAUDE_CODE_BRIEF.md` and ask it to implement the brief in the current repository.

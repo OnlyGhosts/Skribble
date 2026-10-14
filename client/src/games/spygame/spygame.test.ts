@@ -148,7 +148,7 @@ describe('the screen per role', () => {
     const away = render(spyRoom(view({ clock: { endsAt: null, pausedRemainingMs: 30_000, pausedReason: 'spyAway', waitingForId: 'host' } })), 'bob');
     expect(tagWith(away, 'timer')).toContain('data-paused="spyAway"');
     expect(tagWith(away, 'spygame-waiting')).toBeTruthy();
-    expect(away).toContain('waiting for host to come back');
+    expect(away).toContain('Waiting for host to come back');
   });
 });
 
@@ -386,14 +386,14 @@ describe('snapshot cues and local state', () => {
     usePlatformStore.getState().handleServerMessage(welcome('carol', spyRoom(view())));
     const texts = () => usePlatformStore.getState().toasts.map((t) => [t.kind, t.text]);
     snapshot(spyRoom(view({ spyGuessed: ['airplane'], guessesLeft: 1 })));
-    expect(texts()).toEqual([['warning', 'The spy guessed wrong — 1 guess left']]);
+    expect(texts()).toEqual([['warning', 'The spy guessed wrong. 1 guess left']]);
     // Carol is the spy here: no sheet, so a toast tells her a vote is on. The sheet is the voters' notice.
     snapshot(spyRoom(view({ phase: 'voting', spyGuessed: ['airplane'], guessesLeft: 1, role: 'spy', locationId: null, vote: { ...VOTE, canVote: false } })));
-    expect(texts()).toContainEqual(['info', 'bob accuses host of being the spy — vote now']);
+    expect(texts()).toContainEqual(['info', 'bob accuses host of being the spy. Vote now']);
     expect(useSpygameStore.getState().voteSheetOpen).toBe(false);
     snapshot(spyRoom(view({ spyGuessed: ['airplane'], guessesLeft: 1, role: 'spy', locationId: null })));
     snapshot(spyRoom(view({ spyGuessed: ['airplane'], guessesLeft: 1, role: 'spy', locationId: null, clock: { endsAt: null, pausedRemainingMs: 50_000, pausedReason: 'spyAway', waitingForId: 'carol' } })));
-    expect(texts()).toContainEqual(['info', 'Clock paused — waiting for carol to come back']);
+    expect(texts()).toContainEqual(['info', 'Clock paused. Waiting for carol to come back']);
     expect(texts()).toHaveLength(3);
     // The accused hears it in the second person; a voter gets the sheet, not a toast.
     usePlatformStore.getState().handleServerMessage(welcome('host', spyRoom(view())));

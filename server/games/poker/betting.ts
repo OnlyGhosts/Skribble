@@ -173,7 +173,7 @@ export function actTimedOut(gx: Gx): void {
   const turn = turnOf(gx.data);
   if (turn === null) return;
   const actions = actionsFor(gx.data, turn);
-  systemMessage(gx, `${nameOf(gx.ctx, turn)} ran out of time — ${actions.canCheck ? 'checks' : 'folds'}.`);
+  systemMessage(gx, `${nameOf(gx.ctx, turn)} ran out of time and ${actions.canCheck ? 'checks' : 'folds'}.`);
   if (actions.canCheck) check(gx, turn);
   else fold(gx, turn);
 }

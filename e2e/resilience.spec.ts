@@ -195,7 +195,8 @@ test.describe('Skribble keeps going through a dropped link and a discarded tab',
     if (remaining > 0) await other.page.waitForTimeout(remaining);
     await goOnline(offline, links.get(offline) as Link);
 
-    await expect(offline.page.getByTestId('connection-status')).toHaveAttribute('data-status', 'connected', { timeout: 15_000 });
+    // Back online: the status pill goes away (there is no Connected badge).
+    await expect(offline.page.getByTestId('connection-status')).toHaveCount(0, { timeout: 15_000 });
     await expect(offline.page.getByTestId('reconnecting-banner')).toHaveCount(0);
     await expect(other.page.getByTestId('overlay-waiting')).toHaveCount(0, { timeout: 15_000 });
     // The player who came back never saw a nameless "waiting for players" of their own.
@@ -224,7 +225,7 @@ test.describe('Skribble keeps going through a dropped link and a discarded tab',
       if (msg.type() === 'error') guest.errors.push(`${guest.name}: ${msg.text()}`);
     });
     guest.page = page;
-    await page.goto(`/skribble/${code}`);
+    await page.goto(`/scribble/${code}`);
     await expect(page.getByTestId('game-header')).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId('home-join')).toHaveCount(0);
     await expect(page.locator(`[data-testid="player-item"][data-name="${nameBefore}"]`)).toHaveClass(/player--me/);
@@ -344,7 +345,7 @@ test.describe('Spy Game holds for a dropped phone and the host may remove it', (
       await expect(p.page.getByTestId('overlay-waiting')).toHaveCount(0);
       await expect(p.page.getByTestId('player-item')).toHaveCount(2);
       await expect(p.page.getByTestId('chat-log')).toContainText(`${offline.name} was kicked`);
-      await expect(p.page.getByTestId('chat-log')).toContainText('Not enough players — back to the lobby.');
+      await expect(p.page.getByTestId('chat-log')).toContainText('Not enough players. Back to the lobby.');
     }
     await expect(host.page.getByTestId('start-game')).toBeDisabled();
 
@@ -466,7 +467,7 @@ test.describe('a rejoin that never gets an answer', () => {
       await player.page.evaluate(() => {
         localStorage.setItem('boredgames.seat.ABCD', JSON.stringify({ code: 'ABCD', token: 'stale-token', playerId: 'p1', savedAt: Date.now() }));
       });
-      await player.page.goto('/skribble/ABCD');
+      await player.page.goto('/scribble/ABCD');
       await expect(player.page.getByTestId('rejoining-banner')).toBeVisible();
       await expect(player.page.getByTestId('home-join')).toHaveCount(0);
       await expect(player.page.getByTestId('home-join')).toBeVisible({ timeout: 25_000 });

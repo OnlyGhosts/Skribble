@@ -16,7 +16,7 @@ export function startFinal(gx: Gx): void {
   data.prompts = [{ id: `r${data.round}-p0`, text, authorIds: [...data.roundPlayers] }];
   data.phase = 'finalWriting';
   data.endsAt = ctx.now + ctx.settings.writeSeconds * 1000;
-  systemMessage(gx, 'Final round — one prompt, everyone answers!');
+  systemMessage(gx, 'Final round: one prompt, everyone answers!');
   snapshot(gx);
 }
 

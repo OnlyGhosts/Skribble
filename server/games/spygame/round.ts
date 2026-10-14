@@ -26,7 +26,7 @@ export function buildRound(gx: Gx): RoundData {
   const { data, ctx } = gx;
   const playerIds = ctx.players.filter((p) => p.connected).map((p) => p.id);
   const spyId = pickSpy(gx, playerIds);
-  // The room's content mode picks the pool: the family pack, plus the cheeky and unhinged tiers.
+  // The room's content mode picks the pool: the family pack, plus the cheeky and unhinged tiers when Unhinged.
   const pool = locationsForMode(ctx.settings.contentMode);
   if (pool.every((l) => data.usedLocationIds.includes(l.id))) data.usedLocationIds = [];
   const location = pickLocation(data.usedLocationIds, ctx.rng, pool);
@@ -53,7 +53,7 @@ export function buildRound(gx: Gx): RoundData {
 export function beginRound(gx: Gx): void {
   const { data, ctx } = gx;
   if (ctx.players.length < MIN_PLAYERS) {
-    gx.effects.push({ type: 'abort', reason: 'Not enough players — back to the lobby.' });
+    gx.effects.push({ type: 'abort', reason: 'Not enough players. Back to the lobby.' });
     return;
   }
   if (connectedCount(ctx) < MIN_PLAYERS) return hold(gx);
@@ -64,7 +64,7 @@ export function beginRound(gx: Gx): void {
   data.phase = 'playing';
   data.vote = null;
   data.reveal = null;
-  systemMessage(gx, `Round ${data.round} of ${ctx.settings.rounds} — look at your phone`);
+  systemMessage(gx, `Round ${data.round} of ${ctx.settings.rounds}: look at your phone`);
   snapshot(gx);
 }
 
@@ -166,15 +166,15 @@ function outcomeLine(gx: Gx, outcome: SpygameOutcome, accusedId: string | null):
     case 'spyGuessed':
       return `${spy} was the spy and guessed the location: ${place}!`;
     case 'spyWrong':
-      return `The spy guessed wrong again! ${spy} was the spy — the agents win. It was the ${place}.`;
+      return `The spy guessed wrong again! ${spy} was the spy. The agents win. It was the ${place}.`;
     case 'spyCaught':
-      return `${spy} was the spy — caught! The agents win. It was the ${place}.`;
+      return `${spy} was the spy and got caught! The agents win. It was the ${place}.`;
     case 'wrongAccusation':
-      return `${accusedId !== null ? nameOf(gx.ctx, accusedId) : 'That'} was not the spy. ${spy} wins the round — it was the ${place}.`;
+      return `${accusedId !== null ? nameOf(gx.ctx, accusedId) : 'That'} was not the spy. ${spy} wins the round. It was the ${place}.`;
     case 'timeUp':
-      return `Time's up! ${spy} was the spy — the agents win. It was the ${place}.`;
+      return `Time's up! ${spy} was the spy. The agents win. It was the ${place}.`;
     case 'spyLeft':
-      return `${spy} (the spy) left — the agents win the round. It was the ${place}.`;
+      return `${spy} (the spy) left. The agents win the round. It was the ${place}.`;
   }
 }
 
@@ -214,5 +214,5 @@ export function nextRound(gx: Gx, playerId: string): void {
 export function endGame(gx: Gx, playerId: string): void {
   if (playerId !== gx.ctx.hostId) return fail(gx, playerId, 'Only the host can end the game.');
   if (gx.data.phase !== 'reveal' && gx.data.phase !== 'waiting') return fail(gx, playerId, 'The game can only be ended from the reveal.');
-  gx.effects.push({ type: 'abort', reason: 'The host ended the game — back to the lobby.' });
+  gx.effects.push({ type: 'abort', reason: 'The host ended the game. Back to the lobby.' });
 }

@@ -16,23 +16,20 @@ describe('word lists', () => {
 describe('wordPoolForMode', () => {
   const lower = (list: readonly string[]): Set<string> => new Set(list.map((w) => w.toLowerCase()));
 
-  it('is the language list for family and grows by tier, deduplicated across lists', () => {
+  it('is the language list for family and adds both tiers for unhinged, deduplicated across lists', () => {
     const family = wordPoolForMode('family');
     expect(family).toEqual(getWordList('en'));
-    const cheeky = wordPoolForMode('cheeky');
     const unhinged = wordPoolForMode('unhinged');
-    expect(cheeky.length).toBeGreaterThan(family.length);
-    expect(unhinged.length).toBeGreaterThan(cheeky.length);
-    for (const pool of [cheeky, unhinged]) expect(lower(pool).size).toBe(pool.length);
-    // Every family word stays in; every tier word is reachable in its mode (a duplicate of the language list once).
-    for (const w of family) expect(lower(cheeky).has(w.toLowerCase())).toBe(true);
-    for (const w of CHEEKY_WORDS) expect(lower(cheeky).has(w.toLowerCase())).toBe(true);
+    expect(unhinged.length).toBeGreaterThan(family.length);
+    expect(lower(unhinged).size).toBe(unhinged.length);
+    // Every family word stays in; every cheeky and unhinged word is in the Unhinged pool (a duplicate of the language list once).
+    for (const w of family) expect(lower(unhinged).has(w.toLowerCase())).toBe(true);
     for (const w of [...CHEEKY_WORDS, ...UNHINGED_WORDS]) expect(lower(unhinged).has(w.toLowerCase())).toBe(true);
     // Family never leaks a tier word that is not also in the language list.
     const tierOnly = TIER_WORDS.unhinged.filter((w) => !lower(family).has(w.toLowerCase()));
     expect(tierOnly.length).toBeGreaterThan(100);
     for (const w of tierOnly) expect(lower(family).has(w.toLowerCase())).toBe(false);
-    expect(lower(cheeky).has('porn')).toBe(false);
+    expect(lower(family).has('porn')).toBe(false);
     expect(lower(unhinged).has('porn')).toBe(true);
   });
 });

@@ -27,7 +27,7 @@ export function vote(gx: Gx, playerId: string, choice: QuipgameChoice): void {
   const { data } = gx;
   const m = currentMatchup(data);
   if (data.phase !== 'voting' || !m) return fail(gx, playerId, 'There is no matchup to vote on.');
-  if (matchupAuthors(data, m).includes(playerId)) return fail(gx, playerId, "This one's yours — sit tight.");
+  if (matchupAuthors(data, m).includes(playerId)) return fail(gx, playerId, "This one's yours. Sit tight.");
   m.votes[playerId] = choice;
   if (!resolveIfComplete(gx)) snapshot(gx);
 }
@@ -82,16 +82,16 @@ export function resolveMatchup(gx: Gx): void {
   const nameB = b?.authorName ?? 'Someone';
   switch (score.outcome) {
     case 'a':
-      systemMessage(gx, `${nameA} took it ${votes.a}-${votes.b} (+${score.a})${score.flawless ? ' — flawless!' : ''}`);
+      systemMessage(gx, `${nameA} took it ${votes.a}-${votes.b} (+${score.a})${score.flawless ? ', flawless!' : ''}`);
       break;
     case 'b':
-      systemMessage(gx, `${nameB} took it ${votes.b}-${votes.a} (+${score.b})${score.flawless ? ' — flawless!' : ''}`);
+      systemMessage(gx, `${nameB} took it ${votes.b}-${votes.a} (+${score.b})${score.flawless ? ', flawless!' : ''}`);
       break;
     case 'tie':
       systemMessage(gx, `${nameA} and ${nameB} tie ${votes.a}-${votes.b} (+${score.a} each)`);
       break;
     case 'noVotes':
-      systemMessage(gx, `Nobody voted on "${promptById(data, m.promptId)?.text ?? 'that one'}" — no points.`);
+      systemMessage(gx, `Nobody voted on "${promptById(data, m.promptId)?.text ?? 'that one'}". No points.`);
       break;
   }
   snapshot(gx);

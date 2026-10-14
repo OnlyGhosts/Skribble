@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clearChar, enteredLength, joinCode, padCode, writeChars } from './codeInput';
+import { clearChar, enteredLength, joinCode, padCode, typedText, writeChars } from './codeInput';
 
 describe('code boxes', () => {
   it('pads a partial code and keeps a middle gap as an empty box', () => {
@@ -26,5 +26,14 @@ describe('code boxes', () => {
     expect(enteredLength('AB D')).toBe(3);
     expect(enteredLength('ABCD')).toBe(4);
     expect(enteredLength('')).toBe(0);
+  });
+
+  it('typing into a filled box replaces it whichever side of the old character the caret was on', () => {
+    expect(typedText('ZC', 'Z')).toBe('C');
+    expect(typedText('CZ', 'Z')).toBe('C');
+    expect(typedText('C', 'Z')).toBe('C');
+    expect(typedText('C', '')).toBe('C');
+    // A paste-like burst still reaches the next boxes.
+    expect(typedText('AB2K', '')).toBe('AB2K');
   });
 });

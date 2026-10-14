@@ -79,6 +79,6 @@ export function actTimedOut(gx: Gx): void {
   if (data.phase.kind !== 'acting') return;
   const hand = actingHand(data, data.phase.playerId);
   if (!hand) return nextHand(gx);
-  gx.effects.push({ type: 'chat', to: 'all', kind: 'system', text: `${nameOf(gx.ctx, data.phase.playerId)} ran out of time — standing.` });
+  gx.effects.push({ type: 'chat', to: 'all', kind: 'system', text: `${nameOf(gx.ctx, data.phase.playerId)} ran out of time and stands.` });
   finishHand(gx, data.phase.playerId, hand, 'stood');
 }

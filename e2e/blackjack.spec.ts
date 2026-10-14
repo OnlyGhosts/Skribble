@@ -207,7 +207,7 @@ test.afterAll(async () => {
 
 test('the host creates a Blackjack party, two phones join, and the host sets the chips, the limits and the clocks', async () => {
   roomCode = await createParty(host.page, host.name, 'blackjack');
-  await expect(host.page.getByTestId('site-header')).toContainText('Blackjack');
+  await expect(host.page.getByTestId('game-picker-meta')).toContainText('Blackjack');
   await expect(host.page.getByTestId('game-picker').locator('[data-testid="game-tile"][data-game="blackjack"]')).toHaveAttribute('aria-checked', 'true');
   for (const p of phones()) await joinByCode(p.page, p.name, roomCode);
   await expect(host.page.getByTestId('player-item')).toHaveCount(3);
@@ -257,7 +257,7 @@ test('the host creates a Blackjack party, two phones join, and the host sets the
     await expect(p.page.getByTestId('blackjack-header').getByTestId('timer')).toBeVisible();
     expect(await chipsOf(p)).toBe(STARTING_CHIPS);
   }
-  await expect(host.page.getByTestId('chat-log')).toContainText('Round 1 of 2 — place your bets!');
+  await expect(host.page.getByTestId('chat-log')).toContainText('Round 1 of 2: place your bets!');
   await scoresMatchChips();
 });
 

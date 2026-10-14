@@ -19,7 +19,7 @@ import { selectIsHost } from './platform/store/selectors';
 import { usePlatformStore } from './platform/store/usePlatformStore';
 
 /** The browser chrome colour per theme: the page colour of each. */
-const THEME_COLORS = { dark: '#141514', light: '#f1f0e8' } as const;
+const THEME_COLORS = { dark: '#141514', light: '#f5f6ef' } as const;
 
 /** Dark unless the toggle chose light; the operating system preference is not consulted. */
 function useTheme(): void {

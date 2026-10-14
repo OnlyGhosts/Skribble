@@ -29,7 +29,7 @@ function Tally({ vote, testId }: { vote: SpygameVoteView; testId: string }) {
 function statusLine(role: VoteRole, accusedName: string): string {
   switch (role) {
     case 'accuser':
-      return "You started this vote — you're counted as Yes.";
+      return "You started this vote. You're counted as Yes.";
     case 'accused':
       return "You've been accused! You can't vote on yourself.";
     case 'voter':

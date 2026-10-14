@@ -22,9 +22,8 @@ describe('the prompt pack', () => {
     expect(PROMPTS.filter((p) => p.tier === 'unhinged').length).toBeGreaterThanOrEqual(100);
   });
 
-  it('picks the tiers by content mode: family is clean only, cheeky adds cheeky, unhinged drops clean', () => {
+  it('picks the tiers by content mode: family is clean only, unhinged plays everything that was cheeky plus the unhinged tier', () => {
     expect(tiersForContentMode('family')).toEqual(['clean']);
-    expect(tiersForContentMode('cheeky')).toEqual(['clean', 'cheeky']);
     expect(tiersForContentMode('unhinged')).toEqual(['cheeky', 'unhinged']);
     for (const mode of CONTENT_MODES) {
       const tiers = tiersForContentMode(mode);

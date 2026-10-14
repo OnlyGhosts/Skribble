@@ -656,7 +656,3 @@
   }
 }
 
-/* Skribble keeps its pencil as the small mark in its own game header. */
-.brand__mark--skribble {
-  background: #6366f1;
-}

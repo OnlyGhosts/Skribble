@@ -376,7 +376,7 @@ export class GameSocket {
       this.slowReconnectTimer = null;
       const store = usePlatformStore.getState();
       if (this.isOpen() || !store.room || this.lostToastShown) return;
-      store.addToast('warning', 'Connection lost — reconnecting…');
+      store.addToast('warning', 'Connection lost. Reconnecting…');
       this.lostToastShown = true;
     }, SLOW_RECONNECT_MS);
   }

@@ -59,7 +59,7 @@ describe('Hangman: choosing', () => {
     expect(data(s).turn).toMatchObject({ hangmanId: alice, choices: ['APPLE', 'BANANA', 'CHERRY'], word: '', wrong: 0, out: [], points: {}, outcome: null });
     expect(s.effects.some((e) => e.type === 'side' && e.name === 'reset' && e.stamp === data(s).canvasId)).toBe(true);
     expect(s.effects.some((e) => e.type === 'send' && e.msg.t === 'clear')).toBe(true);
-    expect(chatTexts(s.effects)).toContain('Alice is the hangman — choosing a word…');
+    expect(chatTexts(s.effects)).toContain('Alice is the hangman. Choosing a word…');
     expect(nextDeadline(s.data)).toBe(START + CHOOSE_MS);
 
     const mine = view(s, alice);
@@ -154,7 +154,7 @@ describe('Hangman: guessing', () => {
     expect(errorsOf(letter(s, alice, 'a'))).toEqual(['It is not your turn to guess.']);
     const effects = letter(s, bob, 'p');
     expect(score(s, bob)).toBe(2 * HANGMAN_POINTS.letter);
-    expect(chatTexts(effects)).toEqual(['P — 2 letters!']);
+    expect(chatTexts(effects)).toEqual(['P: 2 letters!']);
     expect(view(s)).toMatchObject({ mask: '_PP__', usedLetters: ['P'], wrongLetters: [], wrong: 0, guesserId: carol, points: { [bob]: 20 }, endsAt: s.now + GUESS_MS });
     expect(errorsOf(letter(s, carol, 'P'))).toEqual(['P was already guessed.']);
     expect(view(s).guesserId).toBe(carol);
@@ -182,7 +182,7 @@ describe('Hangman: guessing', () => {
     // Carol's timeout completes a lap (two guessers in a row): the hangman scores and draws, the guessers lose a life.
     s.now += GUESS_MS;
     const lap = s.tick();
-    expect(chatTexts(lap)).toEqual(['Carol ran out of time.', 'Nobody guessed for a whole lap — that costs a life (2 of 10).']);
+    expect(chatTexts(lap)).toEqual(['Carol ran out of time.', 'Nobody guessed for a whole lap. That costs a life (2 of 10).']);
     expect(view(s)).toMatchObject({ phase: 'drawing', section: 2, wrong: 2, lives: 8, outcome: null, endsAt: s.now + DRAW_MS });
     expect(score(s, alice)).toBe(2 * HANGMAN_POINTS.wrongGuess);
     expect(score(s, bob)).toBe(0);
@@ -223,7 +223,7 @@ describe('Hangman: guessing', () => {
     const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol']);
     s.game(alice, { t: 'chooseWord', index: 0 });
     const effects = letter(s, bob, 'z');
-    expect(chatTexts(effects)).toEqual(['Bob: Z — not in the word (1 of 10).']);
+    expect(chatTexts(effects)).toEqual(['Bob: Z is not in the word (1 of 10).']);
     expect(score(s, alice)).toBe(HANGMAN_POINTS.wrongGuess);
     expect(view(s)).toMatchObject({ phase: 'drawing', section: 1, wrong: 1, lives: 9, wrongLetters: ['Z'], usedLetters: ['Z'], guesserId: null, endsAt: s.now + DRAW_MS, paused: false });
     expect(nextDeadline(s.data)).toBe(s.now + DRAW_MS);
@@ -285,7 +285,7 @@ describe('Hangman: guessing', () => {
     const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol']);
     s.game(alice, { t: 'chooseWord', index: 0 });
     const effects = word(s, bob, 'banana');
-    expect(chatTexts(effects)).toEqual(['Bob guessed “BANANA” — wrong, and out for this word (1 of 10).']);
+    expect(chatTexts(effects)).toEqual(['Bob guessed “BANANA”: wrong, and out for this word (1 of 10).']);
     expect(view(s)).toMatchObject({ phase: 'drawing', section: 1, wrong: 1, wrongLetters: [] });
     expect(view(s).players[bob]).toEqual({ out: true, playing: true });
     expect(score(s, alice)).toBe(HANGMAN_POINTS.wrongGuess);
@@ -299,7 +299,7 @@ describe('Hangman: guessing', () => {
     word(s, carol, 'cherry');
     expect(view(s)).toMatchObject({ phase: 'drawing', section: 3 });
     const done = drawDone(s, alice);
-    expect(chatTexts(done)).toEqual(['Nobody is left to guess — Alice wins! The word was APPLE.']);
+    expect(chatTexts(done)).toEqual(['Nobody is left to guess. Alice wins! The word was APPLE.']);
     expect(score(s, alice)).toBe(3 * HANGMAN_POINTS.wrongGuess + HANGMAN_POINTS.hangmanWins);
     expect(view(s)).toMatchObject({ phase: 'turnEnd', outcome: { kind: 'hangmanWins' }, word: 'APPLE' });
   });
@@ -317,7 +317,7 @@ describe('Hangman: guessing', () => {
     expect(view(s)).toMatchObject({ phase: 'drawing', section: 10, wrong: 10, lives: 0 });
     expect(s.data.phase).toBe('playing');
     const done = drawDone(s, alice);
-    expect(chatTexts(done)).toEqual(['The figure is complete — Alice wins! The word was APPLE.']);
+    expect(chatTexts(done)).toEqual(['The figure is complete. Alice wins! The word was APPLE.']);
     expect(score(s, alice)).toBe(10 * HANGMAN_POINTS.wrongGuess + HANGMAN_POINTS.hangmanWins);
     expect(score(s, bob)).toBe(0);
     expect(view(s)).toMatchObject({ phase: 'turnEnd', outcome: { kind: 'hangmanWins' }, wrongLetters: wrongs.map((w) => w.toUpperCase()) });
@@ -487,7 +487,7 @@ describe('Hangman: turns, rounds and the podium', () => {
     s.now += TURN_END_MS;
     const effects = s.tick();
     expect(chatTexts(effects)).toEqual(['Waiting for Bob to reconnect…']);
-    expect(chatTexts(effects)).not.toContain('Bob is away — skipping their turn.');
+    expect(chatTexts(effects)).not.toContain('Bob is away. Skipping their turn.');
     expect(s.data.phase).toBe('playing');
     expect(data(s).phase).toMatchObject({ kind: 'turnEnd', held: true, resumeAt: null });
     expect(waiting(s)).toEqual([bob]);
@@ -517,7 +517,7 @@ describe('Hangman: turns, rounds and the podium', () => {
     word(s, carol, 'apple');
     s.now += TURN_END_MS;
     const effects = s.tick();
-    expect(chatTexts(effects)).toContain('Bob is away — skipping their turn.');
+    expect(chatTexts(effects)).toContain('Bob is away. Skipping their turn.');
     expect(view(s)).toMatchObject({ phase: 'choosing', hangmanId: carol, turn: 2, turnsInRound: 2 });
     reconnect(s, bob, 'Bob');
     expect(data(s).turnQueue).toEqual([alice, carol, bob]);
@@ -582,7 +582,7 @@ describe('Hangman: disconnects and leaves', () => {
     disconnect(s, alice, 'Alice');
     s.now += RECONNECT_GRACE_MS;
     const effects = s.tick();
-    expect(chatTexts(effects)).toEqual(['Alice left', 'The hangman left — the word was APPLE.']);
+    expect(chatTexts(effects)).toEqual(['Alice left', 'The hangman left. The word was APPLE.']);
     expect(waits(effects).at(-1)).toBeNull();
     expect(view(s)).toMatchObject({ phase: 'turnEnd', outcome: { kind: 'hangmanLeft' }, word: 'APPLE', points: { [bob]: 20, [alice]: 15 } });
     expect(score(s, bob)).toBe(20);
@@ -646,7 +646,7 @@ describe('Hangman: disconnects and leaves', () => {
     s.apply({ type: 'join', name: 'Eve', avatar: AVATAR, connectionId: 'e' });
     const eve = s.playerId('Eve');
     const gone = s.apply({ type: 'leave', playerId: dave });
-    expect(chatTexts(gone)).toContain('Nobody was left to guess — the word was APPLE.');
+    expect(chatTexts(gone)).toContain('Nobody was left to guess. The word was APPLE.');
     expect(view(s)).toMatchObject({ phase: 'turnEnd', outcome: { kind: 'noGuessers' }, word: 'APPLE' });
     expect(score(s, alice)).toBe(0);
     s.now += TURN_END_MS;

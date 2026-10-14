@@ -1,110 +1,70 @@
-/* ---------- The front door ('/') ---------- */
+/* ---------- The front door ('/'): wordmark and mascots, then exactly two panels ---------- */
 .home {
-  --home-gutter: 24px;
+  --home-gutter: 16px;
   min-height: 100dvh;
-  width: min(calc(1120px + 2 * var(--home-gutter)), 100%);
+  width: min(calc(440px + 2 * var(--home-gutter)), 100%);
   margin: 0 auto;
-  padding: calc(var(--space-4) + env(safe-area-inset-top)) max(var(--home-gutter), env(safe-area-inset-right)) calc(var(--space-5) + env(safe-area-inset-bottom))
+  padding: calc(var(--space-3) + env(safe-area-inset-top)) max(var(--home-gutter), env(safe-area-inset-right)) calc(var(--space-5) + env(safe-area-inset-bottom))
     max(var(--home-gutter), env(safe-area-inset-left));
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
+  gap: 20px;
 }
 
 .home__main {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
-}
-
-/* ---------- Hero ---------- */
-.hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
-  gap: var(--space-5);
-  padding: var(--space-5) 0 var(--space-2);
-}
-
-.hero__text {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  min-width: 0;
 }
 
-/* Desktop 64–80px, phones 40–48px; heavy, tight and close-set. */
-.hero__title {
-  font-family: var(--font-display);
-  font-size: clamp(2.5rem, 1.5rem + 4.5vw, 5rem);
-  font-weight: 900;
-  letter-spacing: -0.04em;
-  line-height: 1.02;
-  display: flex;
-  flex-direction: column;
-}
-
-.hero__accent {
-  /* The brand lilac itself (#A699D5, 6.2:1 on the charcoal page): the one place the brand asks for lilac emphasis. */
-  color: var(--color-secondary);
-}
-
-/* On off-white the brand lilac is only 2.3:1, so the light theme takes the darker text cut of it (see tokens.css). */
-:root[data-theme='light'] .hero__accent {
-  color: var(--color-secondary-text);
-}
-
-.hero__tagline {
-  max-width: 34ch;
-  color: var(--color-text-muted);
-  font-size: 1.125rem;
-}
-
-/* The two phone characters beside the hero; shrunk on tablets, gone wherever the hero is single-column (they would push the form down). */
-.hero__mascots {
+/* Two small phones beside the wordmark, angled apart; decorative, never above or between controls. */
+.home__mascots {
   display: flex;
   align-items: flex-end;
-  gap: var(--space-2);
-  padding-right: var(--space-2);
+  flex: none;
 }
 
 .mascot {
   display: block;
-  height: 180px;
+  height: 70px;
   width: auto;
 }
 
-.mascot--bored {
-  transform: rotate(-6deg);
+.mascot--happy {
+  transform: rotate(-8deg);
 }
 
-.mascot--happy {
-  transform: rotate(5deg);
+.mascot--bored {
+  margin-left: -10px;
+  transform: rotate(8deg);
 }
 
 /* ---------- The two panels ---------- */
 .home__panels {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 24px;
-  align-items: stretch;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
 }
 
 .panel {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  padding: var(--space-6);
+}
+
+.panel__head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .panel__title {
-  font-size: 1.75rem;
+  font-size: 1.375rem;
 }
 
 .panel__text {
   color: var(--color-text-muted);
-  font-size: 1.05rem;
+  font-size: 0.9375rem;
 }
 
 .panel__form {
@@ -114,20 +74,16 @@
   gap: var(--space-4);
 }
 
-.panel__form .field {
-  gap: var(--space-3);
+/* Label, boxes and status line sit 8px apart; the status line only takes room while it shows something. */
+.code-field {
+  gap: 8px;
 }
 
-.panel__form .field__label {
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--color-text-muted);
+.code-field .code-preview:empty {
+  margin-top: -8px;
 }
 
-/* Both buttons sit on the same baseline whatever is above them. */
+/* Both buttons sit on the same line on desktop whatever is above them. */
 .panel__action {
   margin-top: auto;
 }
@@ -136,99 +92,84 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-3);
-  margin-top: auto;
+}
+
+.panel__actions .btn {
+  flex: 1 1 140px;
 }
 
 .panel__actions .panel__action {
-  flex: 1 1 200px;
+  flex: 2 1 200px;
+  margin-top: 0;
 }
 
 .panel__code {
   font-family: var(--font-mono);
+  font-weight: 600;
   color: var(--color-primary-text);
   letter-spacing: 0.06em;
-}
-
-.who__grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
-  gap: var(--space-5);
-  align-items: start;
 }
 
 .home__banner {
   align-self: center;
 }
 
-/* ---------- Footer: one discreet line ---------- */
-.home__footer {
-  text-align: center;
-  color: var(--color-text-faint);
-  font-size: 0.85rem;
-  padding-top: var(--space-4);
-}
-
 /* ---------- Breakpoints ---------- */
-@media (min-width: 1024px) {
-  .home {
-    --home-gutter: 48px;
-  }
-}
-
-@media (min-width: 768px) and (max-width: 1023px) {
+@media (min-width: 768px) {
   .home {
     --home-gutter: 32px;
+    width: min(calc(840px + 2 * var(--home-gutter)), 100%);
+    padding-top: calc(var(--space-5) + env(safe-area-inset-top));
+    gap: var(--space-6);
   }
 
   .mascot {
-    height: 120px;
-  }
-}
-
-@media (max-width: 767px) {
-  .home {
-    gap: var(--space-4);
+    height: 96px;
   }
 
+  /* A little air between the header and the panels on a tall screen. */
   .home__main {
-    gap: var(--space-4);
+    padding-top: min(6vh, 56px);
   }
 
-  .hero {
-    grid-template-columns: minmax(0, 1fr);
-    padding: var(--space-3) 0 0;
-  }
-
-  .hero__tagline {
-    font-size: 1rem;
-  }
-
-  /* Single-column hero: the mascots would sit in a row of their own under the headline and push Create below the fold. */
-  .hero__mascots {
-    display: none;
-  }
-
-  /* Join first, then Create, stacked. */
+  /* Side by side, equal widths; each as tall as the Join content, buttons on one line at the bottom. */
   .home__panels {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 16px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-5);
+    align-items: stretch;
   }
 
   .panel {
-    padding: var(--space-5) var(--space-4);
+    padding: var(--space-5);
   }
 
   .panel__title {
-    font-size: 1.5rem;
+    font-size: 1.625rem;
   }
 
-  .who__grid {
-    grid-template-columns: minmax(0, 1fr);
+  .panel--who {
+    width: min(560px, 100%);
+    align-self: center;
   }
 }
 
+@media (min-width: 1024px) {
+  .mascot {
+    height: 112px;
+  }
+}
+
+/* The smallest phones: smaller mascots and tighter spacing before any control shrinks. */
 @media (max-width: 360px) {
   .home {
-    --home-gutter: 16px;
+    gap: var(--space-3);
+  }
+
+  .mascot {
+    height: 52px;
+  }
+
+  .mascot--bored {
+    margin-left: -8px;
   }
 }

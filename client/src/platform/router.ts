@@ -4,10 +4,11 @@
  * or '/?room=CODE', opens the front door with the code filled in; '/:slug' alone (the old per-game
  * landing pages) redirects to '/', since a game is picked inside the room. '/?game=slug' makes
  * Create start the party on that game (hidden games included: development and tests). Slugs are
- * never four characters long, so a single segment is always one or the other.
+ * never four characters long, so a single segment is always one or the other. A game's former
+ * slug (from before a rename, '/skribble/CODE') is rewritten in place to the current one.
  */
 import { create } from 'zustand';
-import { gameById, gameBySlug, type GameId, type GameMeta } from '@shared/platform/games';
+import { gameByFormerSlug, gameById, gameBySlug, type GameId, type GameMeta } from '@shared/platform/games';
 import { isValidRoomCode, normalizeRoomCode } from '@shared/platform/roomCode';
 
 export type Route =
@@ -22,7 +23,16 @@ function asCode(segment: string): string | null {
   return isValidRoomCode(code) ? code : null;
 }
 
-export function parseRoute(pathname: string, search = ''): Route {
+/** The path with a former game slug in its first segment replaced by the current slug; unchanged otherwise. */
+export function canonicalPath(pathname: string): string {
+  const match = pathname.match(/^\/([^/]+)(.*)$/);
+  if (!match) return pathname;
+  const renamed = gameByFormerSlug(match[1].toLowerCase());
+  return renamed ? `/${renamed.slug}${match[2]}` : pathname;
+}
+
+export function parseRoute(rawPathname: string, search = ''): Route {
+  const pathname = canonicalPath(rawPathname);
   const segments = pathname.split('/').filter(Boolean);
   if (segments.length === 0) {
     const query = new URLSearchParams(search);
@@ -58,8 +68,12 @@ export function inviteLink(game: GameMeta | GameId, code: string): string {
   return `${window.location.origin}${roomPath(game, code)}`;
 }
 
+/** The route the address bar names, after replacing an old link's former slug with the current one (no history entry). */
 function currentRoute(): Route {
-  return parseRoute(window.location.pathname, window.location.search);
+  const { pathname, search, hash } = window.location;
+  const canonical = canonicalPath(pathname);
+  if (canonical !== pathname) window.history.replaceState(null, '', canonical + search + hash);
+  return parseRoute(canonical, search);
 }
 
 interface RouterState {

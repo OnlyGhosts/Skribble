@@ -93,9 +93,13 @@ test('the host creates a Click Race party, three friends join, and the lobby sho
   await expect(pia.page.getByTestId('game-picker').getByTestId('game-tile')).toHaveCount(1);
   await expect(pia.page.locator('button[data-testid="game-tile"]')).toHaveCount(0);
 
-  // The phone lobby: picker, ready controls and content modes fit the screen with 44px targets.
+  // Click Race never reads the content mode, so nobody is offered one for it.
+  for (const p of players) await expect(p.page.getByTestId('settings-contentMode')).toHaveCount(0);
+
+  // The phone lobby: the room bar first, then the picker; ready controls fit the screen with 44px targets.
+  await expect(pia.page.locator('.lobby > section').first()).toHaveAttribute('data-testid', 'room-bar');
   await noHorizontalOverflow(pia.page, PORTRAIT.width);
-  for (const id of ['game-tile', 'ready-toggle', 'sitout-toggle', 'content-mode-family']) {
+  for (const id of ['game-tile', 'ready-toggle', 'sitout-toggle', 'copy-code', 'copy-link', 'share-invite']) {
     const box = await pia.page.getByTestId(id).first().boundingBox();
     expect(box?.height ?? 0, `${id} is a 44px target`).toBeGreaterThanOrEqual(MIN_TARGET);
     expect((box?.x ?? 0) + (box?.width ?? 0), `${id} fits the phone width`).toBeLessThanOrEqual(PORTRAIT.width + 0.5);
@@ -198,6 +202,10 @@ test('back to lobby keeps the party, and the host switches it to The Spy Game: t
   await expect(pia.page.getByTestId('game-picker').getByTestId('game-tile')).toHaveAttribute('data-game', 'spygame');
   await expect(host.page.getByTestId('settings-rounds')).toBeVisible();
   await expect(host.page.getByTestId('settings-targetClicks')).toHaveCount(0);
+  // The Spy Game reads the content mode: Family and Unhinged, nothing in between.
+  for (const p of players) await expect(p.page.getByTestId('settings-contentMode')).toHaveAttribute('data-value', 'family');
+  await expect(pia.page.locator('[data-testid^="content-mode-"]')).toHaveCount(2);
+  await expect(pia.page.getByTestId('content-mode-cheeky')).toHaveCount(0);
   // Ready flags carried over; the Spy Game's own settings start fresh.
   await expect(host.page.getByTestId('player-count')).toHaveText('4 of 4 ready');
   await expect(quinn.page.getByTestId('settings-value-rounds')).toHaveText('5');
@@ -207,7 +215,11 @@ test('one player sits out, the host sets Unhinged, three play a one-round Spy Ga
   test.setTimeout(90_000);
   await rae.page.getByTestId('sitout-toggle').click();
   await expect(rae.page.getByTestId('ready-controls')).toHaveAttribute('data-sitting-out', 'true');
-  await expect(rae.page.getByTestId('ready-toggle')).toBeDisabled();
+  // Sitting out: only Count me in, with the hint; no disabled ready button next to it.
+  await expect(rae.page.getByTestId('ready-toggle')).toHaveCount(0);
+  await expect(rae.page.getByTestId('sitout-toggle')).toHaveText('Count me in');
+  await expect(rae.page.getByTestId('sitout-hint')).toHaveText("You'll watch the next game.");
+  await expect(rae.page.getByTestId('ready-controls').getByRole('button')).toHaveCount(1);
   for (const p of players) await expect(p.page.locator(`[data-testid="player-item"][data-name="${rae.name}"]`)).toHaveAttribute('data-status', 'sittingOut');
   await expect(host.page.getByTestId('player-count')).toHaveText('3 of 3 ready');
 
@@ -262,8 +274,20 @@ test('one player sits out, the host sets Unhinged, three play a one-round Spy Ga
   }
   // The sit-out choice persists until Rae comes back in.
   await expect(rae.page.locator(`[data-testid="player-item"][data-name="${rae.name}"]`)).toHaveAttribute('data-status', 'sittingOut');
+  // Count me in comes back in and readies in one tap.
+  await expect(rae.page.getByTestId('sitout-toggle')).toHaveText('Count me in');
   await rae.page.getByTestId('sitout-toggle').click();
-  await expect(rae.page.locator(`[data-testid="player-item"][data-name="${rae.name}"]`)).toHaveAttribute('data-status', 'notReady');
+  await expect(rae.page.locator(`[data-testid="player-item"][data-name="${rae.name}"]`)).toHaveAttribute('data-status', 'ready');
+  await expect(rae.page.getByTestId('ready-toggle')).toHaveAttribute('aria-pressed', 'true');
+  await expect(rae.page.getByTestId('ready-toggle')).toContainText("You're ready");
+  await expect(rae.page.getByTestId('sitout-toggle')).toHaveText('Sit this one out');
+
+  // The content mode is hidden for a game that never reads it, and comes back unchanged with one that does.
+  await host.page.getByTestId('game-picker').locator('[data-testid="game-tile"][data-game="poker"]').click();
+  for (const p of players) await expect(p.page.getByTestId('game-picker')).toHaveAttribute('data-game', 'poker');
+  await expect(host.page.getByTestId('settings-contentMode')).toHaveCount(0);
+  await host.page.getByTestId('game-picker').locator('[data-testid="game-tile"][data-game="hangman"]').click();
+  for (const p of players) await expect(p.page.getByTestId('settings-contentMode')).toHaveAttribute('data-value', 'unhinged');
 });
 
 test('no page errors were raised in any browser', async () => {

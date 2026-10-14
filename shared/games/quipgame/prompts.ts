@@ -2,7 +2,7 @@
  * Original prompt pack for Quip Game. Three tiers: 'clean' is safe for any table, 'cheeky' is adult
  * humour (innuendo and embarrassment, never slurs), 'unhinged' is crude, drunk and gross-out
  * humour (never slurs, hate or minors). The room's content mode picks the tiers in play (see
- * tiersForContentMode). Prompts are written as the start of a sentence or a short question the
+ * tiersForContentMode): Family plays the clean tier, Unhinged the other two. Prompts are written as the start of a sentence or a short question the
  * player completes.
  */
 import type { ContentMode } from '../../platform/settings.js';
@@ -473,18 +473,11 @@ export const PROMPTS: readonly Prompt[] = [
 
 /** Used when a player runs out of time; chosen at random so the matchup still works. */
 /**
- * The tiers a content mode plays: family keeps it clean, cheeky adds the cheeky tier, unhinged
- * swaps the clean tier out for the unhinged one (cheeky stays in so the pool keeps its range).
+ * The tiers a content mode plays: family keeps it clean; unhinged swaps the clean tier out for
+ * the cheeky and unhinged ones (adult humour, from rude-but-harmless to crude).
  */
 export function tiersForContentMode(mode: ContentMode): readonly PromptTier[] {
-  switch (mode) {
-    case 'family':
-      return ['clean'];
-    case 'cheeky':
-      return ['clean', 'cheeky'];
-    case 'unhinged':
-      return ['cheeky', 'unhinged'];
-  }
+  return mode === 'unhinged' ? ['cheeky', 'unhinged'] : ['clean'];
 }
 
 /** The pack's prompts for a content mode, in pack order. */

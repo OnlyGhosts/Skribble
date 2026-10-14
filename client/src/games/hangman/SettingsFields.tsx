@@ -51,7 +51,7 @@ export function HangmanSettingsFields({ settings, canEdit, patch }: SettingsFiel
         canEdit={canEdit}
         parse={parseHangmanCustomWords}
         onCommit={(customWords) => patch({ customWords })}
-        placeholder="cat, dog, hot dog — comma or newline separated"
+        placeholder="cat, dog, hot dog (comma or new line)"
         maxLength={L.customWords.maxCount * (L.customWords.maxLength + 1)}
       />
       <ToggleSetting

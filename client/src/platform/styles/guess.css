@@ -18,7 +18,7 @@
   display: flex;
   align-items: center;
   padding: 6px 10px;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-item);
   border: 2px solid var(--color-border);
   background: var(--color-surface-2);
   cursor: text;
@@ -76,7 +76,7 @@
   width: 24px;
   height: 32px;
   border-radius: 6px;
-  font-weight: 800;
+  font-weight: 700;
   font-size: 1.05rem;
   text-transform: uppercase;
   color: var(--color-text);
@@ -217,7 +217,7 @@
   width: 48px;
   min-height: 48px;
   padding: 0;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-item);
 }
 
 @keyframes caret-blink {
