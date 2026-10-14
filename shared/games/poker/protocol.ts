@@ -86,7 +86,6 @@ export type PokerServerMessage = never;
 
 export type PokerPhase = 'acting' | 'results' | 'gameOver';
 export type PokerStreet = 'preflop' | 'flop' | 'turn' | 'river';
-export const POKER_STREETS: readonly PokerStreet[] = ['preflop', 'flop', 'turn', 'river'];
 
 /** A seat's part in the hand: not dealt in (`out`: busted or arrived mid-hand), in it and waiting, in it and acting, folded, or all in. */
 export type PokerSeatStatus = 'waiting' | 'acting' | 'folded' | 'allIn' | 'out';

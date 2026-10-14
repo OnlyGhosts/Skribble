@@ -936,7 +936,7 @@
   }
 
   .pk .pk-board .playing-card--md .playing-card__pip {
-    font-size: calc(var(--card-font) * 1.35);
+    font-size: calc(var(--card-font) * 1.2);
   }
 }
 
@@ -978,9 +978,20 @@
     gap: 4px 10px;
   }
 
+  /* Beside the cards the head may wrap: my stack goes under my name rather than squeezing it out. */
   .pk-me__head {
     grid-column: 2;
     grid-row: 1;
+    flex-wrap: wrap;
+    row-gap: 2px;
+  }
+
+  .pk-me__head > .avatar {
+    display: none;
+  }
+
+  .pk-me__name {
+    min-width: min(100%, 7em);
   }
 
   .pk-me__hand {
@@ -1016,7 +1027,7 @@
   }
 
   .pk-me .playing-card--lg .playing-card__pip {
-    font-size: calc(var(--card-font) * 1.35);
+    font-size: calc(var(--card-font) * 1.2);
   }
 
   .pk-action {
@@ -1077,7 +1088,7 @@
   }
 
   .pk .pk-board .playing-card--md .playing-card__pip {
-    font-size: calc(var(--card-font) * 1.35);
+    font-size: calc(var(--card-font) * 1.2);
   }
 
   .pk-seats {

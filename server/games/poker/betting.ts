@@ -88,7 +88,7 @@ function reopen(gx: Gx, playerId: string): void {
  * After a move: the hand is over when one player is left, the street when nobody is left to bet
  * against, otherwise the next player's clock.
  */
-export function afterAction(gx: Gx): void {
+function afterAction(gx: Gx): void {
   const { data, ctx } = gx;
   if (contenders(data).length <= 1 || streetIdle(data)) return endStreet(gx);
   data.phase = { kind: 'acting', endsAt: ctx.now + ctx.settings.actSeconds * 1000 };

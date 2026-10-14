@@ -6,13 +6,19 @@ import { createParty, expectReadyCount, joinByCode, readyAll } from './party';
  * and blind settings in the lobby, the ready-up, a raise through the bet/raise panel (presets,
  * slider, typed amount) called round to a showdown with every contender's cards revealed, then a
  * hand folded round to the big blind with no cards shown, the podium ranked by chips, and a second
- * game the host ends from the header. On every step each page's hole cards appear on that page
+ * game in which a phone turned sideways (844x390 down to 568x320) keeps the board in view and the
+ * raise panel's confirm on screen, before the host ends it from the header. On every step each page's hole cards appear on that page
  * only. The deck is really shuffled, so the assertions hold whatever is dealt. Serial: the tests
  * build on each other.
  */
 test.describe.configure({ mode: 'serial' });
 
 const PORTRAIT = { width: 390, height: 844 };
+const LANDSCAPES = [
+  { width: 844, height: 390 },
+  { width: 667, height: 375 },
+  { width: 568, height: 320 },
+];
 const MIN_TARGET = 44;
 const MIN_MOVE_HEIGHT = 56;
 const STARTING_CHIPS = 500;
@@ -261,6 +267,12 @@ test('hand one: the phone bar fits, a raise goes in through the panel, everyone 
   await expect(raiser.page.getByTestId('raise-confirm')).toContainText('All in');
   await raiser.page.getByTestId('raise-min').click();
   await expect(panel).toHaveAttribute('data-amount', String(min));
+  // An amount under the window, typed while the panel sits at its minimum: the field snaps back to what the confirm sends.
+  await raiser.page.getByTestId('raise-input').fill('3');
+  await raiser.page.getByTestId('raise-input').blur();
+  await expect(panel).toHaveAttribute('data-amount', String(min));
+  await expect(raiser.page.getByTestId('raise-input')).toHaveValue(String(min));
+  await expect(raiser.page.getByTestId('raise-confirm')).toHaveText(`Raise to ${min}`);
   await raiser.page.getByTestId('raise-slider').fill(String(min + 20));
   await expect(raiser.page.getByTestId('raise-input')).toHaveValue(String(min + 20));
   if (raiser !== host) {
@@ -367,6 +379,46 @@ test('a second game: only the host has End game, and ending mid-hand gives every
   await host.page.getByTestId('start-game').click();
   for (const p of players) await expect(screen(p)).toHaveAttribute('data-phase', 'acting');
   await holeCardsStayPrivate();
+
+  // Pia turns her phone sideways on her move: the table keeps its own column and the raise panel's confirm stays on screen.
+  for (let moves = 0; moves < 3; moves++) {
+    const acting = await actor();
+    if (!acting) throw new Error('the hand ended before Pia acted');
+    if (acting === pia) break;
+    const before = await stepOnHost();
+    const call = acting.page.getByTestId('action-call');
+    if (await call.count()) await call.click();
+    else await acting.page.getByTestId('action-check').click();
+    await expect.poll(stepOnHost).not.toBe(before);
+  }
+  await expect(pia.page.getByTestId('my-area')).toHaveAttribute('data-my-turn', 'true');
+  for (const size of LANDSCAPES) {
+    await pia.page.setViewportSize(size);
+    await expect.poll(() => pia.page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(size.width);
+    // The board, its cards and the pot are in view beside my cards, not squeezed out above them.
+    for (const id of ['community-slot', 'pot']) {
+      const box = await boxOf(pia.page.getByTestId(id).first());
+      expect(box.y, `${id} at ${size.width}x${size.height}`).toBeGreaterThanOrEqual(0);
+      expect(box.y + box.height, `${id} at ${size.width}x${size.height}`).toBeLessThanOrEqual(size.height);
+    }
+    await expect(pia.page.getByTestId('my-card')).toHaveCount(2);
+    await pia.page.getByTestId('action-raise').click();
+    await expect(pia.page.getByTestId('raise-panel')).toBeVisible();
+    for (const id of ['raise-confirm', 'raise-cancel']) {
+      const button = pia.page.getByTestId(id);
+      await expect.poll(async () => {
+        const box = await boxOf(button);
+        return box.y >= 0 && box.y + box.height <= size.height;
+      }, { message: `${id} inside ${size.width}x${size.height}` }).toBe(true);
+      const box = await boxOf(button);
+      expect(box.height).toBeGreaterThanOrEqual(MIN_TARGET);
+      const hit = await pia.page.evaluate(({ x, y, testId }) => document.elementFromPoint(x, y)?.closest(`[data-testid="${testId}"]`) !== null, { x: box.x + box.width / 2, y: box.y + box.height / 2, testId: id });
+      expect(hit, `${id} takes the tap at ${size.width}x${size.height}`).toBe(true);
+    }
+    await pia.page.getByTestId('raise-cancel').click();
+    await expect(pia.page.getByTestId('raise-panel')).toHaveCount(0);
+  }
+  await pia.page.setViewportSize(PORTRAIT);
 
   // The phones' options sheet has no End game for a guest.
   await pia.page.getByTestId('game-menu').click();

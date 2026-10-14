@@ -1,6 +1,6 @@
 /** The end of a hand: the showdown with its side pots and payouts, the uncontested pot, and the results phase. */
 import { compareHands, evaluateBest, handName, type HandRank } from '../../../shared/games/poker/hands.js';
-import type { PokerPotResult, PokerResults, PokerRevealedHand } from '../../../shared/games/poker/protocol.js';
+import type { PokerPotResult, PokerRevealedHand } from '../../../shared/games/poker/protocol.js';
 import { buildPots, splitPot } from './pots.js';
 import { adjustChips, contenders, nameOf, ringAfter, snapshot, systemMessage, type Gx } from './state.js';
 

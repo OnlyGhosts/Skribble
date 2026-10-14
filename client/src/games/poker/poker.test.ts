@@ -17,7 +17,7 @@ const { registerGames } = await import('../../platform/registry');
 const { pokerClient } = await import('./module');
 const { usePokerStore } = await import('./store');
 const { highestBet, seatRing } = await import('./hooks');
-const { clampAmount, presetsFor, raiseRange } = await import('./lib/raise');
+const { clampAmount, presetsFor, raiseRange, uniquePresets } = await import('./lib/raise');
 const { handHint, handLabel, lastActionLabel, netLabel, phaseKicker } = await import('./lib/text');
 const { blindsIncreaseLabel, handsLabel } = await import('./SettingsFields');
 const { player, registryOf, resetStore, room, welcome } = await import('../../test/fixtures');
@@ -221,6 +221,26 @@ describe('the bet / raise panel', () => {
     expect(render(pkRoom(hostTurn()), 'host')).toContain('All in · 1,000');
   });
 
+  it('shows no presets for a fixed all-in window, and never two presets for one amount', () => {
+    usePokerStore.getState().openRaise(true);
+    const fixed = render(pkRoom(hostTurn({ actions: { ...HOST_ACTIONS, minRaiseTo: 100, maxRaiseTo: 100 } })), 'host');
+    expect(attr(tagWith(fixed, 'raise-panel'), 'data-amount')).toBe('100');
+    const panel = fixed.slice(fixed.indexOf('data-testid="raise-panel"'), fixed.indexOf('</form>'));
+    expect(panel).not.toContain('pk-raise__presets');
+    expect(panel).not.toContain('aria-pressed');
+    expect(fixed).not.toContain('data-testid="raise-slider"');
+    expect(fixed).toContain('All in · 100');
+    const presets = presetsFor(view({ pot: 120 }), 0, { kind: 'bet', min: 60, max: 500 });
+    expect(presets.map((p) => p.amount)).toEqual([60, 60, 120, 500]);
+    expect(uniquePresets(presets).map((p) => p.id)).toEqual(['min', 'pot', 'allIn']);
+  });
+
+  it('does not announce the Bet / Raise button as a popup menu', () => {
+    usePokerStore.getState().openRaise(false);
+    const html = render(pkRoom(hostTurn()), 'host');
+    expect(tagWith(html, 'action-raise')).not.toContain('aria-haspopup');
+  });
+
   it('never opens when it is not my move', () => {
     usePokerStore.getState().openRaise(true);
     const html = render(pkRoom(view({ myCards: [c('7', 'D'), c('2', 'C')] })), 'bob', false);
@@ -297,7 +317,21 @@ describe('results', () => {
     expect(html).not.toContain('data-testid="revealed-card"');
     expect(html).not.toContain('data-testid="results-board"');
     expect(tagsWith(html, 'result-player').every((r) => attr(r, 'data-revealed') === 'false')).toBe(true);
+    // Nobody showed down: the header does not call it a showdown.
+    expect(html.match(/data-testid="phase-kicker"[^>]*>([^<]*)</)?.[1]).toBe('Hand over');
+    expect(phaseKicker(uncontested, 'carol', false)).toBe('Hand over');
+    expect(phaseKicker(showdown, 'carol', false)).toBe('Showdown');
+    expect(phaseKicker({ ...showdown, paused: true }, 'carol', false)).toBe('Paused');
     expect(render(pkRoom(view({ ...showdown, hand: 10 })), 'host')).toContain('Final standings');
+  });
+
+  it('keeps the name and the net on the row head and puts the stack on the detail line, so narrow phones do not cut names short', () => {
+    const html = render(pkRoom(showdown), 'bob', false);
+    const head = html.match(/<span class="pk-results__head">(.*?)<\/span><span class="pk-results__detail">/)?.[1] ?? '';
+    expect(head).toContain('pk-results__name');
+    expect(head).toContain('data-testid="result-net"');
+    expect(head).not.toContain('pk-results__chips');
+    expect(tagsWith(html, 'result-chips')).toHaveLength(3);
   });
 
   it('freezes the countdown and the host button while the platform holds, and stays off once the podium is up', () => {
