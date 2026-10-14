@@ -1,7 +1,7 @@
 /**
  * Blackjack's client module: the table screen, the settings rows, the player-list badges, the chat
- * placeholder and the cues (sound, haptics, local state) that react to snapshots. Snapshots carry
- * everything, so there are no server messages to handle.
+ * placeholder and what reacts to snapshots: the table's animation timeline (planned in the store
+ * from each snapshot) and the cues. Snapshots carry everything, so there are no server messages.
  */
 import type { BlackjackSettings, BlackjackView } from '@shared/games/blackjack/protocol';
 import { gameById } from '@shared/platform/games';
@@ -10,7 +10,8 @@ import { vibrate } from '../../platform/lib/haptics';
 import { playCue } from '../../platform/lib/sound';
 import { usePlatformStore } from '../../platform/store/usePlatformStore';
 import { CardsIcon, OutIcon, StarIcon } from './components/Icons';
-import { isActing, isInRound, netOf, phaseEntered, roundChanged, seatOf } from './hooks';
+import { isActing, isInRound, prefersReducedMotion, seatOf } from './hooks';
+import { cancelCue, cueAt } from './lib/cues';
 import { chatPlaceholderFor, formatChips } from './lib/text';
 import { BlackjackScreen } from './Screen';
 import { BlackjackSettingsFields } from './SettingsFields';
@@ -71,28 +72,32 @@ export const blackjackClient = defineGameClient<BlackjackView, BlackjackSettings
 
   onRoom(room, prev) {
     const store = useBlackjackStore.getState();
-    const me = usePlatformStore.getState().playerId;
-    if (room.phase === 'lobby') {
-      store.reset();
+    if (room.phase === 'lobby' || !room.game) {
+      cancelCue();
+      if (room.phase === 'lobby') store.reset();
       return;
     }
     const view = room.game;
-    if (!view) return;
-    if (roundChanged(prev, room)) store.newRound();
-    // A fresh entry (welcome) is not a turn starting under this player's feet.
-    if (!prev) return;
-    if (phaseEntered(prev, room, 'betting') && isInRound(view, me)) {
-      playCue('yourTurn');
-      vibrate(30);
-    } else if (isActing(view, me) && !isActing(prev.game, me)) {
+    const before = store.timeline;
+    const timeline = store.applyView(view, Date.now(), !prev?.game, !prefersReducedMotion());
+    if (!prev?.game) return;
+    const me = usePlatformStore.getState().playerId;
+    if (me === null) return;
+    if (isActing(view, me) && !isActing(prev.game, me)) {
       playCue('yourTurn');
       vibrate(40);
-    } else if (phaseEntered(prev, room, 'results')) {
-      playCue(me !== null && netOf(view, me) > 0 ? 'correct' : 'turnEnd');
+    }
+    // My round's outcome sounds once the reveal has shown it.
+    const table = useBlackjackStore.getState().table;
+    const mine = table?.settled ? table.hands[me] : undefined;
+    if (mine && mine.length > 0 && timeline.outcomesAt !== null && timeline.outcomesAt !== before.outcomesAt) {
+      const net = mine.reduce((sum, h) => sum + (h.payout ?? 0) - h.bet, 0);
+      if (net !== 0) cueAt(timeline.outcomesAt, () => playCue(net > 0 ? 'correct' : 'turnEnd'));
     }
   },
 
   onLeave() {
+    cancelCue();
     useBlackjackStore.getState().reset();
   },
 });

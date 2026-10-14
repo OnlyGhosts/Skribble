@@ -1,47 +1,93 @@
-import type { HandView } from '@shared/games/blackjack/protocol';
-import { statusLabel, totalLabel } from '../lib/text';
-import { PlayingCard } from '../../../platform/components/PlayingCard';
+import type { PlayingCardSize } from '../../../platform/components/PlayingCard';
+import { TableCard } from './TableCard';
 import { Chips } from '../../../platform/components/Chips';
+import { cardKey, shownTotal, totalText, type TableHand } from '../lib/table';
+import { cardMotion, cardShown, outcomesShown, type Timeline } from '../lib/timeline';
+import { outcomeLabel, payoutText } from '../lib/text';
+
+export type HandTone = 'neutral' | 'active' | 'bust' | 'win' | 'blackjack' | 'loss' | 'push';
 
 interface Props {
-  hand: HandView;
+  playerId: string;
   index: number;
-  size: 'sm' | 'md' | 'lg';
+  hand: TableHand;
+  timeline: Timeline;
+  now: number;
+  leaving: boolean;
+  size: PlayingCardSize;
   /** The hand in play right now. */
   active: boolean;
-  testId?: string;
+  /** The seat strip's small hand: no bet line, the outcome only as colour. */
+  mini?: boolean;
+  testId: string;
 }
 
-/** One hand: its cards fanned, the total, the stake and where it stands. */
-export function Hand({ hand, index, size, active, testId = 'hand' }: Props) {
-  const natural = hand.status === 'blackjack';
+/** The hand as the timeline shows it at `now`: the cards landed so far, their total and, once settled on screen, the outcome. */
+export function handOnScreen(playerId: string, index: number, hand: TableHand, timeline: Timeline, now: number) {
+  const cards = hand.cards.map((card, i) => ({ card, key: cardKey(playerId, index, i, card) })).filter((c) => cardShown(timeline, c.key, now));
+  const total = shownTotal(cards.map((c) => c.card));
+  const outcome = hand.outcome !== null && outcomesShown(timeline, now) ? hand.outcome : null;
+  return { cards, total, outcome };
+}
+
+function toneOf(outcome: TableHand['outcome'], bust: boolean, natural: boolean, active: boolean): HandTone {
+  if (outcome) return outcome;
+  if (bust) return 'bust';
+  if (natural) return 'blackjack';
+  return active ? 'active' : 'neutral';
+}
+
+/** One hand: the total pill over the cards, then the stake (and the outcome with its payout once settled). */
+export function Hand({ playerId, index, hand, timeline, now, leaving, size, active, mini = false, testId }: Props) {
+  const { cards, total, outcome } = handOnScreen(playerId, index, hand, timeline, now);
+  const bust = total !== null && total.total > 21;
+  const tone = toneOf(outcome, bust, hand.status === 'blackjack' && cards.length === 2, active);
+  const payout = outcome && hand.payout !== null ? payoutText(hand.payout) : '';
   return (
     <div
       role="group"
-      className={`bj-hand bj-hand--${size} bj-hand--${hand.status}${active ? ' bj-hand--active' : ''}`}
+      className={`bj-hand bj-hand--${tone}${mini ? ' bj-hand--mini' : ''}`}
+      aria-label={`Hand ${index + 1}${total ? `: ${total.total}` : ''}${outcome ? `, ${outcomeLabel(outcome)}` : ''}`}
       data-testid={testId}
       data-index={index}
       data-status={hand.status}
-      data-total={hand.total}
+      data-total={total?.total ?? 0}
       data-bet={hand.bet}
-      aria-label={`Hand ${index + 1}: ${totalLabel(hand, natural)}, ${statusLabel(hand.status)}`}
+      data-cards={cards.length}
+      data-active={active}
+      data-outcome={outcome ?? undefined}
+      data-payout={outcome ? (hand.payout ?? 0) : undefined}
     >
+      <div className="bj-hand__top">
+        {total && (
+          <span className={`bj-pill bj-pill--${tone}`} data-testid="hand-total">
+            {totalText(total)}
+          </span>
+        )}
+        {outcome && payout && !mini && (
+          <span className="bj-payout" aria-hidden="true">
+            {payout}
+          </span>
+        )}
+      </div>
       <div className="bj-hand__cards">
-        {hand.cards.map((card, i) => (
-          <PlayingCard key={`${i}-${card.rank}${card.suit}`} card={card} size={size} />
+        {cards.map(({ card, key }) => (
+          <TableCard key={key} card={card} size={size} motion={cardMotion(timeline, key, now)} leaving={leaving} testId="card" />
         ))}
       </div>
-      <div className="bj-hand__meta">
-        <span className="bj-total" data-testid="hand-total">
-          {totalLabel(hand, natural)}
-        </span>
-        <span className={`bj-status bj-status--${hand.status}`} data-testid="hand-status">
-          {statusLabel(hand.status)}
-        </span>
-        {size !== 'sm' && <Chips value={hand.bet} className="bj-hand__bet" />}
-        {hand.doubled && <span className="bj-tag">doubled</span>}
-        {hand.fromSplit && size !== 'sm' && <span className="bj-tag">split</span>}
-      </div>
+      {!mini && (
+        <div className="bj-hand__foot">
+          {outcome ? (
+            <span className={`bj-hand__outcome bj-hand__outcome--${outcome}`} data-testid="hand-outcome">
+              {outcomeLabel(outcome)}
+              {payout && ` ${payout}`}
+            </span>
+          ) : (
+            <Chips value={hand.bet} size={14} className="bj-hand__bet" />
+          )}
+          {hand.doubled && <span className="bj-tag">2x</span>}
+        </div>
+      )}
     </div>
   );
 }

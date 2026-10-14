@@ -141,13 +141,13 @@ export const GAME_LIST: readonly GameMeta[] = [
     name: 'Blackjack',
     tagline: 'Beat the house without going bust.',
     description:
-      'Everyone plays against the house with a stack of chips. Bet, draw towards 21 without going over, and watch the dealer turn over the hole card. The biggest stack after the last round wins the table.',
+      'Everyone plays against the house with a stack of chips. Bet, draw towards 21 without going over, and watch the dealer turn over the hole card. The biggest stack at the end wins the table.',
     howToPlay: [
       'Place a bet each round; the host decides how many chips everyone starts with.',
       'Hit to take a card, stand to stop. Over 21 and the hand is bust.',
-      'Double your bet for exactly one more card, or split a pair into two hands.',
+      'Double your bet for exactly one more card, or split a pair into two hands (up to four).',
       'The dealer draws to 17. Beat the dealer to win your bet back twice over; a natural blackjack pays extra.',
-      'Run out of chips and you sit out; the most chips after the last round wins.',
+      'Run out of chips and you sit out. The most chips at the end wins, or the last player with chips.',
     ],
     minPlayers: 1,
     maxPlayers: 7,

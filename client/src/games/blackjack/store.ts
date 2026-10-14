@@ -1,42 +1,55 @@
 import { useSyncExternalStore } from 'react';
 import { create } from 'zustand';
+import type { BlackjackView } from '@shared/games/blackjack/protocol';
+import { tableOf, type TableModel } from './lib/table';
+import { EMPTY_TIMELINE, planTimeline, snapTimeline, type Timeline } from './lib/timeline';
 
 /** The phone sheets the screen can show; one at a time. */
 export type BlackjackSheet = 'players' | 'chat' | 'menu';
 
-/** Blackjack's own client state: the stake being chosen and the open sheet. */
+/** Blackjack's own client state: the bet field, the open sheet, the host's End game confirmation and the table's animation timeline. */
 interface BlackjackState {
-  /** The amount on the betting panel; null until the player touches it (the panel then starts from their last bet). */
-  betDraft: number | null;
-  /** The stake last placed on this device, the starting point for the next round's panel. */
+  /** What is typed in the bet field; null until touched (the field then shows the last bet, else the minimum). */
+  betText: string | null;
+  /** The stake last placed on this device. */
   lastBet: number | null;
-  /** A placed bet re-opened for changing. */
-  changingBet: boolean;
   sheet: BlackjackSheet | null;
+  confirmEnd: boolean;
+  /** The table as the last snapshot had it. */
+  table: TableModel | null;
+  timeline: Timeline;
 }
 
 interface BlackjackActions {
-  setBetDraft(amount: number | null): void;
+  setBetText(text: string | null): void;
   betPlaced(amount: number): void;
-  setChangingBet(changing: boolean): void;
   openSheet(sheet: BlackjackSheet | null): void;
-  /** A new round: the draft and the re-opened panel are stale; the last bet and the open sheet stay. */
-  newRound(): void;
+  setConfirmEnd(confirm: boolean): void;
+  /** Plans the animation from the previous table to this snapshot's; `fresh` snaps (a welcome). */
+  applyView(view: BlackjackView | null, now: number, fresh: boolean, motion: boolean): Timeline;
+  /** Shows the truth at once, whatever is still animating. */
+  snap(now: number): void;
   reset(): void;
 }
 
 export type BlackjackStore = BlackjackState & BlackjackActions;
 
-const ROUND: Pick<BlackjackState, 'betDraft' | 'changingBet'> = { betDraft: null, changingBet: false };
-const INITIAL: BlackjackState = { ...ROUND, lastBet: null, sheet: null };
+const INITIAL: BlackjackState = { betText: null, lastBet: null, sheet: null, confirmEnd: false, table: null, timeline: EMPTY_TIMELINE };
 
-export const useBlackjackStore = create<BlackjackStore>()((set) => ({
+export const useBlackjackStore = create<BlackjackStore>()((set, get) => ({
   ...INITIAL,
-  setBetDraft: (betDraft) => set({ betDraft }),
-  betPlaced: (amount) => set({ lastBet: amount, betDraft: amount, changingBet: false }),
-  setChangingBet: (changingBet) => set({ changingBet }),
-  openSheet: (sheet) => set({ sheet }),
-  newRound: () => set(ROUND),
+  setBetText: (betText) => set({ betText }),
+  betPlaced: (amount) => set({ lastBet: amount, betText: String(amount) }),
+  openSheet: (sheet) => set({ sheet, confirmEnd: false }),
+  setConfirmEnd: (confirmEnd) => set({ confirmEnd }),
+  applyView: (view, now, fresh, motion) => {
+    const { table: prevTable, timeline: prev } = get();
+    const table = tableOf(view);
+    const timeline = planTimeline(prev, prevTable, table, now, fresh, motion);
+    set({ table, timeline });
+    return timeline;
+  },
+  snap: (now) => set((s) => ({ timeline: snapTimeline(s.table, now) })),
   reset: () => set(INITIAL),
 }));
 

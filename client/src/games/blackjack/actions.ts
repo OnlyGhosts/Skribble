@@ -7,23 +7,12 @@ export function placeBet(amount: number): boolean {
   return true;
 }
 
-export function hit(): void {
-  socket.send({ t: 'hit' });
-}
+export const hit = (): boolean => socket.send({ t: 'hit' });
+export const stand = (): boolean => socket.send({ t: 'stand' });
+export const double = (): boolean => socket.send({ t: 'double' });
+export const split = (): boolean => socket.send({ t: 'split' });
 
-export function stand(): void {
-  socket.send({ t: 'stand' });
-}
-
-export function double(): void {
-  socket.send({ t: 'double' });
-}
-
-export function split(): void {
-  socket.send({ t: 'split' });
-}
-
-/** Host only: on to the next round without waiting for the results clock. */
-export function nextRound(): void {
-  socket.send({ t: 'next' });
+/** Host only: ends the game once the hand in play settles (at once while bets are open). */
+export function endGame(): void {
+  if (socket.send({ t: 'endGame' })) useBlackjackStore.getState().setConfirmEnd(false);
 }

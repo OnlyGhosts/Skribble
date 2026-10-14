@@ -1,7 +1,7 @@
-/* ---------- Blackjack: layout ---------- */
+/* ---------- Blackjack: layout (desktop: panel | table | chat, like Stake's left-hand controls) ---------- */
 .bj {
   display: grid;
-  grid-template-columns: 264px minmax(0, 1fr) 320px;
+  grid-template-columns: 300px minmax(0, 1fr) 300px;
   grid-template-rows: auto minmax(0, 1fr);
   gap: var(--space-4);
   height: 100dvh;
@@ -35,12 +35,16 @@
 
 .bj__round strong {
   font-weight: 800;
+  white-space: nowrap;
 }
 
 .bj__round small {
   color: var(--color-text-faint);
   font-weight: 600;
   font-size: 0.75rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .bj__clock {
@@ -52,6 +56,7 @@
   align-items: center;
   justify-content: flex-end;
   gap: 6px;
+  min-width: 0;
 }
 
 .bj__players-btn {
@@ -72,43 +77,24 @@
   height: 44px;
 }
 
-.bj__players {
+.bj__panel {
+  grid-column: 1;
   grid-row: 2;
   min-height: 0;
-  display: flex;
-  flex-direction: column;
-  padding: var(--space-3);
-}
-
-.bj__players-body {
-  min-height: 0;
   overflow-y: auto;
+  padding: var(--space-4);
 }
 
-/* One column inside a fixed frame, so the results overlay covers exactly what is on screen. */
-.bj__main {
-  position: relative;
+.bj__table {
+  grid-column: 2;
   grid-row: 2;
   min-height: 0;
   min-width: 0;
   display: flex;
-  flex-direction: column;
-}
-
-.bj__scroll {
-  flex: 1 1 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  overflow-y: auto;
-  scrollbar-width: thin;
-  padding: 2px;
-  width: min(820px, 100%);
-  margin: 0 auto;
 }
 
 .bj__chat {
+  grid-column: 3;
   grid-row: 2;
   min-height: 0;
   display: flex;
@@ -122,41 +108,224 @@
   height: min(60vh, 520px);
 }
 
-/* ---------- Cards in a hand ---------- */
-.bj-hand__cards .playing-card--sm + .playing-card--sm {
-  margin-left: calc(var(--card-w) * -0.36);
+/* ---------- The table ---------- */
+.bj-table {
+  /* Card sizes per place on the table; every card here is 2:3. */
+  --bj-dealer-w: 84px;
+  --bj-mine-w: 84px;
+  --bj-seat-w: 32px;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
 
-/* ---------- Hands ---------- */
+.bj-table__top {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: start;
+  gap: var(--space-3);
+}
+
+.bj-card {
+  display: inline-block;
+  flex: none;
+  will-change: transform;
+}
+
+.bj-card .playing-card,
+.bj-hand__cards > .playing-card,
+.bj-mine__empty > .playing-card,
+.bj-flip .playing-card {
+  --card-w: var(--bj-w);
+  --card-h: calc(var(--bj-w) * 1.5);
+  --card-font: calc(var(--bj-w) * 0.26 + 2px);
+}
+
+/* Cards in a hand fan to the right, half of each one under the next. */
 .bj-hand__cards {
   display: flex;
   align-items: flex-start;
-  min-height: var(--card-h, 78px);
+  justify-content: center;
+  min-height: calc(var(--bj-w) * 1.5);
 }
 
-/* Cards fan with an overlap so a long hand stays narrow; empty slots sit side by side. */
-.bj-hand__cards .playing-card + .playing-card {
-  margin-left: calc(var(--card-w) * -0.42);
+.bj-hand__cards > .bj-card + .bj-card {
+  margin-left: calc(var(--bj-w) * -0.55);
 }
 
-.bj-hand__cards .playing-card--slot + .playing-card--slot {
-  margin-left: 6px;
+.bj-hand__cards > .playing-card--slot + .playing-card--slot,
+.bj-mine__empty > .playing-card + .playing-card {
+  margin-left: 8px;
 }
 
-.bj-hand {
+/* ---------- Hole card flip ---------- */
+.bj-flip {
+  display: inline-grid;
+  transform-style: preserve-3d;
+  animation: bj-flip 400ms var(--ease-out) both;
+}
+
+.bj-flip > * {
+  grid-area: 1 / 1;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.bj-flip > .bj-flip__back {
+  transform: rotateY(180deg);
+}
+
+@keyframes bj-flip {
+  from {
+    transform: perspective(600px) rotateY(180deg);
+  }
+  to {
+    transform: perspective(600px) rotateY(0deg);
+  }
+}
+
+/* ---------- Dealer ---------- */
+.bj-dealer {
+  --bj-w: var(--bj-dealer-w);
+  grid-column: 2;
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 6px;
-  padding: var(--space-2);
-  border-radius: var(--radius-item);
-  border: 1px solid transparent;
 }
 
-.bj-hand--lg {
-  gap: var(--space-2);
-  padding: var(--space-3);
-  background: var(--color-surface-2);
-  border-color: var(--color-border);
+.bj-dealer__label {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-text-faint);
+}
+
+/* ---------- Shoe and discards ---------- */
+.bj-shoe,
+.bj-discard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.bj-shoe {
+  grid-column: 3;
+  justify-self: end;
+}
+
+.bj-discard {
+  grid-column: 1;
+  justify-self: start;
+}
+
+.bj-shoe__stack,
+.bj-discard__slot {
+  position: relative;
+  display: block;
+  width: 36px;
+  height: 54px;
+}
+
+.bj-discard__slot {
+  border-radius: 5px;
+  border: 1px dashed var(--color-border-strong);
+}
+
+.bj-stack {
+  position: absolute;
+  inset: 0;
+}
+
+.bj-stack__card {
+  position: absolute;
+  inset: 0;
+  border-radius: 5px;
+  background-color: var(--color-secondary);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8'%3E%3Cpath d='M4 0 8 4 4 8 0 4Z' fill='none' stroke='%23141514' stroke-opacity='.2' stroke-width='1'/%3E%3C/svg%3E");
+  background-size: 8px 8px;
+  border: 1px solid var(--color-surface);
+}
+
+.bj-shoe__count {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--color-text-faint);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ---------- Ribbon ---------- */
+.bj-ribbon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  text-align: center;
+  line-height: 1.2;
+}
+
+.bj-ribbon__main {
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--color-text-muted);
+}
+
+.bj-ribbon__sub {
+  font-size: 0.66rem;
+  letter-spacing: 0.12em;
+  color: var(--color-text-faint);
+}
+
+/* ---------- Hands ---------- */
+.bj-hand {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  border-radius: var(--radius-item);
+  border: 2px solid transparent;
+  transition: border-color 150ms ease-out;
+}
+
+.bj-hand__top {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  min-height: 24px;
+}
+
+.bj-hand__foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 20px;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.bj-hand__bet {
+  color: var(--color-text-muted);
 }
 
 .bj-hand--active {
@@ -164,161 +333,222 @@
   background: var(--color-primary-soft);
 }
 
-.bj-hand--sm {
-  padding: 0;
-  gap: 4px;
+.bj-hand--win {
+  border-color: var(--color-primary-text);
 }
 
-.bj-hand--sm .bj-hand__cards {
-  min-height: 42px;
+.bj-hand--blackjack {
+  border-color: var(--color-warning);
 }
 
-.bj-hand__meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 10px;
-  font-size: 0.85rem;
+.bj-hand--loss,
+.bj-hand--bust {
+  border-color: var(--color-danger);
 }
 
-.bj-hand--sm .bj-hand__meta {
-  gap: 4px 6px;
-  font-size: 0.72rem;
+.bj-hand--push {
+  border-color: var(--color-border-strong);
 }
 
-.bj-total {
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
+.bj-hand__outcome--win {
+  color: var(--color-primary-text);
 }
 
-.bj-total--bust {
-  color: var(--color-danger-text);
-}
-
-.bj-status {
-  display: inline-flex;
-  align-items: center;
-  padding: 1px 8px;
-  border-radius: var(--radius-pill);
-  background: var(--color-surface-3);
-  color: var(--color-text-muted);
-  font-weight: 700;
-  font-size: 0.75rem;
-}
-
-.bj-hand--sm .bj-status {
-  padding: 0 6px;
-  font-size: 0.66rem;
-}
-
-.bj-status--acting {
-  background: var(--color-primary);
-  color: var(--color-primary-contrast);
-}
-
-.bj-status--bust,
-.bj-status--lost,
-.bj-status--loss {
-  background: var(--color-danger-soft);
-  color: var(--color-danger-text);
-}
-
-.bj-status--won,
-.bj-status--win {
-  background: var(--color-success-soft);
-  color: var(--color-success-text);
-}
-
-.bj-status--blackjack {
-  background: var(--color-warning-soft);
+.bj-hand__outcome--blackjack {
   color: var(--color-warning-text);
 }
 
-.bj-status--push {
-  background: var(--color-info-soft);
-  color: var(--color-text);
+.bj-hand__outcome--loss {
+  color: var(--color-danger-text);
+}
+
+.bj-hand__outcome--push {
+  color: var(--color-text-muted);
 }
 
 .bj-tag {
-  font-size: 0.68rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--color-text-faint);
-  background: var(--color-surface-3);
   padding: 1px 6px;
   border-radius: var(--radius-pill);
-  white-space: nowrap;
+  background: var(--color-surface-3);
+  border: 1px solid var(--color-border);
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
 }
 
-/* ---------- Dealer ---------- */
-.bj-dealer {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-}
-
-.bj-dealer__head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 12px;
-}
-
-.bj-dealer__title {
-  font-weight: 900;
-  font-size: 1.05rem;
-  letter-spacing: -0.01em;
-}
-
-.bj-dealer__shoe {
-  margin-left: auto;
+/* The total pill over a hand, in the outcome's colour once settled. */
+.bj-pill {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  color: var(--color-text-faint);
-  font-size: 0.78rem;
+  justify-content: center;
+  min-width: 34px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-3);
+  border: 1px solid var(--color-border-strong);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
-.bj-dealer__reshuffled {
-  font-size: 0.7rem;
+.bj-pill--active {
+  border-color: var(--color-primary-text);
 }
 
-.bj-dealer__cards {
+.bj-pill--win {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-primary-contrast);
+}
+
+.bj-pill--blackjack {
+  background: var(--color-warning);
+  border-color: var(--color-warning);
+  color: var(--color-bg);
+}
+
+.bj-pill--loss,
+.bj-pill--bust {
+  background: var(--color-danger);
+  border-color: var(--color-danger);
+  color: var(--color-bg);
+}
+
+.bj-pill--push {
+  background: var(--color-surface-2);
+  border-color: var(--color-border-strong);
+  color: var(--color-text-muted);
+}
+
+/* The payout rises out of the hand and fades; the foot keeps it in words. */
+.bj-payout {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: var(--color-primary-text);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  animation: bj-rise 1600ms var(--ease-out) forwards;
+}
+
+.bj-hand--blackjack .bj-payout {
+  color: var(--color-warning-text);
+}
+
+.bj-hand--push .bj-payout {
+  color: var(--color-text-muted);
+}
+
+@keyframes bj-rise {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 10px);
+  }
+  20% {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+  75% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -18px);
+  }
+}
+
+/* ---------- My hands ---------- */
+.bj-mine {
+  --bj-w: var(--bj-mine-w);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.bj-mine__hands {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-2);
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-top: 18px;
+}
+
+.bj-mine--n2 {
+  --bj-w: calc(var(--bj-mine-w) * 0.8);
+}
+
+.bj-mine--n3,
+.bj-mine--n4 {
+  --bj-w: 46px;
+}
+
+.bj-mine--n3 .bj-hand,
+.bj-mine--n4 .bj-hand {
+  padding: 4px;
+}
+
+.bj-mine__empty {
+  display: flex;
+  justify-content: center;
+  padding-top: 30px;
+}
+
+.bj-mine__bet {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+}
+
+/* ---------- Other players: one strip that scrolls sideways ---------- */
+.bj-seats {
+  --bj-w: var(--bj-seat-w);
+  display: flex;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 2px;
+  list-style: none;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
+  flex: none;
+}
+
+.bj-seats:has(> .bj-seat:only-child) {
   justify-content: center;
 }
 
-/* ---------- Other seats ---------- */
-.bj-seats {
-  list-style: none;
-  /* Never the item that gives way: the scrolling column grows instead (overflow-x would let it shrink to nothing). */
-  flex: none;
-  display: flex;
-  gap: var(--space-2);
-  overflow-x: auto;
-  scrollbar-width: thin;
-  padding: 2px;
-  -webkit-overflow-scrolling: touch;
-}
-
 .bj-seat {
-  flex: 0 0 auto;
+  flex: none;
+  min-width: 116px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  min-width: 132px;
-  max-width: 220px;
-  padding: var(--space-2) 10px;
+  gap: 4px;
+  padding: 6px 8px;
   border-radius: var(--radius-item);
-  background: var(--color-surface);
   border: 1px solid var(--color-border);
+  background: var(--color-surface-2);
+  scroll-snap-align: center;
+  transition: border-color 150ms ease-out;
 }
 
-.bj-seat--acting {
-  border-color: var(--color-primary-text);
+.bj-seat--turn {
+  border: 2px solid var(--color-primary-text);
+  padding: 5px 7px;
   background: var(--color-primary-soft);
 }
 
@@ -333,358 +563,323 @@
   min-width: 0;
 }
 
-.bj-seat__name {
-  flex: 1;
+.bj-seat__id {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
+  line-height: 1.15;
+}
+
+.bj-seat__name {
   font-weight: 700;
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  max-width: 84px;
 }
 
 .bj-seat__chips {
-  font-size: 0.78rem;
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
 }
 
 .bj-seat__hands {
   display: flex;
-  gap: var(--space-2);
-}
-
-.bj-seat__note {
-  min-height: 42px;
-  display: flex;
-  align-items: center;
   gap: 4px;
-  color: var(--color-text-faint);
-  font-size: 0.8rem;
-  font-weight: 600;
+  min-height: calc(var(--bj-w) * 1.5 + 26px);
 }
 
-/* ---------- My seat ---------- */
-.bj-me {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-}
-
-.bj-me--turn {
-  border-color: var(--color-primary-text);
-}
-
-.bj-me__head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.bj-me__name {
-  flex: 1;
-  min-width: 0;
-  font-weight: 800;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.bj-me__you {
-  font-size: 0.7rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  color: var(--color-primary-text);
-  background: var(--color-primary-soft);
-  padding: 1px 6px;
-  border-radius: var(--radius-pill);
-}
-
-.bj-me__chips {
-  font-size: 1.15rem;
-}
-
-.bj-me__hands {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-.bj-me__hands .bj-hand {
-  flex: 1 1 240px;
-}
-
-.bj-me__note {
-  min-height: 44px;
-  display: flex;
-  align-items: center;
-  color: var(--color-text-muted);
-  font-weight: 600;
-}
-
-.bj-me__placed {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2) var(--space-3);
-}
-
-.bj-me__placed-line {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-weight: 700;
-}
-
-.bj-me__waiting {
-  flex: 1 1 160px;
-  color: var(--color-text-faint);
-  font-size: 0.85rem;
-  font-weight: 600;
-}
-
-/* ---------- Moves ---------- */
-.bj-actions {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--space-2);
-}
-
-.bj-action {
-  flex-direction: column;
+.bj-hand--mini {
+  padding: 2px;
   gap: 2px;
-  min-height: 56px;
-  padding: 6px 8px;
-  white-space: normal;
-  line-height: 1.15;
+  border-width: 1.5px;
 }
 
-.bj-action__label {
-  font-size: 1.05rem;
-  font-weight: 800;
+.bj-hand--mini .bj-hand__top {
+  min-height: 18px;
 }
 
-.bj-action__reason {
+.bj-hand--mini .bj-pill {
+  height: 18px;
+  min-width: 26px;
+  padding: 0 5px;
   font-size: 0.68rem;
-  font-weight: 600;
-  opacity: 0.85;
 }
 
-/* ---------- Betting ---------- */
-.bj-bet {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.bj-bet__head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.bj-bet__title {
-  font-weight: 800;
-  font-size: 1.05rem;
-}
-
-.bj-bet__range {
-  color: var(--color-text-faint);
-  font-size: 0.8rem;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
-.bj-bet__amount {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.bj-bet__input {
-  flex: 1;
-  min-width: 0;
-  min-height: 52px;
-  font-size: max(1.4rem, 16px);
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-  -moz-appearance: textfield;
-  appearance: textfield;
-}
-
-.bj-bet__input::-webkit-outer-spin-button,
-.bj-bet__input::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-
-.bj-bet__slider {
-  width: 100%;
-}
-
-.bj-bet__quick {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 6px;
-}
-
-.bj-bet__quick-btn {
-  min-height: 44px;
-  padding: 0 4px;
-  font-variant-numeric: tabular-nums;
-}
-
-.bj-bet__place {
-  min-height: 56px;
-}
-
-/* ---------- Results over the column ---------- */
-.bj-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 5;
-  display: grid;
-  place-items: center;
-  padding: var(--space-4);
-  background: var(--overlay-bg);
-  animation: fade-in 0.2s ease;
-  overflow-y: auto;
-}
-
-.bj-results {
-  gap: var(--space-3);
-}
-
-.bj-results__list {
-  list-style: none;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  text-align: left;
-}
-
-.bj-results__row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-  border-radius: var(--radius-item);
-  background: var(--color-surface-2);
-  border: 1px solid var(--color-border);
-}
-
-.bj-results__row--win,
-.bj-results__row--blackjack {
-  border-color: var(--color-success);
-}
-
-.bj-results__row--loss {
-  border-color: var(--color-danger);
-}
-
-.bj-results__body {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.bj-results__head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.bj-results__name {
-  flex: 1;
-  min-width: 0;
-  font-weight: 800;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.bj-seat__line {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
   white-space: nowrap;
 }
 
-.bj-results__outcome {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
+.bj-seat__line--playing {
+  color: var(--color-primary-text);
 }
 
-.bj-results__net {
-  font-weight: 900;
-  font-size: 1.05rem;
-  font-variant-numeric: tabular-nums;
-  color: var(--color-text-muted);
-  min-width: 3ch;
-  text-align: right;
+.bj-seat__line--settled {
+  color: var(--color-text);
 }
 
-.bj-results__net--won {
-  color: var(--color-success-text);
-}
-
-.bj-results__net--lost {
+.bj-seat__line--out {
   color: var(--color-danger-text);
 }
 
-.bj-results__detail {
+/* ---------- Control panel ---------- */
+.bj-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.bj-panel__status {
+  margin: 0;
+  min-height: 22px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 0.95rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bj-panel__status::before {
+  content: '';
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-border-strong);
+}
+
+.bj-panel__status--my-turn,
+.bj-panel__status--bet {
+  color: var(--color-primary-text);
+}
+
+.bj-panel__status--my-turn::before,
+.bj-panel__status--bet::before {
+  background: var(--color-primary);
+}
+
+.bj-panel__status--their-turn::before,
+.bj-panel__status--dealer::before {
+  background: var(--color-secondary);
+}
+
+.bj-panel__status--out {
+  color: var(--color-danger-text);
+}
+
+.bj-panel__label-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 
-.bj-results__cards {
+.bj-panel__label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.bj-panel__balance {
+  font-size: 0.9rem;
+}
+
+/* The amount: one field with the coin and a clear button, 1/2 2x MAX joined to its right. */
+.bj-amount {
+  display: flex;
+  min-width: 0;
+}
+
+.bj-amount__field {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  height: 48px;
+  padding-left: 12px;
+  border: 1.5px solid var(--color-border-strong);
+  border-right: 0;
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+  background: var(--color-surface-3);
+}
+
+.bj-amount__field:focus-within {
+  border-color: var(--color-primary-text);
+}
+
+.bj-amount__field.is-off {
+  opacity: 0.6;
+}
+
+.bj-amount__coin {
+  flex: none;
+}
+
+.bj-amount__input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0 4px 0 8px;
+  border: 0;
+  background: transparent;
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: max(1rem, 16px);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.bj-amount__input:focus {
+  outline: none;
+}
+
+.bj-amount__clear {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-faint);
+}
+
+.bj-amount__clear:hover {
+  color: var(--color-text);
+}
+
+.bj-amount__steps {
+  display: flex;
+  flex: none;
+}
+
+.bj-amount__step {
+  min-width: 48px;
+  height: 48px;
+  padding: 0 8px;
+  border: 1.5px solid var(--color-border-strong);
+  border-left-width: 1px;
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  font-weight: 600;
+  touch-action: manipulation;
+}
+
+.bj-amount__step + .bj-amount__step {
+  border-left: 0;
+}
+
+.bj-amount__step:last-child {
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+.bj-amount__step:hover:not(:disabled) {
+  background: var(--color-surface);
+}
+
+.bj-amount__step:disabled {
+  color: var(--color-text-faint);
+}
+
+.bj-panel__moves {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.bj-move {
+  min-width: 0;
+  touch-action: manipulation;
+}
+
+/* Dimmed, not gone: every control keeps its place all game long. */
+.bj-panel .btn:disabled {
+  background: var(--color-surface-2);
+  border-color: var(--color-surface-2);
+  color: var(--color-text-faint);
+}
+
+.bj-panel__bet {
+  min-height: 56px;
+  font-size: 1.05rem;
+  touch-action: manipulation;
+}
+
+.bj-panel__hint {
+  margin: 0;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--color-text-faint);
+}
+
+/* ---------- End game (host) ---------- */
+.bj-end {
+  white-space: nowrap;
+}
+
+.bj-end-note {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.bj-end-note--menu {
+  display: block;
+  padding: var(--space-3) 0;
+}
+
+.bj-end-confirm {
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
-.bj-results__total {
-  color: var(--color-text-muted);
-  font-size: 0.78rem;
+.bj-end-confirm__text {
   font-weight: 700;
-  margin-left: 4px;
+  font-size: 0.85rem;
   white-space: nowrap;
 }
 
-.bj-results__chips {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--color-text-faint);
+.bj-end-confirm--menu {
+  flex-wrap: wrap;
+  padding: var(--space-2) 0;
 }
 
-.bj-results__footer {
-  justify-content: center;
+.bj-end-confirm--menu .bj-end-confirm__text {
+  flex: 1 1 100%;
+  white-space: normal;
+}
+
+.bj-end-confirm--menu .btn {
+  flex: 1;
   min-height: 44px;
 }
 
-/* ---------- Settings rows ---------- */
+/* ---------- Settings ---------- */
 .bj-setting__presets {
   display: flex;
-  flex-wrap: wrap;
   gap: 6px;
 }
 
 .bj-setting__preset {
-  flex: 1 1 auto;
-  min-height: 40px;
-  padding: 0 10px;
+  flex: 1;
+  min-height: 44px;
   border-radius: var(--radius-item);
   border: 1px solid var(--color-border);
   background: var(--color-surface-2);
   color: var(--color-text);
   font-weight: 700;
   font-size: 0.85rem;
-  font-variant-numeric: tabular-nums;
 }
 
 .bj-setting__preset.is-selected {
@@ -720,11 +915,16 @@
 
 @media (max-width: 1100px) {
   .bj {
-    grid-template-columns: 220px minmax(0, 1fr) 280px;
+    grid-template-columns: 280px minmax(0, 1fr) 260px;
+  }
+
+  .bj-table {
+    --bj-dealer-w: 72px;
+    --bj-mine-w: 72px;
   }
 }
 
-/* ---------- Phones: one scrolling column under a compact bar ---------- */
+/* ---------- Phones: bar, table, then the panel pinned at the bottom ---------- */
 @media (max-width: 760px), (min-aspect-ratio: 3/2) and (max-height: 520px) {
   .bj {
     display: flex;
@@ -733,9 +933,8 @@
     min-height: 0;
     width: 100%;
     overflow: hidden;
-    gap: var(--space-2);
-    padding: calc(var(--space-2) + env(safe-area-inset-top)) calc(var(--space-2) + env(safe-area-inset-right)) calc(var(--space-2) + env(safe-area-inset-bottom))
-      calc(var(--space-2) + env(safe-area-inset-left));
+    gap: 6px;
+    padding: calc(6px + env(safe-area-inset-top)) calc(8px + env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) calc(8px + env(safe-area-inset-left));
   }
 
   .bj__top {
@@ -743,25 +942,16 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 6px 8px;
+    padding: 4px 6px 4px 10px;
     border-radius: var(--radius-item);
-    min-height: 56px;
   }
 
   .bj__brand {
     flex: 1 1 0;
   }
 
-  .bj__round strong,
-  .bj__round small {
-    display: block;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
   .bj__round strong {
-    font-size: 0.85rem;
+    font-size: 0.88rem;
   }
 
   .bj__round small {
@@ -775,63 +965,179 @@
     letter-spacing: -0.02em;
   }
 
-  .bj__main {
+  .bj__table {
     flex: 1 1 0;
   }
 
-  .bj__scroll {
-    gap: var(--space-2);
-  }
-
-  .bj__scroll > .card {
+  .bj-table {
+    --bj-dealer-w: 60px;
+    --bj-mine-w: 64px;
+    --bj-seat-w: 28px;
+    gap: 6px;
+    padding: 8px;
     border-radius: var(--radius-item);
   }
 
-  .bj-dealer,
-  .bj-me {
-    padding: var(--space-2) var(--space-3);
+  .bj__panel {
+    flex: none;
+    padding: 10px;
+    border-radius: var(--radius-item);
+    overflow: visible;
   }
 
-  .bj-dealer__shoe {
-    font-size: 0.72rem;
+  .bj-panel {
+    gap: 6px;
   }
 
-  .bj-actions {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .bj-panel__status {
+    font-size: 0.9rem;
+    min-height: 20px;
   }
 
-  .bj-bet__quick {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+  .bj-ribbon__main {
+    font-size: 0.68rem;
   }
 
-  .bj-overlay {
-    padding: var(--space-2);
+  .bj-ribbon__sub {
+    font-size: 0.6rem;
   }
 
-  .bj-overlay .overlay__card {
-    gap: var(--space-2);
-    padding: var(--space-3);
+  .bj-seat {
+    min-width: 104px;
   }
-
 }
 
-/* The narrowest phones: tighter chrome in the bar so "Round 1/10" never has to be cut short. */
-@media (max-width: 359px) {
-  .bj__top {
+/* Short phones (an SE, a phone with the browser bars out): smaller cards so the table fits over the panel. */
+@media (max-width: 760px) and (max-height: 760px) {
+  .bj-table {
+    --bj-dealer-w: 48px;
+    --bj-mine-w: 54px;
+  }
+
+  .bj-ribbon__sub {
+    display: none;
+  }
+}
+
+@media (max-width: 760px) and (max-height: 620px) {
+  .bj-table {
+    --bj-dealer-w: 44px;
+    --bj-mine-w: 46px;
+    --bj-seat-w: 24px;
     gap: 4px;
     padding: 6px;
   }
 
-  .bj__side {
+  .bj-ribbon {
+    display: none;
+  }
+
+  .bj-shoe__stack,
+  .bj-discard__slot {
+    width: 28px;
+    height: 42px;
+  }
+
+  .bj__panel {
+    padding: 8px;
+  }
+
+  .bj-panel__moves,
+  .bj-panel {
+    gap: 5px;
+  }
+
+  .bj-panel .btn {
+    min-height: 44px;
+  }
+
+  .bj-amount__field,
+  .bj-amount__step {
+    height: 44px;
+  }
+
+  .bj-panel__bet {
+    min-height: 48px;
+  }
+
+  .bj-mine__hands {
+    padding-top: 14px;
+  }
+
+  .bj-mine__empty {
+    padding-top: 22px;
+  }
+
+  .bj-seat {
+    padding: 4px 6px;
+  }
+
+  .bj-seat--turn {
+    padding: 3px 5px;
+  }
+}
+
+/* A phone on its side: the table on the left, the panel on the right. */
+@media (min-aspect-ratio: 3/2) and (max-height: 520px) {
+  .bj {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 280px;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .bj__top {
+    grid-column: 1 / -1;
+  }
+
+  .bj__table {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .bj__panel {
+    grid-column: 2;
+    grid-row: 2;
+    overflow-y: auto;
+  }
+
+  .bj-table {
+    --bj-dealer-w: 44px;
+    --bj-mine-w: 48px;
+    --bj-seat-w: 24px;
+  }
+
+  .bj-ribbon {
+    display: none;
+  }
+}
+
+@media (max-width: 359px) {
+  .bj__top {
     gap: 4px;
+    padding: 4px 4px 4px 8px;
+  }
+
+  .bj__side {
+    gap: 2px;
   }
 
   .bj__players-btn {
     padding: 0 8px;
   }
 
-  .bj .playing-card--lg {
-    --card-w: 60px;
-    --card-h: 84px;
+  .bj-amount__step {
+    min-width: 44px;
+    padding: 0 4px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bj-flip,
+  .bj-payout {
+    animation: none;
+  }
+
+  .bj-payout {
+    display: none;
   }
 }

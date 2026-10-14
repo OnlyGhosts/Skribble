@@ -2,9 +2,9 @@ import type { CSSProperties } from 'react';
 import type { BlackjackSettings, BlackjackView } from '@shared/games/blackjack/protocol';
 import { gameById } from '@shared/platform/games';
 import { BottomSheet } from '../../platform/components/BottomSheet';
-import { GameMark } from '../../platform/components/GameGlyph';
 import { Chat } from '../../platform/components/Chat';
 import { ConnectionPill } from '../../platform/components/ConnectionPill';
+import { GameMark } from '../../platform/components/GameGlyph';
 import { LogoutIcon, MoreIcon, UsersIcon } from '../../platform/components/Icons';
 import { PlayerList } from '../../platform/components/PlayerList';
 import { PreferenceRows, SettingsMenu } from '../../platform/components/Preferences';
@@ -14,58 +14,98 @@ import { PHONE_QUERY, useMediaQuery } from '../../platform/lib/media';
 import { useAppMode } from '../../platform/lib/useViewport';
 import { leaveRoom } from '../../platform/net/actions';
 import { useActiveGame } from '../../platform/store/selectors';
-import { Dealer } from './components/Dealer';
-import { CardsIcon, ChatIcon } from './components/Icons';
-import { MyArea } from './components/MyArea';
-import { ResultsOverlay } from './components/Results';
-import { Seats } from './components/Seats';
-import { isActing, nameOf } from './hooks';
-import { phaseKicker, roundLabel } from './lib/text';
+import { ControlPanel } from './components/ControlPanel';
+import { EndGameControl } from './components/EndGame';
+import { ChatIcon } from './components/Icons';
+import { Table } from './components/Table';
+import { isActing, nameOf, pendingBettors, useConnected, useTableNow } from './hooks';
+import { tableOf, type TableModel } from './lib/table';
+import { animating, frameAt, outcomesShown, snapTimeline, type Timeline } from './lib/timeline';
+import { panelStatus, phaseKicker, roundLabel } from './lib/text';
 import { useBlackjack } from './store';
 
 const meta = gameById('blackjack');
 
+/** Chips a settled hand is still to hand back on screen: the balance catches up when the outcome shows. */
+function pendingPayout(table: TableModel | null, timeline: Timeline, now: number, id: string): number {
+  if (!table?.settled || outcomesShown(timeline, now)) return 0;
+  return (table.hands[id] ?? []).reduce((sum, h) => sum + (h.payout ?? 0), 0);
+}
+
 /**
- * The Blackjack table: a compact top bar (round, the clock, players, chat, options) over one
- * column that scrolls: the dealer at the top, the other seats in a strip, the viewer's own hands
- * and moves at the bottom. Desktop adds the players on the left and the chat on the right; the
- * round's results come up over the column.
+ * The Blackjack table, Stake style: a compact top bar (round, the turn clock, players, chat,
+ * options), the table (dealer, shoe and discards, the ribbon, the other seats, my hands) and the
+ * control panel always in the same place: under the table on a phone, in a left column on a
+ * desktop with the chat on the right. The cards move by the timeline the store plans from the
+ * snapshots; there is no results screen between rounds.
  */
 export function BlackjackScreen({ room, meId, isHost }: GameScreenProps<BlackjackView, BlackjackSettings>) {
   const game = useActiveGame();
   const isPhone = useMediaQuery(PHONE_QUERY);
   useAppMode(isPhone);
+  const connected = useConnected();
   const sheet = useBlackjack((s) => s.sheet);
   const openSheet = useBlackjack((s) => s.openSheet);
-  const closeSheet = () => openSheet(null);
-
+  const stored = useBlackjack((s) => s.timeline);
   const view = room.game;
+  const table = tableOf(view);
+  // A timeline planned for another table (a render before the store caught up) shows the truth.
+  const timeline = stored.round === (table?.round ?? null) || stored.discard ? stored : snapTimeline(table, 0);
+  const now = useTableNow(timeline);
   if (!view) return null;
+
+  const closeSheet = () => openSheet(null);
+  const frame = frameAt(timeline, table, now);
   const playing = room.phase === 'playing';
-  const holding = Boolean(room.waiting);
-  const paused = holding || view.paused;
+  const held = Boolean(room.waiting) || view.phase === 'held';
   const myTurn = isActing(view, meId);
   const turnName = nameOf(room, view.turn?.playerId);
-  const endsAt = playing && !paused ? view.endsAt : null;
-  const warnUnder = view.phase === 'results' ? 0 : 5;
-  const tickUnder = (view.phase === 'acting' && myTurn) || (view.phase === 'betting' && (view.players[meId]?.bet ?? 0) === 0 && view.order.includes(meId)) ? 5 : undefined;
+  const seat = view.players[meId];
+  const chipsOf = (id: string) => (view.players[id]?.chips ?? 0) - pendingPayout(frame.table, frame.timeline, now, id);
+  const busy = animating(timeline, now);
+  const status = panelStatus({
+    phase: view.phase,
+    seated: seat !== undefined,
+    bustedOut: seat?.bustedOut ?? false,
+    connected,
+    inRound: view.order.includes(meId),
+    betPlaced: (seat?.bet ?? 0) > 0,
+    pending: pendingBettors(view)
+      .filter((id) => id !== meId)
+      .map((id) => nameOf(room, id)),
+    myTurn,
+    turnName,
+    handIndex: view.turn?.handIndex ?? 0,
+    handCount: seat?.hands.length ?? 0,
+    dealerPlaying: Boolean(frame.table?.settled) && !outcomesShown(frame.timeline, now),
+  });
+  const timed = playing && !held && (view.phase === 'betting' || view.phase === 'acting' || view.phase === 'ending');
+  const tickUnder = myTurn || (view.phase === 'betting' && view.order.includes(meId) && (seat?.bet ?? 0) === 0) ? 5 : undefined;
   const players = <PlayerList room={room} meId={meId} isHost={isHost} mode="game" game={game} />;
+  const endControl = (variant: 'menu' | 'header') => isHost && playing && <EndGameControl variant={variant} phase={view.phase} requested={view.endRequested} />;
   const style = { '--bj-accent': meta.accent } as CSSProperties;
 
   return (
-    <div className={`bj${isPhone ? ' bj--phone' : ''}`} style={style} data-phase={view.phase} data-round={view.round} data-turn-player={view.turn?.playerId} data-testid="blackjack-screen">
+    <div
+      className={`bj${isPhone ? ' bj--phone' : ''}`}
+      style={style}
+      data-phase={view.phase}
+      data-round={view.round}
+      data-turn-player={view.turn?.playerId}
+      data-turn-hand={view.turn?.handIndex}
+      data-busy={busy}
+      data-testid="blackjack-screen"
+    >
       <header className="bj__top card" data-testid="blackjack-header">
         <div className="bj__brand">
-          {!isPhone && (
-            <GameMark game={meta} size="sm" />
-          )}
+          {!isPhone && <GameMark game={meta} size="sm" />}
           <div className="bj__round" data-testid="round-indicator" data-round={view.round} data-total={view.totalRounds}>
-            <strong>{roundLabel(view, !isPhone)}</strong>
-            <small data-testid="phase-kicker">{phaseKicker(view, turnName, myTurn, isPhone)}</small>
+            <strong>{roundLabel(view.round, view.totalRounds)}</strong>
+            <small data-testid="phase-kicker">{phaseKicker(view, turnName, myTurn)}</small>
           </div>
         </div>
         <div className="bj__clock">
-          <Timer endsAt={endsAt} paused={paused} warnUnder={warnUnder} tickUnder={tickUnder} />
+          <Timer endsAt={timed ? view.endsAt : null} paused={held} warnUnder={view.phase === 'ending' ? 0 : 5} tickUnder={tickUnder} />
         </div>
         <div className="bj__side">
           <button type="button" className="bj__players-btn" onClick={() => openSheet('players')} aria-haspopup="dialog" aria-expanded={sheet === 'players'} aria-label={`Players (${room.players.length})`} data-testid="players-toggle">
@@ -85,6 +125,7 @@ export function BlackjackScreen({ room, meId, isHost }: GameScreenProps<Blackjac
             <>
               <ConnectionPill />
               <SettingsMenu />
+              {endControl('header')}
               <button type="button" className="btn btn--ghost btn--sm" onClick={leaveRoom} data-testid="leave-room" aria-label="Leave room">
                 <LogoutIcon size={16} /> <span className="hide-mobile">Leave</span>
               </button>
@@ -93,20 +134,13 @@ export function BlackjackScreen({ room, meId, isHost }: GameScreenProps<Blackjac
         </div>
       </header>
 
-      {!isPhone && (
-        <aside className="bj__players card" aria-label="Players">
-          <div className="bj__players-body">{players}</div>
-        </aside>
-      )}
-
-      <main className="bj__main" data-testid="blackjack-main">
-        <div className="bj__scroll" data-testid="blackjack-column">
-          <Dealer view={view} size={isPhone ? 'md' : 'lg'} />
-          <Seats room={room} view={view} meId={meId} />
-          <MyArea room={room} view={view} meId={meId} playing={playing} />
-        </div>
-        {playing && view.phase === 'results' && <ResultsOverlay room={room} view={view} isHost={isHost} holding={holding} />}
+      <main className="bj__table" data-testid="blackjack-main">
+        <Table room={room} view={view} meId={meId} frame={frame} now={now} isPhone={isPhone} chipsOf={chipsOf} />
       </main>
+
+      <aside className="bj__panel card" aria-label="Controls">
+        <ControlPanel room={room} view={view} meId={meId} balance={chipsOf(meId)} status={status} canSend={playing && connected} busy={busy} hotkeys={!isPhone} />
+      </aside>
 
       {!isPhone && (
         <aside className="bj__chat card" aria-label="Chat">
@@ -127,6 +161,7 @@ export function BlackjackScreen({ room, meId, isHost }: GameScreenProps<Blackjac
           <BottomSheet open={sheet === 'menu'} title="Options" onClose={closeSheet} testId="menu-sheet">
             <div className="menu-sheet">
               <PreferenceRows />
+              {endControl('menu')}
               <button type="button" className="btn btn--ghost btn--block menu-sheet__leave" onClick={leaveRoom} data-testid="leave-room">
                 <LogoutIcon size={16} /> Leave room
               </button>

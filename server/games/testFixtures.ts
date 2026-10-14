@@ -55,9 +55,9 @@ export const GAME_TEST_FIXTURES: Readonly<Record<GameId, GameTestFixture>> = {
     validMessage: { t: 'autoPlace' },
   },
   blackjack: {
-    // One deck, the shortest clocks and one round: rng () => 0 deals the shuffled single deck in a fixed order.
+    // One deck, the shortest clocks and one round: rng () => 0 deals the shuffled single deck in a fixed order. The long game is unlimited.
     settings: { rounds: 1, decks: 1, betSeconds: 10, actSeconds: 10, resultsSeconds: 4, startingChips: 1000, minBet: 10, maxBet: 500 },
-    longSettings: { rounds: 50, decks: 8, betSeconds: 60, actSeconds: 60, resultsSeconds: 20, startingChips: 100_000, minBet: 1, maxBet: 100_000 },
+    longSettings: { rounds: 0, decks: 8, betSeconds: 60, actSeconds: 60, resultsSeconds: 20, startingChips: 100_000, minBet: 1, maxBet: 100_000 },
     // The round opens with betting; the minimum stake is always allowed.
     validMessage: { t: 'bet', amount: 10 },
   },
