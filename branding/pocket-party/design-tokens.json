@@ -1,0 +1,182 @@
+{
+  "name": "Pocket Party",
+  "defaultTheme": "dark",
+  "fonts": {
+    "display": {
+      "family": "Space Grotesk",
+      "weights": [
+        500,
+        600,
+        700
+      ],
+      "source": "Google Fonts"
+    },
+    "body": {
+      "family": "Inter",
+      "weights": [
+        400,
+        500,
+        600,
+        700
+      ],
+      "source": "Google Fonts"
+    },
+    "mono": {
+      "family": "IBM Plex Mono",
+      "weights": [
+        500,
+        600
+      ],
+      "source": "Google Fonts"
+    }
+  },
+  "themes": {
+    "dark": {
+      "--color-bg": "#141514",
+      "--color-surface": "#20221F",
+      "--color-surface-2": "#2B2E29",
+      "--color-surface-3": "#191C19",
+      "--color-border": "#454A43",
+      "--color-border-strong": "#747D6F",
+      "--color-text": "#F1F0E8",
+      "--color-text-muted": "#B9C0B3",
+      "--color-text-faint": "#9DA796",
+      "--color-primary": "#C7E976",
+      "--color-primary-hover": "#D5F49B",
+      "--color-primary-contrast": "#141514",
+      "--color-primary-soft": "#2D381F",
+      "--color-primary-text": "#C7E976",
+      "--color-secondary": "#A699D5",
+      "--color-secondary-hover": "#B8ADE2",
+      "--color-secondary-contrast": "#141514",
+      "--color-secondary-soft": "#302A40",
+      "--color-secondary-text": "#BEB2E8",
+      "--color-success": "#86D9A3",
+      "--color-success-soft": "#203A2A",
+      "--color-success-text": "#A0E9B8",
+      "--color-warning": "#F4D181",
+      "--color-warning-soft": "#3A3020",
+      "--color-warning-text": "#F4D181",
+      "--color-danger": "#FF9BA7",
+      "--color-danger-soft": "#3D2329",
+      "--color-danger-text": "#FFB0BA",
+      "--color-info-soft": "#243542",
+      "--color-focus": "#C7E976",
+      "--overlay-bg": "rgba(0,0,0,0.72)",
+      "--canvas-bg": "#FFFFFF",
+      "--chat-correct-bg": "#203A2A",
+      "--chat-correct-fg": "#A0E9B8",
+      "--chat-close-bg": "#3A3020",
+      "--chat-close-fg": "#F4D181",
+      "--chat-guessed-bg": "#302A40",
+      "--chat-guessed-fg": "#D4C8F5"
+    },
+    "light": {
+      "--color-bg": "#F5F6EF",
+      "--color-surface": "#FFFFFF",
+      "--color-surface-2": "#EDF0E5",
+      "--color-surface-3": "#F0F3E8",
+      "--color-border": "#CED4C5",
+      "--color-border-strong": "#78846D",
+      "--color-text": "#1A2217",
+      "--color-text-muted": "#4F5C46",
+      "--color-text-faint": "#59654F",
+      "--color-primary": "#C7E976",
+      "--color-primary-hover": "#B7DB60",
+      "--color-primary-contrast": "#141514",
+      "--color-primary-soft": "#E9F3D6",
+      "--color-primary-text": "#405D17",
+      "--color-secondary": "#A699D5",
+      "--color-secondary-hover": "#9686CA",
+      "--color-secondary-contrast": "#141514",
+      "--color-secondary-soft": "#EEE9F7",
+      "--color-secondary-text": "#5E468C",
+      "--color-success": "#287643",
+      "--color-success-soft": "#E0F1E5",
+      "--color-success-text": "#246B3C",
+      "--color-warning": "#8A6116",
+      "--color-warning-soft": "#FFF0CE",
+      "--color-warning-text": "#7C5510",
+      "--color-danger": "#B43249",
+      "--color-danger-soft": "#FBE5E9",
+      "--color-danger-text": "#A5293F",
+      "--color-info-soft": "#E4EFF5",
+      "--color-focus": "#536E22",
+      "--overlay-bg": "rgba(20,25,18,0.48)",
+      "--canvas-bg": "#FFFFFF",
+      "--chat-correct-bg": "#E0F1E5",
+      "--chat-correct-fg": "#246B3C",
+      "--chat-close-bg": "#FFF0CE",
+      "--chat-close-fg": "#7C5510",
+      "--chat-guessed-bg": "#EEE9F7",
+      "--chat-guessed-fg": "#5E468C"
+    }
+  },
+  "radius": {
+    "--radius-sm": "8px",
+    "--radius-md": "14px",
+    "--radius-lg": "20px",
+    "--radius-pill": "999px"
+  },
+  "shadow": {
+    "--shadow-sm": "none",
+    "--shadow-md": "none",
+    "--shadow-lg": "0 16px 48px rgba(0,0,0,.28)"
+  },
+  "space": {
+    "--space-1": "4px",
+    "--space-2": "8px",
+    "--space-3": "12px",
+    "--space-4": "16px",
+    "--space-5": "24px",
+    "--space-6": "32px",
+    "--space-7": "48px",
+    "--space-8": "64px"
+  },
+  "type": {
+    "h1": {
+      "mobile": "32px",
+      "desktop": "48px",
+      "weight": 700,
+      "lineHeight": 1.08,
+      "letterSpacing": "-0.04em"
+    },
+    "h2": {
+      "mobile": "22px",
+      "desktop": "26px",
+      "weight": 700,
+      "lineHeight": 1.2,
+      "letterSpacing": "-0.025em"
+    },
+    "body": {
+      "mobile": "15px",
+      "desktop": "16px",
+      "weight": 400,
+      "lineHeight": 1.5,
+      "letterSpacing": "0"
+    },
+    "label": {
+      "mobile": "12px",
+      "desktop": "12px",
+      "weight": 600,
+      "lineHeight": 1.4,
+      "letterSpacing": "0.02em"
+    },
+    "codeBox": {
+      "mobile": "28px",
+      "desktop": "32px",
+      "weight": 600,
+      "lineHeight": 1.1,
+      "letterSpacing": "0"
+    }
+  },
+  "gameAccents": {
+    "skribble": "#A699D5",
+    "spygame": "#86CDBA",
+    "quipgame": "#F1C777",
+    "hangman": "#F2A08B",
+    "battleships": "#88C7EA",
+    "blackjack": "#86D9A3",
+    "poker": "#E7A1CB"
+  }
+}

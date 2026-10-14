@@ -1,0 +1,18 @@
+Token pairs validated programmatically. Full production accessibility and browser QA remain Claude implementation checks.
+dark: text/bg: 16.01:1, target 4.5:1
+dark: text-muted/surface: 8.59:1, target 4.5:1
+dark: text-faint/surface-3: 6.88:1, target 4.5:1
+dark: primary-contrast/primary: 13.38:1, target 4.5:1
+dark: secondary-contrast/secondary: 7.09:1, target 4.5:1
+dark: border-strong/surface-3: 4.02:1, target 3:1
+dark: success-text/success-soft: 8.73:1, target 4.5:1
+dark: danger-text/danger-soft: 8.27:1, target 4.5:1
+light: text/bg: 15.03:1, target 4.5:1
+light: text-muted/surface: 7.11:1, target 4.5:1
+light: text-faint/surface-3: 5.50:1, target 4.5:1
+light: primary-contrast/primary: 13.38:1, target 4.5:1
+light: secondary-contrast/secondary: 7.09:1, target 4.5:1
+light: border-strong/surface-3: 3.51:1, target 3:1
+light: success-text/success-soft: 5.51:1, target 4.5:1
+light: danger-text/danger-soft: 5.85:1, target 4.5:1
+All SVGs parsed; PNG icons generated; offline preview links verified.
