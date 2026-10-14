@@ -2,6 +2,7 @@
 import type { GameId } from '../../shared/platform/games.js';
 import type { AnyGameServerModule } from '../platform/game.js';
 import { battleshipsModule } from './battleships/module.js';
+import { blackjackModule } from './blackjack/module.js';
 import { hangmanModule } from './hangman/module.js';
 import { quipgameModule } from './quipgame/module.js';
 import { skribbleModule } from './skribble/module.js';
@@ -14,5 +15,6 @@ export const GAMES: Readonly<Record<GameId, AnyGameServerModule>> = {
   quipgame: quipgameModule,
   hangman: hangmanModule,
   battleships: battleshipsModule,
+  blackjack: blackjackModule,
   template: templateModule,
 };

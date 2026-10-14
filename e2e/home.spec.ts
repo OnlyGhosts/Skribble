@@ -224,7 +224,7 @@ test('create → "Who’s playing?" → the lobby, where picking a game comes fi
   const picker = host.page.getByTestId('game-picker');
   await expect(picker).toHaveAttribute('data-game', 'skribble');
   await expect(host.page.getByRole('heading', { name: 'Pick a game' })).toBeVisible();
-  await expect(picker.locator('button[data-testid="game-tile"]')).toHaveCount(5);
+  await expect(picker.locator('button[data-testid="game-tile"]')).toHaveCount(6);
   await expect(host.page.locator('.lobby > section').first()).toHaveAttribute('data-testid', 'game-picker');
   expect(await (await host.page.request.get(`/api/rooms/${skribbleCode}`)).json()).toMatchObject({ exists: true, players: 1, gameId: 'skribble' });
   await expect(host.page.locator(`[data-testid="player-item"][data-name="${host.name}"]`)).toBeVisible();

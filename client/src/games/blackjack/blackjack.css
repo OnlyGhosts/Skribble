@@ -1,0 +1,989 @@
+/* ---------- Blackjack: layout ---------- */
+.bj {
+  /* Cards are white in both themes, like the canvas; their ink and the red suits are fixed too. */
+  --bj-card-face: #ffffff;
+  --bj-card-ink: #141514;
+  --bj-card-red: #c5303a;
+  display: grid;
+  grid-template-columns: 264px minmax(0, 1fr) 320px;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: var(--space-4);
+  height: 100dvh;
+  padding: var(--space-4) var(--gutter);
+  width: min(1500px, 100%);
+  margin: 0 auto;
+}
+
+.bj__top {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+}
+
+.bj__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.bj__round {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+  min-width: 0;
+}
+
+.bj__round strong {
+  font-weight: 800;
+}
+
+.bj__round small {
+  color: var(--color-text-faint);
+  font-weight: 600;
+  font-size: 0.75rem;
+}
+
+.bj__clock {
+  justify-self: center;
+}
+
+.bj__side {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.bj__players-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 44px;
+  padding: 0 10px;
+  border-radius: var(--radius-pill);
+  background: var(--color-primary-soft);
+  color: var(--color-primary-text);
+  font-weight: 800;
+  font-size: 0.9rem;
+}
+
+.bj__icon-btn {
+  width: 44px;
+  height: 44px;
+}
+
+.bj__players {
+  grid-row: 2;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-3);
+}
+
+.bj__players-body {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* One column inside a fixed frame, so the results overlay covers exactly what is on screen. */
+.bj__main {
+  position: relative;
+  grid-row: 2;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.bj__scroll {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  padding: 2px;
+  width: min(820px, 100%);
+  margin: 0 auto;
+}
+
+.bj__chat {
+  grid-row: 2;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-3);
+}
+
+.bj__chat-sheet {
+  display: flex;
+  flex-direction: column;
+  height: min(60vh, 520px);
+}
+
+/* ---------- Chips ---------- */
+.bj-chips {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.bj-chips__coin {
+  flex: none;
+  color: var(--color-warning);
+}
+
+/* ---------- Playing cards ---------- */
+.bj-card {
+  --bj-card-w: 56px;
+  --bj-card-h: 78px;
+  --bj-card-font: 1.05rem;
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: var(--bj-card-w);
+  height: var(--bj-card-h);
+  border-radius: 6px;
+  background: var(--bj-card-face);
+  color: var(--bj-card-ink);
+  border: 1px solid var(--color-border-strong);
+  font-family: var(--font-display);
+  font-weight: 900;
+  line-height: 1;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.bj-card--red {
+  color: var(--bj-card-red);
+}
+
+.bj-card--sm {
+  --bj-card-w: 30px;
+  --bj-card-h: 42px;
+  --bj-card-font: 0.72rem;
+  border-radius: 4px;
+}
+
+.bj-card--lg {
+  --bj-card-w: 68px;
+  --bj-card-h: 96px;
+  --bj-card-font: 1.25rem;
+  border-radius: 8px;
+}
+
+.bj-card__corner {
+  position: absolute;
+  top: 4px;
+  left: 5px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: var(--bj-card-font);
+  letter-spacing: -0.03em;
+}
+
+.bj-card__corner--flip {
+  top: auto;
+  left: auto;
+  right: 5px;
+  bottom: 4px;
+  transform: rotate(180deg);
+}
+
+.bj-card__suit {
+  font-family: var(--font-sans);
+  font-size: calc(var(--bj-card-font) * 0.8);
+  margin-top: 1px;
+}
+
+.bj-card__pip {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-sans);
+  font-size: calc(var(--bj-card-font) * 1.7);
+}
+
+/* The small cards have no room for the middle pip or the mirrored corner. */
+.bj-card--sm .bj-card__pip,
+.bj-card--sm .bj-card__corner--flip {
+  display: none;
+}
+
+/* A small card shows its rank at the top left, the part that stays visible under the next card. */
+.bj-card--sm .bj-card__corner {
+  top: 3px;
+  left: 4px;
+  align-items: flex-start;
+}
+
+.bj-hand__cards .bj-card--sm + .bj-card--sm {
+  margin-left: calc(var(--bj-card-w) * -0.36);
+}
+
+/* A face-down card: lilac back with an inset frame, no rank or suit anywhere in the markup. */
+.bj-card--down {
+  background: var(--color-secondary);
+  border-color: var(--color-secondary);
+}
+
+.bj-card__back {
+  position: absolute;
+  inset: 5px;
+  border-radius: 3px;
+  border: 2px solid var(--color-secondary-contrast);
+  opacity: 0.7;
+}
+
+.bj-card--sm .bj-card__back {
+  inset: 3px;
+  border-width: 1.5px;
+}
+
+/* An empty slot before the deal. */
+.bj-card--slot {
+  background: transparent;
+  border: 1px dashed var(--color-border-strong);
+}
+
+.bj-card--slot .bj-card__back {
+  display: none;
+}
+
+/* ---------- Hands ---------- */
+.bj-hand__cards {
+  display: flex;
+  align-items: flex-start;
+  min-height: var(--bj-card-h, 78px);
+}
+
+/* Cards fan with an overlap so a long hand stays narrow; empty slots sit side by side. */
+.bj-hand__cards .bj-card + .bj-card {
+  margin-left: calc(var(--bj-card-w) * -0.42);
+}
+
+.bj-hand__cards .bj-card--slot + .bj-card--slot {
+  margin-left: 6px;
+}
+
+.bj-hand {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+}
+
+.bj-hand--lg {
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--color-surface-2);
+  border-color: var(--color-border);
+}
+
+.bj-hand--active {
+  border-color: var(--color-primary-text);
+  background: var(--color-primary-soft);
+}
+
+.bj-hand--sm {
+  padding: 0;
+  gap: 4px;
+}
+
+.bj-hand--sm .bj-hand__cards {
+  min-height: 42px;
+}
+
+.bj-hand__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  font-size: 0.85rem;
+}
+
+.bj-hand--sm .bj-hand__meta {
+  gap: 4px 6px;
+  font-size: 0.72rem;
+}
+
+.bj-total {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.bj-total--bust {
+  color: var(--color-danger-text);
+}
+
+.bj-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-3);
+  color: var(--color-text-muted);
+  font-weight: 700;
+  font-size: 0.75rem;
+}
+
+.bj-hand--sm .bj-status {
+  padding: 0 6px;
+  font-size: 0.66rem;
+}
+
+.bj-status--acting {
+  background: var(--color-primary);
+  color: var(--color-primary-contrast);
+}
+
+.bj-status--bust,
+.bj-status--lost,
+.bj-status--loss {
+  background: var(--color-danger-soft);
+  color: var(--color-danger-text);
+}
+
+.bj-status--won,
+.bj-status--win {
+  background: var(--color-success-soft);
+  color: var(--color-success-text);
+}
+
+.bj-status--blackjack {
+  background: var(--color-warning-soft);
+  color: var(--color-warning-text);
+}
+
+.bj-status--push {
+  background: var(--color-info-soft);
+  color: var(--color-text);
+}
+
+.bj-tag {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-faint);
+  background: var(--color-surface-3);
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  white-space: nowrap;
+}
+
+/* ---------- Dealer ---------- */
+.bj-dealer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+}
+
+.bj-dealer__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+}
+
+.bj-dealer__title {
+  font-weight: 900;
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+}
+
+.bj-dealer__shoe {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-text-faint);
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.bj-dealer__reshuffled {
+  font-size: 0.7rem;
+}
+
+.bj-dealer__cards {
+  justify-content: center;
+}
+
+/* ---------- Other seats ---------- */
+.bj-seats {
+  list-style: none;
+  /* Never the item that gives way: the scrolling column grows instead (overflow-x would let it shrink to nothing). */
+  flex: none;
+  display: flex;
+  gap: var(--space-2);
+  overflow-x: auto;
+  scrollbar-width: thin;
+  padding: 2px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.bj-seat {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 132px;
+  max-width: 220px;
+  padding: var(--space-2) 10px;
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+
+.bj-seat--acting {
+  border-color: var(--color-primary-text);
+  background: var(--color-primary-soft);
+}
+
+.bj-seat--out {
+  opacity: 0.6;
+}
+
+.bj-seat__who {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.bj-seat__name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 700;
+  font-size: 0.85rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bj-seat__chips {
+  font-size: 0.78rem;
+}
+
+.bj-seat__hands {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.bj-seat__note {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-text-faint);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+/* ---------- My seat ---------- */
+.bj-me {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+}
+
+.bj-me--turn {
+  border-color: var(--color-primary-text);
+}
+
+.bj-me__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bj-me__name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bj-me__you {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--color-primary-text);
+  background: var(--color-primary-soft);
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+}
+
+.bj-me__chips {
+  font-size: 1.15rem;
+}
+
+.bj-me__hands {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.bj-me__hands .bj-hand {
+  flex: 1 1 240px;
+}
+
+.bj-me__note {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  color: var(--color-text-muted);
+  font-weight: 600;
+}
+
+.bj-me__placed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.bj-me__placed-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+}
+
+.bj-me__waiting {
+  flex: 1 1 160px;
+  color: var(--color-text-faint);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+/* ---------- Moves ---------- */
+.bj-actions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.bj-action {
+  flex-direction: column;
+  gap: 2px;
+  min-height: 56px;
+  padding: 6px 8px;
+  white-space: normal;
+  line-height: 1.15;
+}
+
+.bj-action__label {
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.bj-action__reason {
+  font-size: 0.68rem;
+  font-weight: 600;
+  opacity: 0.85;
+}
+
+/* ---------- Betting ---------- */
+.bj-bet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.bj-bet__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.bj-bet__title {
+  font-weight: 800;
+  font-size: 1.05rem;
+}
+
+.bj-bet__range {
+  color: var(--color-text-faint);
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.bj-bet__amount {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.bj-bet__input {
+  flex: 1;
+  min-width: 0;
+  min-height: 52px;
+  font-size: max(1.4rem, 16px);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.bj-bet__input::-webkit-outer-spin-button,
+.bj-bet__input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.bj-bet__slider {
+  width: 100%;
+}
+
+.bj-bet__quick {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.bj-bet__quick-btn {
+  min-height: 44px;
+  padding: 0 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.bj-bet__place {
+  min-height: 56px;
+}
+
+/* ---------- Results over the column ---------- */
+.bj-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+  background: var(--overlay-bg);
+  animation: fade-in 0.2s ease;
+  overflow-y: auto;
+}
+
+.bj-results {
+  gap: var(--space-3);
+}
+
+.bj-results__list {
+  list-style: none;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+}
+
+.bj-results__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+}
+
+.bj-results__row--win,
+.bj-results__row--blackjack {
+  border-color: var(--color-success);
+}
+
+.bj-results__row--loss {
+  border-color: var(--color-danger);
+}
+
+.bj-results__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bj-results__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.bj-results__name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bj-results__outcome {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bj-results__net {
+  font-weight: 900;
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+  min-width: 3ch;
+  text-align: right;
+}
+
+.bj-results__net--won {
+  color: var(--color-success-text);
+}
+
+.bj-results__net--lost {
+  color: var(--color-danger-text);
+}
+
+.bj-results__detail {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.bj-results__cards {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.bj-results__total {
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  margin-left: 4px;
+  white-space: nowrap;
+}
+
+.bj-results__chips {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-text-faint);
+}
+
+.bj-results__footer {
+  justify-content: center;
+  min-height: 44px;
+}
+
+/* ---------- Settings rows ---------- */
+.bj-setting {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bj-setting__presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.bj-setting__preset {
+  flex: 1 1 auto;
+  min-height: 40px;
+  padding: 0 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  font-weight: 700;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.bj-setting__preset.is-selected {
+  border-color: var(--color-primary-text);
+  background: var(--color-primary-soft);
+  color: var(--color-primary-text);
+}
+
+.bj-setting__field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bj-setting__input {
+  flex: 1;
+  min-width: 0;
+  max-width: 200px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Player list hooks ---------- */
+.player__badge--acting {
+  background: var(--color-primary);
+}
+
+.player__badge--natural {
+  background: var(--color-warning);
+}
+
+.player__badge--out {
+  background: var(--color-danger);
+}
+
+.player--acting {
+  background: var(--color-primary-soft);
+}
+
+.player--out {
+  opacity: 0.55;
+}
+
+.bj-player__out {
+  color: var(--color-danger-text);
+}
+
+@media (max-width: 1100px) {
+  .bj {
+    grid-template-columns: 220px minmax(0, 1fr) 280px;
+  }
+}
+
+/* ---------- Phones: one scrolling column under a compact bar ---------- */
+@media (max-width: 760px), (min-aspect-ratio: 3/2) and (max-height: 520px) {
+  .bj {
+    display: flex;
+    flex-direction: column;
+    height: var(--app-height, 100dvh);
+    min-height: 0;
+    width: 100%;
+    overflow: hidden;
+    gap: var(--space-2);
+    padding: calc(var(--space-2) + env(safe-area-inset-top)) calc(var(--space-2) + env(safe-area-inset-right)) calc(var(--space-2) + env(safe-area-inset-bottom))
+      calc(var(--space-2) + env(safe-area-inset-left));
+  }
+
+  .bj__top {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    border-radius: var(--radius-md);
+    min-height: 56px;
+  }
+
+  .bj__brand {
+    flex: 1 1 0;
+  }
+
+  .bj__round strong,
+  .bj__round small {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .bj__round strong {
+    font-size: 0.85rem;
+  }
+
+  .bj__round small {
+    font-size: 0.7rem;
+  }
+
+  .bj .timer--lg {
+    width: 44px;
+    height: 44px;
+    font-size: 0.82rem;
+    letter-spacing: -0.02em;
+  }
+
+  .bj__main {
+    flex: 1 1 0;
+  }
+
+  .bj__scroll {
+    gap: var(--space-2);
+  }
+
+  .bj__scroll > .card {
+    border-radius: var(--radius-md);
+  }
+
+  .bj-dealer,
+  .bj-me {
+    padding: var(--space-2) var(--space-3);
+  }
+
+  .bj-dealer__shoe {
+    font-size: 0.72rem;
+  }
+
+  .bj-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .bj-bet__quick {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .bj-overlay {
+    padding: var(--space-2);
+  }
+
+  .bj-overlay .overlay__card {
+    gap: var(--space-2);
+    padding: var(--space-3);
+  }
+
+}
+
+/* The narrowest phones: tighter chrome in the bar so "Round 1/10" never has to be cut short. */
+@media (max-width: 359px) {
+  .bj__top {
+    gap: 4px;
+    padding: 6px;
+  }
+
+  .bj__side {
+    gap: 4px;
+  }
+
+  .bj__players-btn {
+    padding: 0 8px;
+  }
+
+  .bj-card--lg {
+    --bj-card-w: 60px;
+    --bj-card-h: 84px;
+  }
+}

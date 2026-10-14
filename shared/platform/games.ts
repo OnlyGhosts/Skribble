@@ -2,7 +2,7 @@
  * The game registry: every game the site offers, in library order. Adding a game means adding a
  * GameId, a GameMeta entry here, a server module (server/games) and a client module (client/src/games).
  */
-export type GameId = 'skribble' | 'spygame' | 'quipgame' | 'hangman' | 'battleships' | 'template';
+export type GameId = 'skribble' | 'spygame' | 'quipgame' | 'hangman' | 'battleships' | 'blackjack' | 'template';
 
 export type GameStatus = 'live' | 'soon' | 'hidden';
 
@@ -120,6 +120,26 @@ export const GAME_LIST: readonly GameMeta[] = [
     maxPlayers: 8,
     icon: '🚢',
     accent: '#0369a1',
+    status: 'live',
+  },
+  {
+    id: 'blackjack',
+    slug: 'blackjack',
+    name: 'Blackjack',
+    tagline: 'Beat the house without going bust.',
+    description:
+      'Everyone plays against the house with a stack of chips. Bet, draw towards 21 without going over, and watch the dealer turn over the hole card. The biggest stack after the last round wins the table.',
+    howToPlay: [
+      'Place a bet each round; the host decides how many chips everyone starts with.',
+      'Hit to take a card, stand to stop. Over 21 and the hand is bust.',
+      'Double your bet for exactly one more card, or split a pair into two hands.',
+      'The dealer draws to 17. Beat the dealer to win your bet back twice over; a natural blackjack pays extra.',
+      'Run out of chips and you sit out; the most chips after the last round wins.',
+    ],
+    minPlayers: 1,
+    maxPlayers: 7,
+    icon: '🃏',
+    accent: '#15803d',
     status: 'live',
   },
   {
