@@ -18,9 +18,9 @@ function statusOf(seat: SeatData, isTurn: boolean): PokerSeatStatus {
 
 /** The pots settled so far (the current street's bets join them when it closes). */
 function potsOf(data: PokerData): PokerPotView[] {
-  const entries = data.order.map((id) => {
+  const entries = data.order.flatMap((id) => {
     const seat = data.seats[id];
-    return { id, committed: seat.committed, contender: seat.status === 'in' || seat.status === 'allIn' };
+    return seat ? [{ id, committed: seat.committed, contender: seat.status === 'in' || seat.status === 'allIn' }] : [];
   });
   return buildPots(entries).map((pot) => ({ amount: pot.amount, playerIds: pot.eligible }));
 }

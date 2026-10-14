@@ -1,7 +1,7 @@
 /** A hand's start: the button, the blinds (heads-up included), the hole cards and the first street. */
 import { freshDeck, shuffle } from '../../../shared/platform/cards.js';
 import type { PlatformPlayer } from '../../platform/game.js';
-import { adjustChips, bigBlind, draw, findPlayer, nameOf, type Gx } from './state.js';
+import { adjustChips, bigBlind, draw, findPlayer, nameOf, seatsIn, type Gx } from './state.js';
 import { openStreet } from './streets.js';
 
 /**
@@ -39,7 +39,9 @@ export function dealHand(gx: Gx): void {
   data.street = 'preflop';
   const sb = postBlind(gx, sbId, data.smallBlind, 'smallBlind');
   const bb = postBlind(gx, bbId, bigBlind(data), 'bigBlind');
-  data.highest = Math.max(sb, bb);
+  // A big blind all in for less still has to be called in full by the seats that play on; the
+  // side pots sort out the short stack. With one seat left able to act it only matches the chips in.
+  data.highest = seatsIn(data).length >= 2 ? Math.max(sb, bigBlind(data)) : Math.max(sb, bb);
   data.minRaise = bigBlind(data);
   for (let round = 0; round < 2; round++) for (const id of data.order) data.seats[id].cards.push(draw(gx));
   const dealer = findPlayer(ctx, data.dealerId ?? '');

@@ -28,7 +28,8 @@ export function phaseKicker(view: PokerView, turnName: string, mine: boolean, sh
       if (mine) return short ? 'Your move' : `${streetLabel(view.street)} — your move`;
       return short ? `${turnName}'s move` : `${streetLabel(view.street)} — ${turnName} to act`;
     case 'results':
-      return view.paused ? 'Paused' : 'Showdown';
+      if (view.paused) return 'Paused';
+      return view.results?.uncontested ? 'Hand over' : 'Showdown';
     case 'gameOver':
       return 'Game over';
   }

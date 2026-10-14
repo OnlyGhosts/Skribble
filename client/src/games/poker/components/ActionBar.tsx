@@ -1,8 +1,8 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { PokerView } from '@shared/games/poker/protocol';
 import { ChipIcon } from '../../../platform/components/Chips';
 import { call, check, fold, wager } from '../actions';
-import { clampAmount, presetsFor, raiseRange, type RaiseRange } from '../lib/raise';
+import { clampAmount, presetsFor, raiseRange, uniquePresets, type RaiseRange } from '../lib/raise';
 import { formatChips } from '../lib/text';
 import { usePoker, usePokerStore } from '../store';
 
@@ -24,16 +24,24 @@ function RaisePanel({ view, meId, range, canSend }: { view: PokerView; meId: str
   const draft = usePoker((s) => s.raiseDraft);
   const amount = clampAmount(draft ?? range.min, range);
   const [text, setText] = useState(String(amount));
+  const confirmRef = useRef<HTMLDivElement>(null);
   useEffect(() => setText(String(amount)), [amount]);
-  const set = (next: number) => usePokerStore.getState().setRaiseDraft(clampAmount(next, range));
-  const presets = presetsFor(view, view.players[meId]?.bet ?? 0, range);
-  const submit = (e: FormEvent) => {
-    e.preventDefault();
-    const value = clampAmount(Number(text), range);
-    set(value);
-    wager(view.actions, value);
+  // On a short screen the panel may open below the fold of its scrolling dock: bring the confirm row up.
+  useEffect(() => confirmRef.current?.scrollIntoView?.({ block: 'nearest' }), []);
+  /** Clamps and stores the amount, and shows exactly that in the field (the draft may not change). */
+  const commit = (next: number): number => {
+    const value = clampAmount(next, range);
+    usePokerStore.getState().setRaiseDraft(value);
+    setText(String(value));
+    return value;
   };
   const fixed = range.min >= range.max;
+  // A fixed window (the whole stack) has one amount: presets would all repeat it.
+  const presets = fixed ? [] : uniquePresets(presetsFor(view, view.players[meId]?.bet ?? 0, range));
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    wager(view.actions, commit(Number(text)));
+  };
   return (
     <form className="pk-raise" onSubmit={submit} noValidate data-testid="raise-panel" data-kind={range.kind} data-min={range.min} data-max={range.max} data-amount={amount}>
       <div className="pk-raise__head">
@@ -55,20 +63,22 @@ function RaisePanel({ view, meId, range, canSend }: { view: PokerView; meId: str
           value={text}
           enterKeyHint="go"
           onChange={(e) => setText(e.target.value)}
-          onBlur={() => set(Number(text))}
+          onBlur={() => commit(Number(text))}
           disabled={fixed}
           data-testid="raise-input"
         />
       </label>
-      {!fixed && <input className="range pk-raise__slider" type="range" min={range.min} max={range.max} step={1} value={amount} aria-label="Amount" onChange={(e) => set(Number(e.target.value))} data-testid="raise-slider" />}
-      <div className="pk-raise__presets" role="group" aria-label="Quick amounts">
-        {presets.map((p) => (
-          <button key={p.id} type="button" className={`btn btn--ghost btn--sm pk-raise__preset${p.amount === amount ? ' is-selected' : ''}`} aria-pressed={p.amount === amount} onClick={() => set(p.amount)} data-testid={`raise-${p.id}`} data-amount={p.amount}>
-            {p.label}
-          </button>
-        ))}
-      </div>
-      <div className="pk-raise__confirm-row">
+      {!fixed && <input className="range pk-raise__slider" type="range" min={range.min} max={range.max} step={1} value={amount} aria-label="Amount" onChange={(e) => commit(Number(e.target.value))} data-testid="raise-slider" />}
+      {presets.length > 0 && (
+        <div className="pk-raise__presets" role="group" aria-label="Quick amounts">
+          {presets.map((p) => (
+            <button key={p.id} type="button" className={`btn btn--ghost btn--sm pk-raise__preset${p.amount === amount ? ' is-selected' : ''}`} aria-pressed={p.amount === amount} onClick={() => commit(p.amount)} data-testid={`raise-${p.id}`} data-amount={p.amount}>
+              {p.label}
+            </button>
+          ))}
+        </div>
+      )}
+      <div ref={confirmRef} className="pk-raise__confirm-row">
         <button type="button" className="btn btn--secondary pk-raise__cancel" onClick={() => usePokerStore.getState().openRaise(false)} data-testid="raise-cancel">
           Cancel
         </button>
@@ -127,7 +137,6 @@ export function ActionBar({ view, meId, myTurn, canSend }: Props) {
           className="btn btn--primary pk-action"
           onClick={() => usePokerStore.getState().openRaise(true)}
           disabled={!(enabled && range)}
-          aria-haspopup="true"
           data-testid="action-raise"
           data-kind={range?.kind ?? 'raise'}
         >

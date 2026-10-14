@@ -1,7 +1,7 @@
 /** The streets of a hand: opening the betting, closing it (uncalled bets refunded), the board and the run-out. */
 import type { PokerStreet } from '../../../shared/games/poker/protocol.js';
 import { awardUncontested, showdown } from './results.js';
-import { adjustChips, bigBlind, contenders, draw, seatsIn, snapshot, type Gx } from './state.js';
+import { adjustChips, bigBlind, contenders, draw, seatsIn, snapshot, streetIdle, type Gx } from './state.js';
 
 const CARDS_ON: Record<PokerStreet, number> = { preflop: 0, flop: 3, turn: 4, river: 5 };
 const NEXT: Record<PokerStreet, PokerStreet | null> = { preflop: 'flop', flop: 'turn', turn: 'river', river: null };
@@ -25,8 +25,8 @@ export function openStreet(gx: Gx): void {
   const after = data.street === 'preflop' ? bigBlindIndex : dealerIndex;
   const ring = Array.from({ length: n }, (_, k) => data.order[(after + 1 + k) % n]);
   data.toAct = ring.filter((id) => data.seats[id].status === 'in');
-  const idle = data.toAct.length === 0 || (data.toAct.length === 1 && data.seats[data.toAct[0]].bet >= data.highest);
-  if (idle) return endStreet(gx);
+  data.answered = {};
+  if (streetIdle(data)) return endStreet(gx);
   data.phase = { kind: 'acting', endsAt: ctx.now + ctx.settings.actSeconds * 1000 };
   snapshot(gx);
 }

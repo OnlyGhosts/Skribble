@@ -16,7 +16,7 @@ import { gameById } from '../../../shared/platform/games.js';
 import { defineSettings, withDraft, type GameEvent, type GameResult, type GameServerModule } from '../../platform/game.js';
 import { actTimedOut, foldGone, playerMove } from './betting.js';
 import { beginHand, endGame, next, resumeIfHeld, seatPlayer, settleDue, snapshotOrResume } from './hand.js';
-import { findPlayer, type Ctx, type Gx, type PokerData } from './state.js';
+import { findPlayer, removeSeat, type Ctx, type Gx, type PokerData } from './state.js';
 import { viewFor } from './view.js';
 
 type Result = GameResult<PokerData, PokerServerMessage>;
@@ -37,6 +37,8 @@ function start(ctx: Ctx): Result {
     highest: 0,
     minRaise: 0,
     toAct: [],
+    answered: {},
+    stackLeft: false,
     results: null,
     acted: false,
     idleHands: 0,
@@ -93,7 +95,7 @@ function onMessage(gx: Gx, playerId: string, msg: PokerClientMessage): void {
 function onPlayerLeft(gx: Gx, playerId: string): void {
   const { data } = gx;
   if (data.phase.kind === 'acting' && data.order.includes(playerId)) return foldGone(gx, playerId);
-  delete data.seats[playerId];
+  removeSeat(data, playerId);
   snapshotOrResume(gx);
 }
 

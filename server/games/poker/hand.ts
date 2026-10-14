@@ -1,7 +1,7 @@
 /** Hand and game lifecycle: the boundary between hands, seating, blind increases, holds, the host's controls and the end. */
 import { RESUME_SETTLE_MS, holdEffects, resumeEffect } from '../waiting.js';
 import { chooseDealer, dealHand } from './dealing.js';
-import { IDLE_HANDS_LIMIT, MIN_PLAYERS, adjustChips, bigBlind, fail, findPlayer, isHeld, nameOf, snapshot, stackedPlayers, systemMessage, type Gx } from './state.js';
+import { IDLE_HANDS_LIMIT, MIN_PLAYERS, adjustChips, bigBlind, fail, findPlayer, isHeld, nameOf, removeSeat, snapshot, stackedPlayers, systemMessage, type Gx } from './state.js';
 
 /** Seats a newcomer (or a player without a seat yet) with the starting stack. */
 export function seatPlayer(gx: Gx, playerId: string): void {
@@ -14,7 +14,7 @@ export function seatPlayer(gx: Gx, playerId: string): void {
  * The hand boundary: the next hand, or the end of the game once one player holds every chip,
  * after the last hand, or at the host's word. With fewer than two stacked players connected it
  * holds at the results instead (a reconnect or a join calls it again), and it abandons the game
- * only when too few seats are left at all.
+ * when too few seats are left at all, or too few stacks because a player left with chips.
  */
 export function beginHand(gx: Gx): void {
   const { data, ctx } = gx;
@@ -23,9 +23,14 @@ export function beginHand(gx: Gx): void {
     return;
   }
   // Seats of players who left are cleared at the boundary (their chips in a hand went to its pots).
-  for (const id of Object.keys(data.seats)) if (!findPlayer(ctx, id)) delete data.seats[id];
+  for (const id of Object.keys(data.seats)) if (!findPlayer(ctx, id)) removeSeat(data, id);
   const stacked = stackedPlayers(ctx, data);
   if (stacked.length < MIN_PLAYERS) {
+    // Too few stacks because a player walked off with theirs: nobody won the table.
+    if (data.stackLeft) {
+      gx.effects.push({ type: 'abort', reason: 'Not enough players with chips — back to the lobby.' });
+      return;
+    }
     if (stacked.length === 1) systemMessage(gx, `${stacked[0].name} has all the chips!`);
     return finishGame(gx);
   }
@@ -42,6 +47,7 @@ export function beginHand(gx: Gx): void {
   data.hand += 1;
   data.results = null;
   data.acted = false;
+  data.stackLeft = false;
   const every = ctx.settings.blindsIncreaseEvery;
   if (every > 0 && data.hand > 1 && (data.hand - 1) % every === 0) {
     data.smallBlind *= 2;

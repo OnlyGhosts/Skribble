@@ -57,6 +57,14 @@ export interface PokerData {
   minRaise: number;
   /** Players still to act this street, in order; the first is the turn. */
   toAct: string[];
+  /**
+   * The highest bet each seat last answered on this street (checked, called, bet or raised to).
+   * A seat may raise again only once the bet has gone up a full raise since: a short all in
+   * makes those who already acted call or fold.
+   */
+  answered: Record<string, number>;
+  /** A seat with chips left the game since the last deal: a table that drops below two stacks that way aborts. */
+  stackLeft: boolean;
   /** The last completed hand, kept until the next deal. */
   results: PokerResults | null;
   /** Somebody made a move of their own this hand (not a timeout): a table nobody plays at closes after IDLE_HANDS_LIMIT hands. */
@@ -110,6 +118,25 @@ export function turnOf(data: PokerData): string | null {
 export function ringAfter(data: PokerData, index: number): string[] {
   const n = data.order.length;
   return Array.from({ length: n }, (_, k) => data.order[(index + 1 + k) % n]);
+}
+
+/**
+ * Removes a departed player's seat, and with it their place in the hand's order, so nothing reads
+ * a seat that is gone. Notes when they walked away with chips.
+ */
+export function removeSeat(data: PokerData, id: string): void {
+  const seat = data.seats[id];
+  if (!seat) return;
+  if (seat.chips > 0) data.stackLeft = true;
+  delete data.seats[id];
+  data.order = data.order.filter((x) => x !== id);
+  data.toAct = data.toAct.filter((x) => x !== id);
+}
+
+/** The street has nobody left to bet against: no one to act, or the only seat able to act already matches the bet. */
+export function streetIdle(data: PokerData): boolean {
+  if (data.toAct.length === 0) return true;
+  return seatsIn(data).length <= 1 && data.toAct.length === 1 && (data.seats[data.toAct[0]]?.bet ?? 0) >= data.highest;
 }
 
 /** Every chip in the middle: the pots so far plus the bets of the current street. */

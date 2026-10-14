@@ -93,11 +93,6 @@ export function ResultsOverlay({ room, view, isHost, holding }: Props) {
                 <span className="pk-results__body">
                   <span className="pk-results__head">
                     <span className="pk-results__name">{player?.name ?? 'Someone'}</span>
-                    {seat && (
-                      <span className="pk-results__chips">
-                        now <Chips value={seat.chips} size={12} />
-                      </span>
-                    )}
                     <span className={`pk-results__net${net > 0 ? ' pk-results__net--won' : net < 0 ? ' pk-results__net--lost' : ''}`} data-testid="result-net">
                       {netLabel(net)}
                     </span>
@@ -116,6 +111,11 @@ export function ResultsOverlay({ room, view, isHost, holding }: Props) {
                       </>
                     ) : (
                       <span className="pk-results__hand pk-results__hand--hidden">{won ? 'Cards not shown' : 'Folded'}</span>
+                    )}
+                    {seat && (
+                      <span className="pk-results__chips" data-testid="result-chips">
+                        now <Chips value={seat.chips} size={12} />
+                      </span>
                     )}
                   </span>
                 </span>

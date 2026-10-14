@@ -115,6 +115,15 @@
   margin: 0 auto;
 }
 
+/* My cards and the moves: under the column, never scrolled away with it. */
+.pk__dock {
+  flex: none;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
 .pk__chat-sheet {
   display: flex;
   flex-direction: column;
@@ -735,6 +744,7 @@
 
 .pk-results__chips {
   flex: none;
+  margin-left: auto;
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -843,7 +853,8 @@
     gap: var(--space-2);
   }
 
-  .pk__scroll {
+  .pk__scroll,
+  .pk__dock {
     gap: var(--space-2);
   }
 
@@ -917,8 +928,159 @@
     padding: 0 8px;
   }
 
+  /* Narrower cards need smaller glyphs, or the middle pip runs into the corner indices. */
   .pk .pk-board .playing-card--md {
     --card-w: 48px;
     --card-h: 68px;
+    --card-font: 0.85rem;
+  }
+
+  .pk .pk-board .playing-card--md .playing-card__pip {
+    font-size: calc(var(--card-font) * 1.35);
+  }
+}
+
+/*
+ * ---------- Landscape phones: the table on the left, my cards and the moves on the right ----------
+ * Stacked, the dock would leave the board a sliver and push the raise panel's confirm off screen.
+ */
+@media (min-aspect-ratio: 3/2) and (max-height: 520px) {
+  .pk__main {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    gap: var(--space-2);
+  }
+
+  .pk__scroll {
+    grid-column: 1;
+    grid-row: 1;
+    width: 100%;
+  }
+
+  .pk__dock {
+    grid-column: 2;
+    grid-row: 1;
+    overflow-y: auto;
+    scrollbar-width: thin;
+  }
+
+  .pk__dock > .pk-me,
+  .pk__dock > .pk-actions {
+    width: 100%;
+  }
+
+  /* My seat in two columns: the cards beside my name, stack and what they make. */
+  .pk-me[data-role='player'] {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 4px 10px;
+  }
+
+  .pk-me__head {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .pk-me__hand {
+    display: contents;
+  }
+
+  .pk-me__cards {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+  }
+
+  .pk-me__info {
+    grid-column: 2;
+    grid-row: 2;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+  }
+
+  .pk-me .pk-me__note {
+    grid-column: 1 / -1;
+  }
+
+  .pk-me__hint {
+    font-size: 0.95rem;
+  }
+
+  .pk-me .playing-card--lg {
+    --card-w: 48px;
+    --card-h: 68px;
+    --card-font: 0.85rem;
+  }
+
+  .pk-me .playing-card--lg .playing-card__pip {
+    font-size: calc(var(--card-font) * 1.35);
+  }
+
+  .pk-action {
+    min-height: 48px;
+  }
+
+  /* The panel in two columns: the amount and slider beside the presets, the confirm row under both. */
+  .pk-raise {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+      'head head'
+      'amount presets'
+      'slider presets'
+      'confirm confirm';
+    align-items: center;
+    gap: 6px 8px;
+  }
+
+  .pk-raise__head {
+    grid-area: head;
+  }
+
+  .pk-raise__amount {
+    grid-area: amount;
+  }
+
+  .pk-raise__slider {
+    grid-area: slider;
+  }
+
+  .pk-raise__presets {
+    grid-area: presets;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pk-raise__confirm-row {
+    grid-area: confirm;
+  }
+
+  .pk-raise__input {
+    min-height: 44px;
+    font-size: max(1.15rem, 16px);
+  }
+
+  .pk-raise__cancel,
+  .pk-raise__confirm {
+    min-height: 48px;
+  }
+}
+
+/* A narrow landscape phone: the board's cards shrink to fit their half of the screen. */
+@media (min-aspect-ratio: 3/2) and (max-height: 520px) and (max-width: 700px) {
+  .pk .pk-board .playing-card--md {
+    --card-w: 44px;
+    --card-h: 62px;
+    --card-font: 0.8rem;
+  }
+
+  .pk .pk-board .playing-card--md .playing-card__pip {
+    font-size: calc(var(--card-font) * 1.35);
+  }
+
+  .pk-seats {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

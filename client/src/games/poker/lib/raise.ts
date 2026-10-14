@@ -42,3 +42,8 @@ export function presetsFor(view: PokerView, myBet: number, range: RaiseRange): P
     { id: 'allIn', label: 'All in', amount: range.max },
   ];
 }
+
+/** Drops a preset whose amount an earlier one already offers (Min and ½ pot often agree on a small pot). */
+export function uniquePresets(presets: readonly Preset[]): Preset[] {
+  return presets.filter((p, i) => presets.findIndex((q) => q.amount === p.amount) === i);
+}

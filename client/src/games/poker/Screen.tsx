@@ -29,8 +29,9 @@ const meta = gameById('poker');
 /**
  * The Poker table: a compact top bar (hand, street, the move clock, players, chat, options) over
  * a scrolling column with the board, the pot and the other seats round the table. My cards and
- * the action bar sit under the column, so neither scrolls away however many seats there are. Desktop adds the players on the left
- * and the chat on the right; the hand's results come up over the column.
+ * the action bar sit in a dock under the column (beside it on a landscape phone), so neither
+ * scrolls away however many seats there are. Desktop adds the players on the left and the chat
+ * on the right; the hand's results come up over the column.
  */
 export function PokerScreen({ room, meId, isHost }: GameScreenProps<PokerView, PokerSettings>) {
   const game = useActiveGame();
@@ -113,8 +114,10 @@ export function PokerScreen({ room, meId, isHost }: GameScreenProps<PokerView, P
           <Board room={room} view={view} size={isPhone ? 'md' : 'lg'} />
           <Seats room={room} view={view} meId={meId} />
         </div>
-        <MyHand room={room} view={view} meId={meId} size={isPhone ? 'lg' : 'xl'} />
-        {showActions && <ActionBar view={view} meId={meId} myTurn={myTurn} canSend={playing && connected} />}
+        <div className="pk__dock" data-testid="poker-dock">
+          <MyHand room={room} view={view} meId={meId} size={isPhone ? 'lg' : 'xl'} />
+          {showActions && <ActionBar view={view} meId={meId} myTurn={myTurn} canSend={playing && connected} />}
+        </div>
         {playing && view.phase === 'results' && <ResultsOverlay room={room} view={view} isHost={isHost} holding={holding} />}
       </main>
 

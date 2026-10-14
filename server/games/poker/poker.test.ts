@@ -260,17 +260,20 @@ describe('Poker: betting', () => {
     expect(totalChips(s)).toBe(2070);
   });
 
-  it('reopens the action on a short all-in raise without lowering the minimum raise', () => {
+  it('re-queues the players who acted on a short all-in raise to call or fold only, without lowering the minimum raise', () => {
     const s = sim('poker');
     const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol']);
     rigChips(s, { [alice]: 1000, [bob]: 995, [carol]: 60 });
     act(s, alice, { t: 'raise', to: 50 });
     act(s, bob, { t: 'call' });
-    // Carol's 70 tops the 50 by less than the 40 minimum: Alice and Bob must answer, but a raise still costs the full 40 over 70.
+    // Carol's 70 tops the 50 by less than the 40 minimum: Alice and Bob must answer, but only by calling or folding.
     act(s, carol, { t: 'allIn' });
     expect(chatTexts(s.effects).at(-1)).toBe('Carol is all in for 70!');
     expect(data(s)).toMatchObject({ highest: 70, minRaise: 40, toAct: [alice, bob] });
-    expect(view(s, alice).actions).toMatchObject({ callAmount: 20, canRaise: true, minRaiseTo: 110 });
+    expect(view(s, alice).actions).toMatchObject({ canCall: true, callAmount: 20, canRaise: false, canAllIn: false, canFold: true });
+    expect(errorsOf(act(s, alice, { t: 'raise', to: 110 }))).toEqual(['You cannot raise: you can only call or fold.']);
+    expect(errorsOf(act(s, alice, { t: 'allIn' }))).toEqual(['You cannot raise: you can only call or fold.']);
+    expect(data(s).highest).toBe(70);
     act(s, alice, { t: 'call' });
     act(s, bob, { t: 'call' });
     expect(data(s).street).toBe('flop');
@@ -280,6 +283,99 @@ describe('Poker: betting', () => {
     expect(view(s)).toMatchObject({ phase: 'results', results: { uncontested: false } });
     expect(Object.keys(view(s).results?.revealed ?? {})).toHaveLength(3);
     expect(totalChips(s)).toBe(2070);
+  });
+
+  it('lets nobody who already acted re-raise a short all in, as the bug report played it', () => {
+    const s = sim('poker');
+    const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol']);
+    // Carol, the big blind, has 120 in all.
+    rigChips(s, { [carol]: 110 });
+    act(s, alice, { t: 'raise', to: 100 });
+    act(s, bob, { t: 'call' });
+    act(s, carol, { t: 'allIn' });
+    expect(data(s)).toMatchObject({ highest: 120, minRaise: 90, toAct: [alice, bob] });
+    expect(view(s, alice).actions).toMatchObject({ canCall: true, callAmount: 20, canRaise: false, canAllIn: false });
+    expect(errorsOf(act(s, alice, { t: 'raise', to: 300 }))).toEqual(['You cannot raise: you can only call or fold.']);
+    expect(data(s).highest).toBe(120);
+    act(s, alice, { t: 'call' });
+    expect(view(s, bob).actions).toMatchObject({ canRaise: false, callAmount: 20 });
+    act(s, bob, { t: 'call' });
+    expect(data(s).street).toBe('flop');
+  });
+
+  it('keeps raising open for players yet to act after a short all in, and reopens it once short all-ins add up to a full raise', () => {
+    const s = sim('poker');
+    const [alice, bob, carol, dave] = startGame(s, ['Alice', 'Bob', 'Carol', 'Dave']);
+    // Alice has the button, Bob 5 and Carol 10 posted, Dave acts first. Stacks in all: Alice 120, Bob 150, Carol 200.
+    rigChips(s, { [alice]: 120, [bob]: 145, [carol]: 190 });
+    expect(data(s).toAct).toEqual([dave, alice, bob, carol]);
+    act(s, dave, { t: 'raise', to: 100 });
+    act(s, alice, { t: 'allIn' });
+    expect(data(s)).toMatchObject({ highest: 120, minRaise: 90, toAct: [bob, carol, dave] });
+    // Bob only posted a blind: he has not acted, so he may still raise.
+    expect(view(s, bob).actions).toMatchObject({ canRaise: true, minRaiseTo: 150, maxRaiseTo: 150, canAllIn: true });
+    act(s, bob, { t: 'allIn' });
+    expect(view(s, carol).actions).toMatchObject({ canRaise: true, minRaiseTo: 200, maxRaiseTo: 200 });
+    act(s, carol, { t: 'allIn' });
+    // 100 → 200 is a full raise over Dave's 100 in all, though no single all in was one.
+    expect(data(s)).toMatchObject({ highest: 200, minRaise: 90, toAct: [dave] });
+    expect(view(s, dave).actions).toMatchObject({ canRaise: true, minRaiseTo: 290, callAmount: 100 });
+  });
+
+  it('lets the others call the full big blind when the big blind is all in for less', () => {
+    const s = sim('poker');
+    const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol'], { hands: 0 });
+    act(s, alice, { t: 'fold' });
+    act(s, bob, { t: 'fold' });
+    rigChips(s, { [alice]: 3 });
+    tick(s, RESULTS_MS);
+    // Hand 2: Bob has the button, Carol posts 5, Alice is all in for a 3-chip big blind.
+    expect(data(s)).toMatchObject({ hand: 2, dealerId: bob, highest: 10, minRaise: 10, toAct: [bob, carol] });
+    expect(data(s).seats[alice]).toMatchObject({ bet: 3, status: 'allIn', lastAction: { kind: 'bigBlind', amount: 3 } });
+    expect(view(s, bob).actions).toMatchObject({ callAmount: 10, minRaiseTo: 20 });
+    act(s, bob, { t: 'call' });
+    expect(view(s, carol).actions).toMatchObject({ callAmount: 5, canCheck: false });
+    act(s, carol, { t: 'call' });
+    expect(data(s).street).toBe('flop');
+    expect(view(s).pots).toEqual([
+      { amount: 9, playerIds: [alice, bob, carol] },
+      { amount: 14, playerIds: [bob, carol] },
+    ]);
+  });
+
+  it('keeps the full big blind to call when the small blind is all in for less', () => {
+    const s = sim('poker');
+    const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol'], { hands: 0 });
+    act(s, alice, { t: 'fold' });
+    act(s, bob, { t: 'fold' });
+    rigChips(s, { [carol]: 3 });
+    tick(s, RESULTS_MS);
+    // Hand 2: Bob has the button, Carol is all in for a 3-chip small blind, Alice posts 10.
+    expect(data(s)).toMatchObject({ hand: 2, highest: 10, toAct: [bob, alice] });
+    expect(view(s, bob).actions).toMatchObject({ callAmount: 10, minRaiseTo: 20 });
+    act(s, bob, { t: 'call' });
+    expect(view(s, alice).actions).toMatchObject({ canCheck: true });
+    act(s, alice, { t: 'check' });
+    expect(data(s).street).toBe('flop');
+    expect(view(s).pots).toEqual([
+      { amount: 9, playerIds: [alice, bob, carol] },
+      { amount: 14, playerIds: [alice, bob] },
+    ]);
+  });
+
+  it('closes the street without a pointless turn when the one player left able to act already matches the bet', () => {
+    const s = sim('poker');
+    const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol']);
+    rigHand(s, { [alice]: ['AS', 'AD'], [bob]: ['KS', 'KD'], [carol]: ['QS', 'QD'] }, BOARD_DRY);
+    rigChips(s, { [alice]: 7 });
+    act(s, alice, { t: 'call' });
+    expect(data(s).seats[alice].status).toBe('allIn');
+    act(s, bob, { t: 'fold' });
+    // Carol's 10 covers Alice's 7: nobody is left to bet against, so the board runs out and her 3 extra come back.
+    expect(view(s)).toMatchObject({ phase: 'results', street: 'river', turn: null });
+    expect(data(s).community).toHaveLength(5);
+    expect(view(s).results?.pots).toEqual([{ amount: 19, winners: [{ playerId: alice, amount: 19 }], handName: 'Pair of aces' }]);
+    expect(chips(s, carol)).toBe(993);
   });
 
   it('makes a short call an all in, refunds the uncalled part of a bet and runs the board out when nobody can act', () => {
@@ -650,6 +746,68 @@ describe('Poker: seats coming and going', () => {
     tick(s, RESULTS_MS);
     expect(data(s).seats[carol]).toBeUndefined();
     expect(data(s).order).toEqual([alice, bob]);
+  });
+
+  it('lets a player leave during the results and deals the next hand without them', () => {
+    const s = sim('poker');
+    const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol'], { hands: 0 });
+    act(s, alice, { t: 'fold' });
+    act(s, bob, { t: 'fold' });
+    expect(view(s).phase).toBe('results');
+    s.apply({ type: 'leave', playerId: carol });
+    expect(data(s).seats[carol]).toBeUndefined();
+    expect(data(s).order).toEqual([alice, bob]);
+    expect(view(s)).toMatchObject({ phase: 'results', pot: 0, pots: [] });
+    tick(s, RESULTS_MS);
+    expect(view(s)).toMatchObject({ phase: 'acting', hand: 2, order: [alice, bob] });
+  });
+
+  it('ends the game after a last hand somebody left in the middle of', () => {
+    const s = sim('poker');
+    const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol'], { hands: 1 });
+    s.apply({ type: 'leave', playerId: carol });
+    act(s, alice, { t: 'fold' });
+    expect(view(s).phase).toBe('results');
+    tick(s, RESULTS_MS);
+    expect(s.data.phase).toBe('ended');
+    expect(s.data.podium?.map((p) => p.playerId)).toEqual([bob, alice]);
+  });
+
+  it('aborts rather than crowning anyone when a player walks off with their chips and leaves one stack', () => {
+    const s = sim('poker');
+    const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol'], { hands: 0 });
+    rigHand(s, { [alice]: ['2H', '3D'], [bob]: ['AS', 'AD'], [carol]: ['7C', '8C'] }, BOARD_DRY);
+    act(s, alice, { t: 'allIn' });
+    act(s, bob, { t: 'call' });
+    act(s, carol, { t: 'fold' });
+    expect(chips(s, alice)).toBe(0);
+    tick(s, RESULTS_MS);
+    expect(data(s)).toMatchObject({ hand: 2, order: [bob, carol] });
+    // Bob leaves mid-hand with his stack: Carol takes the pot, but she does not have all the chips.
+    s.apply({ type: 'leave', playerId: bob });
+    expect(view(s).phase).toBe('results');
+    s.advance(RESULTS_MS);
+    const ended = s.tick();
+    expect(s.data.phase).toBe('lobby');
+    expect(chatTexts(ended)).toContain('Not enough players with chips — back to the lobby.');
+    expect(chatTexts(s.effects).join('\n')).not.toMatch(/has all the chips|Game over/);
+  });
+
+  it('aborts a held boundary when a player with chips leaves it', () => {
+    const s = sim('poker');
+    const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol'], { hands: 0 });
+    rigHand(s, { [alice]: ['2H', '3D'], [bob]: ['AS', 'AD'], [carol]: ['7C', '8C'] }, BOARD_DRY);
+    act(s, alice, { t: 'allIn' });
+    act(s, bob, { t: 'call' });
+    act(s, carol, { t: 'fold' });
+    tick(s, RESULTS_MS);
+    act(s, data(s).toAct[0], { t: 'fold' });
+    disconnect(s, carol, 'Carol');
+    tick(s, RESULTS_MS);
+    expect(view(s).paused).toBe(true);
+    s.apply({ type: 'leave', playerId: carol });
+    expect(s.data.phase).toBe('lobby');
+    expect(chatTexts(s.effects)).toContain('Not enough players with chips — back to the lobby.');
   });
 
   it('hands the pot to the last player left when the others leave, and aborts when a seat loss drops below two', () => {

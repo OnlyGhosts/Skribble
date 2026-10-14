@@ -1,6 +1,6 @@
 /** The acting player's moves: fold, check, call, bet, raise, all in, and the clock running out. */
 import type { PokerActionKind, PokerActions, PokerClientMessage } from '../../../shared/games/poker/protocol.js';
-import { adjustChips, bigBlind, contenders, fail, nameOf, ringAfter, snapshot, systemMessage, turnOf, type Gx, type PokerData } from './state.js';
+import { adjustChips, bigBlind, contenders, fail, nameOf, ringAfter, snapshot, streetIdle, systemMessage, turnOf, type Gx, type PokerData } from './state.js';
 import { endStreet } from './streets.js';
 
 /** A move the player sent themselves (the clock's moves go through actTimedOut). */
@@ -24,6 +24,15 @@ export function playerMove(gx: Gx, playerId: string, msg: Extract<PokerClientMes
 
 const NONE: PokerActions = { canFold: false, canCheck: false, canCall: false, callAmount: 0, canBet: false, minBet: 0, maxBet: 0, canRaise: false, minRaiseTo: 0, maxRaiseTo: 0, canAllIn: false };
 
+/**
+ * A seat may raise when it has not answered a bet on this street yet, or the bet has gone up by
+ * at least a full raise since it did (short all-ins add up).
+ */
+function mayRaise(data: PokerData, playerId: string): boolean {
+  const answered = data.answered[playerId];
+  return answered === undefined || data.highest - answered >= data.minRaise;
+}
+
 /** What `playerId` may do right now: everything false unless it is their turn. */
 export function actionsFor(data: PokerData, playerId: string): PokerActions {
   const seat = data.seats[playerId];
@@ -31,6 +40,7 @@ export function actionsFor(data: PokerData, playerId: string): PokerActions {
   const toCall = Math.max(0, data.highest - seat.bet);
   const callAmount = Math.min(toCall, seat.chips);
   const stack = seat.bet + seat.chips;
+  const raiseOpen = mayRaise(data, playerId);
   return {
     canFold: true,
     canCheck: toCall === 0,
@@ -39,10 +49,11 @@ export function actionsFor(data: PokerData, playerId: string): PokerActions {
     canBet: data.highest === 0,
     minBet: Math.min(bigBlind(data), seat.chips),
     maxBet: seat.chips,
-    canRaise: data.highest > 0 && seat.chips > toCall,
+    canRaise: data.highest > 0 && seat.chips > toCall && raiseOpen,
     minRaiseTo: Math.min(data.highest + data.minRaise, stack),
     maxRaiseTo: stack,
-    canAllIn: seat.chips > 0,
+    // Facing a short all in after acting, going all in for more than the call would be a raise.
+    canAllIn: seat.chips > 0 && (raiseOpen || seat.chips <= toCall),
   };
 }
 
@@ -56,6 +67,7 @@ function put(gx: Gx, playerId: string, amount: number): void {
 
 function record(gx: Gx, playerId: string, kind: PokerActionKind, amount: number): void {
   gx.data.seats[playerId].lastAction = { kind, amount };
+  if (kind !== 'fold') gx.data.answered[playerId] = gx.data.highest;
 }
 
 /** The player acted without raising: they leave the queue. */
@@ -63,16 +75,22 @@ function passTurn(gx: Gx): void {
   gx.data.toAct.shift();
 }
 
-/** A bet or raise reopens the action: every other seat still able to act must answer, in order from the raiser. */
+/**
+ * A bet or raise reopens the action: every other seat still able to act must answer, in order
+ * from the raiser. Whether they may raise again depends on `answered` (see mayRaise).
+ */
 function reopen(gx: Gx, playerId: string): void {
   const { data } = gx;
   data.toAct = ringAfter(data, data.order.indexOf(playerId)).filter((id) => id !== playerId && data.seats[id].status === 'in');
 }
 
-/** After a move: the hand is over when one player is left, the street when nobody is left to act, otherwise the next player's clock. */
+/**
+ * After a move: the hand is over when one player is left, the street when nobody is left to bet
+ * against, otherwise the next player's clock.
+ */
 export function afterAction(gx: Gx): void {
   const { data, ctx } = gx;
-  if (contenders(data).length <= 1 || data.toAct.length === 0) return endStreet(gx);
+  if (contenders(data).length <= 1 || streetIdle(data)) return endStreet(gx);
   data.phase = { kind: 'acting', endsAt: ctx.now + ctx.settings.actSeconds * 1000 };
   snapshot(gx);
 }
@@ -127,7 +145,7 @@ export function raise(gx: Gx, playerId: string, to: number): void {
 export function allIn(gx: Gx, playerId: string): void {
   const actions = actionsFor(gx.data, playerId);
   if (!actions.canFold) return fail(gx, playerId, 'It is not your turn.');
-  if (!actions.canAllIn) return fail(gx, playerId, 'You have no chips left.');
+  if (!actions.canAllIn) return fail(gx, playerId, gx.data.seats[playerId].chips > 0 ? 'You cannot raise: you can only call or fold.' : 'You have no chips left.');
   const seat = gx.data.seats[playerId];
   const total = seat.bet + seat.chips;
   if (total <= gx.data.highest) return call(gx, playerId);
