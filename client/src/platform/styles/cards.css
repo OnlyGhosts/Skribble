@@ -1,0 +1,190 @@
+/* ---------- Playing cards (PlayingCard.tsx) ---------- */
+.playing-card {
+  /* Cards are white in both themes, like the canvas; their ink and the red suits are fixed too. */
+  --card-face: #ffffff;
+  --card-ink: #141514;
+  --card-red: #c5303a;
+  --card-w: 56px;
+  --card-h: 78px;
+  --card-font: 1.05rem;
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: var(--card-w);
+  height: var(--card-h);
+  border-radius: 6px;
+  background: var(--card-face);
+  color: var(--card-ink);
+  border: 1px solid var(--color-border-strong);
+  font-family: var(--font-display);
+  font-weight: 900;
+  line-height: 1;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.playing-card--red {
+  color: var(--card-red);
+}
+
+.playing-card--sm {
+  --card-w: 30px;
+  --card-h: 42px;
+  --card-font: 0.72rem;
+  border-radius: 4px;
+}
+
+.playing-card--lg {
+  --card-w: 68px;
+  --card-h: 96px;
+  --card-font: 1.25rem;
+  border-radius: 8px;
+}
+
+.playing-card--xl {
+  --card-w: 84px;
+  --card-h: 118px;
+  --card-font: 1.5rem;
+  border-radius: 10px;
+}
+
+.playing-card--highlight {
+  outline: 2px solid var(--color-primary-text);
+  outline-offset: 1px;
+}
+
+.playing-card__corner {
+  position: absolute;
+  top: 4px;
+  left: 5px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: var(--card-font);
+  letter-spacing: -0.03em;
+}
+
+.playing-card__corner--flip {
+  top: auto;
+  left: auto;
+  right: 5px;
+  bottom: 4px;
+  transform: rotate(180deg);
+}
+
+.playing-card__suit {
+  font-family: var(--font-sans);
+  font-size: calc(var(--card-font) * 0.8);
+  margin-top: 1px;
+}
+
+.playing-card__pip {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-sans);
+  font-size: calc(var(--card-font) * 1.7);
+}
+
+/* The small cards have no room for the middle pip or the mirrored corner. */
+.playing-card--sm .playing-card__pip,
+.playing-card--sm .playing-card__corner--flip {
+  display: none;
+}
+
+/* A small card shows its rank at the top left, the part that stays visible under the next card. */
+.playing-card--sm .playing-card__corner {
+  top: 3px;
+  left: 4px;
+  align-items: flex-start;
+}
+
+/* A face-down card: lilac back with an inset frame, no rank or suit anywhere in the markup. */
+.playing-card--down {
+  background: var(--color-secondary);
+  border-color: var(--color-secondary);
+}
+
+.playing-card__back {
+  position: absolute;
+  inset: 5px;
+  border-radius: 3px;
+  border: 2px solid var(--color-secondary-contrast);
+  opacity: 0.7;
+}
+
+.playing-card--sm .playing-card__back {
+  inset: 3px;
+  border-width: 1.5px;
+}
+
+/* An empty slot before the deal. */
+.playing-card--slot {
+  background: transparent;
+  border: 1px dashed var(--color-border-strong);
+}
+
+.playing-card--slot .playing-card__back {
+  display: none;
+}
+
+/* ---------- Chip counts (Chips.tsx) ---------- */
+.chip-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.chip-count__coin {
+  flex: none;
+  color: var(--color-warning);
+}
+
+/* ---------- Chip amount setting (ChipsSetting.tsx) ---------- */
+.chips-setting {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chips-setting__presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chips-setting__preset {
+  flex: 1 1 auto;
+  min-height: 40px;
+  padding: 0 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  font-weight: 700;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.chips-setting__preset.is-selected {
+  border-color: var(--color-primary-text);
+  background: var(--color-primary-soft);
+  color: var(--color-primary-text);
+}
+
+.chips-setting__field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chips-setting__input {
+  flex: 1;
+  min-width: 0;
+  max-width: 200px;
+  font-variant-numeric: tabular-nums;
+}

@@ -5,7 +5,7 @@ import { betCap, handDone, isActing, isInRound, nameOf, pendingBettors, playerOf
 import { useBlackjack, useBlackjackStore } from '../store';
 import { Actions } from './Actions';
 import { Betting } from './Betting';
-import { Chips } from './Chips';
+import { Chips } from '../../../platform/components/Chips';
 import { Hand } from './Hand';
 
 interface Props {

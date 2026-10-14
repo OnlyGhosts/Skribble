@@ -62,3 +62,16 @@ export function ordinal(n: number): string {
       return `${n}th`;
   }
 }
+
+/** A chip count with thousands separators: "1,500". */
+export function formatChips(n: number): string {
+  return n.toLocaleString('en-US');
+}
+
+/** A typed chip amount clamped to the limits, or null for a blank or unreadable entry (the field keeps its value). */
+export function parseChipAmount(text: string, min: number, max: number): number | null {
+  if (text.trim() === '') return null;
+  const n = Number(text);
+  if (!Number.isFinite(n)) return null;
+  return Math.max(min, Math.min(max, Math.round(n)));
+}

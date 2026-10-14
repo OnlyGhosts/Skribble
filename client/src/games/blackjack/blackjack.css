@@ -1,9 +1,5 @@
 /* ---------- Blackjack: layout ---------- */
 .bj {
-  /* Cards are white in both themes, like the canvas; their ink and the red suits are fixed too. */
-  --bj-card-face: #ffffff;
-  --bj-card-ink: #141514;
-  --bj-card-red: #c5303a;
   display: grid;
   grid-template-columns: 264px minmax(0, 1fr) 320px;
   grid-template-rows: auto minmax(0, 1fr);
@@ -126,153 +122,24 @@
   height: min(60vh, 520px);
 }
 
-/* ---------- Chips ---------- */
-.bj-chips {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.bj-chips__coin {
-  flex: none;
-  color: var(--color-warning);
-}
-
-/* ---------- Playing cards ---------- */
-.bj-card {
-  --bj-card-w: 56px;
-  --bj-card-h: 78px;
-  --bj-card-font: 1.05rem;
-  position: relative;
-  display: inline-block;
-  flex: none;
-  width: var(--bj-card-w);
-  height: var(--bj-card-h);
-  border-radius: 6px;
-  background: var(--bj-card-face);
-  color: var(--bj-card-ink);
-  border: 1px solid var(--color-border-strong);
-  font-family: var(--font-display);
-  font-weight: 900;
-  line-height: 1;
-  user-select: none;
-  -webkit-user-select: none;
-}
-
-.bj-card--red {
-  color: var(--bj-card-red);
-}
-
-.bj-card--sm {
-  --bj-card-w: 30px;
-  --bj-card-h: 42px;
-  --bj-card-font: 0.72rem;
-  border-radius: 4px;
-}
-
-.bj-card--lg {
-  --bj-card-w: 68px;
-  --bj-card-h: 96px;
-  --bj-card-font: 1.25rem;
-  border-radius: 8px;
-}
-
-.bj-card__corner {
-  position: absolute;
-  top: 4px;
-  left: 5px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  font-size: var(--bj-card-font);
-  letter-spacing: -0.03em;
-}
-
-.bj-card__corner--flip {
-  top: auto;
-  left: auto;
-  right: 5px;
-  bottom: 4px;
-  transform: rotate(180deg);
-}
-
-.bj-card__suit {
-  font-family: var(--font-sans);
-  font-size: calc(var(--bj-card-font) * 0.8);
-  margin-top: 1px;
-}
-
-.bj-card__pip {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  font-family: var(--font-sans);
-  font-size: calc(var(--bj-card-font) * 1.7);
-}
-
-/* The small cards have no room for the middle pip or the mirrored corner. */
-.bj-card--sm .bj-card__pip,
-.bj-card--sm .bj-card__corner--flip {
-  display: none;
-}
-
-/* A small card shows its rank at the top left, the part that stays visible under the next card. */
-.bj-card--sm .bj-card__corner {
-  top: 3px;
-  left: 4px;
-  align-items: flex-start;
-}
-
-.bj-hand__cards .bj-card--sm + .bj-card--sm {
-  margin-left: calc(var(--bj-card-w) * -0.36);
-}
-
-/* A face-down card: lilac back with an inset frame, no rank or suit anywhere in the markup. */
-.bj-card--down {
-  background: var(--color-secondary);
-  border-color: var(--color-secondary);
-}
-
-.bj-card__back {
-  position: absolute;
-  inset: 5px;
-  border-radius: 3px;
-  border: 2px solid var(--color-secondary-contrast);
-  opacity: 0.7;
-}
-
-.bj-card--sm .bj-card__back {
-  inset: 3px;
-  border-width: 1.5px;
-}
-
-/* An empty slot before the deal. */
-.bj-card--slot {
-  background: transparent;
-  border: 1px dashed var(--color-border-strong);
-}
-
-.bj-card--slot .bj-card__back {
-  display: none;
+/* ---------- Cards in a hand ---------- */
+.bj-hand__cards .playing-card--sm + .playing-card--sm {
+  margin-left: calc(var(--card-w) * -0.36);
 }
 
 /* ---------- Hands ---------- */
 .bj-hand__cards {
   display: flex;
   align-items: flex-start;
-  min-height: var(--bj-card-h, 78px);
+  min-height: var(--card-h, 78px);
 }
 
 /* Cards fan with an overlap so a long hand stays narrow; empty slots sit side by side. */
-.bj-hand__cards .bj-card + .bj-card {
-  margin-left: calc(var(--bj-card-w) * -0.42);
+.bj-hand__cards .playing-card + .playing-card {
+  margin-left: calc(var(--card-w) * -0.42);
 }
 
-.bj-hand__cards .bj-card--slot + .bj-card--slot {
+.bj-hand__cards .playing-card--slot + .playing-card--slot {
   margin-left: 6px;
 }
 
@@ -801,12 +668,6 @@
 }
 
 /* ---------- Settings rows ---------- */
-.bj-setting {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
 .bj-setting__presets {
   display: flex;
   flex-wrap: wrap;
@@ -830,19 +691,6 @@
   border-color: var(--color-primary-text);
   background: var(--color-primary-soft);
   color: var(--color-primary-text);
-}
-
-.bj-setting__field {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.bj-setting__input {
-  flex: 1;
-  min-width: 0;
-  max-width: 200px;
-  font-variant-numeric: tabular-nums;
 }
 
 /* ---------- Player list hooks ---------- */
@@ -982,8 +830,8 @@
     padding: 0 8px;
   }
 
-  .bj-card--lg {
-    --bj-card-w: 60px;
-    --bj-card-h: 84px;
+  .bj .playing-card--lg {
+    --card-w: 60px;
+    --card-h: 84px;
   }
 }

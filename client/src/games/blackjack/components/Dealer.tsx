@@ -1,6 +1,6 @@
 import type { BlackjackView } from '@shared/games/blackjack/protocol';
 import { dealerTotalLabel, formatChips } from '../lib/text';
-import { PlayingCard } from './Card';
+import { PlayingCard } from '../../../platform/components/PlayingCard';
 
 interface Props {
   view: BlackjackView;

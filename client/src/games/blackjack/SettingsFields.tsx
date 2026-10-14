@@ -1,81 +1,9 @@
-import { useEffect, useState, type KeyboardEvent } from 'react';
 import { BLACKJACK_PAYOUTS, BLACKJACK_SETTINGS_LIMITS, type BlackjackPayout, type BlackjackSettings } from '@shared/games/blackjack/protocol';
 import { RangeSetting, SettingRow, ToggleSetting } from '../../platform/components/SettingControls';
 import type { SettingsFieldsProps } from '../../platform/game';
-import { formatChips, parseChipAmount } from './lib/text';
-import { ChipIcon } from './components/Icons';
+import { ChipsSetting } from '../../platform/components/ChipsSetting';
 
 const L = BLACKJACK_SETTINGS_LIMITS;
-
-interface ChipsProps {
-  id: string;
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  presets: readonly number[];
-  canEdit: boolean;
-  onCommit(value: number): void;
-  hint?: string;
-}
-
-/**
- * A chip amount: preset buttons for the usual stacks and a number field (the phone's numeric
- * keyboard) for anything else, committed on blur or Enter and clamped to the table's limits. A
- * field left blank commits nothing and shows the value again.
- */
-function ChipsSetting({ id, label, value, min, max, presets, canEdit, onCommit, hint }: ChipsProps) {
-  const [text, setText] = useState(String(value));
-  const [focused, setFocused] = useState(false);
-  useEffect(() => {
-    if (!focused) setText(String(value));
-  }, [value, focused]);
-  const commit = (next: number) => {
-    setText(String(next));
-    if (next !== value) onCommit(next);
-  };
-  const commitText = () => commit(parseChipAmount(text, min, max) ?? value);
-  const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      commitText();
-    }
-  };
-  const control = (
-    <div className="bj-setting" data-testid={`settings-${id}-control`}>
-      <div className="bj-setting__presets" role="group" aria-label={`${label} presets`}>
-        {presets.map((preset) => (
-          <button key={preset} type="button" className={`bj-setting__preset${preset === value ? ' is-selected' : ''}`} aria-pressed={preset === value} onClick={() => commit(preset)} data-testid={`settings-${id}-${preset}`}>
-            {formatChips(preset)}
-          </button>
-        ))}
-      </div>
-      <label className="bj-setting__field">
-        <ChipIcon size={18} className="bj-chips__coin" />
-        <span className="sr-only">{label}</span>
-        <input
-          className="input bj-setting__input"
-          type="number"
-          inputMode="numeric"
-          min={min}
-          max={max}
-          step={1}
-          value={text}
-          enterKeyHint="done"
-          onChange={(e) => setText(e.target.value)}
-          onFocus={() => setFocused(true)}
-          onBlur={() => {
-            setFocused(false);
-            commitText();
-          }}
-          onKeyDown={onKeyDown}
-          data-testid={`settings-${id}`}
-        />
-      </label>
-    </div>
-  );
-  return <SettingRow label={label} testId={id} value={formatChips(value)} hint={hint} control={canEdit ? control : undefined} />;
-}
 
 const PAYOUT_LABELS: Record<BlackjackPayout, string> = { '3:2': '3 to 2', '6:5': '6 to 5' };
 

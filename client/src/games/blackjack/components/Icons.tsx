@@ -1,7 +1,5 @@
 import { Icon, type IconProps } from '../../../platform/components/Icons';
 
-/** A poker chip: the coin in front of every chip count. */
-export const ChipIcon = (p: IconProps) => <Icon {...p} paths={['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z', 'M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z', 'M12 3v5M12 16v5M3 12h5M16 12h5']} />;
 /** Two overlapping cards: the game's mark and the acting player's badge. */
 export const CardsIcon = (p: IconProps) => <Icon {...p} paths={['M4 7h9v13H4z', 'm13 4 7 2-3.5 13-7-2']} />;
 /** A star: a natural blackjack. */

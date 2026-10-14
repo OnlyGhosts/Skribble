@@ -1,7 +1,7 @@
 import type { HandView } from '@shared/games/blackjack/protocol';
 import { statusLabel, totalLabel } from '../lib/text';
-import { PlayingCard } from './Card';
-import { Chips } from './Chips';
+import { PlayingCard } from '../../../platform/components/PlayingCard';
+import { Chips } from '../../../platform/components/Chips';
 
 interface Props {
   hand: HandView;

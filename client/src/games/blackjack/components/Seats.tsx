@@ -1,7 +1,7 @@
 import type { BlackjackRoomState, BlackjackView } from '@shared/games/blackjack/protocol';
 import { Avatar } from '../../../platform/components/Avatar';
 import { isActing, playerOf, tableOrder } from '../hooks';
-import { Chips } from './Chips';
+import { Chips } from '../../../platform/components/Chips';
 import { Hand } from './Hand';
 
 interface Props {

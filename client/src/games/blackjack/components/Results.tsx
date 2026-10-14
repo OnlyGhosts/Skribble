@@ -7,8 +7,8 @@ import { useModalFocus } from '../../../platform/lib/useModalFocus';
 import { nextRound } from '../actions';
 import { playerOf } from '../hooks';
 import { dealerTotalLabel, netLabel, outcomeLabel, roundLabel, totalLabel } from '../lib/text';
-import { PlayingCard } from './Card';
-import { Chips } from './Chips';
+import { PlayingCard } from '../../../platform/components/PlayingCard';
+import { Chips } from '../../../platform/components/Chips';
 
 interface Props {
   room: BlackjackRoomState;

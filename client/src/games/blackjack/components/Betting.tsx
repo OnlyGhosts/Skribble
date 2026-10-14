@@ -3,7 +3,7 @@ import { placeBet } from '../actions';
 import { clampBet } from '../hooks';
 import { formatChips } from '../lib/text';
 import { useBlackjack, useBlackjackStore } from '../store';
-import { ChipIcon } from './Icons';
+import { ChipIcon } from '../../../platform/components/Chips';
 
 interface Props {
   minBet: number;
@@ -42,7 +42,7 @@ export function Betting({ minBet, cap, current, canSend }: Props) {
         </span>
       </div>
       <label className="bj-bet__amount">
-        <ChipIcon size={22} className="bj-chips__coin" />
+        <ChipIcon size={22} className="chip-count__coin" />
         <span className="sr-only">Bet amount in chips</span>
         <input
           className="input bj-bet__input"
