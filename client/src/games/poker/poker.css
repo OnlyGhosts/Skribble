@@ -223,7 +223,7 @@
   list-style: none;
   flex: none;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   gap: var(--space-2);
 }
 
@@ -608,8 +608,7 @@
   position: absolute;
   inset: 0;
   z-index: 5;
-  display: grid;
-  place-items: center;
+  display: flex;
   padding: var(--space-4);
   background: var(--overlay-bg);
   animation: fade-in 0.2s ease;
@@ -618,6 +617,11 @@
 
 .pk-results {
   gap: var(--space-3);
+}
+
+/* Centred while it fits; a long list scrolls from its top instead of being cut off above. */
+.pk-overlay > .overlay__card {
+  margin: auto;
 }
 
 .pk-results__board {
@@ -730,7 +734,7 @@
 }
 
 .pk-results__chips {
-  margin-left: auto;
+  flex: none;
   display: inline-flex;
   align-items: center;
   gap: 4px;
