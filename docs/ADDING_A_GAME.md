@@ -163,6 +163,14 @@ seat persistence in `sessionStorage`, a 60-messages-per-second cap on game messa
 timer, the player list, the chat, the code input, avatars, light/dark themes, the phone layout
 helpers. Section 8 lists them.
 
+**Playing cards.** A standard deck lives in [`shared/platform/cards.ts`](../shared/platform/cards.ts):
+`Card` / `CardRank` / `CardSuit`, `CARD_RANKS` / `CARD_SUITS`, `freshDeck(decks)`, `shuffle(cards, rng)`
+(Fisher-Yates over a copy, every index from the injected rng) and `cardOf('10H')` for tests and
+fixtures. Blackjack's shoe and Poker's deck both come from it; Blackjack's protocol re-exports the
+types so the client card components (`client/src/games/blackjack/components/Card.tsx`) render any
+game's cards. Poker's hand rankings (`evaluateBest`, `compareHands`, `handName`) are in
+[`shared/games/poker/hands.ts`](../shared/games/poker/hands.ts).
+
 ---
 
 ## 3. The contract

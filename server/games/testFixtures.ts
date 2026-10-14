@@ -61,6 +61,12 @@ export const GAME_TEST_FIXTURES: Readonly<Record<GameId, GameTestFixture>> = {
     // The round opens with betting; the minimum stake is always allowed.
     validMessage: { t: 'bet', amount: 10 },
   },
+  poker: {
+    // One hand with the shortest clocks: rng () => 0 gives the host the button, so they act first preflop (heads-up and three-handed alike).
+    settings: { startingChips: 1000, smallBlind: 5, blindsIncreaseEvery: 0, hands: 1, actSeconds: 10, resultsSeconds: 4 },
+    longSettings: { startingChips: 100_000, smallBlind: 1, blindsIncreaseEvery: 0, hands: 0, actSeconds: 60, resultsSeconds: 20 },
+    validMessage: { t: 'call' },
+  },
   template: {
     settings: {},
     longSettings: { timeLimit: 120 },

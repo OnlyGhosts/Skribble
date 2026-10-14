@@ -4,6 +4,7 @@ import type { AnyGameClientModule } from '../platform/game';
 import { battleshipsClient } from './battleships/module';
 import { blackjackClient } from './blackjack/module';
 import { hangmanClient } from './hangman/module';
+import { pokerClient } from './poker/module';
 import { quipgameClient } from './quipgame/module';
 import { skribbleClient } from './skribble/module';
 import { spygameClient } from './spygame/module';
@@ -16,5 +17,6 @@ export const GAMES: Readonly<Record<GameId, AnyGameClientModule>> = {
   hangman: hangmanClient,
   battleships: battleshipsClient,
   blackjack: blackjackClient,
+  poker: pokerClient,
   template: templateClient,
 };

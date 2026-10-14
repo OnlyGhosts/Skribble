@@ -7,19 +7,13 @@ import { z } from 'zod';
 import type { RoomState } from '../../platform/protocol.js';
 
 // ---------------------------------------------------------------------------
-// Cards
+// Cards: the shared deck (shared/platform/cards.ts), re-exported for the client components
 // ---------------------------------------------------------------------------
 
-export const CARD_RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'] as const;
-export const CARD_SUITS = ['S', 'H', 'D', 'C'] as const;
+import type { Card } from '../../platform/cards.js';
 
-export type CardRank = (typeof CARD_RANKS)[number];
-export type CardSuit = (typeof CARD_SUITS)[number];
-
-export interface Card {
-  rank: CardRank;
-  suit: CardSuit;
-}
+export { CARD_RANKS, CARD_SUITS } from '../../platform/cards.js';
+export type { Card, CardRank, CardSuit } from '../../platform/cards.js';
 
 // ---------------------------------------------------------------------------
 // Settings

@@ -2,7 +2,10 @@
  * Blackjack's table rules, pure and shared by both sides: the shoe, hand totals with soft aces,
  * naturals, the dealer's drawing policy and the payouts. Randomness is passed in, never read.
  */
-import { CARD_RANKS, CARD_SUITS, type BlackjackPayout, type Card, type CardRank, type HandOutcome } from './protocol.js';
+import { freshDeck, shuffle } from '../../platform/cards.js';
+import type { BlackjackPayout, Card, CardRank, HandOutcome } from './protocol.js';
+
+export { shuffle };
 
 export const BLACKJACK = 21;
 export const DEALER_STANDS_AT = 17;
@@ -55,20 +58,9 @@ export function dealerShouldHit(cards: readonly Card[], hitsSoft17: boolean): bo
   return total === DEALER_STANDS_AT && soft && hitsSoft17;
 }
 
+/** `decks` full decks, unshuffled. */
 export function freshShoe(decks: number): Card[] {
-  const cards: Card[] = [];
-  for (let d = 0; d < decks; d++) for (const suit of CARD_SUITS) for (const rank of CARD_RANKS) cards.push({ rank, suit });
-  return cards;
-}
-
-/** Fisher-Yates over a copy, drawing every index from `rng` (uniform in [0, 1)). */
-export function shuffle(cards: readonly Card[], rng: () => number): Card[] {
-  const out = [...cards];
-  for (let i = out.length - 1; i > 0; i--) {
-    const j = Math.min(i, Math.floor(rng() * (i + 1)));
-    [out[i], out[j]] = [out[j], out[i]];
-  }
-  return out;
+  return freshDeck(decks);
 }
 
 /** A shoe with fewer cards than the reshuffle share of a fresh one is due for a reshuffle. */

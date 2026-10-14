@@ -2,7 +2,7 @@
  * The game registry: every game the site offers, in library order. Adding a game means adding a
  * GameId, a GameMeta entry here, a server module (server/games) and a client module (client/src/games).
  */
-export type GameId = 'skribble' | 'spygame' | 'quipgame' | 'hangman' | 'battleships' | 'blackjack' | 'template';
+export type GameId = 'skribble' | 'spygame' | 'quipgame' | 'hangman' | 'battleships' | 'blackjack' | 'poker' | 'template';
 
 export type GameStatus = 'live' | 'soon' | 'hidden';
 
@@ -140,6 +140,26 @@ export const GAME_LIST: readonly GameMeta[] = [
     maxPlayers: 7,
     icon: '🃏',
     accent: '#15803d',
+    status: 'live',
+  },
+  {
+    id: 'poker',
+    slug: 'poker',
+    name: 'Poker',
+    tagline: "Texas Hold'em on your phones.",
+    description:
+      "No-limit Texas Hold'em around one table: two private cards each, five shared on the board, blinds that rotate with the button. Bet, raise, bluff or fold; the best five-card hand at the showdown takes the pot, and the biggest stack at the end wins.",
+    howToPlay: [
+      'Everyone starts with the same stack of chips; the blinds rotate with the dealer button.',
+      'You get two private cards. Fold, check, call, bet or raise as the five community cards come out.',
+      'A betting round ends once every player still in has matched the highest bet or is all in.',
+      'If only one player is left, they take the pot. Otherwise the best five cards out of seven win the showdown.',
+      'Run out of chips and you watch; the most chips at the end wins.',
+    ],
+    minPlayers: 2,
+    maxPlayers: 9,
+    icon: '♠️',
+    accent: '#b91c1c',
     status: 'live',
   },
   {
