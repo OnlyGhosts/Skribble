@@ -216,8 +216,9 @@ export function BattleshipsScreen({ room, meId, isHost }: GameScreenProps<Battle
         <div className="bs__scroll" data-testid="battleships-column">
           <div className="bs__strip">
             <div className={`bs-status${myTurn && view.phase === 'playing' ? ' bs-status--mine' : ''}`} role="status" data-testid="status" data-kicker={status.kicker}>
-              <strong>{status.kicker}</strong>
-              <span>{status.text}</span>
+              <p className="bs-status__line">
+                <strong>{status.kicker}</strong> <span data-testid="status-text">{status.text}</span>
+              </p>
               {view.phase === 'placing' && (
                 <span className="bs-status__count" data-testid="ready-count" data-ready={readyCount} data-total={view.sides.length}>
                   {`${readyCount}/${view.sides.length} in position`}
@@ -249,7 +250,7 @@ export function BattleshipsScreen({ room, meId, isHost }: GameScreenProps<Battle
           </div>
           <div className="bs__panel" role="tabpanel" id={panelId(activeKey)} aria-labelledby={tabId(activeKey)} data-testid="tabpanel">
             {choosing && roll !== null && (
-              <TurnChoice roll={roll} stage={stage ?? 'deciding'} moveBlocked={moveBlocked} connected={connected} onFire={() => chooseFire(targetForTurn(view, active))} onMove={chooseMove} />
+              <TurnChoice roll={roll} stage={stage ?? 'deciding'} moveBlocked={moveBlocked} onFire={() => chooseFire(targetForTurn(view, active))} onMove={chooseMove} />
             )}
             {active === null && view.myBoard && view.phase === 'placing' && <PlacementPanel room={room} view={view} board={view.myBoard} meId={meId} />}
             {active === null && view.myBoard && view.phase !== 'placing' && (

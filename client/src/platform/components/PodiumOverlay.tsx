@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { PlayerPublic, PodiumEntry, RoomState } from '@shared/platform/protocol';
 import { placeLine, podiumOrder, readyLine, winnerHeadline, winners } from '../lib/party';
-import { playCue } from '../lib/sound';
+import { PLATFORM_SOUNDS } from '../lib/platformSounds';
 import { useModalFocus } from '../lib/useModalFocus';
 import { leaveRoom, playAgain, returnToLobby } from '../net/actions';
 import { Avatar } from './Avatar';
@@ -48,7 +48,7 @@ export function PodiumOverlay({ room, meId, isHost }: { room: RoomState; meId: s
   // Once per podium: the cue belongs to the moment the overlay appears, whatever changes later.
   const wonAtMount = useRef(iWon);
   useEffect(() => {
-    playCue(wonAtMount.current ? 'fanfare' : 'turnEnd');
+    PLATFORM_SOUNDS.play(wonAtMount.current ? 'fanfare' : 'gameOver');
   }, []);
 
   return (

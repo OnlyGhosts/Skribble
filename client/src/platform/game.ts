@@ -10,6 +10,7 @@ import type { ComponentType, ReactNode, RefObject } from 'react';
 import type { GameMeta } from '@shared/platform/games';
 import type { ChatMessage, PlayerPublic, RoomState, WireMessage } from '@shared/platform/protocol';
 import type { PlatformSettings } from '@shared/platform/settings';
+import type { AnySoundBank } from './lib/sound';
 
 export interface GameScreenProps<V = unknown, S = Record<string, unknown>> {
   room: RoomState<V, S>;
@@ -39,6 +40,8 @@ export interface GameClientModule<V = unknown, S = Record<string, unknown>> {
   meta: GameMeta;
   /** Rendered while the room is 'playing' or 'ended' (the platform adds the podium overlay for 'ended'). */
   Screen: ComponentType<GameScreenProps<V, S>>;
+  /** The game's sound effects; the platform starts loading them when the game screen mounts. */
+  sounds?: AnySoundBank;
   /** Extra rows inside the lobby settings panel, under the platform fields. */
   SettingsFields?: ComponentType<SettingsFieldsProps<S>>;
   /** A small badge in the corner of the player's avatar (Skribble: pencil / check). */

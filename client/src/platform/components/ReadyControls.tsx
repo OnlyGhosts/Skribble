@@ -1,5 +1,6 @@
 import type { PlayerPublic } from '@shared/platform/protocol';
 import { isReady } from '../lib/party';
+import { PLATFORM_SOUNDS } from '../lib/platformSounds';
 import { countMeIn, setReady, setSitOut } from '../net/actions';
 import { CheckIcon } from './Icons';
 
@@ -31,7 +32,16 @@ export function ReadyControls({ me, context }: Props) {
     <div className="ready-controls" data-testid="ready-controls" data-ready={isReady(me)} data-sitting-out={me.sittingOut} data-state={state}>
       {state === 'sittingOut' ? (
         <>
-          <button type="button" className="btn btn--primary btn--lg btn--block" aria-pressed={true} onClick={() => countMeIn(me.isHost)} data-testid="sitout-toggle">
+          <button
+            type="button"
+            className="btn btn--primary btn--lg btn--block"
+            aria-pressed={true}
+            onClick={() => {
+              PLATFORM_SOUNDS.play('ready');
+              countMeIn(me.isHost);
+            }}
+            data-testid="sitout-toggle"
+          >
             Count me in
           </button>
           <p className="field__hint ready-controls__hint" data-testid="sitout-hint">
@@ -45,7 +55,10 @@ export function ReadyControls({ me, context }: Props) {
             className={`btn btn--lg btn--block ready-toggle${state === 'host' ? ' ready-toggle--host' : ''}${ready ? ' is-ready' : ' btn--primary'}`}
             aria-pressed={ready}
             disabled={state === 'host'}
-            onClick={() => setReady(!me.ready)}
+            onClick={() => {
+              if (!me.ready) PLATFORM_SOUNDS.play('ready');
+              setReady(!me.ready);
+            }}
             data-testid="ready-toggle"
           >
             {state === 'host' ? (

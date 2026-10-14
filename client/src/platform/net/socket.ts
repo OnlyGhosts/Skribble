@@ -10,6 +10,7 @@ import {
   type WireMessage,
 } from '@shared/platform/protocol';
 import { SEAT_REFRESH_MS, clearSeat, clearSession, loadSession, saveSeat, saveSession, seatToResume } from '../lib/storage';
+import { platformRoomSounds } from '../lib/platformSounds';
 import { registeredGame } from '../registry';
 import { codeFromLocation } from '../router';
 import { usePlatformStore } from '../store/usePlatformStore';
@@ -277,6 +278,7 @@ export class GameSocket {
         this.refreshSeat();
         store.handleServerMessage(msg);
         registeredGame(msg.room.gameId)?.onRoom?.(msg.room, prev);
+        platformRoomSounds(msg.room, prev, store.playerId);
         return;
       }
       case 'chat': {

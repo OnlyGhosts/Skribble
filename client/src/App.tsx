@@ -5,7 +5,8 @@ import { PodiumOverlay } from './platform/components/PodiumOverlay';
 import { ReconnectingBanner } from './platform/components/ReconnectingBanner';
 import { Toasts } from './platform/components/Toasts';
 import { WaitingOverlay } from './platform/components/WaitingOverlay';
-import { setSoundEnabled, unlockAudio } from './platform/lib/sound';
+import { loadPlatformSoundsAfterGesture } from './platform/lib/platformSounds';
+import { setSoundEnabled, unlockAudio, type AnySoundBank } from './platform/lib/sound';
 import { DEFAULT_THEME } from './platform/lib/storage';
 import { useViewport } from './platform/lib/useViewport';
 import { wakeLock } from './platform/lib/wakeLock';
@@ -49,6 +50,7 @@ function useSound(): void {
   const sound = usePlatformStore((s) => s.prefs.sound);
   useEffect(() => setSoundEnabled(sound), [sound]);
   useEffect(() => {
+    loadPlatformSoundsAfterGesture();
     const unlock = () => unlockAudio();
     window.addEventListener('pointerdown', unlock, { passive: true });
     window.addEventListener('keydown', unlock);
@@ -85,11 +87,19 @@ function UnknownRoute() {
   return <Home code={null} game={null} />;
 }
 
+/** A game's sounds start loading when its screen mounts, not before anyone plays it. */
+function useGameSounds(bank: AnySoundBank | undefined, onScreen: boolean): void {
+  useEffect(() => {
+    if (onScreen) bank?.load();
+  }, [bank, onScreen]);
+}
+
 /** Inside a room: the platform lobby, or the game's own screen with the platform podium once it ended. */
 function RoomScreen({ room }: { room: RoomState }) {
   const meId = usePlatformStore((s) => s.playerId);
   const isHost = usePlatformStore(selectIsHost);
   const game = registeredGame(room.gameId);
+  useGameSounds(game?.sounds, room.phase !== 'lobby');
   if (!game) return null;
   if (room.phase === 'lobby') return <Lobby room={room} game={game} />;
   const Screen = game.Screen;

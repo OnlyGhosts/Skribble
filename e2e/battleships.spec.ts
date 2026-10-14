@@ -2,12 +2,15 @@ import { expect, test, type Browser, type BrowserContext, type Locator, type Pag
 import { createParty, joinByCode, readyAll } from './party';
 
 /**
- * A whole solo Battleships on a 10x10 board between a desktop host and two phones (390x844,
- * touch): the lobby settings, the host placing ships by hand (tray, rotate, a rejected spot in
- * red) while the phones auto-place, then shots with the two-tap Fire, hits, a miss, sinks, the
- * dice and the secret move window, an eliminated fleet and the podium. The tab strip must keep
- * its height on a phone whatever else the column holds (the fire row, the move window), and a
- * phone on its side must show the whole grid. Opponents' ships never reach another page.
+ * A whole solo Battleships on the classic 10x10 board between a desktop host and two phones
+ * (390x844, touch) with move or fire on: the lobby settings, the host placing ships by hand (tray,
+ * rotate, a rejected spot in red) while the phones auto-place, then turns that open with a die
+ * everyone sees and a choice of Fire or Move. Shots use the two-tap Fire (hits, a miss, sinks);
+ * one turn secretly moves a ship with the arrows and a ghost, and the next turn of that player
+ * cannot move again. Then an eliminated fleet and the podium. The tab strip must keep its height
+ * on a phone whatever else the column holds (the choice, the fire row, the move controls), and a
+ * phone on its side must show the whole grid. Opponents' ships never reach another page. Board
+ * sizes for team crews and their extra ships are covered by the unit tests.
  * Serial: the tests build on each other.
  */
 test.describe.configure({ mode: 'serial' });
@@ -109,10 +112,13 @@ async function onScreen(p: Player, locator: Locator, what: string, viewport: { w
   expect(box.x + box.width, `${p.name}: ${what} ends on screen (x)`).toBeLessThanOrEqual(viewport.width + 0.5);
 }
 
-/** Cells of `p`'s own ships, read from their own page: the only place those positions may appear. */
+/**
+ * Cells of `p`'s own ships, read from their own page: the only place those positions may appear.
+ * Afloat: neither shot nor a damaged segment that moved off its shot square.
+ */
 async function fleetCells(p: Player, onlyAfloat = true): Promise<Cell[]> {
   await p.page.locator('[data-testid="tab"][data-side="mine"]').click();
-  const selector = onlyAfloat ? '[data-testid="own-board"] [data-testid="cell"][data-ship]:not([data-mark])' : '[data-testid="own-board"] [data-testid="cell"][data-ship]';
+  const selector = onlyAfloat ? '[data-testid="own-board"] [data-testid="cell"][data-ship]:not([data-mark]):not([data-damaged])' : '[data-testid="own-board"] [data-testid="cell"][data-ship]';
   return p.page.locator(selector).evaluateAll((els) => els.map((el) => ({ x: Number(el.getAttribute('data-x')), y: Number(el.getAttribute('data-y')) })));
 }
 
@@ -145,52 +151,19 @@ async function shooter(): Promise<Player> {
   return found;
 }
 
-/**
- * After a lucky roll the shooter may slide a ship: the test takes a move when a safe one exists
- * (never onto a cell already shot as a miss, which would hide the ship for good), else skips.
- */
-async function settleMoveWindow(s: Player): Promise<void> {
-  if ((await screen(s).getAttribute('data-phase')) !== 'moving') return;
-  const panel = s.page.getByTestId('move-panel');
-  await expect(panel).toBeVisible();
-  await expect(s.page.getByTestId('dice')).toHaveAttribute('data-value', /^[56]$/);
-  // Everyone else reads the roll in a toast and a notice; the shooter's own board stays on show with the tabs intact.
-  for (const o of players.filter((p) => p !== s)) await expect(o.page.getByTestId('move-notice')).toBeVisible();
-  if (s !== host) {
-    await tabsKeepHeight(s, 'during the move window');
-    await expect(s.page.locator('[data-testid="tab"][data-side="mine"]')).toHaveAttribute('aria-selected', 'true');
+/** Under move or fire a turn opens on the choice: the die lands, then Fire opens the aim. */
+async function chooseFire(s: Player): Promise<void> {
+  if ((await screen(s).getAttribute('data-turn-mode')) === 'choose') {
+    await expect(s.page.getByTestId('turn-choice')).toBeVisible();
+    await s.page.getByTestId('choose-fire').click();
   }
-  for (const row of await panel.getByTestId('move-span').all()) await expect(row).toHaveText(/^[A-J]\d+–[A-J]\d+$/);
-  const misses = new Set(await s.page.locator('[data-testid="own-board"] [data-testid="cell"][data-mark="miss"]').evaluateAll((els) => els.map((el) => `${el.getAttribute('data-x')},${el.getAttribute('data-y')}`)));
-  const rows = panel.getByTestId('move-row');
-  let moved = false;
-  for (let i = 0; i < (await rows.count()) && !moved; i++) {
-    const id = await rows.nth(i).getAttribute('data-ship-id');
-    const cells = await s.page.locator(`[data-testid="own-board"] [data-testid="cell"][data-ship="${id}"]`).evaluateAll((els) => els.map((el) => ({ x: Number(el.getAttribute('data-x')), y: Number(el.getAttribute('data-y')) })));
-    const horizontal = cells.every((c) => c.y === cells[0].y);
-    const xs = cells.map((c) => c.x);
-    const ys = cells.map((c) => c.y);
-    const dest = {
-      forward: horizontal ? `${Math.max(...xs) + 1},${ys[0]}` : `${xs[0]},${Math.max(...ys) + 1}`,
-      back: horizontal ? `${Math.min(...xs) - 1},${ys[0]}` : `${xs[0]},${Math.min(...ys) - 1}`,
-    };
-    for (const dir of ['forward', 'back'] as const) {
-      const arrow = rows.nth(i).getByTestId(`move-${dir}`);
-      if ((await arrow.isEnabled()) && !misses.has(dest[dir])) {
-        await arrow.click();
-        moved = true;
-        movesMade++;
-        break;
-      }
-    }
-  }
-  if (!moved) await s.page.getByTestId('skip-move').click();
-  await expect(screen(s)).not.toHaveAttribute('data-phase', 'moving');
+  await expect(screen(s)).toHaveAttribute('data-turn-mode', 'fire');
 }
 
 /** `s` fires at `cell` on `t`'s grid with the two taps and returns what the grid shows for it. */
 async function fireAt(s: Player, t: Player, cell: Cell): Promise<string> {
   const before = Number(await screen(s).getAttribute('data-turn-number'));
+  await chooseFire(s);
   await tabOf(s, t.name).click();
   const target = targetCell(s, cell);
   await target.click();
@@ -198,7 +171,6 @@ async function fireAt(s: Player, t: Player, cell: Cell): Promise<string> {
   await expect(s.page.getByTestId('fire')).toBeEnabled();
   await s.page.getByTestId('fire').click();
   await expect(screen(s)).toHaveAttribute('data-turn-number', String(before + 1));
-  await settleMoveWindow(s);
   if ((await screen(s).getAttribute('data-phase')) !== 'gameOver') await tabOf(s, t.name).click();
   const mark = (await targetCell(s, cell).getAttribute('data-mark')) ?? '';
   expect(['miss', 'hit', 'sunk']).toContain(mark);
@@ -241,13 +213,16 @@ test('the host creates a Battleships party, two phones join by code and the host
   await expect(pia.page.getByTestId('settings-mode')).toHaveCount(0);
   await host.page.getByTestId('settings-placeSeconds').fill('120');
   await host.page.getByTestId('settings-turnSeconds').fill('60');
-  await host.page.getByTestId('settings-boardSize-10').click();
+  // The board is always the classic 10x10: no size to pick. The fleet starts classic; this game plays the small one.
+  await expect(host.page.locator('[data-testid^="settings-boardSize"]')).toHaveCount(0);
+  await expect(pia.page.getByTestId('settings-value-fleet')).toHaveText('Classic');
+  await host.page.getByTestId('settings-fleet-small').click();
   await expect(pia.page.getByTestId('settings-value-placeSeconds')).toHaveText('120s');
   await expect(pia.page.getByTestId('settings-value-turnSeconds')).toHaveText('60s');
-  await expect(pia.page.getByTestId('settings-value-boardSize')).toHaveText('10 × 10');
   await expect(pia.page.getByTestId('settings-value-fleet')).toHaveText('Small');
-  await expect(pia.page.getByTestId('settings-diceMoves')).toBeChecked();
-  await expect(pia.page.getByTestId('settings-diceMoves')).toBeDisabled();
+  await expect(pia.page.getByTestId('settings-moveOrFire')).toBeChecked();
+  await expect(pia.page.getByTestId('settings-moveOrFire')).toBeDisabled();
+  await expect(host.page.getByTestId('settings-moveOrFire')).toBeEnabled();
   await noHorizontalOverflow(pia);
 
   await expect(host.page.getByTestId('start-game')).toBeDisabled();
@@ -331,7 +306,7 @@ test('the host places ships by hand: tray, a tap per ship, rotate, a rejected sp
   await expect(host.page.getByTestId('chat-log')).toContainText('All fleets are in position. Fire at will!');
 });
 
-test('the host fires first: two taps, a hit everyone sees, the dice; then a miss and the shot log on a phone', async () => {
+test('the host fires first: the die everyone sees, Fire or Move, two taps and a hit', async () => {
   // Join order: the host is up; the phones wait. Nobody sees a ship on an enemy grid.
   await expect(screen(host)).toHaveAttribute('data-my-turn', 'true');
   await expect(host.page.getByTestId('status')).toHaveAttribute('data-kicker', 'Your turn');
@@ -339,16 +314,36 @@ test('the host fires first: two taps, a hit everyone sees, the dice; then a miss
     await expect(screen(p)).not.toHaveAttribute('data-my-turn', /.+/);
     await expect(p.page.getByTestId('status')).toHaveAttribute('data-kicker', host.name);
     await expect(p.page.getByTestId('fire')).toHaveCount(0);
+    await expect(p.page.getByTestId('turn-choice')).toHaveCount(0);
   }
   await expect(host.page.getByTestId('tab')).toHaveCount(3);
   await expect(host.page.locator(`[data-testid="player-item"][data-name="${host.name}"]`)).toHaveClass(/player--shooter/);
   await shipsStaySecret();
+
+  // The turn opens with one die for everyone; once it lands the host picks Fire or Move (up to the roll).
+  const choice = host.page.getByTestId('turn-choice');
+  await expect(choice).toBeVisible();
+  await expect(host.page.getByTestId('turn-die')).not.toHaveAttribute('data-rolling', 'true');
+  const roll = Number(await choice.getAttribute('data-roll'));
+  expect(roll).toBeGreaterThanOrEqual(1);
+  expect(roll).toBeLessThanOrEqual(6);
+  await expect(host.page.getByTestId('choose-move')).toHaveText(`Move (up to ${roll})`);
+  for (const p of players) await expect(p.page.getByTestId('dice')).toHaveAttribute('data-value', String(roll));
+  for (const p of phones()) await expect(p.page.getByTestId('status-text')).toHaveText('is deciding…');
+  // Before choosing, the grid on show is a picture.
+  await expect(host.page.locator('[data-testid="target"][data-can-fire="true"]')).toHaveCount(0);
+  // Fire, then Back, then Fire again: the choice comes back in between.
+  await host.page.getByTestId('choose-fire').click();
+  await expect(host.page.getByTestId('fire-back')).toBeVisible();
+  await host.page.getByTestId('fire-back').click();
+  await expect(choice).toBeVisible();
   // The host sees their own ships from the placement, with the hull drawn over the cells.
   await host.page.locator('[data-testid="tab"][data-side="mine"]').click();
   await expect(host.page.locator('[data-testid="own-fleet"] [data-testid="board-ship"]')).toHaveCount(4);
 
   // The first tap aims (Fire wakes up with the cell's name), the button fires.
   const [cell] = await fleetCells(pia);
+  await chooseFire(host);
   await tabOf(host, pia.name).click();
   await expect(host.page.getByTestId('fire')).toBeDisabled();
   await expect(host.page.getByTestId('aim')).toContainText('Tap a cell to aim');
@@ -361,24 +356,133 @@ test('the host fires first: two taps, a hit everyone sees, the dice; then a miss
   await tabOf(quinn, pia.name).click();
   await expect(targetCell(quinn, cell)).toHaveAttribute('data-mark', mark);
   await expect(quinn.page.locator('[data-testid="target"][data-can-fire="true"]')).toHaveCount(0);
-  // Dice moves are on: everyone sees the roll in the pill; only a 5 or 6 (a move window) earns a toast, and never for the shooter, whose move panel says it.
-  for (const p of players) await expect(p.page.getByTestId('dice')).toHaveAttribute('data-value', /^[1-6]$/);
-  const rolled = Number(await host.page.getByTestId('dice').getAttribute('data-value'));
-  const diceToast = (p: Player) => p.page.getByTestId('toast').filter({ hasText: /rolled a [1-6]/ });
-  for (const p of phones()) await expect(diceToast(p)).toHaveCount(rolled >= 5 ? 1 : 0);
-  await expect(diceToast(host)).toHaveCount(0);
+  // A shot earns no toast: the grid, the chat and the log carry it.
+  for (const p of players) await expect(p.page.getByTestId('toast').filter({ hasText: /moved a ship|rolled/ })).toHaveCount(0);
   await shipsStaySecret();
+});
 
-  // Pia is up on her phone: a miss at Quinn, on the open cell farthest from his ships (the test never
-  // moves a ship onto a missed cell, so no fleet ever hides under it).
+/** Ship id to its cells, read from `p`'s own board. */
+async function shipLayout(p: Player): Promise<Record<string, string[]>> {
+  return p.page.locator('[data-testid="own-board"] [data-testid="cell"][data-ship]').evaluateAll((els) => {
+    const out: Record<string, string[]> = {};
+    for (const el of els) (out[el.getAttribute('data-ship') ?? ''] ??= []).push(`${el.getAttribute('data-x')},${el.getAttribute('data-y')}`);
+    return out;
+  });
+}
+
+/** Every mark on `t`'s grid as `p` sees it. */
+async function marksOf(p: Player, t: Player): Promise<string[]> {
+  await tabOf(p, t.name).click();
+  return p.page.locator('[data-testid="target-board"] [data-testid="cell"][data-mark]').evaluateAll((els) => els.map((el) => `${el.getAttribute('data-x')},${el.getAttribute('data-y')}:${el.getAttribute('data-mark')}`));
+}
+
+test('Pia moves a ship instead of firing, on her phone: tap it, step the ghost, confirm; nobody else learns which', async () => {
   const s = await shooter();
   expect(s).toBe(pia);
   await expect(pia.page.getByTestId('status')).toHaveAttribute('data-kicker', 'Your turn');
+  await expect(pia.page.getByTestId('turn-die')).not.toHaveAttribute('data-rolling', 'true');
+  const roll = Number(await pia.page.getByTestId('turn-choice').getAttribute('data-roll'));
+  await expect(host.page.getByTestId('status')).toHaveAttribute('data-kicker', pia.name);
+  await expect(host.page.getByTestId('status-text')).toHaveText('is deciding…');
+  await isTarget(pia.page.getByTestId('choose-fire'), 'Fire');
+  await isTarget(pia.page.getByTestId('choose-move'), 'Move');
+  await tabsKeepHeight(pia, 'with the choice showing');
+  await noHorizontalOverflow(pia);
+  const before = await shipLayout(pia);
+  const hostSees = await marksOf(host, pia);
+  const quinnSees = await marksOf(quinn, pia);
+
+  // Move: the own board comes forward with the controls under it.
+  await pia.page.getByTestId('choose-move').click();
+  await expect(screen(pia)).toHaveAttribute('data-turn-mode', 'move');
+  await expect(pia.page.locator('[data-testid="tab"][data-side="mine"]')).toHaveAttribute('aria-selected', 'true');
+  const panel = pia.page.getByTestId('move-panel');
+  await expect(panel).toBeVisible();
+  await expect(pia.page.getByTestId('moves-left')).toHaveText(`${roll} ${roll === 1 ? 'move' : 'moves'} left`);
+  for (const id of ['move-up', 'move-down', 'move-left', 'move-right', 'move-rotate', 'move-reset', 'move-confirm']) await isTarget(pia.page.getByTestId(id), id);
+  await tabsKeepHeight(pia, 'with the move controls showing');
+  await noHorizontalOverflow(pia);
+  await expect(pia.page.getByTestId('move-confirm')).toBeDisabled();
+  await expect(pia.page.getByTestId('move-up')).toHaveAttribute('aria-disabled', 'true');
+
+  // Try the ships one by one, each direction step by step, until the ghost may stop somewhere.
+  let moved: { id: string; direction: string } | null = null;
+  for (const id of Object.keys(before)) {
+    await ownCell(pia, { x: Number(before[id][0].split(',')[0]), y: Number(before[id][0].split(',')[1]) }).click();
+    if ((await panel.getAttribute('data-ship-id')) !== id) continue;
+    await expect(pia.page.locator(`[data-testid="board-ship"][data-ship-id="${id}"]`)).toHaveAttribute('data-selected', 'true');
+    for (const direction of ['right', 'down', 'left', 'up']) {
+      const arrow = pia.page.getByTestId(`move-${direction}`);
+      for (let step = 1; step <= roll; step++) {
+        if ((await arrow.getAttribute('aria-disabled')) === 'true') break;
+        await arrow.click();
+        await expect(pia.page.getByTestId('ghost-ship')).toBeVisible();
+        await expect(pia.page.getByTestId('moves-left')).toHaveText(`${roll - step} ${roll - step === 1 ? 'move' : 'moves'} left`);
+        if (await pia.page.getByTestId('move-confirm').isEnabled()) {
+          moved = { id, direction };
+          break;
+        }
+      }
+      if (moved) break;
+      if ((await pia.page.getByTestId('move-reset').getAttribute('aria-disabled')) !== 'true') await pia.page.getByTestId('move-reset').click();
+      await expect(pia.page.getByTestId('ghost-ship')).toHaveCount(0);
+    }
+    if (moved) break;
+  }
+  if (!moved) throw new Error('no ship of Pia could move');
+  // Off the line: the other axis says why it cannot step.
+  const across = moved.direction === 'right' || moved.direction === 'left' ? 'move-up' : 'move-left';
+  await expect(pia.page.getByTestId(across)).toHaveAttribute('aria-disabled', 'true');
+  await pia.page.getByTestId(across).click({ force: true });
+  await expect(pia.page.getByTestId('move-note')).toHaveText('A ship moves in a straight line. Reset to change direction.');
+  const ghost = pia.page.getByTestId('ghost-ship');
+  await expect(ghost).toHaveAttribute('data-ship-id', moved.id);
+  const ghostX = Number(await ghost.getAttribute('data-x'));
+  const ghostY = Number(await ghost.getAttribute('data-y'));
+  await pia.page.getByTestId('move-confirm').click();
+  movesMade++;
+
+  // The turn passes; Pia's ship is where the ghost was; the room hears only that a ship moved.
+  await expect(screen(pia)).not.toHaveAttribute('data-my-turn', 'true');
+  await expect(ownCell(pia, { x: ghostX, y: ghostY })).toHaveAttribute('data-ship', moved.id);
+  expect((await shipLayout(pia))[moved.id]).not.toEqual(before[moved.id]);
+  await expect(host.page.getByTestId('chat-log')).toContainText(`${pia.name} moved a ship.`);
+  for (const p of [host, quinn]) await expect(p.page.getByTestId('toast').filter({ hasText: `${pia.name} moved a ship.` })).toHaveCount(1);
+  await expect(pia.page.getByTestId('toast').filter({ hasText: 'moved a ship' })).toHaveCount(0);
+  expect(await marksOf(host, pia)).toEqual(hostSees);
+  expect(await marksOf(quinn, pia)).toEqual(quinnSees);
+  await expect(host.page.getByTestId('ghost-ship')).toHaveCount(0);
+  await expect(quinn.page.getByTestId('ghost-ship')).toHaveCount(0);
+  await shipsStaySecret();
+});
+
+test('Quinn and the host fire; Pia cannot move twice in a row, so she fires a miss; the shot log on a phone', async () => {
+  // Quinn and then the host shoot at Pia.
+  for (const expected of [quinn, host]) {
+    const s = await shooter();
+    expect(s).toBe(expected);
+    const [cell] = await fleetCells(pia);
+    await fireAt(s, pia, cell);
+  }
+
+  // Pia is up again: Move is not on offer and says why.
+  const s = await shooter();
+  expect(s).toBe(pia);
+  await expect(pia.page.getByTestId('turn-choice')).toHaveAttribute('data-move-blocked', 'true');
+  await expect(pia.page.getByTestId('choose-move')).toHaveAttribute('aria-disabled', 'true');
+  await expect(pia.page.getByTestId('choose-move')).toHaveAttribute('title', 'You moved last turn. Fire this time.');
+  await expect(pia.page.getByTestId('move-blocked')).toHaveText('You moved last turn. Fire this time.');
+  // Still tappable (a tap must be able to say why), but it changes nothing.
+  await pia.page.getByTestId('choose-move').click({ force: true });
+  await expect(screen(pia)).toHaveAttribute('data-turn-mode', 'choose');
+
+  // A miss at Quinn, on the open cell farthest from his ships.
   const quinnShips = await fleetCells(quinn, false);
   const distance = (c: Cell) => Math.min(...quinnShips.map((q) => Math.max(Math.abs(q.x - c.x), Math.abs(q.y - c.y))));
   let miss: Cell = { x: 0, y: 0 };
   for (let y = 0; y < SIZE; y++) for (let x = 0; x < SIZE; x++) if (distance({ x, y }) > distance(miss)) miss = { x, y };
   expect(distance(miss)).toBeGreaterThan(0);
+  await chooseFire(pia);
   await tabOf(pia, quinn.name).click();
   await isTarget(pia.page.getByTestId('fire'), 'Fire');
   await noHorizontalOverflow(pia);
@@ -394,12 +498,11 @@ test('the host fires first: two taps, a hit everyone sees, the dice; then a miss
   await expect(await ownCellShown(quinn, miss)).toHaveAttribute('data-mark', 'miss');
   await expect(await ownCellShown(quinn, miss)).toHaveAttribute('aria-label', /, miss$/);
 
-  // The log on a phone: newest first.
+  // The log on a phone: shots only (the move is not in it), newest first.
   await pia.page.getByTestId('log-toggle').click();
   const log = pia.page.getByTestId('log-sheet');
-  await expect(log.getByTestId('shot-log-entry')).toHaveCount(2);
+  await expect(log.getByTestId('shot-log-entry')).toHaveCount(4);
   await expect(log.getByTestId('shot-log-entry').first()).toHaveAttribute('data-result', 'miss');
-  await expect(log.getByTestId('shot-log-entry').last()).toHaveAttribute('data-result', mark);
   await pia.page.getByTestId('log-sheet-close').click();
   await expect(log).toHaveCount(0);
 });
@@ -425,13 +528,10 @@ test("everyone hits until Pia's fleet is sunk: she is out and watches, the other
   test.setTimeout(180_000);
   // Quinn is up: the host and Quinn shoot at Pia, Pia shoots at Quinn.
   const pick = (s: Player) => (s === pia ? quinn : pia);
-  let sunk = 0;
   for (let i = 0; i < 40; i++) {
-    const { t, mark } = await nextShot(pick);
-    if (mark === 'sunk' && t === pia) sunk++;
-    if (sunk === 4) break;
+    await nextShot(pick);
+    if ((await tabOf(host, pia.name).getAttribute('data-alive')) === 'false') break;
   }
-  expect(sunk).toBe(4);
   await expect(host.page.getByTestId('chat-log')).toContainText(`${pia.name}'s fleet is sunk. They are out!`);
   await expect(pia.page.getByTestId('eliminated-banner')).toBeVisible();
   await expect(pia.page.getByTestId('fire')).toHaveCount(0);
@@ -469,7 +569,7 @@ test("the host sinks Quinn's fleet too and wins: the podium ranks the host first
   for (const p of players) await expect(p.page.getByTestId('room-code')).toHaveText(roomCode);
   await readyAll([pia.page, quinn.page]);
   await expect(host.page.getByTestId('start-game')).toBeEnabled();
-  test.info().annotations.push({ type: 'dice', description: `${movesMade} secret moves were made during the game` });
+  expect(movesMade).toBe(1);
 });
 
 test('no page errors were raised in any browser', async () => {

@@ -11,7 +11,6 @@ import { vibrate } from '../../platform/lib/haptics';
 import { prefersReducedMotion } from '../../platform/lib/media';
 import { playCue } from '../../platform/lib/sound';
 import { usePlatformStore } from '../../platform/store/usePlatformStore';
-import { OUTCOMES } from '../../platform/table/timeline';
 import { cancelCue, cueAt } from '../../platform/table/cues';
 import { createEntryFlag } from '../../platform/table/entry';
 import { CardsIcon, OutIcon } from './components/Icons';
@@ -19,6 +18,8 @@ import { isInHand, isMyTurn, seatOf, stepOf } from './hooks';
 import { chatPlaceholderFor } from './lib/text';
 import { PokerScreen } from './Screen';
 import { PokerSettingsFields } from './SettingsFields';
+import { clearPokerSounds, playPokerSounds } from './sfx';
+import { pokerSounds } from './sounds';
 import { usePokerStore } from './store';
 import './poker.css';
 
@@ -31,6 +32,7 @@ export const pokerClient = defineGameClient<PokerView, PokerSettings>({
   meta,
   Screen: PokerScreen,
   SettingsFields: PokerSettingsFields,
+  sounds: pokerSounds,
 
   playerBadge(room, player) {
     const view = room.game;
@@ -90,6 +92,7 @@ export const pokerClient = defineGameClient<PokerView, PokerSettings>({
     const store = usePokerStore.getState();
     if (room.phase === 'lobby' || !room.game) {
       cancelCue();
+      clearPokerSounds();
       if (room.phase === 'lobby') store.reset();
       return;
     }
@@ -100,24 +103,24 @@ export const pokerClient = defineGameClient<PokerView, PokerSettings>({
     const before = store.timeline;
     const timeline = store.applyView(view, me, Date.now(), fresh, !prefersReducedMotion());
     // A fresh entry (welcome) is not a turn starting under this player's feet.
-    if (fresh || !prev?.game || me === null) return;
+    if (fresh || !prev?.game) {
+      clearPokerSounds();
+      return;
+    }
+    playPokerSounds({ view, prevView: prev.game, before, timeline, me });
+    if (me === null) return;
     if (isMyTurn(view, me) && !isMyTurn(prev.game, me)) {
       // The cue comes when my turn shows: once the cards that came with it have landed.
       cueAt(Math.max(Date.now(), timeline.endsAt), () => {
         playCue('yourTurn');
         vibrate(40);
       });
-      return;
-    }
-    const at = timeline.marks[OUTCOMES];
-    if (view.results && at !== undefined && at !== before.marks[OUTCOMES]) {
-      const net = view.results.net[me] ?? 0;
-      if (net !== 0) cueAt(at, () => playCue(net > 0 ? 'correct' : 'turnEnd'));
     }
   },
 
   onLeave() {
     cancelCue();
+    clearPokerSounds();
     usePokerStore.getState().reset();
   },
 });

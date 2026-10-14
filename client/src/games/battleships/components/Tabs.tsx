@@ -21,7 +21,7 @@ export const panelId = (key: string): string => `bs-panel-${key}`;
 /**
  * The strip of grids: a 44px tab each, scrolling sideways when there are more than fit (an
  * eight-player game has seven targets). The active tab is scrolled into view whenever it changes
- * (a turn opens a target, a move window the own fleet), and a chevron at the edge says more lie
+ * (a turn opens a target, choosing Move the own fleet), and a chevron at the edge says more lie
  * beyond it and pages the strip along.
  */
 export function Tabs({ items, activeKey, onSelect }: Props) {

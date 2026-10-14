@@ -9,7 +9,7 @@ import { CheckIcon } from '../../platform/components/Icons';
 import { defineGameClient } from '../../platform/game';
 import { formatPoints } from '../../platform/lib/format';
 import { vibrate } from '../../platform/lib/haptics';
-import { playCue } from '../../platform/lib/sound';
+import { ONLOOKER_VOLUME, createSoundSchedule, playCue } from '../../platform/lib/sound';
 import { usePlatformStore } from '../../platform/store/usePlatformStore';
 import { skribbleCanvas } from './canvas';
 import { SkribbleChatInput } from './components/ChatInput';
@@ -18,8 +18,13 @@ import { SkribbleSettingsFields } from './components/SettingsFields';
 import { drawerIdOf, hasGuessed, isNewTurn } from './hooks';
 import { placeholderFor } from './lib/format';
 import { SkribbleScreen } from './Screen';
+import { skribbleSounds as sfx } from './sounds';
 import { useSkribbleStore } from './store';
 import './styles/skribble.css';
+
+/** The turn's sting waits for the buzzer when the clock ran out. */
+const BUZZER_MS = 350;
+const sounds = createSoundSchedule();
 
 function isDrawerOf(room: SkribbleRoomState, player: PlayerPublic): boolean {
   return drawerIdOf(room.game) === player.id;
@@ -28,6 +33,7 @@ function isDrawerOf(room: SkribbleRoomState, player: PlayerPublic): boolean {
 export const skribbleClient = defineGameClient<SkribbleView, SkribbleSettings>({
   meta: gameById('skribble'),
   Screen: SkribbleScreen,
+  sounds: sfx,
   SettingsFields: SkribbleSettingsFields,
   ChatInput: SkribbleChatInput,
 
@@ -85,16 +91,24 @@ export const skribbleClient = defineGameClient<SkribbleView, SkribbleSettings>({
     if (prev && ((next?.kind === 'choosing' && before?.kind !== 'choosing') || (room.phase === 'lobby' && prev.phase !== 'lobby'))) skribbleCanvas.store.getState().clear();
     if (isNewTurn(prev, room) || room.phase === 'lobby') store.setGuessDraft('');
     if (next?.kind === 'choosing' && next.drawerId === me && !(before?.kind === 'choosing' && before.drawerId === me)) playCue('yourTurn');
-    if (next?.kind === 'turnEnd' && before?.kind !== 'turnEnd') playCue('turnEnd');
+    if (prev && next?.kind === 'drawing' && before?.kind === 'choosing') sfx.play('chosen', { volume: next.drawerId === me ? 1 : ONLOOKER_VOLUME });
+    if (next?.kind === 'turnEnd' && before?.kind !== 'turnEnd') {
+      const timeUp = next.reason === 'timeUp';
+      if (timeUp) sfx.play('timeUp');
+      sounds.at(Date.now() + (timeUp ? BUZZER_MS : 0), () => sfx.play('turnEnd'));
+    }
     // A little buzz when this player cracks the word (the drawer is marked as guessed too; skip them).
     if (next?.kind === 'drawing' && before?.kind === 'drawing' && next.drawerId !== me && hasGuessed(room.game, me) && !hasGuessed(prev?.game ?? null, me)) vibrate(30);
   },
 
   onChat(message) {
-    if (message.kind === 'correct') playCue('correct');
+    const me = usePlatformStore.getState().playerId;
+    if (message.kind === 'correct') sfx.play('correct', { volume: message.playerId === me ? 1 : ONLOOKER_VOLUME });
+    if (message.kind === 'close') sfx.play('close');
   },
 
   onLeave() {
+    sounds.clear();
     skribbleCanvas.onLeave();
     useSkribbleStore.getState().reset();
   },

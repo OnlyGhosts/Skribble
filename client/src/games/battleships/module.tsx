@@ -14,6 +14,8 @@ import { isEliminated, isNewGame, isShooter, isWatching, mySideSunk, nameOf, sho
 import { chatPlaceholderFor } from './lib/text';
 import { BattleshipsScreen } from './Screen';
 import { BattleshipsSettingsFields } from './SettingsFields';
+import { clearBattleshipsSounds, playBattleshipsSounds } from './sfx';
+import { battleshipsSounds } from './sounds';
 import { useBattleshipsStore } from './store';
 import './battleships.css';
 
@@ -23,6 +25,7 @@ export const battleshipsClient = defineGameClient<BattleshipsView, BattleshipsSe
   meta,
   Screen: BattleshipsScreen,
   SettingsFields: BattleshipsSettingsFields,
+  sounds: battleshipsSounds,
 
   playerBadge(room, player) {
     const view = room.game;
@@ -66,6 +69,7 @@ export const battleshipsClient = defineGameClient<BattleshipsView, BattleshipsSe
     const store = useBattleshipsStore.getState();
     const { playerId: me, addToast } = usePlatformStore.getState();
     if (room.phase === 'lobby') {
+      clearBattleshipsSounds();
       store.reset();
       return;
     }
@@ -77,7 +81,7 @@ export const battleshipsClient = defineGameClient<BattleshipsView, BattleshipsSe
     const myTurn = isShooter(view, me) && view.phase === 'playing';
     const key = turnKey(view);
     // A turn of the viewer's opens (or comes back with a fresh roll after a hold): the choice, or straight to aiming.
-    if (myTurn && store.turn.key !== key) {
+    if (myTurn && useBattleshipsStore.getState().turn.key !== key) {
       store.beginTurn(key, view.moveOrFire && view.turn?.roll !== null);
       store.selectTab(targetForTurn(view, store.tab));
       if (prev && !(isShooter(before, me) && before?.phase === 'playing' && before.turnNumber === view.turnNumber)) {
@@ -87,9 +91,9 @@ export const battleshipsClient = defineGameClient<BattleshipsView, BattleshipsSe
     }
     // The aim is forgotten whenever the grid stops being tappable: the next tap must never fire on its own.
     if (!myTurn && store.aim !== null) store.setAim(null);
+    if (prev && before) playBattleshipsSounds(view, before, me);
     if (prev && shotAdded(before, view) && view.lastShot) {
       const shot = view.lastShot;
-      if (shot.result === 'sunk') playCue('correct');
       if (shot.targetId === view.mySideId && shot.result !== 'miss') vibrate(shot.result === 'sunk' ? 80 : 30);
     }
     // A move says only who moved: everyone but the mover hears it here too, as the next turn has already begun.
@@ -104,6 +108,7 @@ export const battleshipsClient = defineGameClient<BattleshipsView, BattleshipsSe
   },
 
   onLeave() {
+    clearBattleshipsSounds();
     useBattleshipsStore.getState().reset();
   },
 });

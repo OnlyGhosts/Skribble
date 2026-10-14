@@ -1,103 +1,75 @@
 /**
- * Tiny WebAudio cue synthesiser. No asset files: every cue is a few oscillator notes.
- * Everything is best-effort — when AudioContext is missing or blocked we silently do nothing.
+ * Sound effects. Games declare a bank of named sounds (defineSounds) and play them by name; the
+ * platform loads a game's bank when its screen mounts and its own after the first gesture. The
+ * short note cues (your turn, the tick, a correct answer) are made in code and played with
+ * playCue. Everything respects the sound switch, waits for a user gesture and never throws.
  */
+import { defineSounds, soundEngine } from './audio/bank';
+import { renderNotes } from './audio/synth';
+
+export { defineSounds, soundBanks, soundEngine, type AnySoundBank, type SoundBank } from './audio/bank';
+export { createSoundSchedule, type SoundSchedule } from './audio/schedule';
+export { applause, drumroll, splash, whoosh } from './audio/synth';
+export type { PlayOptions, SoundDef } from './audio/types';
+
 export type Cue = 'correct' | 'yourTurn' | 'tick' | 'turnEnd' | 'fanfare';
 
-let context: AudioContext | null = null;
-let enabled = true;
-
-type AudioContextCtor = typeof AudioContext;
-
-function resolveContextCtor(): AudioContextCtor | null {
-  const w = window as Window & { webkitAudioContext?: AudioContextCtor };
-  return window.AudioContext ?? w.webkitAudioContext ?? null;
-}
-
-function getContext(): AudioContext | null {
-  try {
-    if (!context) {
-      const Ctor = resolveContextCtor();
-      if (!Ctor) return null;
-      context = new Ctor();
-    }
-    if (context.state === 'suspended') void context.resume().catch(() => undefined);
-    return context;
-  } catch {
-    return null;
-  }
-}
-
 export function setSoundEnabled(on: boolean): void {
-  enabled = on;
+  soundEngine.setEnabled(on);
 }
 
-/** Browsers only allow audio after a user gesture; call this from the first pointer/key event. */
+/** Browsers only allow audio after a user gesture; call this from every pointer/key event. */
 export function unlockAudio(): void {
-  if (!enabled) return;
-  getContext();
+  soundEngine.unlock();
 }
 
-interface Note {
-  freq: number;
-  /** seconds after the cue starts */
-  at: number;
-  dur: number;
-  type?: OscillatorType;
-  gain?: number;
-}
-
-function play(notes: Note[]): void {
-  if (!enabled) return;
-  const ctx = getContext();
-  if (!ctx) return;
-  try {
-    const now = ctx.currentTime;
-    for (const n of notes) {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = n.type ?? 'sine';
-      osc.frequency.setValueAtTime(n.freq, now + n.at);
-      const peak = n.gain ?? 0.12;
-      gain.gain.setValueAtTime(0.0001, now + n.at);
-      gain.gain.exponentialRampToValueAtTime(peak, now + n.at + 0.01);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + n.at + n.dur);
-      osc.connect(gain).connect(ctx.destination);
-      osc.start(now + n.at);
-      osc.stop(now + n.at + n.dur + 0.02);
-    }
-  } catch {
-    /* audio is optional */
-  }
-}
-
-const CUES: Record<Cue, Note[]> = {
-  correct: [
-    { freq: 523.25, at: 0, dur: 0.12, type: 'triangle' },
-    { freq: 659.25, at: 0.1, dur: 0.12, type: 'triangle' },
-    { freq: 783.99, at: 0.2, dur: 0.22, type: 'triangle' },
-  ],
-  yourTurn: [
-    { freq: 587.33, at: 0, dur: 0.14, type: 'square', gain: 0.06 },
-    { freq: 739.99, at: 0.14, dur: 0.14, type: 'square', gain: 0.06 },
-    { freq: 880, at: 0.28, dur: 0.3, type: 'square', gain: 0.06 },
-  ],
-  tick: [{ freq: 880, at: 0, dur: 0.07, type: 'square', gain: 0.05 }],
-  turnEnd: [
-    { freq: 659.25, at: 0, dur: 0.16, type: 'triangle' },
-    { freq: 493.88, at: 0.16, dur: 0.3, type: 'triangle' },
-  ],
-  // The podium's little fanfare: a rising arpeggio that lands on a held chord.
-  fanfare: [
-    { freq: 523.25, at: 0, dur: 0.14, type: 'triangle' },
-    { freq: 659.25, at: 0.12, dur: 0.14, type: 'triangle' },
-    { freq: 783.99, at: 0.24, dur: 0.14, type: 'triangle' },
-    { freq: 1046.5, at: 0.36, dur: 0.5, type: 'triangle', gain: 0.14 },
-    { freq: 659.25, at: 0.36, dur: 0.5, type: 'sine', gain: 0.07 },
-    { freq: 783.99, at: 0.36, dur: 0.5, type: 'sine', gain: 0.07 },
-  ],
-};
+const CUES = defineSounds<Cue>('cue', {
+  correct: {
+    render: renderNotes([
+      { freq: 523.25, at: 0, dur: 0.12, type: 'triangle' },
+      { freq: 659.25, at: 0.1, dur: 0.12, type: 'triangle' },
+      { freq: 783.99, at: 0.2, dur: 0.22, type: 'triangle' },
+    ]),
+    volume: 0.6,
+    steady: true,
+  },
+  yourTurn: {
+    render: renderNotes([
+      { freq: 587.33, at: 0, dur: 0.14, type: 'square', gain: 0.15 },
+      { freq: 739.99, at: 0.14, dur: 0.14, type: 'square', gain: 0.15 },
+      { freq: 880, at: 0.28, dur: 0.3, type: 'square', gain: 0.15 },
+    ]),
+    volume: 0.6,
+    steady: true,
+    cooldownMs: 600,
+  },
+  tick: { render: renderNotes([{ freq: 880, at: 0, dur: 0.07, type: 'square', gain: 0.13 }]), volume: 0.6, steady: true, cooldownMs: 400 },
+  turnEnd: {
+    render: renderNotes([
+      { freq: 659.25, at: 0, dur: 0.16, type: 'triangle' },
+      { freq: 493.88, at: 0.16, dur: 0.3, type: 'triangle' },
+    ]),
+    volume: 0.6,
+    steady: true,
+  },
+  // A rising arpeggio that lands on a held chord.
+  fanfare: {
+    render: renderNotes([
+      { freq: 523.25, at: 0, dur: 0.14, type: 'triangle' },
+      { freq: 659.25, at: 0.12, dur: 0.14, type: 'triangle' },
+      { freq: 783.99, at: 0.24, dur: 0.14, type: 'triangle' },
+      { freq: 1046.5, at: 0.36, dur: 0.5, type: 'triangle', gain: 0.35 },
+      { freq: 659.25, at: 0.36, dur: 0.5, type: 'sine', gain: 0.17 },
+      { freq: 783.99, at: 0.36, dur: 0.5, type: 'sine', gain: 0.17 },
+    ]),
+    volume: 0.7,
+    steady: true,
+  },
+});
 
 export function playCue(cue: Cue): void {
-  play(CUES[cue]);
+  CUES.play(cue);
 }
+
+/** Someone else's moment at a shared table plays at this share of the level the player's own gets. */
+export const ONLOOKER_VOLUME = 0.5;

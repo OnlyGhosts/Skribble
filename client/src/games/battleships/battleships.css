@@ -18,21 +18,6 @@
   grid-column: 1 / -1;
 }
 
-.bs-dice {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  min-height: 32px;
-  padding: 0 10px;
-  border-radius: var(--radius-pill);
-  background: var(--color-secondary-soft);
-  color: var(--color-secondary-text);
-  font-weight: 800;
-  font-size: 0.9rem;
-  font-variant-numeric: tabular-nums;
-  animation: bs-pop 0.3s ease;
-}
-
 .bs__left {
   grid-row: 2;
   min-height: 0;
@@ -102,9 +87,8 @@
 /* ---------- Status line, banners, teams ---------- */
 .bs-status {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 4px 10px;
-  flex-wrap: wrap;
   padding: 8px 14px;
   border-radius: var(--radius-item);
   background: var(--color-surface-2);
@@ -112,8 +96,15 @@
   line-height: 1.3;
 }
 
+/* The kicker and the sentence flow as one line of text; the die and the log button stay beside it. */
+.bs-status__line {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .bs-status strong {
   font-weight: 800;
+  margin-right: 6px;
 }
 
 .bs-status__count {
@@ -124,12 +115,9 @@
   white-space: nowrap;
 }
 
-.bs-status .bs-dice {
+.bs-status .bs-die {
   margin-left: auto;
   align-self: center;
-  min-height: 26px;
-  padding: 0 8px;
-  font-size: 0.8rem;
 }
 
 /* The phone's shot log button rides at the end of the status line. */
@@ -140,15 +128,15 @@
   margin: -8px -10px -8px 0;
 }
 
-.bs-status .bs-dice + .bs-status__log {
+.bs-status .bs-die + .bs-status__log {
   margin-left: 0;
 }
 
-.bs-status > .bs-status__log:not(.bs-dice + .bs-status__log) {
+.bs-status > .bs-status__log:not(.bs-die + .bs-status__log) {
   margin-left: auto;
 }
 
-.bs-status span {
+.bs-status__line span {
   color: var(--color-text-muted);
   font-size: 0.9rem;
 }
@@ -311,7 +299,8 @@
 .bs-own,
 .bs-target,
 .bs-place,
-.bs-move {
+.bs-move,
+.bs-turn {
   flex: none;
   display: flex;
   flex-direction: column;
@@ -345,7 +334,7 @@
 }
 
 .bs-board {
-  width: min(100%, 400px);
+  width: min(100%, calc(var(--bs-size) * 40px));
   margin: 0 auto;
   user-select: none;
   -webkit-user-select: none;
@@ -483,12 +472,27 @@
 .bs-ship {
   position: absolute;
   z-index: 1;
+  display: flex;
   box-sizing: border-box;
   border: 3px solid var(--color-surface-2);
   border-radius: 999px;
+  overflow: hidden;
   background: var(--bs-accent, var(--color-secondary));
   opacity: 0.9;
   pointer-events: none;
+}
+
+.bs-ship--down {
+  flex-direction: column;
+}
+
+.bs-ship__seg {
+  flex: 1 1 0;
+}
+
+/* A damaged segment keeps its colour wherever the ship goes; the cross stays on the square that was shot. */
+.bs-ship__seg[data-damaged] {
+  background: var(--color-danger);
 }
 
 .bs-ship--selected {
@@ -497,13 +501,118 @@
   z-index: 4;
 }
 
-.bs-ship--damaged {
-  opacity: 0.75;
-}
-
 .bs-ship--sunk {
   background: var(--color-text-faint);
   opacity: 0.5;
+}
+
+/* The ship picked to move fades where it lies while its ghost shows where it would go. */
+.bs-ship--origin {
+  opacity: 0.35;
+}
+
+.bs-ship--ghost {
+  z-index: 5;
+  border: 2px dashed var(--color-primary-contrast);
+  background: var(--color-primary);
+  opacity: 0.85;
+}
+
+.bs-ship--ghost.is-blocked {
+  border-color: var(--color-danger);
+  background: var(--color-danger-soft);
+  opacity: 0.9;
+}
+
+/* ---------- The die ---------- */
+.bs-die {
+  --die: 26px;
+  flex: none;
+  display: inline-grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  width: var(--die);
+  height: var(--die);
+  padding: calc(var(--die) * 0.14);
+  border-radius: calc(var(--die) * 0.22);
+  background: var(--color-text);
+  box-sizing: border-box;
+}
+
+.bs-die--lg {
+  --die: 52px;
+}
+
+.bs-die__pip {
+  place-self: center;
+  width: 70%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+}
+
+.bs-die__pip.is-on {
+  background: var(--color-bg);
+}
+
+.bs-die.is-rolling {
+  animation: bs-tumble 0.35s ease-in-out infinite;
+}
+
+/* ---------- The turn: Fire or Move ---------- */
+.bs-turn {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    'die title'
+    'actions actions'
+    'why why';
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  border-color: var(--color-primary-text);
+}
+
+.bs-turn .bs-die {
+  grid-area: die;
+}
+
+.bs-turn__body {
+  display: contents;
+}
+
+.bs-turn__title {
+  grid-area: title;
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+.bs-turn__actions {
+  grid-area: actions;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.bs-turn__btn {
+  min-height: 56px;
+  padding: 0 10px;
+}
+
+.bs-turn__why {
+  grid-area: why;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+/* A control that cannot act right now: muted, but still tappable so it can say why. */
+.bs .btn[aria-disabled='true'] {
+  border-color: var(--color-border);
+  color: var(--color-text-faint);
+  cursor: not-allowed;
+}
+
+.bs .btn[aria-disabled='true']:hover {
+  background: transparent;
 }
 
 /* ---------- Fleet pills ---------- */
@@ -514,8 +623,7 @@
 }
 
 .bs-fleet__ship,
-.bs-tray__ship,
-.bs-move__ship {
+.bs-tray__ship {
   display: inline-flex;
   gap: 2px;
 }
@@ -631,15 +739,26 @@
   font-variant-numeric: tabular-nums;
 }
 
+.bs-target__buttons {
+  flex: 1 1 200px;
+  display: flex;
+  gap: 8px;
+}
+
 .bs-fire {
   min-height: 48px;
   min-width: 160px;
   flex: 1 1 160px;
 }
 
-/* ---------- The move window ---------- */
+.bs-back {
+  flex: none;
+  min-height: 48px;
+}
+
+/* ---------- Moving a ship ---------- */
 .bs-move {
-  border-color: var(--color-secondary-text);
+  border-color: var(--color-primary-text);
 }
 
 .bs-move__head {
@@ -650,8 +769,8 @@
 }
 
 .bs-move__title {
-  font-weight: 800;
-  font-size: 1.2rem;
+  font-weight: 700;
+  font-size: 1.05rem;
 }
 
 .bs-move__hint {
@@ -659,43 +778,70 @@
   font-size: 0.85rem;
 }
 
-.bs-move__list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+.bs-move__hint.is-problem,
+.bs-move__note {
+  color: var(--color-danger-text);
+  font-weight: 600;
+  font-size: 0.85rem;
 }
 
-.bs-move__row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 56px 56px;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 8px;
-  border-radius: var(--radius-item);
-  background: var(--color-surface-2);
-}
-
-.bs-move__ship {
-  align-items: center;
-  gap: 3px;
-}
-
-.bs-move__ship small {
-  margin-left: 8px;
-  color: var(--color-text);
+.bs-move__left {
+  flex: none;
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--color-primary-soft);
+  color: var(--color-primary-text);
   font-weight: 700;
+  font-size: 0.85rem;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
-.bs-move__row:hover,
-.bs-move__row:focus-within {
-  background: var(--color-primary-soft);
+/* A pad of two rows: Rotate, Up, Reset over Left, Down, Right. */
+.bs-move__pad {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-areas:
+    'rotate up reset'
+    'left down right';
+  gap: 8px;
 }
 
 .bs-move__btn {
   min-height: 44px;
-  padding: 0;
+  min-width: 44px;
+  padding: 0 8px;
+  font-size: 0.875rem;
+}
+
+.bs-move__btn--rotate {
+  grid-area: rotate;
+}
+
+.bs-move__btn--up {
+  grid-area: up;
+}
+
+.bs-move__btn--reset {
+  grid-area: reset;
+}
+
+.bs-move__btn--left {
+  grid-area: left;
+}
+
+.bs-move__btn--down {
+  grid-area: down;
+}
+
+.bs-move__btn--right {
+  grid-area: right;
+}
+
+.bs-move__actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: 8px;
 }
 
 /* ---------- Shot log ---------- */
@@ -843,12 +989,21 @@
   }
 }
 
-@keyframes bs-pop {
+@keyframes bs-tumble {
   0% {
-    transform: scale(0.6);
+    transform: rotate(0deg) scale(1);
+  }
+  50% {
+    transform: rotate(14deg) scale(0.92);
   }
   100% {
-    transform: scale(1);
+    transform: rotate(0deg) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bs-die.is-rolling {
+    animation: none;
   }
 }
 
@@ -890,7 +1045,8 @@
   .bs-own,
   .bs-target,
   .bs-place,
-  .bs-move {
+  .bs-move,
+  .bs-turn {
     padding: var(--space-2) 4px;
     border-radius: var(--radius-item);
     gap: var(--space-2);
@@ -903,9 +1059,18 @@
   .bs-place__error,
   .bs-place__actions,
   .bs-move__head,
-  .bs-move__list,
-  .bs-move .btn--block {
+  .bs-move__pad,
+  .bs-move__note,
+  .bs-move__actions {
     margin: 0 4px;
+  }
+
+  .bs-turn {
+    padding-inline: var(--space-2);
+  }
+
+  .bs-die--lg {
+    --die: 40px;
   }
 
   .bs-board {
@@ -930,6 +1095,11 @@
 @media (max-width: 340px) {
   .bs {
     padding-inline: 2px;
+  }
+
+  /* "Move (up to 6)" keeps to one line on the narrowest phones. */
+  .bs-turn__btn svg {
+    display: none;
   }
 
   .bs__scroll {
@@ -983,7 +1153,8 @@
     padding: var(--space-2);
   }
 
-  .bs-move {
+  .bs-move,
+  .bs-turn {
     grid-column: 2;
     grid-row: 2;
     align-self: start;
