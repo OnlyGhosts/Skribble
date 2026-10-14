@@ -1,8 +1,7 @@
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useSyncExternalStore } from 'react';
 import type { BlackjackPlayerView, BlackjackRoomState, BlackjackView } from '@shared/games/blackjack/protocol';
 import type { PlayerPublic, RoomState } from '@shared/platform/protocol';
 import { usePlatformStore } from '../../platform/store/usePlatformStore';
-import { nextEvent, type Timeline } from './lib/timeline';
 
 export function playerOf(room: RoomState, id: string | null | undefined): PlayerPublic | undefined {
   return id ? room.players.find((p) => p.id === id) : undefined;
@@ -50,19 +49,5 @@ export function useConnected(): boolean {
   return useSyncExternalStore(usePlatformStore.subscribe, read, read);
 }
 
-/** The local clock for drawing the timeline: re-renders at each moment the table changes, and not otherwise. */
-export function useTableNow(timeline: Timeline): number {
-  const [now, setNow] = useState(() => Date.now());
-  const current = Math.max(now, Date.now());
-  const next = nextEvent(timeline, current);
-  useEffect(() => {
-    if (next === null) return;
-    const id = setTimeout(() => setNow(Date.now()), Math.max(0, next - Date.now()) + 4);
-    return () => clearTimeout(id);
-  }, [next, timeline]);
-  return current;
-}
-
-export function prefersReducedMotion(): boolean {
-  return typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
+export { useTableNow } from '../../platform/table/useTableNow';
+export { prefersReducedMotion } from '../../platform/lib/media';

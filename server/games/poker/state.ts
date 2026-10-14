@@ -1,6 +1,6 @@
 /** Poker's JSON-safe game state (the module's `D`), its working context and the queries over it. */
 import type { Card } from '../../../shared/platform/cards.js';
-import type { PokerLastAction, PokerResults, PokerServerMessage, PokerSettings, PokerStreet } from '../../../shared/games/poker/protocol.js';
+import type { PokerLastAction, PokerMove, PokerResults, PokerServerMessage, PokerSettings, PokerStreet } from '../../../shared/games/poker/protocol.js';
 import { gameById } from '../../../shared/platform/games.js';
 import type { GameCtx, GameEffect, PlatformPlayer } from '../../platform/game.js';
 
@@ -71,6 +71,8 @@ export interface PokerData {
   acted: boolean;
   /** Completed hands in a row in which every move was a timeout. */
   idleHands: number;
+  /** The latest move at the table (optional: rooms stored before it existed have none). */
+  lastMove?: PokerMove | null;
 }
 
 export type Ctx = GameCtx<PokerSettings>;
@@ -176,6 +178,13 @@ export function adjustChips(gx: Gx, playerId: string, delta: number): void {
   seat.chips += delta;
   // A seat whose player left keeps no score; the platform no longer knows them.
   if (findPlayer(gx.ctx, playerId)) gx.effects.push({ type: 'score', playerId, delta });
+}
+
+/** Notes a seat's move: its last action this street, and the table's latest move. */
+export function noteMove(gx: Gx, playerId: string, action: PokerLastAction): void {
+  const { data } = gx;
+  data.seats[playerId].lastAction = action;
+  data.lastMove = { ...action, seq: (data.lastMove?.seq ?? 0) + 1, playerId, street: data.street ?? 'preflop' };
 }
 
 /** The next card off the deck. */

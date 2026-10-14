@@ -1,5 +1,6 @@
 import type { BlackjackPayout, BlackjackPhase, BlackjackView, HandOutcome } from '@shared/games/blackjack/protocol';
 import { formatChips } from '../../../platform/lib/format';
+import type { PanelStatus, StatusTone } from '../../../platform/table/ControlPanel';
 
 export { formatChips };
 
@@ -69,10 +70,22 @@ export const HOTKEY_HINT = 'Space bet · H hit · S stand · D double · P split
 
 export type PanelState = 'spectating' | 'out' | 'offline' | 'held' | 'over' | 'dealer' | 'next-round' | 'bet' | 'waiting' | 'dealing' | 'my-turn' | 'their-turn';
 
-export interface PanelStatus {
-  state: PanelState;
-  text: string;
-}
+const TONES: Record<PanelState, StatusTone> = {
+  spectating: 'quiet',
+  out: 'bad',
+  offline: 'quiet',
+  held: 'quiet',
+  over: 'quiet',
+  dealer: 'other',
+  'next-round': 'quiet',
+  bet: 'go',
+  waiting: 'quiet',
+  dealing: 'quiet',
+  'my-turn': 'go',
+  'their-turn': 'other',
+};
+
+export type { PanelStatus };
 
 export interface PanelStatusInput {
   phase: BlackjackPhase;
@@ -92,20 +105,24 @@ export interface PanelStatusInput {
   dealerPlaying: boolean;
 }
 
+function line(state: PanelState, text: string): PanelStatus {
+  return { state, text, tone: TONES[state] };
+}
+
 /** The one line in the panel that says what is happening and whose turn it is. */
 export function panelStatus(s: PanelStatusInput): PanelStatus {
-  if (!s.seated) return { state: 'spectating', text: "You're watching this game" };
-  if (s.phase === 'ending' || s.phase === 'gameOver') return { state: 'over', text: 'Game over' };
-  if (s.bustedOut) return { state: 'out', text: "You're out of chips" };
-  if (!s.connected) return { state: 'offline', text: 'Reconnecting…' };
-  if (s.phase === 'held') return { state: 'held', text: 'Waiting for players' };
-  if (s.dealerPlaying) return { state: 'dealer', text: "Dealer's turn" };
+  if (!s.seated) return line('spectating', "You're watching this game");
+  if (s.phase === 'ending' || s.phase === 'gameOver') return line('over', 'Game over');
+  if (s.bustedOut) return line('out', "You're out of chips");
+  if (!s.connected) return line('offline', 'Reconnecting…');
+  if (s.phase === 'held') return line('held', 'Waiting for players');
+  if (s.dealerPlaying) return line('dealer', "Dealer's turn");
   if (s.phase === 'betting') {
-    if (!s.inRound) return { state: 'next-round', text: "You're in from the next round" };
-    if (!s.betPlaced) return { state: 'bet', text: 'Place your bet' };
-    if (s.pending.length > 0) return { state: 'waiting', text: `Waiting for ${joinNames(s.pending)}` };
-    return { state: 'dealing', text: 'Dealing' };
+    if (!s.inRound) return line('next-round', "You're in from the next round");
+    if (!s.betPlaced) return line('bet', 'Place your bet');
+    if (s.pending.length > 0) return line('waiting', `Waiting for ${joinNames(s.pending)}`);
+    return line('dealing', 'Dealing');
   }
-  if (s.myTurn) return { state: 'my-turn', text: s.handCount > 1 ? `Your turn, hand ${s.handIndex + 1} of ${s.handCount}` : 'Your turn' };
-  return { state: 'their-turn', text: `${s.turnName}'s turn` };
+  if (s.myTurn) return line('my-turn', s.handCount > 1 ? `Your turn, hand ${s.handIndex + 1} of ${s.handCount}` : 'Your turn');
+  return line('their-turn', `${s.turnName}'s turn`);
 }

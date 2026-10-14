@@ -62,6 +62,7 @@ export function viewFor(data: PokerData, viewerId: string | null, ctx: GameViewC
     myCards: mine && !mine.gone ? mine.cards.map((c) => ({ ...c })) : [],
     actions: actionsFor(data, viewerId ?? ''),
     results: data.results ? structuredClone(data.results) : null,
+    lastMove: data.lastMove ? { ...data.lastMove } : null,
   };
 }
 

@@ -117,6 +117,7 @@ describe('Poker: the table', () => {
       myCards: data(s).seats[alice].cards,
       actions: { canFold: true, canCheck: false, canCall: true, callAmount: 10, canBet: false, minBet: 10, maxBet: 1000, canRaise: true, minRaiseTo: 20, maxRaiseTo: 1000, canAllIn: true },
       results: null,
+      lastMove: { kind: 'bigBlind', amount: 10, seq: 2, playerId: carol, street: 'preflop' },
     });
     expect(JSON.parse(JSON.stringify(data(s)))).toEqual(data(s));
   });
@@ -228,6 +229,28 @@ describe('Poker: betting', () => {
     for (const id of [bob, carol]) act(s, id, { t: 'check' });
     expect(view(s).phase).toBe('results');
     expect(data(s).community).toHaveLength(5);
+  });
+
+  it('keeps the latest move in the view after the street that it closed, counting every move', () => {
+    const s = sim('poker');
+    const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol']);
+    act(s, alice, { t: 'call' });
+    expect(view(s).lastMove).toEqual({ kind: 'call', amount: 10, seq: 3, playerId: alice, street: 'preflop' });
+    act(s, bob, { t: 'call' });
+    act(s, carol, { t: 'check' });
+    // The check closed the preflop: every seat's last action is cleared for the flop, the table's latest move is not.
+    expect(data(s).street).toBe('flop');
+    expect(Object.values(view(s).players).every((p) => p.lastAction === null)).toBe(true);
+    expect(view(s, bob).lastMove).toEqual({ kind: 'check', amount: 0, seq: 5, playerId: carol, street: 'preflop' });
+    act(s, bob, { t: 'bet', amount: 20 });
+    expect(view(s).lastMove).toMatchObject({ kind: 'bet', amount: 20, seq: 6, playerId: bob, street: 'flop' });
+    // A room stored before the field existed shows no latest move until somebody moves.
+    const game = structuredClone(data(s));
+    delete game.lastMove;
+    s.data = { ...s.data, game };
+    expect(view(s).lastMove).toBeNull();
+    act(s, carol, { t: 'call' });
+    expect(view(s).lastMove).toMatchObject({ kind: 'call', seq: 1, playerId: carol });
   });
 
   it('sets the minimum raise to the last raise size and lets a raise go all in for less than it', () => {

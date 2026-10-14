@@ -1,6 +1,8 @@
 import type { BlackjackRoomState, BlackjackView } from '@shared/games/blackjack/protocol';
 import { PlayingCard, type PlayingCardSize } from '../../../platform/components/PlayingCard';
 import { Chips } from '../../../platform/components/Chips';
+import { Deck, DiscardTray } from '../../../platform/table/Deck';
+import { TableRibbon } from '../../../platform/table/Ribbon';
 import { seatOrder } from '../hooks';
 import type { TableModel } from '../lib/table';
 import type { Frame } from '../lib/timeline';
@@ -8,7 +10,6 @@ import { dealerRuleText, ribbonText } from '../lib/text';
 import { Dealer } from './Dealer';
 import { Hand } from './Hand';
 import { Seats } from './Seats';
-import { DiscardTray, Shoe } from './Shoe';
 
 interface Props {
   room: BlackjackRoomState;
@@ -68,16 +69,13 @@ export function Table({ room, view, meId, frame, now, isPhone, chipsOf }: Props)
   const others = seatOrder(room, view, dealt).filter((id) => id !== meId);
   const discarded = Math.max(0, settings.decks * 52 - view.shoeRemaining - cardsOn(view.dealer.cards.length > 0 ? table : null));
   return (
-    <section className={`bj-table${leaving ? ' bj-table--leaving' : ''}`} aria-label="Table" data-testid="bj-table" data-round={table?.round ?? 0} data-settled={table?.settled ?? false}>
-      <div className="bj-table__top">
+    <section className={`tbl-felt bj-table${leaving ? ' bj-table--leaving' : ''}`} aria-label="Table" data-testid="bj-table" data-round={table?.round ?? 0} data-settled={table?.settled ?? false}>
+      <div className="tbl-felt__top">
         <DiscardTray discarded={discarded} />
         <Dealer table={table} timeline={timeline} now={now} leaving={leaving} size={isPhone ? 'lg' : 'xl'} />
-        <Shoe remaining={view.shoeRemaining} reshuffled={view.reshuffled} />
+        <Deck remaining={view.shoeRemaining} note={view.reshuffled ? 'New shoe' : undefined} name="shoe" testId="shoe" />
       </div>
-      <div className="bj-ribbon" data-testid="table-ribbon">
-        <span className="bj-ribbon__main">{ribbonText(settings.blackjackPayout)}</span>
-        <span className="bj-ribbon__sub">{dealerRuleText(settings.dealerHitsSoft17)}</span>
-      </div>
+      <TableRibbon main={ribbonText(settings.blackjackPayout)} sub={dealerRuleText(settings.dealerHitsSoft17)} />
       <Seats room={room} view={view} ids={others} table={table} timeline={timeline} now={now} leaving={leaving} chipsOf={chipsOf} />
       <MyHands view={view} meId={meId} frame={frame} now={now} isPhone={isPhone} />
     </section>

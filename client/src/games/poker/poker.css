@@ -1,133 +1,121 @@
-/* ---------- Poker: layout ---------- */
-.pk {
-  display: grid;
-  grid-template-columns: 264px minmax(0, 1fr) 320px;
-  grid-template-rows: auto minmax(0, 1fr);
-  gap: var(--space-4);
-  height: 100dvh;
-  padding: var(--space-4) var(--gutter);
-  width: min(1500px, 100%);
-  margin: 0 auto;
+/* Poker on the platform's card table (platform/styles/table.css): the pot, the board, the seats' bets and my hand. */
+
+/* ---------- The screen: a wider left column, so the raise field keeps room beside 1/2 pot, Pot and MAX ---------- */
+.pk.tbl {
+  grid-template-columns: 340px minmax(0, 1fr) 300px;
 }
 
-.pk__top {
-  grid-column: 1 / -1;
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-3) var(--space-4);
+/* ---------- The table ---------- */
+.pk-table {
+  /* Card sizes per place on the table; every card here is 2:3. */
+  --pk-board-w: 76px;
+  --pk-mine-w: 96px;
 }
 
-.pk__brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
+.pk-board > .playing-card,
+.pk-mine__cards > .playing-card {
+  --card-w: var(--tbl-w);
+  --card-h: calc(var(--tbl-w) * 1.5);
+  --card-font: calc(var(--tbl-w) * 0.26 + 2px);
 }
 
-.pk__hand {
+/* ---------- The pot, over the board ---------- */
+.pk-pot {
+  grid-column: 2;
   display: flex;
   flex-direction: column;
-  line-height: 1.2;
+  align-items: center;
+  gap: 4px;
   min-width: 0;
 }
 
-.pk__hand strong {
-  font-weight: 800;
-}
-
-.pk__blinds {
-  color: var(--color-text-muted);
-  font-weight: 700;
-}
-
-.pk__hand small {
-  color: var(--color-text-faint);
-  font-weight: 600;
-  font-size: 0.75rem;
-}
-
-.pk__clock {
-  justify-self: center;
-}
-
-.pk__side {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 6px;
-}
-
-.pk__players-btn {
+.pk-pot__pill {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  min-height: 44px;
-  padding: 0 10px;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
   border-radius: var(--radius-pill);
-  background: var(--color-primary-soft);
-  color: var(--color-primary-text);
-  font-weight: 800;
-  font-size: 0.9rem;
+  background: var(--color-surface-3);
+  border: 1px solid var(--color-border-strong);
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
-.pk__icon-btn {
-  width: 44px;
-  height: 44px;
+.pk-pot__pill.is-empty {
+  opacity: 0.6;
 }
 
-.pk__players,
-.pk__chat {
-  grid-row: 2;
-  min-height: 0;
+.pk-pot__label {
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-text-faint);
+}
+
+.pk-pot__value {
+  font-size: 0.95rem;
+}
+
+.pk-pot__sides {
   display: flex;
-  flex-direction: column;
-  padding: var(--space-3);
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  color: var(--color-text-faint);
+  white-space: nowrap;
 }
 
-.pk__players-body {
-  min-height: 0;
-  overflow-y: auto;
+/* ---------- The board ---------- */
+.pk-board {
+  --tbl-w: var(--pk-board-w);
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  min-height: calc(var(--tbl-w) * 1.5);
 }
 
-/* The column scrolls; the action bar stays under it; the results overlay covers both. */
-.pk__main {
+/* ---------- Bets in front of the seats ---------- */
+.pk-bet {
+  display: inline-flex;
+  align-items: center;
+  min-width: 1px;
+  min-height: 14px;
+  font-size: 0.72rem;
+}
+
+.pk-bet .chip-count {
+  padding: 0 6px 0 3px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-3);
+  border: 1px solid var(--color-border);
+}
+
+/* ---------- The other seats ---------- */
+.pk .tbl-seat {
   position: relative;
-  grid-row: 2;
-  min-height: 0;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
 }
 
-.pk__scroll {
-  flex: 1 1 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  overflow-y: auto;
-  scrollbar-width: thin;
-  padding: 2px;
-  width: min(820px, 100%);
-  margin: 0 auto;
+.pk .tbl-seat__cards > .tbl-card + .tbl-card {
+  margin-left: calc(var(--tbl-w) * -0.3);
 }
 
-/* My cards and the moves: under the column, never scrolled away with it. */
-.pk__dock {
-  flex: none;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
+.pk-seat--win {
+  border: 2px solid var(--color-primary-text);
+  padding: 5px 7px;
 }
 
-.pk__chat-sheet {
-  display: flex;
-  flex-direction: column;
-  height: min(60vh, 520px);
+/* The payout rises inside the seat: the strip scrolls, so nothing may stick out of it. */
+.pk .tbl-seat .tbl-payout {
+  bottom: 6px;
+  font-size: 0.95rem;
 }
 
 /* ---------- Dealer button ---------- */
@@ -135,452 +123,78 @@
   flex: none;
   display: inline-grid;
   place-items: center;
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   background: var(--color-text);
   color: var(--color-bg);
-  font-size: 0.68rem;
+  font-size: 0.62rem;
   font-weight: 900;
   line-height: 1;
 }
 
-/* ---------- Board ---------- */
-.pk-board {
+/* ---------- My hand ---------- */
+.pk-mine {
+  --tbl-w: var(--pk-mine-w);
+  align-self: center;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-}
-
-.pk-board__head {
-  align-self: stretch;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.pk-board__street {
-  font-weight: 900;
-  font-size: 1.05rem;
-  letter-spacing: -0.01em;
-}
-
-.pk-board__blinds {
-  color: var(--color-text-faint);
-  font-size: 0.8rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-
-.pk-board__cards {
-  display: flex;
   gap: 6px;
-  justify-content: center;
+  min-width: 0;
+  padding: 6px 12px;
 }
 
-.pk-board__pot {
-  display: inline-flex;
-  align-items: center;
+.pk-mine__top {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  min-height: 24px;
+  max-width: 100%;
+}
+
+.pk-mine__top .tbl-pill {
+  display: block;
+  max-width: 100%;
+  line-height: 22px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: var(--font-sans);
+  font-weight: 700;
+}
+
+.pk-mine__cards {
+  display: flex;
+  justify-content: center;
   gap: 8px;
-  padding: 4px 14px;
-  border-radius: var(--radius-pill);
-  background: var(--color-surface-2);
-  border: 1px solid var(--color-border);
+  min-height: calc(var(--tbl-w) * 1.5);
 }
 
-.pk-board__pot-label {
-  color: var(--color-text-muted);
-  font-size: 0.8rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+.pk-mine__cards--folded {
+  opacity: 0.4;
 }
 
-.pk-board__pot-value {
-  font-size: 1.15rem;
-}
-
-.pk-board__pots {
-  list-style: none;
+.pk-mine__foot {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
   justify-content: center;
-  gap: 6px;
-}
-
-.pk-board__side {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 2px 10px;
-  border-radius: var(--radius-pill);
-  background: var(--color-surface-3);
-  font-size: 0.78rem;
-  font-weight: 700;
-}
-
-.pk-board__side-who {
-  color: var(--color-text-faint);
-  font-weight: 600;
-}
-
-/* ---------- Other seats ---------- */
-.pk-seats {
-  list-style: none;
-  flex: none;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: var(--space-2);
-}
-
-.pk-seat {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-  padding: var(--space-2) 10px;
-  border-radius: var(--radius-item);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-}
-
-.pk-seat--turn {
-  border-color: var(--color-primary-text);
-  background: var(--color-primary-soft);
-}
-
-.pk-seat--folded {
-  opacity: 0.6;
-}
-
-.pk-seat--out {
-  opacity: 0.45;
-}
-
-.pk-seat__who,
-.pk-seat__row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-
-.pk-seat__row {
-  justify-content: space-between;
+  gap: 8px;
   min-height: 22px;
-}
-
-.pk-seat__name {
-  flex: 1;
-  min-width: 0;
+  font-size: 0.85rem;
   font-weight: 700;
-  font-size: 0.88rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  color: var(--color-text-muted);
   white-space: nowrap;
 }
 
-.pk-seat__chips {
-  font-size: 0.82rem;
-}
-
-.pk-seat__cards {
-  display: inline-flex;
-}
-
-.pk-seat__cards .playing-card {
-  --card-w: 18px;
-  --card-h: 24px;
-  border-radius: 3px;
-}
-
-.pk-seat__cards .playing-card + .playing-card {
-  margin-left: -6px;
-}
-
-.pk-seat__cards .playing-card__back {
-  inset: 2px;
-  border-width: 1px;
-}
-
-.pk-seat__row--meta {
-  font-size: 0.75rem;
-}
-
-.pk-seat__note {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--color-text-muted);
-  font-weight: 700;
-}
-
-.pk-seat--turn .pk-seat__note {
-  color: var(--color-primary-text);
-}
-
-.pk-seat__note--allin {
-  color: var(--color-warning-text);
-}
-
-.pk-seat__bet {
-  flex: none;
-  padding: 0 8px;
-  border-radius: var(--radius-pill);
-  background: var(--color-surface-3);
-  font-size: 0.75rem;
-}
-
-/* ---------- My seat ---------- */
-.pk-me {
-  flex: none;
-  width: min(820px, 100%);
-  margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-}
-
-.pk-me--turn {
-  border-color: var(--color-primary-text);
-}
-
-.pk-me__head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.pk-me__name {
-  flex: 1;
-  min-width: 0;
-  font-weight: 800;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.pk-me__you {
-  font-size: 0.7rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  color: var(--color-primary-text);
-  background: var(--color-primary-soft);
-  padding: 1px 6px;
-  border-radius: var(--radius-pill);
-}
-
-.pk-me__chips {
-  font-size: 1.15rem;
-}
-
-.pk-me__hand {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-}
-
-.pk-me__cards {
-  display: flex;
-  gap: 8px;
-}
-
-.pk-me__cards--folded {
-  opacity: 0.45;
-}
-
-.pk-me__info {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-}
-
-.pk-me__hint {
-  font-family: var(--font-display);
-  font-weight: 900;
-  font-size: 1.15rem;
-  letter-spacing: -0.01em;
-  line-height: 1.15;
-}
-
-.pk-me__state {
-  display: inline-flex;
-  padding: 1px 8px;
-  border-radius: var(--radius-pill);
-  background: var(--color-surface-3);
-  color: var(--color-text-muted);
-  font-weight: 700;
-  font-size: 0.78rem;
-}
-
-.pk-me__state--acting {
-  background: var(--color-primary);
-  color: var(--color-primary-contrast);
-}
-
-.pk-me__state--allIn {
-  background: var(--color-warning-soft);
-  color: var(--color-warning-text);
-}
-
-.pk-me__state--folded {
-  background: var(--color-danger-soft);
-  color: var(--color-danger-text);
-}
-
-.pk-me__bet {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--color-text-muted);
-  font-weight: 700;
+.pk-bet--mine {
   font-size: 0.85rem;
 }
 
-.pk-me__note {
-  min-height: 44px;
-  display: flex;
-  align-items: center;
-  color: var(--color-text-muted);
-  font-weight: 600;
+.pk-mine__state--allin {
+  color: var(--color-warning-text);
 }
 
-/* ---------- Action bar ---------- */
-.pk-actions {
-  flex: none;
-  width: min(820px, 100%);
-  margin: 0 auto;
-  padding: var(--space-3);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-}
-
-.pk-actions[data-my-turn='true'] {
-  border-color: var(--color-primary-text);
-}
-
-.pk-actions__row {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-2);
-}
-
-.pk-action {
-  min-height: 56px;
-  padding: 6px 8px;
-  font-size: 1.05rem;
-  font-weight: 800;
-  white-space: normal;
-  line-height: 1.15;
-  font-variant-numeric: tabular-nums;
-}
-
-.pk-action--fold:not(:disabled) {
-  color: var(--color-danger-text);
-}
-
-.pk-actions__note {
-  min-height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  color: var(--color-text-muted);
-  font-weight: 700;
-}
-
-/* ---------- Bet / raise panel ---------- */
-.pk-raise {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.pk-raise__head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.pk-raise__title {
-  font-weight: 800;
-  font-size: 1.05rem;
-}
-
-.pk-raise__range {
-  color: var(--color-text-faint);
-  font-size: 0.8rem;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
-.pk-raise__amount {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.pk-raise__input {
-  flex: 1;
-  min-width: 0;
-  min-height: 52px;
-  font-size: max(1.4rem, 16px);
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-  -moz-appearance: textfield;
-  appearance: textfield;
-}
-
-.pk-raise__input::-webkit-outer-spin-button,
-.pk-raise__input::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-
-.pk-raise__slider {
-  width: 100%;
-}
-
-.pk-raise__presets {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 6px;
-}
-
-.pk-raise__preset {
-  min-height: 44px;
-  padding: 0 4px;
-}
-
-.pk-raise__preset.is-selected {
-  border-color: var(--color-primary-text);
-  background: var(--color-primary-soft);
-  color: var(--color-primary-text);
-}
-
-.pk-raise__confirm-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
-  gap: var(--space-2);
-}
-
-.pk-raise__cancel,
-.pk-raise__confirm {
-  min-height: 56px;
-  font-variant-numeric: tabular-nums;
-}
-
-/* ---------- End game ---------- */
+/* ---------- End game (host) ---------- */
 .pk-end {
   white-space: nowrap;
 }
@@ -609,152 +223,6 @@
 
 .pk-end-confirm--menu .btn {
   flex: 1;
-  min-height: 44px;
-}
-
-/* ---------- Results over the column ---------- */
-.pk-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 5;
-  display: flex;
-  padding: var(--space-4);
-  background: var(--overlay-bg);
-  animation: fade-in 0.2s ease;
-  overflow-y: auto;
-}
-
-.pk-results {
-  gap: var(--space-3);
-}
-
-/* Centred while it fits; a long list scrolls from its top instead of being cut off above. */
-.pk-overlay > .overlay__card {
-  margin: auto;
-}
-
-.pk-results__board {
-  display: flex;
-  justify-content: center;
-  gap: 4px;
-}
-
-.pk-results__pots,
-.pk-results__list {
-  list-style: none;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  text-align: left;
-}
-
-.pk-results__pot {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 8px;
-  font-size: 0.85rem;
-  font-weight: 700;
-}
-
-.pk-results__pot-name {
-  color: var(--color-text-muted);
-}
-
-.pk-results__pot-to {
-  color: var(--color-text-muted);
-  font-weight: 600;
-}
-
-.pk-results__row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-  border-radius: var(--radius-item);
-  background: var(--color-surface-2);
-  border: 1px solid var(--color-border);
-}
-
-.pk-results__row--won {
-  border-color: var(--color-success);
-}
-
-.pk-results__body {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.pk-results__head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.pk-results__name {
-  flex: 1;
-  min-width: 0;
-  font-weight: 800;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.pk-results__net {
-  font-weight: 900;
-  font-size: 1.05rem;
-  font-variant-numeric: tabular-nums;
-  color: var(--color-text-muted);
-}
-
-.pk-results__net--won {
-  color: var(--color-success-text);
-}
-
-.pk-results__net--lost {
-  color: var(--color-danger-text);
-}
-
-.pk-results__detail {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px 10px;
-}
-
-.pk-results__cards {
-  display: inline-flex;
-  gap: 4px;
-}
-
-.pk-results__hand {
-  font-weight: 700;
-  font-size: 0.82rem;
-}
-
-.pk-results__hand--hidden {
-  color: var(--color-text-faint);
-  font-weight: 600;
-}
-
-.pk-results__chips {
-  flex: none;
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--color-text-faint);
-}
-
-.pk-results__footer {
-  justify-content: center;
   min-height: 44px;
 }
 
@@ -792,306 +260,85 @@
 }
 
 @media (max-width: 1100px) {
-  .pk {
-    grid-template-columns: 220px minmax(0, 1fr) 280px;
+  .pk.tbl {
+    grid-template-columns: 320px minmax(0, 1fr) 260px;
+  }
+
+  .pk-table {
+    --pk-board-w: 62px;
+    --pk-mine-w: 80px;
   }
 }
 
-/* ---------- Phones: one scrolling column under a compact bar, the moves pinned at the bottom ---------- */
 @media (max-width: 760px), (min-aspect-ratio: 3/2) and (max-height: 520px) {
-  .pk {
-    display: flex;
-    flex-direction: column;
-    height: var(--app-height, 100dvh);
-    min-height: 0;
-    width: 100%;
-    overflow: hidden;
-    gap: var(--space-2);
-    padding: calc(var(--space-2) + env(safe-area-inset-top)) calc(var(--space-2) + env(safe-area-inset-right)) calc(var(--space-2) + env(safe-area-inset-bottom))
-      calc(var(--space-2) + env(safe-area-inset-left));
+  .pk-table {
+    --pk-board-w: 52px;
+    --pk-mine-w: 70px;
   }
 
-  .pk__top {
-    flex: none;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 8px;
-    border-radius: var(--radius-item);
-    min-height: 56px;
-  }
-
-  .pk__brand {
-    flex: 1 1 0;
-  }
-
-  .pk__hand strong,
-  .pk__hand small {
-    display: block;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .pk__hand strong {
-    font-size: 0.85rem;
-  }
-
-  .pk__hand small {
-    font-size: 0.7rem;
-  }
-
-  .pk .timer--lg {
-    width: 44px;
-    height: 44px;
-    font-size: 0.82rem;
-    letter-spacing: -0.02em;
-  }
-
-  .pk__main {
-    flex: 1 1 0;
-    gap: var(--space-2);
-  }
-
-  .pk__scroll,
-  .pk__dock {
-    gap: var(--space-2);
-  }
-
-  .pk__scroll > .card,
-  .pk-me {
-    border-radius: var(--radius-item);
-  }
-
-  .pk-board,
-  .pk-me {
-    padding: var(--space-2) var(--space-3);
-    gap: var(--space-2);
-  }
-
-  .pk-board__cards {
-    gap: 4px;
-  }
-
-  .pk-seats {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 6px;
-  }
-
-  .pk-seat {
-    padding: 6px 8px;
-    gap: 2px;
-  }
-
-  .pk-me__hand {
-    gap: var(--space-3);
-  }
-
-  .pk-me__cards {
-    gap: 6px;
-  }
-
-  .pk-me__hint {
-    font-size: 1.05rem;
-  }
-
-  .pk-actions {
-    padding: var(--space-2);
-    border-radius: var(--radius-item);
-  }
-
-  .pk-raise {
-    gap: var(--space-2);
-  }
-
-  .pk-overlay {
-    padding: var(--space-2);
-  }
-
-  .pk-overlay .overlay__card {
-    gap: var(--space-2);
-    padding: var(--space-3);
+  .pk-pot__pill {
+    height: 28px;
   }
 }
 
-@media (max-width: 359px) {
-  .pk__top {
-    gap: 4px;
-    padding: 6px;
-  }
-
-  .pk__side {
-    gap: 4px;
-  }
-
-  .pk__players-btn {
-    padding: 0 8px;
-  }
-
-  /* Narrower cards need smaller glyphs, or the middle pip runs into the corner indices. */
-  .pk .pk-board .playing-card--md {
-    --card-w: 48px;
-    --card-h: 68px;
-    --card-font: 0.85rem;
-  }
-
-  .pk .pk-board .playing-card--md .playing-card__pip {
-    font-size: calc(var(--card-font) * 1.2);
+/* Short phones (an SE, a phone with the browser bars out): smaller cards so the table fits over the panel. */
+@media (max-width: 760px) and (max-height: 760px) {
+  .pk-table {
+    --pk-board-w: 44px;
+    --pk-mine-w: 56px;
   }
 }
 
-/*
- * ---------- Landscape phones: the table on the left, my cards and the moves on the right ----------
- * Stacked, the dock would leave the board a sliver and push the raise panel's confirm off screen.
- */
-@media (min-aspect-ratio: 3/2) and (max-height: 520px) {
-  .pk__main {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr);
-    gap: var(--space-2);
+/* Short phones and phones on their side: compact cards, my hand on its side. */
+@media (max-width: 760px) and (max-height: 620px), (min-aspect-ratio: 3/2) and (max-height: 520px) {
+  .pk-table {
+    --pk-board-w: 36px;
+    --pk-mine-w: 42px;
+    gap: 4px;
   }
 
-  .pk__scroll {
-    grid-column: 1;
-    grid-row: 1;
-    width: 100%;
+  .pk-pot__pill {
+    height: 24px;
+    padding: 0 10px;
   }
 
-  .pk__dock {
-    grid-column: 2;
-    grid-row: 1;
-    overflow-y: auto;
-    scrollbar-width: thin;
-  }
-
-  .pk__dock > .pk-me,
-  .pk__dock > .pk-actions {
-    width: 100%;
-  }
-
-  /* My seat in two columns: the cards beside my name, stack and what they make. */
-  .pk-me[data-role='player'] {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    align-items: center;
-    gap: 4px 10px;
-  }
-
-  /* Beside the cards the head may wrap: my stack goes under my name rather than squeezing it out. */
-  .pk-me__head {
-    grid-column: 2;
-    grid-row: 1;
-    flex-wrap: wrap;
-    row-gap: 2px;
-  }
-
-  .pk-me__head > .avatar {
+  .pk-pot__sides {
     display: none;
   }
 
-  .pk-me__name {
-    min-width: min(100%, 7em);
+  .pk-board {
+    gap: 4px;
   }
 
-  .pk-me__hand {
-    display: contents;
-  }
-
-  .pk-me__cards {
-    grid-column: 1;
-    grid-row: 1 / span 2;
-  }
-
-  .pk-me__info {
-    grid-column: 2;
-    grid-row: 2;
+  .pk-mine {
     flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 4px 8px;
+    padding: 3px 8px;
+    gap: 8px;
   }
 
-  .pk-me .pk-me__note {
-    grid-column: 1 / -1;
+  .pk-mine__top {
+    order: 2;
+    min-height: 0;
   }
 
-  .pk-me__hint {
-    font-size: 0.95rem;
+  .pk-mine__foot {
+    order: 3;
+    flex-direction: column;
+    gap: 2px;
+    min-height: 0;
   }
 
-  .pk-me .playing-card--lg {
-    --card-w: 48px;
-    --card-h: 68px;
-    --card-font: 0.85rem;
-  }
-
-  .pk-me .playing-card--lg .playing-card__pip {
-    font-size: calc(var(--card-font) * 1.2);
-  }
-
-  .pk-action {
-    min-height: 48px;
-  }
-
-  /* The panel in two columns: the amount and slider beside the presets, the confirm row under both. */
-  .pk-raise {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    grid-template-areas:
-      'head head'
-      'amount presets'
-      'slider presets'
-      'confirm confirm';
-    align-items: center;
-    gap: 6px 8px;
-  }
-
-  .pk-raise__head {
-    grid-area: head;
-  }
-
-  .pk-raise__amount {
-    grid-area: amount;
-  }
-
-  .pk-raise__slider {
-    grid-area: slider;
-  }
-
-  .pk-raise__presets {
-    grid-area: presets;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .pk-raise__confirm-row {
-    grid-area: confirm;
-  }
-
-  .pk-raise__input {
-    min-height: 44px;
-    font-size: max(1.15rem, 16px);
-  }
-
-  .pk-raise__cancel,
-  .pk-raise__confirm {
-    min-height: 48px;
+  .pk-mine__top .tbl-pill {
+    height: 20px;
+    line-height: 18px;
+    font-size: 0.72rem;
+    max-width: 130px;
   }
 }
 
-/* A narrow landscape phone: the board's cards shrink to fit their half of the screen. */
-@media (min-aspect-ratio: 3/2) and (max-height: 520px) and (max-width: 700px) {
-  .pk .pk-board .playing-card--md {
-    --card-w: 44px;
-    --card-h: 62px;
-    --card-font: 0.8rem;
-  }
-
-  .pk .pk-board .playing-card--md .playing-card__pip {
-    font-size: calc(var(--card-font) * 1.2);
-  }
-
-  .pk-seats {
-    grid-template-columns: minmax(0, 1fr);
+/* A phone on its side keeps the platform's two columns: the table, then the panel. */
+@media (min-aspect-ratio: 3/2) and (max-height: 520px) {
+  .pk.tbl {
+    grid-template-columns: minmax(0, 1fr) 280px;
   }
 }

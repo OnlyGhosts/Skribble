@@ -10,8 +10,9 @@ import { vibrate } from '../../platform/lib/haptics';
 import { playCue } from '../../platform/lib/sound';
 import { usePlatformStore } from '../../platform/store/usePlatformStore';
 import { CardsIcon, OutIcon, StarIcon } from './components/Icons';
+import { cancelCue, cueAt } from '../../platform/table/cues';
 import { isActing, isInRound, prefersReducedMotion, seatOf } from './hooks';
-import { cancelCue, cueAt } from './lib/cues';
+import { outcomesAt } from './lib/timeline';
 import { chatPlaceholderFor, formatChips } from './lib/text';
 import { BlackjackScreen } from './Screen';
 import { BlackjackSettingsFields } from './SettingsFields';
@@ -90,9 +91,10 @@ export const blackjackClient = defineGameClient<BlackjackView, BlackjackSettings
     // My round's outcome sounds once the reveal has shown it.
     const table = useBlackjackStore.getState().table;
     const mine = table?.settled ? table.hands[me] : undefined;
-    if (mine && mine.length > 0 && timeline.outcomesAt !== null && timeline.outcomesAt !== before.outcomesAt) {
+    const at = outcomesAt(timeline);
+    if (mine && mine.length > 0 && at !== null && at !== outcomesAt(before)) {
       const net = mine.reduce((sum, h) => sum + (h.payout ?? 0) - h.bet, 0);
-      if (net !== 0) cueAt(timeline.outcomesAt, () => playCue(net > 0 ? 'correct' : 'turnEnd'));
+      if (net !== 0) cueAt(at, () => playCue(net > 0 ? 'correct' : 'turnEnd'));
     }
   },
 

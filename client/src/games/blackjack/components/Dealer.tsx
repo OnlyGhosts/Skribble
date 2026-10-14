@@ -1,8 +1,9 @@
 import type { Card } from '@shared/games/blackjack/protocol';
 import { PlayingCard, type PlayingCardSize } from '../../../platform/components/PlayingCard';
+import { TotalPill } from '../../../platform/table/Outcome';
+import { TableCard } from '../../../platform/table/TableCard';
 import { dealerKey, shownTotal, totalText, type TableModel } from '../lib/table';
 import { cardMotion, cardShown, holeFaceDown, holeFlipping, type Timeline } from '../lib/timeline';
-import { TableCard } from './TableCard';
 
 interface Props {
   table: TableModel | null;
@@ -35,16 +36,16 @@ export function Dealer({ table, timeline, now, leaving, size }: Props) {
     <section className="bj-dealer" aria-label="Dealer" data-testid="dealer-hand" data-hole-hidden={holeHidden} data-total={total?.total ?? 0} data-cards={cards.length} data-settled={table?.settled ?? false}>
       <div className="bj-hand__top">
         {total ? (
-          <span className={`bj-pill bj-pill--${tone}`} data-testid="dealer-total">
+          <TotalPill tone={tone} testId="dealer-total">
             {totalText(total, holeHidden)}
-          </span>
+          </TotalPill>
         ) : (
           <span className="bj-dealer__label">Dealer</span>
         )}
       </div>
       <div className="bj-hand__cards bj-dealer__cards">
         {cards.length > 0 ? (
-          cards.map(({ key, card, flipping }) => <TableCard key={key} card={card} size={size} motion={cardMotion(timeline, key, now)} leaving={leaving} flipping={flipping} testId="dealer-card" />)
+          cards.map(({ key, card, flipping }) => <TableCard key={`${timeline.id}:${key}`} card={card} size={size} motion={cardMotion(timeline, key, now)} leaving={leaving} flipping={flipping} testId="dealer-card" />)
         ) : (
           <>
             <PlayingCard card={null} size={size} slot testId="dealer-slot" />

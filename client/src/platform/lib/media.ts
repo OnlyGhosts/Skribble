@@ -26,3 +26,8 @@ export function useMediaQuery(query: string): boolean {
   }, [query]);
   return matches;
 }
+
+/** The viewer asked for less motion: tables show their truth at once. */
+export function prefersReducedMotion(): boolean {
+  return matchesMedia('(prefers-reduced-motion: reduce)');
+}

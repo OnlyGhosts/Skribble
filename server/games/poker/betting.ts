@@ -1,6 +1,6 @@
 /** The acting player's moves: fold, check, call, bet, raise, all in, and the clock running out. */
 import type { PokerActionKind, PokerActions, PokerClientMessage } from '../../../shared/games/poker/protocol.js';
-import { adjustChips, bigBlind, contenders, fail, nameOf, ringAfter, snapshot, streetIdle, systemMessage, turnOf, type Gx, type PokerData } from './state.js';
+import { adjustChips, bigBlind, contenders, fail, nameOf, noteMove, ringAfter, snapshot, streetIdle, systemMessage, turnOf, type Gx, type PokerData } from './state.js';
 import { endStreet } from './streets.js';
 
 /** A move the player sent themselves (the clock's moves go through actTimedOut). */
@@ -66,7 +66,7 @@ function put(gx: Gx, playerId: string, amount: number): void {
 }
 
 function record(gx: Gx, playerId: string, kind: PokerActionKind, amount: number): void {
-  gx.data.seats[playerId].lastAction = { kind, amount };
+  noteMove(gx, playerId, { kind, amount });
   if (kind !== 'fold') gx.data.answered[playerId] = gx.data.highest;
 }
 

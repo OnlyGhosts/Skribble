@@ -1,97 +1,95 @@
-import type { ReactNode } from 'react';
-import type { PokerRoomState, PokerView } from '@shared/games/poker/protocol';
-import { Avatar } from '../../../platform/components/Avatar';
+import type { PokerView } from '@shared/games/poker/protocol';
 import { Chips } from '../../../platform/components/Chips';
-import { PlayingCard } from '../../../platform/components/PlayingCard';
-import { isInHand, isMyTurn, playerOf } from '../hooks';
-import { handHint, lastActionLabel } from '../lib/text';
+import { PlayingCard, type PlayingCardSize } from '../../../platform/components/PlayingCard';
+import { PayoutFloat, TotalPill, outlineClass, type Tone } from '../../../platform/table/Outcome';
+import { TableCard } from '../../../platform/table/TableCard';
+import { boardOnScreen, holeOnScreen, sameCard, winningCards, wonOnScreen } from '../lib/screen';
+import type { PokerTable } from '../lib/table';
+import { betAnchor, betValue, outcomesShown, paidOut, seatAnchor, valueAt, type Timeline } from '../lib/timeline';
+import { handHint, lastActionLabel, payoutText } from '../lib/text';
 import { DealerButton } from './DealerButton';
 
 interface Props {
-  room: PokerRoomState;
   view: PokerView;
   meId: string;
-  size: 'lg' | 'xl';
+  table: PokerTable | null;
+  timeline: Timeline;
+  /** The current timeline, for the numbers on show. */
+  live: Timeline;
+  now: number;
+  leaving: boolean;
+  size: PlayingCardSize;
 }
 
-function Note({ children, state }: { children: string; state: string }) {
-  return (
-    <p className="pk-me__note" data-testid="my-note" data-state={state}>
-      {children}
-    </p>
-  );
+/** The line under my cards: what I did last, or where I stand in the hand. */
+function myState(view: PokerView, meId: string, myTurn: boolean): string {
+  const seat = view.players[meId];
+  if (!seat) return '';
+  if (seat.busted) return 'Out of chips';
+  if (!view.order.includes(meId)) return 'Next hand';
+  if (seat.status === 'folded') return 'Folded';
+  if (seat.status === 'allIn') return 'All in';
+  if (myTurn) return 'Your turn';
+  return lastActionLabel(seat.lastAction);
 }
 
 /**
- * The viewer's own seat: the hole cards large with what they make right now, the stack, the bet
- * in front and the dealer button. Spectators, busted players and anyone seated from the next hand
- * read why there are no cards.
+ * My seat, bottom centre: my two hole cards large with the best hand they make right now in a
+ * pill over them, the bet in front of me, the dealer button and my last move. Lit on my turn,
+ * outlined in lime when I win, the payout rising out of it.
  */
-export function MyHand({ room, view, meId, size }: Props) {
-  const me = playerOf(room, meId);
+export function MyHand({ view, meId, table, timeline, live, now, leaving, size }: Props) {
   const seat = view.players[meId];
-  if (!me || !seat) {
-    return (
-      <section className="pk-me card" aria-label="You" data-testid="my-area" data-role="spectator">
-        <Note state="spectating">You are watching this game. Ready up for the next one!</Note>
-      </section>
-    );
-  }
-  const myTurn = isMyTurn(view, meId);
-  const folded = seat.status === 'folded';
-  let body: ReactNode;
-  if (seat.busted) {
-    body = <Note state="out">You are out of chips. Watch the rest of the game from here.</Note>;
-  } else if (!isInHand(view, meId) || view.myCards.length === 0) {
-    body = <Note state="waiting">You are dealt in from the next hand.</Note>;
-  } else {
-    const hint = handHint(view.myCards, view.community);
-    body = (
-      <div className="pk-me__hand">
-        <div className={`pk-me__cards${folded ? ' pk-me__cards--folded' : ''}`} role="group" aria-label="Your cards" data-testid="my-cards">
-          {view.myCards.map((card, i) => (
-            <PlayingCard key={`${i}-${card.rank}${card.suit}`} card={card} size={size} testId="my-card" />
-          ))}
-        </div>
-        <div className="pk-me__info">
-          {hint && (
-            <span className="pk-me__hint" data-testid="hand-hint">
-              {hint}
-            </span>
-          )}
-          <span className={`pk-me__state pk-me__state--${seat.status}`} data-testid="my-state">
-            {folded ? 'You folded' : seat.status === 'allIn' ? 'You are all in' : myTurn ? 'Your move' : lastActionLabel(seat.lastAction) || 'In the hand'}
-          </span>
-          {seat.bet > 0 && (
-            <span className="pk-me__bet" data-testid="my-bet" data-bet={seat.bet}>
-              Bet <Chips value={seat.bet} size={13} />
-            </span>
-          )}
-        </div>
-      </div>
-    );
-  }
+  const cards = holeOnScreen(table, timeline, meId, meId, now);
+  const myTurn = view.phase === 'acting' && view.turn === meId;
+  const folded = seat?.status === 'folded';
+  const up = cards.flatMap((c) => (c.card ? [c.card] : []));
+  const board = boardOnScreen(table, timeline, now).flatMap((c) => (c?.card ? [c.card] : []));
+  const hint = up.length === 2 && !leaving ? handHint(up, board) : null;
+  const won = wonOnScreen(table, timeline, meId, now);
+  const lost = Boolean(table?.results) && outcomesShown(timeline, now) && won === 0 && !folded && cards.length > 0 && !leaving;
+  const tone: Tone = won > 0 ? 'win' : lost ? 'loss' : myTurn ? 'active' : 'neutral';
+  const best = winningCards(table, timeline, now);
+  const bet = valueAt(live, betValue(meId), seat?.bet ?? 0, now);
+  const state = myState(view, meId, myTurn);
   return (
     <section
-      className={`pk-me card${myTurn ? ' pk-me--turn' : ''}`}
-      aria-label="You"
+      className={`pk-mine ${outlineClass(tone)}${folded ? ' pk-mine--folded' : ''}`}
+      aria-label="Your hand"
       data-testid="my-area"
-      data-role="player"
+      data-table-anchor={seatAnchor(meId)}
       data-player-id={meId}
-      data-chips={seat.chips}
-      data-status={seat.busted ? 'out' : seat.status}
+      data-role={seat ? 'player' : 'spectator'}
+      data-status={seat ? (seat.busted ? 'out' : seat.status) : 'spectator'}
       data-my-turn={myTurn}
-      data-dealer={seat.isDealer}
+      data-dealer={seat?.isDealer ?? false}
+      data-outcome={won > 0 ? 'win' : lost ? 'loss' : undefined}
+      data-payout={won > 0 ? won : undefined}
     >
-      <div className="pk-me__head">
-        <Avatar avatar={me.avatar} size="sm" />
-        <span className="pk-me__name">
-          {me.name} <span className="pk-me__you">you</span>
-        </span>
-        {seat.isDealer && <DealerButton testId="my-dealer" />}
-        <Chips value={seat.chips} className="pk-me__chips" size={18} testId="my-chips" />
+      <div className="pk-mine__top">
+        {hint && (
+          <TotalPill tone={won > 0 ? 'win' : folded ? 'push' : 'neutral'} testId="hand-hint">
+            {hint}
+          </TotalPill>
+        )}
+        {won > 0 && paidOut(timeline, now) && <PayoutFloat text={payoutText(won)} />}
       </div>
-      {body}
+      <div className={`pk-mine__cards${folded ? ' pk-mine__cards--folded' : ''}`} role="group" aria-label="Your cards" data-testid="my-cards">
+        {cards.length > 0
+          ? cards.map((c) => <TableCard key={`${timeline.id}:${c.key}`} card={c.card} size={size} motion={c.motion} leaving={leaving} flipping={c.flipping} highlight={c.card !== null && best.some((b) => c.card !== null && sameCard(b, c.card))} testId="my-card" />)
+          : [0, 1].map((i) => <PlayingCard key={i} card={null} size={size} slot testId="my-slot" />)}
+      </div>
+      <div className="pk-mine__foot">
+        {seat?.isDealer && <DealerButton testId="my-dealer" />}
+        <span className="pk-bet pk-bet--mine" data-table-anchor={betAnchor(meId)} data-testid="my-bet" data-bet={bet}>
+          {bet > 0 && <Chips value={bet} size={13} />}
+        </span>
+        {state && (
+          <span className={`pk-mine__state${seat?.status === 'allIn' ? ' pk-mine__state--allin' : ''}`} data-testid="my-state">
+            {state}
+          </span>
+        )}
+      </div>
     </section>
   );
 }

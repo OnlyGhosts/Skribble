@@ -14,8 +14,8 @@ export const call = (): boolean => send({ t: 'call' });
 export const allIn = (): boolean => send({ t: 'allIn' });
 
 /**
- * The panel's confirm: a bet of `amount` when nobody has bet, a raise to `amount` otherwise; the
- * whole stack goes as an all in so a short stack never trips the minimum.
+ * The Bet / Raise button: a bet of `amount` when nobody has bet, a raise to `amount` otherwise;
+ * the whole stack goes as an all in so a short stack never trips the minimum.
  */
 export function wager(actions: PokerActions, amount: number): boolean {
   if (actions.canBet) return amount >= actions.maxBet ? allIn() : send({ t: 'bet', amount });
@@ -23,12 +23,7 @@ export function wager(actions: PokerActions, amount: number): boolean {
   return false;
 }
 
-/** Host only: the next hand without waiting for the results clock. */
-export function nextHand(): void {
-  socket.send({ t: 'next' });
-}
-
 /** Host only: ends the game now (a hand in progress is void, every stake goes back). */
 export function endGame(): void {
-  if (socket.send({ t: 'endGame' })) usePokerStore.getState().reset();
+  if (socket.send({ t: 'endGame' })) usePokerStore.getState().setConfirmEnd(false);
 }

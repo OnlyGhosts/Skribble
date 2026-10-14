@@ -1,11 +1,12 @@
 import { useSyncExternalStore } from 'react';
 import { create } from 'zustand';
 import type { BlackjackView } from '@shared/games/blackjack/protocol';
+import type { TableSheet } from '../../platform/table/TableShell';
 import { tableOf, type TableModel } from './lib/table';
 import { EMPTY_TIMELINE, planTimeline, snapTimeline, type Timeline } from './lib/timeline';
 
 /** The phone sheets the screen can show; one at a time. */
-export type BlackjackSheet = 'players' | 'chat' | 'menu';
+export type BlackjackSheet = TableSheet;
 
 /** Blackjack's own client state: the bet field, the open sheet, the host's End game confirmation and the table's animation timeline. */
 interface BlackjackState {

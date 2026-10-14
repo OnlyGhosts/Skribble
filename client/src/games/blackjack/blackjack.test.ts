@@ -191,7 +191,7 @@ describe('the animation timeline', () => {
     expect(tl.arrivals['bob/0/1/10C']).toBe(NOW + 600);
     expect(tl.arrivals.d1).toBe(NOW + 750);
     expect(tl.endsAt).toBe(NOW + 750 + T.DEAL_MS);
-    expect(tl.flipAt).toBeNull();
+    expect(T.holeFlipAt(tl)).toBeNull();
     // Mid-deal only the cards that have landed show.
     expect(T.cardShown(tl, 'd0', NOW + 200)).toBe(false);
     expect(T.cardShown(tl, 'd0', NOW + 300)).toBe(true);
@@ -219,21 +219,21 @@ describe('the animation timeline', () => {
     // The hits that came with the settle land first, in seat order, then the flip.
     expect(tl.arrivals['host/0/2/3C']).toBe(at);
     expect(tl.arrivals['bob/0/2/5H']).toBe(at + 150);
-    expect(tl.flipAt).toBe(at + 400);
+    expect(T.holeFlipAt(tl)).toBe(at + 400);
     expect(tl.arrivals.d2).toBe(at + 400 + T.FLIP_MS + 100);
     expect(T.holeFaceDown(tl, at + 100)).toBe(true);
     expect(T.holeFlipping(tl, at + 450)).toBe(true);
     expect(T.outcomesShown(tl, at + 1000)).toBe(false);
-    expect(tl.outcomesAt).not.toBeNull();
-    expect(T.outcomesShown(tl, tl.outcomesAt ?? 0)).toBe(true);
-    expect((tl.outcomesAt ?? 0) - at).toBeLessThanOrEqual(revealAllowanceMs(3));
+    expect(T.outcomesAt(tl)).not.toBeNull();
+    expect(T.outcomesShown(tl, T.outcomesAt(tl) ?? 0)).toBe(true);
+    expect((T.outcomesAt(tl) ?? 0) - at).toBeLessThanOrEqual(revealAllowanceMs(3));
     expect(REVEAL_HOLE_MS + REVEAL_CARD_MS).toBe(revealAllowanceMs(3));
   });
 
   it('clears the last round to the discards before the next deal, once its outcomes have been up a moment', () => {
     const dealt = plan(view(), acting());
     const revealed = plan(acting(), nextBetting(), dealt, NOW + 5000);
-    const outcomesAt = revealed.outcomesAt ?? 0;
+    const outcomesAt = T.outcomesAt(revealed) ?? 0;
     const deal3 = acting({ round: 3, players: { host: { chips: 1000, bet: 50, hands: [hand([c('2'), c('3')], { status: 'acting' })], inRound: true, bustedOut: false }, bob: { chips: 260, bet: 20, hands: [hand([c('4'), c('5')])], inRound: true, bustedOut: false } } });
     const tl = plan(nextBetting(), deal3, revealed, outcomesAt + 100);
     expect(tl.discard?.from).toBe(outcomesAt + T.OUTCOME_HOLD_MS);
@@ -263,7 +263,7 @@ describe('the animation timeline', () => {
   it('snaps to the truth on a fresh entry, under reduced motion and when it would run far behind', () => {
     const fresh = T.planTimeline(T.EMPTY_TIMELINE, null, tableOf(acting()), NOW, true, true);
     expect(fresh.arrivals).toEqual({});
-    expect(fresh.round).toBe(2);
+    expect(fresh.id).toBe(2);
     const still = T.planTimeline(T.EMPTY_TIMELINE, tableOf(view()), tableOf(acting()), NOW, false, false);
     expect(still.arrivals).toEqual({});
     const backlog = { ...plan(view(), acting()), endsAt: NOW + T.MAX_BACKLOG_MS + 1 };

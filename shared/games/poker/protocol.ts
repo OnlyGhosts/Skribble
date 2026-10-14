@@ -98,6 +98,14 @@ export interface PokerLastAction {
   amount: number;
 }
 
+/** The latest move at the table, kept across the street's close so the table can still show it. */
+export interface PokerMove extends PokerLastAction {
+  /** Counts the moves of the game: two equal moves in a row still differ. */
+  seq: number;
+  playerId: string;
+  street: PokerStreet;
+}
+
 export interface PokerPlayerView {
   chips: number;
   /** Chips bet on the current street, 0 between streets. */
@@ -192,6 +200,8 @@ export interface PokerView {
   actions: PokerActions;
   /** The last completed hand, shown during `results` (and kept until the next deal). */
   results: PokerResults | null;
+  /** The latest move anyone made (a blind, a check, a call...), null before the first. */
+  lastMove: PokerMove | null;
 }
 
 export type PokerRoomState = RoomState<PokerView, PokerSettings>;

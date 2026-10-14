@@ -1,7 +1,7 @@
 /** A hand's start: the button, the blinds (heads-up included), the hole cards and the first street. */
 import { freshDeck, shuffle } from '../../../shared/platform/cards.js';
 import type { PlatformPlayer } from '../../platform/game.js';
-import { adjustChips, bigBlind, draw, findPlayer, nameOf, seatsIn, type Gx } from './state.js';
+import { adjustChips, bigBlind, draw, findPlayer, nameOf, noteMove, seatsIn, type Gx } from './state.js';
 import { openStreet } from './streets.js';
 
 /**
@@ -22,7 +22,7 @@ function postBlind(gx: Gx, playerId: string, amount: number, kind: 'smallBlind' 
   adjustChips(gx, playerId, -paid);
   seat.bet = paid;
   if (seat.chips === 0) seat.status = 'allIn';
-  seat.lastAction = { kind, amount: paid };
+  noteMove(gx, playerId, { kind, amount: paid });
   return paid;
 }
 

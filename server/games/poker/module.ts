@@ -42,6 +42,7 @@ function start(ctx: Ctx): Result {
     results: null,
     acted: false,
     idleHands: 0,
+    lastMove: null,
   };
   return withDraft(seed, (data, effects) => {
     const gx: Gx = { ctx, data, effects };

@@ -1,11 +1,12 @@
 import type { PlayingCardSize } from '../../../platform/components/PlayingCard';
-import { TableCard } from './TableCard';
 import { Chips } from '../../../platform/components/Chips';
+import { PayoutFloat, TotalPill, outlineClass, type Tone } from '../../../platform/table/Outcome';
+import { TableCard } from '../../../platform/table/TableCard';
 import { cardKey, shownTotal, totalText, type TableHand } from '../lib/table';
 import { cardMotion, cardShown, outcomesShown, type Timeline } from '../lib/timeline';
 import { outcomeLabel, payoutText } from '../lib/text';
 
-export type HandTone = 'neutral' | 'active' | 'bust' | 'win' | 'blackjack' | 'loss' | 'push';
+export type HandTone = Tone;
 
 interface Props {
   playerId: string;
@@ -46,7 +47,7 @@ export function Hand({ playerId, index, hand, timeline, now, leaving, size, acti
   return (
     <div
       role="group"
-      className={`bj-hand bj-hand--${tone}${mini ? ' bj-hand--mini' : ''}`}
+      className={`bj-hand ${outlineClass(tone)}${mini ? ' bj-hand--mini' : ''}`}
       aria-label={`Hand ${index + 1}${total ? `: ${total.total}` : ''}${outcome ? `, ${outcomeLabel(outcome)}` : ''}`}
       data-testid={testId}
       data-index={index}
@@ -60,19 +61,15 @@ export function Hand({ playerId, index, hand, timeline, now, leaving, size, acti
     >
       <div className="bj-hand__top">
         {total && (
-          <span className={`bj-pill bj-pill--${tone}`} data-testid="hand-total">
+          <TotalPill tone={tone} testId="hand-total">
             {totalText(total, hand.outcome === null && (hand.status === 'waiting' || hand.status === 'acting'))}
-          </span>
+          </TotalPill>
         )}
-        {outcome && payout && !mini && (
-          <span className="bj-payout" aria-hidden="true">
-            {payout}
-          </span>
-        )}
+        {outcome && payout && !mini && <PayoutFloat text={payout} tone={tone} />}
       </div>
       <div className="bj-hand__cards">
         {cards.map(({ card, key }) => (
-          <TableCard key={key} card={card} size={size} motion={cardMotion(timeline, key, now)} leaving={leaving} testId="card" />
+          <TableCard key={`${timeline.id}:${key}`} card={card} size={size} motion={cardMotion(timeline, key, now)} leaving={leaving} testId="card" />
         ))}
       </div>
       {!mini && (
@@ -84,7 +81,7 @@ export function Hand({ playerId, index, hand, timeline, now, leaving, size, acti
           ) : (
             <Chips value={hand.bet} size={14} className="bj-hand__bet" />
           )}
-          {hand.doubled && <span className="bj-tag">2x</span>}
+          {hand.doubled && <span className="tbl-tag">2x</span>}
         </div>
       )}
     </div>

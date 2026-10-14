@@ -1,17 +1,20 @@
 /**
  * Poker's client module: the table screen, the settings rows, the player-list badges, the chat
- * placeholder and the cues (sound, haptics, local state) that react to snapshots. Snapshots carry
- * everything, so there are no server messages to handle.
+ * placeholder and what reacts to snapshots: the table's animation timeline (planned in the store
+ * from each snapshot) and the cues. Snapshots carry everything, so there are no server messages.
  */
 import type { PokerSettings, PokerView } from '@shared/games/poker/protocol';
 import { gameById } from '@shared/platform/games';
 import { defineGameClient } from '../../platform/game';
 import { formatChips } from '../../platform/lib/format';
 import { vibrate } from '../../platform/lib/haptics';
+import { prefersReducedMotion } from '../../platform/lib/media';
 import { playCue } from '../../platform/lib/sound';
 import { usePlatformStore } from '../../platform/store/usePlatformStore';
+import { OUTCOMES } from '../../platform/table/timeline';
+import { cancelCue, cueAt } from '../../platform/table/cues';
 import { CardsIcon, OutIcon } from './components/Icons';
-import { isInHand, isMyTurn, phaseEntered, seatOf, stepOf } from './hooks';
+import { isInHand, isMyTurn, seatOf, stepOf } from './hooks';
 import { chatPlaceholderFor } from './lib/text';
 import { PokerScreen } from './Screen';
 import { PokerSettingsFields } from './SettingsFields';
@@ -76,26 +79,36 @@ export const pokerClient = defineGameClient<PokerView, PokerSettings>({
 
   onRoom(room, prev) {
     const store = usePokerStore.getState();
-    if (room.phase === 'lobby') {
-      store.reset();
+    if (room.phase === 'lobby' || !room.game) {
+      cancelCue();
+      if (room.phase === 'lobby') store.reset();
       return;
     }
     const view = room.game;
-    if (!view) return;
     if (stepOf(prev) !== stepOf(room)) store.newTurn();
     if (room.phase !== 'playing') store.setConfirmEnd(false);
-    // A fresh entry (welcome) is not a turn starting under this player's feet.
-    if (!prev) return;
     const me = usePlatformStore.getState().playerId;
+    const before = store.timeline;
+    const timeline = store.applyView(view, me, Date.now(), !prev?.game, !prefersReducedMotion());
+    // A fresh entry (welcome) is not a turn starting under this player's feet.
+    if (!prev?.game || me === null) return;
     if (isMyTurn(view, me) && !isMyTurn(prev.game, me)) {
-      playCue('yourTurn');
-      vibrate(40);
-    } else if (phaseEntered(prev, room, 'results') && me !== null && view.results) {
-      playCue((view.results.net[me] ?? 0) > 0 ? 'correct' : 'turnEnd');
+      // The cue comes when my turn shows: once the cards that came with it have landed.
+      cueAt(Math.max(Date.now(), timeline.endsAt), () => {
+        playCue('yourTurn');
+        vibrate(40);
+      });
+      return;
+    }
+    const at = timeline.marks[OUTCOMES];
+    if (view.results && at !== undefined && at !== before.marks[OUTCOMES]) {
+      const net = view.results.net[me] ?? 0;
+      if (net !== 0) cueAt(at, () => playCue(net > 0 ? 'correct' : 'turnEnd'));
     }
   },
 
   onLeave() {
+    cancelCue();
     usePokerStore.getState().reset();
   },
 });

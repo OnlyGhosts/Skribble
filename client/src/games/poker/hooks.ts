@@ -48,7 +48,7 @@ export function seatRing(room: PokerRoomState, view: PokerView, meId: string | n
 }
 
 /** The street's highest bet. */
-export function highestBet(view: PokerView): number {
+export function highestBet(view: Pick<PokerView, 'players'>): number {
   return Object.values(view.players).reduce((max, p) => Math.max(max, p.bet), 0);
 }
 
@@ -57,10 +57,6 @@ export function stepOf(room: PokerRoomState | null): string | null {
   const v = room?.game;
   if (!v) return null;
   return `${v.hand}:${v.street ?? ''}:${v.phase}:${v.turn ?? ''}`;
-}
-
-export function phaseEntered(prev: PokerRoomState | null, next: PokerRoomState, phase: PokerView['phase']): boolean {
-  return next.game?.phase === phase && (prev?.game?.phase !== phase || prev.game.hand !== next.game.hand);
 }
 
 /** Whether the socket is up, read the same way on the server render (the unit tests) as live. */
