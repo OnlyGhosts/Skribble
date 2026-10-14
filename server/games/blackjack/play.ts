@@ -1,30 +1,27 @@
 /** The acting player's moves on the hand in play: hit, stand, double, split, and the clock running out. */
 import { handTotal } from '../../../shared/games/blackjack/cards.js';
-import { nextHand } from './round.js';
+import { nextHand } from './dealer.js';
 import { actingHand, actionsFor, adjustChips, draw, fail, nameOf, settledStatus, snapshot, type Gx, type HandData } from './state.js';
 
 const NOT_YOUR_TURN = 'It is not your turn.';
 
-/** The hand is done with: on to the next one (or the dealer). A bust or a 21 is called out. */
+/** The hand is done with: on to the next one (or the dealer). A bust is called out. */
 function finishHand(gx: Gx, playerId: string, hand: HandData, status: 'stood' | 'bust'): void {
   hand.status = status;
   if (status === 'bust') gx.effects.push({ type: 'chat', to: 'all', kind: 'close', text: `${nameOf(gx.ctx, playerId)} busts with ${handTotal(hand.cards).total}.` });
   nextHand(gx);
 }
 
-/** A hand that settles by itself after a card (bust or 21) moves on; otherwise the player keeps acting with a fresh clock. */
-function afterCard(gx: Gx, playerId: string, hand: HandData): void {
+export function hit(gx: Gx, playerId: string): void {
+  const hand = actingHand(gx.data, playerId);
+  if (!hand) return fail(gx, playerId, NOT_YOUR_TURN);
+  if (!actionsFor(gx.data, gx.ctx.settings, playerId).canHit) return fail(gx, playerId, 'Split aces take one card each.');
+  hand.cards.push(draw(gx));
+  // A bust or a 21 moves on by itself; otherwise the player keeps acting with a fresh clock.
   const settled = settledStatus(hand);
   if (settled === 'bust' || settled === 'stood') return finishHand(gx, playerId, hand, settled);
   if (gx.data.phase.kind === 'acting') gx.data.phase.endsAt = gx.ctx.now + gx.ctx.settings.actSeconds * 1000;
   snapshot(gx);
-}
-
-export function hit(gx: Gx, playerId: string): void {
-  const hand = actingHand(gx.data, playerId);
-  if (!hand || !actionsFor(gx.data, gx.ctx.settings, playerId).canHit) return fail(gx, playerId, NOT_YOUR_TURN);
-  hand.cards.push(draw(gx));
-  afterCard(gx, playerId, hand);
 }
 
 export function stand(gx: Gx, playerId: string): void {
@@ -33,7 +30,7 @@ export function stand(gx: Gx, playerId: string): void {
   finishHand(gx, playerId, hand, 'stood');
 }
 
-/** Twice the stake for exactly one more card. */
+/** Twice the stake for exactly one more card; split hands too. */
 export function double(gx: Gx, playerId: string): void {
   const hand = actingHand(gx.data, playerId);
   if (!hand) return fail(gx, playerId, NOT_YOUR_TURN);
@@ -42,35 +39,32 @@ export function double(gx: Gx, playerId: string): void {
   hand.bet *= 2;
   hand.doubled = true;
   hand.cards.push(draw(gx));
-  const settled = settledStatus(hand);
-  finishHand(gx, playerId, hand, settled === 'bust' ? 'bust' : 'stood');
+  finishHand(gx, playerId, hand, settledStatus(hand) === 'bust' ? 'bust' : 'stood');
 }
 
 /**
- * A pair becomes two hands with the same stake, each dealt a second card. Split aces take their
- * one card and stand; any other split hand plays on from the first.
+ * A pair becomes two hands side by side with the same stake, each dealt a second card, and the
+ * play goes on from the left one. Split aces take that one card (a second ace may be split again,
+ * up to four hands); other pairs play on and may be split again too.
  */
 export function split(gx: Gx, playerId: string): void {
   const { data, ctx } = gx;
   const hand = actingHand(data, playerId);
   const seat = data.seats[playerId];
-  if (!hand || !seat) return fail(gx, playerId, NOT_YOUR_TURN);
+  if (!hand || !seat || data.phase.kind !== 'acting') return fail(gx, playerId, NOT_YOUR_TURN);
   if (!actionsFor(data, ctx.settings, playerId).canSplit) return fail(gx, playerId, 'You cannot split this hand.');
   adjustChips(gx, playerId, -hand.bet);
   const aces = hand.cards[0].rank === 'A';
-  const second: HandData = { cards: [hand.cards[1]], bet: hand.bet, status: 'waiting', doubled: false, fromSplit: true };
+  const right: HandData = { cards: [hand.cards[1]], bet: hand.bet, status: 'waiting', doubled: false, fromSplit: true, splitAces: aces };
   hand.cards = [hand.cards[0]];
   hand.fromSplit = true;
-  seat.hands.push(second);
+  hand.splitAces = aces;
+  hand.status = 'waiting';
+  seat.hands.splice(data.phase.handIndex + 1, 0, right);
   hand.cards.push(draw(gx));
-  second.cards.push(draw(gx));
+  right.cards.push(draw(gx));
   gx.effects.push({ type: 'chat', to: 'all', kind: 'system', text: `${nameOf(ctx, playerId)} splits ${aces ? 'aces' : 'a pair'}.` });
-  if (aces) {
-    hand.status = 'stood';
-    second.status = 'stood';
-    return nextHand(gx);
-  }
-  afterCard(gx, playerId, hand);
+  nextHand(gx);
 }
 
 /** The acting clock ran out: the hand stands. */

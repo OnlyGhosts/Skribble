@@ -1,6 +1,7 @@
 /**
- * Blackjack's server module: betting, dealing, the players' moves, the dealer and the payouts as a
- * pure reducer over BlackjackData. Chips are the score: every chip movement is a score effect.
+ * Blackjack's server module: betting, dealing, the players' moves one hand at a time, the dealer
+ * and the payouts as a pure reducer over BlackjackData, each settle going straight into the next
+ * round's betting. Chips are the score: every chip movement is a score effect.
  */
 import {
   DEFAULT_BLACKJACK_SETTINGS,
@@ -15,17 +16,19 @@ import {
 import { freshShoe, shuffle } from '../../../shared/games/blackjack/cards.js';
 import { gameById } from '../../../shared/platform/games.js';
 import { defineSettings, withDraft, type GameEvent, type GameResult, type GameServerModule } from '../../platform/game.js';
+import { bet, betTimedOut, dealIfAllBet } from './betting.js';
+import { nextHand } from './dealer.js';
 import { actTimedOut, double, hit, split, stand } from './play.js';
-import { beginRound, bet, betTimedOut, dealIfAllBet, next, nextHand, resumeIfHeld, seatPlayer, settleDue } from './round.js';
-import { findPlayer, snapshot, type BlackjackData, type Ctx, type Gx } from './state.js';
+import { beginRound, endGame, finishGame, resumeIfHeld, seatPlayer, settleDue, snapshotOrResume } from './round.js';
+import { findPlayer, type BlackjackData, type Ctx, type Gx } from './state.js';
 import { viewFor } from './view.js';
 
 type Result = GameResult<BlackjackData, BlackjackServerMessage>;
 
 function start(ctx: Ctx): Result {
-  // The seed is an empty results screen, so the first round is held like any other should nobody be connected.
+  // The seed phase is replaced by the first round's betting (or a hold) straight away.
   const seed: BlackjackData = {
-    phase: { kind: 'results', endsAt: ctx.now, held: false, resumeAt: null },
+    phase: { kind: 'betting', endsAt: ctx.now },
     round: 0,
     seats: {},
     order: [],
@@ -33,7 +36,8 @@ function start(ctx: Ctx): Result {
     holeHidden: true,
     shoe: [],
     reshuffled: false,
-    results: [],
+    lastRound: null,
+    endRequested: false,
   };
   return withDraft(seed, (data, effects) => {
     const gx: Gx = { ctx, data, effects };
@@ -55,8 +59,7 @@ function handle(ctx: Ctx, data: BlackjackData, event: GameEvent<BlackjackClientM
       case 'playerJoined':
         // A newcomer takes a seat (and the starting stack) only when the next round starts, so a
         // game ending first never ranks someone who did not play.
-        snapshot(gx);
-        return resumeIfHeld(gx);
+        return snapshotOrResume(gx);
       case 'playerLeft':
         return onPlayerLeft(gx, event.playerId);
       case 'playerDisconnected':
@@ -82,8 +85,8 @@ function onMessage(gx: Gx, playerId: string, msg: BlackjackClientMessage): void 
       return double(gx, playerId);
     case 'split':
       return split(gx, playerId);
-    case 'next':
-      return next(gx, playerId);
+    case 'endGame':
+      return endGame(gx, playerId);
   }
 }
 
@@ -95,14 +98,14 @@ function onPlayerLeft(gx: Gx, playerId: string): void {
   data.order = data.order.filter((id) => id !== playerId);
   switch (data.phase.kind) {
     case 'betting':
-      if (!(inRound && dealIfAllBet(gx))) snapshot(gx);
+      if (!(inRound && dealIfAllBet(gx))) snapshotOrResume(gx);
       return;
     case 'acting':
       if (data.phase.playerId === playerId) return nextHand(gx);
-      return snapshot(gx);
-    case 'results':
-      if (data.phase.held) return resumeIfHeld(gx);
-      return snapshot(gx);
+      return snapshotOrResume(gx);
+    case 'held':
+    case 'ending':
+      return snapshotOrResume(gx);
     case 'gameOver':
       return;
   }
@@ -117,8 +120,10 @@ function onTick(gx: Gx): void {
       return betTimedOut(gx);
     case 'acting':
       return actTimedOut(gx);
-    case 'results':
-      return data.phase.held ? settleDue(gx) : beginRound(gx);
+    case 'held':
+      return settleDue(gx);
+    case 'ending':
+      return finishGame(gx);
     case 'gameOver':
       return;
   }
@@ -128,9 +133,10 @@ function nextDeadline(data: BlackjackData): number | null {
   switch (data.phase.kind) {
     case 'betting':
     case 'acting':
+    case 'ending':
       return data.phase.endsAt;
-    case 'results':
-      return data.phase.held ? data.phase.resumeAt : data.phase.endsAt;
+    case 'held':
+      return data.phase.resumeAt;
     case 'gameOver':
       return null;
   }
@@ -144,7 +150,7 @@ export const blackjackModule: GameServerModule<BlackjackSettings, BlackjackData,
   handle,
   nextDeadline,
   view: viewFor,
-  hostMessages: new Set(['next']),
+  hostMessages: new Set(['endGame']),
 };
 
 export type { BlackjackData };

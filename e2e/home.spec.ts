@@ -260,6 +260,14 @@ test('create → "Who’s playing?" → the lobby, where picking a game comes fi
   await expect(host.page.getByTestId('home-create')).toBeVisible();
   await host.page.getByTestId('home-create').click();
   await expect(host.page.getByTestId('name-step')).toHaveCount(0);
+  // Settle on the room the server really seated the host in (the old seat is let go asynchronously).
+  await expect
+    .poll(async () => {
+      const shown = (await host.page.getByTestId('room-code').textContent())?.replace(/\s+/g, '') ?? '';
+      const preview = (await (await host.page.request.get(`/api/rooms/${shown}`)).json()) as { exists: boolean; players?: number };
+      return preview.exists && preview.players === 1 ? shown : '';
+    })
+    .not.toBe('');
   skribbleCode = (await host.page.getByTestId('room-code').textContent())?.replace(/\s+/g, '') ?? '';
   await expect(host.page).toHaveURL(new RegExp(`/scribble/${skribbleCode}$`));
 });

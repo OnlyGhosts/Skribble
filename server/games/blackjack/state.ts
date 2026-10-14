@@ -1,6 +1,6 @@
 /** Blackjack's JSON-safe game state (the module's `D`), its working context and the queries over it. */
-import { freshShoe, handTotal, isBust, isNatural, isPair, shuffle } from '../../../shared/games/blackjack/cards.js';
-import type { BlackjackActions, BlackjackServerMessage, BlackjackSettings, Card, HandResult, HandStatus } from '../../../shared/games/blackjack/protocol.js';
+import { MAX_HANDS, freshShoe, handTotal, isBust, isNatural, isPair, shuffle } from '../../../shared/games/blackjack/cards.js';
+import type { BlackjackActions, BlackjackServerMessage, BlackjackSettings, Card, HandOutcome, HandStatus } from '../../../shared/games/blackjack/protocol.js';
 import { gameById } from '../../../shared/platform/games.js';
 import type { GameCtx, GameEffect, PlatformPlayer } from '../../platform/game.js';
 
@@ -10,6 +10,25 @@ export interface HandData {
   status: HandStatus;
   doubled: boolean;
   fromSplit: boolean;
+  /** Made by splitting aces: no hit, no double; only a second ace may be split again. */
+  splitAces: boolean;
+}
+
+export interface SettledHand extends HandData {
+  outcome: HandOutcome;
+  /** Chips returned to the player: 0 on a loss, the stake on a push, the stake plus the winnings otherwise. */
+  payout: number;
+}
+
+/** A settled round's table, kept on show until the next deal. */
+export interface LastRoundData {
+  round: number;
+  order: string[];
+  dealer: Card[];
+  hands: Record<string, SettledHand[]>;
+  /** Settled at the peek: the dealer had blackjack. */
+  peeked: boolean;
+  revealEndsAt: number;
 }
 
 export interface SeatData {
@@ -25,14 +44,10 @@ export interface SeatData {
 export type PhaseData =
   | { kind: 'betting'; endsAt: number }
   | { kind: 'acting'; playerId: string; handIndex: number; endsAt: number }
-  | {
-      kind: 'results';
-      endsAt: number;
-      /** True while the next round waits for disconnected players (endsAt no longer fires). */
-      held: boolean;
-      /** While held with somebody back: when the next round starts (the settle). */
-      resumeAt: number | null;
-    }
+  /** The next round waits for a player still in the game to reconnect; resumeAt is the settle once one is back. */
+  | { kind: 'held'; resumeAt: number | null }
+  /** The final table stays on show until endsAt, then the podium. */
+  | { kind: 'ending'; endsAt: number }
   | { kind: 'gameOver' };
 
 export interface BlackjackData {
@@ -43,15 +58,16 @@ export interface BlackjackData {
   seats: Record<string, SeatData>;
   /** The seats in this round, in join order. */
   order: string[];
-  /** The dealer's cards: up card, hole card, then draws. */
+  /** The dealer's cards this round: up card, hole card, then draws. Empty from the settle to the deal. */
   dealer: Card[];
   holeHidden: boolean;
   /** Cards still in the shoe; the next card is the last one. */
   shoe: Card[];
   /** The shoe was rebuilt at the start of this round. */
   reshuffled: boolean;
-  /** The settled hands of the last completed round. */
-  results: HandResult[];
+  lastRound: LastRoundData | null;
+  /** The host ended the game: it ends once the hand in play settles. */
+  endRequested: boolean;
 }
 
 export type Ctx = GameCtx<BlackjackSettings>;
@@ -82,8 +98,9 @@ export function activePlayers(ctx: Pick<Ctx, 'players'>, data: BlackjackData): P
   return ctx.players.filter((p) => !data.seats[p.id]?.bustedOut);
 }
 
-export function isHeld(data: BlackjackData): boolean {
-  return data.phase.kind === 'results' && data.phase.held;
+/** Participants still in the game who are connected: the next round needs one. */
+export function connectedActive(ctx: Pick<Ctx, 'players'>, data: BlackjackData): PlatformPlayer[] {
+  return activePlayers(ctx, data).filter((p) => p.connected);
 }
 
 /** The hand in play, when `playerId` is acting on it. */
@@ -92,18 +109,23 @@ export function actingHand(data: BlackjackData, playerId: string): HandData | un
   return data.seats[playerId]?.hands[data.phase.handIndex];
 }
 
+const NO_ACTIONS: BlackjackActions = { canHit: false, canStand: false, canDouble: false, canSplit: false };
+
+/** A pair may be split while the seat has fewer than MAX_HANDS hands and the chips for another stake. */
+export function canSplitHand(settings: BlackjackSettings, seat: SeatData, hand: HandData): boolean {
+  return settings.allowSplit && hand.cards.length === 2 && isPair(hand.cards) && seat.hands.length < MAX_HANDS && seat.chips >= hand.bet;
+}
+
 /** What the acting player may do with the hand in play. */
 export function actionsFor(data: BlackjackData, settings: BlackjackSettings, playerId: string): BlackjackActions {
   const hand = actingHand(data, playerId);
   const seat = data.seats[playerId];
-  if (!hand || !seat || hand.status !== 'acting') return { canHit: false, canStand: false, canDouble: false, canSplit: false };
-  const twoCards = hand.cards.length === 2;
-  const affordable = seat.chips >= hand.bet;
+  if (!hand || !seat || hand.status !== 'acting') return { ...NO_ACTIONS };
   return {
-    canHit: true,
+    canHit: !hand.splitAces,
     canStand: true,
-    canDouble: settings.allowDouble && twoCards && affordable,
-    canSplit: settings.allowSplit && twoCards && !hand.fromSplit && seat.hands.length === 1 && isPair(hand.cards) && affordable,
+    canDouble: settings.allowDouble && !hand.splitAces && hand.cards.length === 2 && seat.chips >= hand.bet,
+    canSplit: canSplitHand(settings, seat, hand),
   };
 }
 
@@ -128,7 +150,7 @@ export function adjustChips(gx: Gx, playerId: string, delta: number): void {
   gx.effects.push({ type: 'score', playerId, delta });
 }
 
-/** The dealer's cards and every hand on the table. */
+/** The dealer's cards and every hand on the table (a settled round's cards are back in the discards). */
 export function cardsInPlay(data: BlackjackData): Card[] {
   return [...data.dealer, ...Object.values(data.seats).flatMap((seat) => seat.hands.flatMap((hand) => hand.cards))];
 }
@@ -164,5 +186,13 @@ export function settledStatus(hand: HandData): HandStatus | null {
   if (isNatural(hand.cards, hand.fromSplit)) return 'blackjack';
   if (isBust(hand.cards)) return 'bust';
   if (handTotal(hand.cards).total === 21) return 'stood';
+  return null;
+}
+
+/** A hand coming into play that needs no decision: a natural or 21, or split aces that cannot be split again. */
+export function autoStatus(settings: BlackjackSettings, seat: SeatData, hand: HandData): HandStatus | null {
+  const settled = settledStatus(hand);
+  if (settled) return settled;
+  if (hand.splitAces && !canSplitHand(settings, seat, hand)) return 'stood';
   return null;
 }

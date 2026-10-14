@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dealerShouldHit, freshShoe, handTotal, isBust, isNatural, isPair, naturalWinnings, needsReshuffle, settleHand, shuffle } from './cards.js';
+import { MAX_HANDS, REVEAL_CARD_MS, REVEAL_HOLE_MS, dealerPeeks, dealerShouldHit, freshShoe, handTotal, isBust, isNatural, isPair, isTenValue, naturalWinnings, needsReshuffle, revealAllowanceMs, settleHand, shuffle } from './cards.js';
 import type { Card, CardRank } from './protocol.js';
 
 /** 'AS', '10H', 'KD' -> a card. */
@@ -118,5 +118,26 @@ describe('payouts', () => {
     // 21 after a split is an ordinary 21: it pays 1:1 and pushes a dealer 21.
     expect(settleHand(cards('AS', 'KH'), 10, true, dealer20, '3:2')).toEqual({ outcome: 'win', payout: 20 });
     expect(settleHand(cards('AS', 'KH'), 10, true, cards('7S', '7H', '7D'), '3:2')).toEqual({ outcome: 'push', payout: 10 });
+  });
+});
+
+describe('the peek and the reveal', () => {
+  it('peeks with an ace or any ten-value card up, never otherwise', () => {
+    for (const up of ['AS', '10H', 'JD', 'QC', 'KS']) expect(dealerPeeks(card(up)), up).toBe(true);
+    for (const up of ['2S', '5H', '9D']) expect(dealerPeeks(card(up)), up).toBe(false);
+    expect(isTenValue('K')).toBe(true);
+    expect(isTenValue('A')).toBe(false);
+  });
+
+  it('allows 1200 ms for the hole card and 500 ms for every card the dealer drew after it', () => {
+    expect(revealAllowanceMs(2)).toBe(REVEAL_HOLE_MS);
+    expect(revealAllowanceMs(5)).toBe(1200 + 3 * 500);
+    expect(REVEAL_CARD_MS).toBe(500);
+    // A dealer cleared before a deal (or never dealt) still gets the flip allowance only.
+    expect(revealAllowanceMs(0)).toBe(1200);
+  });
+
+  it('stops splitting at four hands', () => {
+    expect(MAX_HANDS).toBe(4);
   });
 });

@@ -24,7 +24,8 @@ export const BLACKJACK_SETTINGS_LIMITS = {
   minBet: { min: 1, max: 1000 },
   /** The effective floor is minBet: normalizeBlackjackSettings lifts maxBet to it. */
   maxBet: { min: 1, max: 100_000 },
-  rounds: { min: 1, max: 50 },
+  /** 0 is unlimited: play until at most one stack is left (the only stack is gone, alone). */
+  rounds: { min: 0, max: 50 },
   decks: { min: 1, max: 8 },
   betSeconds: { min: 10, max: 60 },
   actSeconds: { min: 10, max: 60 },
@@ -41,6 +42,7 @@ export const blackjackSettingsSchema = z.object({
   startingChips: limited('startingChips'),
   minBet: limited('minBet'),
   maxBet: limited('maxBet'),
+  /** Rounds to play; 0 plays on until at most one player is left with chips (see the limits). */
   rounds: limited('rounds'),
   /** Decks in the shoe; it is reshuffled once under a quarter of it remains. */
   decks: limited('decks'),
@@ -51,7 +53,7 @@ export const blackjackSettingsSchema = z.object({
   dealerHitsSoft17: z.boolean(),
   blackjackPayout: z.enum(BLACKJACK_PAYOUTS),
   allowDouble: z.boolean(),
-  /** One split per round; split aces get one card each; 21 after a split pays 1:1. */
+  /** Pairs split (and re-split) up to MAX_HANDS (4) hands a seat; split aces take one card each; 21 after a split pays 1:1. */
   allowSplit: z.boolean(),
 });
 
@@ -63,14 +65,17 @@ export const DEFAULT_BLACKJACK_SETTINGS: BlackjackSettings = {
   maxBet: 500,
   rounds: 10,
   decks: 6,
-  betSeconds: 20,
+  betSeconds: 15,
   actSeconds: 20,
-  resultsSeconds: 8,
+  resultsSeconds: 5,
   dealerHitsSoft17: false,
   blackjackPayout: '3:2',
   allowDouble: true,
   allowSplit: true,
 };
+
+/** Rounds stored as 0: the game runs until the stacks decide it. */
+export const UNLIMITED_ROUNDS = 0;
 
 /** Fixes up the bet window after a patch: a minimum nobody could afford at the start is lowered, the maximum never sits below it. */
 export function normalizeBlackjackSettings(s: BlackjackSettings): BlackjackSettings {
@@ -90,8 +95,8 @@ export const blackjackClientMessageSchema = z.discriminatedUnion('t', [
   z.object({ t: z.literal('stand') }),
   z.object({ t: z.literal('double') }),
   z.object({ t: z.literal('split') }),
-  /** Host only, during `results`: on to the next round without waiting. */
-  z.object({ t: z.literal('next') }),
+  /** Host only: ends the game once the hand in play settles (at once between hands); the podium ranks the chips. */
+  z.object({ t: z.literal('endGame') }),
 ]);
 
 export type BlackjackClientMessage = z.infer<typeof blackjackClientMessageSchema>;
@@ -103,7 +108,12 @@ export type BlackjackServerMessage = never;
 // View
 // ---------------------------------------------------------------------------
 
-export type BlackjackPhase = 'betting' | 'acting' | 'results' | 'gameOver';
+/**
+ * `betting` opens straight after the last round settled (its table stays on show in `lastRound`),
+ * `acting` is one hand at a time, `held` waits for a player still in the game to reconnect,
+ * `ending` keeps the final table on show before the podium.
+ */
+export type BlackjackPhase = 'betting' | 'acting' | 'held' | 'ending' | 'gameOver';
 
 /** A hand's state as the round goes: dealt (`waiting`), in play, finished by the player, settled by the dealer. */
 export type HandStatus = 'waiting' | 'acting' | 'stood' | 'bust' | 'blackjack' | 'won' | 'lost' | 'push';
@@ -120,6 +130,14 @@ export interface HandView {
   status: HandStatus;
   doubled: boolean;
   fromSplit: boolean;
+  /** Made by splitting aces: one card only (a second ace may be split again). */
+  splitAces: boolean;
+}
+
+export interface SettledHandView extends HandView {
+  outcome: HandOutcome;
+  /** Chips the hand returned to the player: 0 on a loss, the stake on a push, more on a win. */
+  payout: number;
 }
 
 export interface DealerView {
@@ -137,6 +155,7 @@ export interface BlackjackPlayerView {
   chips: number;
   /** Chips wagered this round (the first hand's original stake), 0 before betting. */
   bet: number;
+  /** This round's hands, left to right (split hands included); empty between the settle and the deal. */
   hands: HandView[];
   /** Dealt in this round. */
   inRound: boolean;
@@ -144,13 +163,19 @@ export interface BlackjackPlayerView {
   bustedOut: boolean;
 }
 
-export interface HandResult {
-  playerId: string;
-  handIndex: number;
-  outcome: HandOutcome;
-  bet: number;
-  /** Chips the hand returned to the player: 0 on a loss, the stake on a push, more on a win. */
-  payout: number;
+/** The last settled round's table, on show from the settle until the next deal replaces it. */
+export interface LastRoundView {
+  round: number;
+  /** The seats that were dealt, in play order. */
+  order: string[];
+  /** Every card the dealer ended with, the hole card shown. */
+  dealer: DealerView;
+  /** Settled hands by player id, left to right (players who left since are dropped). */
+  hands: Record<string, SettledHandView[]>;
+  /** The dealer had blackjack at the peek: the round settled straight after the deal. */
+  peeked: boolean;
+  /** Epoch ms (server clock) by which the hole card and the dealer's draws have had time to show. */
+  revealEndsAt: number;
 }
 
 export interface BlackjackActions {
@@ -162,24 +187,24 @@ export interface BlackjackActions {
 
 export interface BlackjackView {
   phase: BlackjackPhase;
-  /** 1-based current round. */
+  /** 1-based current round (the round being bet on during `betting`). */
   round: number;
+  /** 0 when the rounds are unlimited. */
   totalRounds: number;
-  /** The seats dealt this round, in join order. */
+  /** The seats dealt this round, in join order: the play order. */
   order: string[];
   /** The hand in play during `acting`. */
   turn: { playerId: string; handIndex: number } | null;
-  /** Epoch ms (server clock) when the current phase ends on its own; null while held between rounds. */
+  /** Epoch ms (server clock) when the current phase ends on its own; null while held and at the end. */
   endsAt: number | null;
-  /** True while the next round waits for disconnected players. */
-  paused: boolean;
   dealer: DealerView;
   /** Every participant, keyed by player id. */
   players: Record<string, BlackjackPlayerView>;
   /** What the viewer may do right now; all false unless it is their hand. */
   actions: BlackjackActions;
-  /** Settled hands of the last completed round, kept through the next betting phase. */
-  results: HandResult[];
+  lastRound: LastRoundView | null;
+  /** The host ended the game: it ends once the hand in play settles. */
+  endRequested: boolean;
   /** Cards left in the shoe. */
   shoeRemaining: number;
   /** The shoe was reshuffled at the start of this round. */

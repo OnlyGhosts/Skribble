@@ -11,6 +11,11 @@ export const BLACKJACK = 21;
 export const DEALER_STANDS_AT = 17;
 /** The shoe is rebuilt once fewer cards than this share of it remain. */
 export const RESHUFFLE_BELOW = 0.25;
+/** Splitting and re-splitting stops at this many hands a seat. */
+export const MAX_HANDS = 4;
+/** Time the client gets to turn the hole card over once the dealer plays, and then to draw each further card. */
+export const REVEAL_HOLE_MS = 1200;
+export const REVEAL_CARD_MS = 500;
 
 export interface HandTotal {
   /** The best total: aces count 11 while that keeps the hand at 21 or under. */
@@ -49,6 +54,20 @@ export function isNatural(cards: readonly Card[], fromSplit = false): boolean {
 /** Two cards of the same value: a pair of ranks, or any two ten-value cards. */
 export function isPair(cards: readonly Card[]): boolean {
   return cards.length === 2 && cardValue(cards[0].rank) === cardValue(cards[1].rank);
+}
+
+export function isTenValue(rank: CardRank): boolean {
+  return cardValue(rank) === 10;
+}
+
+/** With an ace or a ten-value card up, the dealer checks the hole card for blackjack right after the deal. */
+export function dealerPeeks(upCard: Card): boolean {
+  return upCard.rank === 'A' || isTenValue(upCard.rank);
+}
+
+/** How long the dealer's reveal takes to show: the hole card, then each card drawn after it. */
+export function revealAllowanceMs(dealerCards: number): number {
+  return REVEAL_HOLE_MS + REVEAL_CARD_MS * Math.max(0, dealerCards - 2);
 }
 
 /** The dealer draws under 17, and on a soft 17 only when the table says so. */
