@@ -1,4 +1,4 @@
-# Adding a game to Bored Games
+# Adding a game to boredgames.io
 
 This is the owner's guide to adding the next game. It is written against the code as it is: every
 file it names exists, every interface it quotes is the real one, and the template game's code is
@@ -6,7 +6,7 @@ embedded verbatim from the repository so you can copy it line for line.
 
 The one-sentence model: **a game is a pure reducer on the server plus a React screen on the
 client; the platform owns everything else.** Rooms, codes, seats, tokens, reconnects, the host,
-the lobby, settings, chat, scores, the podium, kicks, Redis, routing, the library card and the
+the lobby, settings, chat, scores, the podium, kicks, Redis, routing, the lobby's game picker and the
 design system are already built. You write what happens *inside* a running game.
 
 Contents
@@ -146,10 +146,14 @@ actions are applied with compare-and-set Lua scripts and effects fan out over pu
 your module is a pure function of JSON-safe data, it works on the memory driver and on Redis
 without knowing which one runs it.
 
-**Routing and the library.** `/` (library), `/:slug` (game home with name, avatar, create, join,
-hero and how-to from `GameMeta`), `/:slug/:CODE` (join link and in-room URL), legacy `/:CODE`
-resolved through the preview ([`client/src/platform/router.ts`](../client/src/platform/router.ts)).
-The library card is rendered from `GameMeta` the moment `status` is `'live'`.
+**Routing and the game picker.** `/` is the front door: join a room with the four code boxes or
+create one; there is no game catalogue on it. `/:slug/:CODE` is the join link and the in-room URL,
+the legacy `/:CODE` and `/?room=CODE` open the front door with the boxes filled, `/:slug` alone
+redirects to `/`, and `/?game=slug` makes Create start the party on that game (the way to reach a
+hidden game) ([`client/src/platform/router.ts`](../client/src/platform/router.ts)). A new party
+starts on the first live game of `GAME_LIST`; the host picks any other live game from the
+picker at the top of the lobby ([`GamePicker`](../client/src/platform/components/GamePicker.tsx)),
+which is rendered from `GameMeta` the moment `status` is `'live'`.
 
 **Transport.** The one WebSocket with backoff reconnect, ping/pong clock sync (`clockOffset`),
 seat persistence in `sessionStorage`, a 60-messages-per-second cap on game messages per socket
@@ -182,15 +186,15 @@ export interface GameMeta {
   minPlayers: number;
   /** Seats the game can hold at once, or null when any number may play. Extra players sit a game out and stay in the party. */
   maxPlayers: number | null;
-  /** Emoji shown on the library card. */
+  /** Emoji shown on the game tile. */
   icon: string;
-  /** Accent colour (#rrggbb) for the card tile and the game's screens. */
+  /** Accent colour (#rrggbb) for the game tile and the game's screens; it must read on the dark panels (#20221F). */
   accent: string;
-  /** 'hidden' games never show in the library but stay reachable at /:slug (development, tests). */
+  /** 'hidden' games are never offered in the lobby picker but a party can start on one through '/?game=slug' (development, tests). */
   status: GameStatus;
 }
 
-export const GAME_LIST: readonly GameMeta[] = [ /* library order */ ];
+export const GAME_LIST: readonly GameMeta[] = [ /* picker order; the first live game is the one a new party starts on */ ];
 export function gameById(id: GameId): GameMeta;            // throws on an unknown id
 export function gameBySlug(slug: string): GameMeta | undefined;
 export function isGameSlug(s: string): boolean;
@@ -198,9 +202,10 @@ export function isGameId(s: string): s is GameId;
 export const GAME_IDS: readonly GameId[];
 ```
 
-`status` drives the library: `'live'` cards link to `/:slug`; `'soon'` cards render muted and
-disabled with a "Coming soon" pill; `'hidden'` cards are not rendered at all but `/:slug` still
-works (that is how Click Race ships). [`shared/platform/games.test.ts`](../shared/platform/games.test.ts)
+`status` drives the lobby's game picker: `'live'` games are tiles the host can switch the party
+to; `'soon'` and `'hidden'` games are not offered (a hidden game is only reachable by creating the
+party through `/?game=<slug>`, which is how Click Race ships for its tests; the picker still shows
+it as the current game then). [`shared/platform/games.test.ts`](../shared/platform/games.test.ts)
 checks every entry: lowercase-letter slug, never 4 characters, unique id and slug, a non-empty
 name/tagline/howToPlay, a `#rrggbb` accent, `1 <= minPlayers` (and `minPlayers <= maxPlayers` when a
 limit is set; `seatLimit(meta)` in `settings.ts` turns `null` into the room's hard cap), and that
@@ -568,7 +573,7 @@ replace throughout.
 
 ### Step 1: registry entry
 
-[`shared/platform/games.ts`](../shared/platform/games.ts): add the id and a `GameMeta` in library order.
+[`shared/platform/games.ts`](../shared/platform/games.ts): add the id and a `GameMeta` in picker order.
 
 ```ts
 export type GameId = 'skribble' | 'template' | 'wordle';
@@ -698,7 +703,7 @@ Style rules that keep the look consistent (details in section 8):
   query, prefix overrides of platform classes with your root class** (`.wordle .timer--lg`),
   because an equal-specificity rule depends on bundle order.
 - Only tokens for colours, spacing, radii and shadows; `meta.accent` is the one literal colour,
-  applied inline (`style={{ background: meta.accent }}`) as the template and the library card do.
+  applied inline (`style={{ background: meta.accent }}`) as the template and the lobby game tile do.
 - Sends go through `socket.send({ t: 'guess', word })` from `client/src/platform/net/socket.ts`;
   wrap them in a small `actions.ts` once there are several (see Skribble's
   [`actions.ts`](../client/src/games/skribble/actions.ts)).
@@ -720,27 +725,30 @@ the store, hooks and offline-queue side of a bigger module.
 ### Step 5: end-to-end test
 
 Add a `test(...)` to a spec in `e2e/` (or a new `e2e/wordle.spec.ts` with the same shape as
-[`e2e/library.spec.ts`](../e2e/library.spec.ts)): open `/wordle`, fill `home-name`, click
-`home-create`, read `room-code`, open `/wordle/<CODE>` in a second context and click `home-join`,
-adjust a setting through `settings-<id>`, click `start-game`, drive your screen through its own
-`data-testid`s, then assert the `overlay-game-end` podium (`podium-entry` with `data-rank`),
-`back-to-lobby` for the host and `room-code` again afterwards. The Click Race test in
-`library.spec.ts` ("the hidden template game plays a whole Click Race between two players") is
-exactly this and is the one to copy. Keep the "no page errors" assertion pattern.
+[`e2e/home.spec.ts`](../e2e/home.spec.ts)): `createParty(page, name, 'wordle')` from
+[`e2e/party.ts`](../e2e/party.ts) (the front door, the "Who's playing?" step when no name is saved,
+the lobby, with the party started on your game through `/?game=wordle`), `joinByLink(page, name,
+`/wordle/<CODE>`, code)` in a second context, adjust a setting through `settings-<id>`, click
+`start-game`, drive your screen through its own `data-testid`s, then assert the `overlay-game-end`
+podium (`podium-entry` with `data-rank`), `back-to-lobby` for the host and `room-code` again
+afterwards. The Click Race test in `home.spec.ts` ("the hidden template game plays a whole Click
+Race between two players") is exactly this and is the one to copy. Keep the "no page errors"
+assertion pattern.
 
-The platform test ids you will use: `home-name`, `home-create`, `home-join`, `code-input-0..3`,
-`room-code`, `invite-banner`, `room-preview`, `player-item` (with `data-name`, `data-score`),
-`player-count`, `settings-row-<id>`, `settings-value-<id>`, `settings-<id>`, `start-game`,
-`start-hint`, `waiting-for-host`, `leave-room`, `chat-input`, `chat-send`, `chat-log`,
-`chat-message` (with `data-kind`), `timer` (with `data-seconds`), `overlay-game-end`,
-`podium-entry`, `back-to-lobby`, `podium-leave`, `toast`, `connection-status` (with `data-status`),
-`site-header`, `brand-link`, `game-card` (with `data-game`), `game-grid`, `library-join`.
+The platform test ids you will use: `home-create`, `home-join`, `code-input-0..3`, `join-panel`,
+`create-panel`, `name-step`, `home-name`, `home-continue`, `home-back`, `room-preview`,
+`join-error`, `code-hint`, `room-code`, `game-picker` (with `data-game`), `game-tile` (with
+`data-game`), `player-item` (with `data-name`, `data-score`), `player-count`, `settings-row-<id>`,
+`settings-value-<id>`, `settings-<id>`, `start-game`, `start-hint`, `waiting-for-host`,
+`leave-room`, `chat-input`, `chat-send`, `chat-log`, `chat-message` (with `data-kind`), `timer`
+(with `data-seconds`), `overlay-game-end`, `podium-entry`, `back-to-lobby`, `podium-leave`,
+`toast`, `connection-status` (with `data-status`), `site-header`, `brand-link`, `wordmark`.
 
 ### Step 6: ship it
 
-Set `status: 'live'` in `GameMeta`. The library card (icon in an accent tile, name, tagline,
-`min-max players`) appears from `GAME_LIST`; `/wordle` and `/wordle/CODE` already route; the
-PWA, Vercel function and Redis driver need no change.
+Set `status: 'live'` in `GameMeta`. The game tile (icon in an accent tile, name, tagline,
+`min-max players`) appears in the lobby picker from `GAME_LIST`; `/wordle/CODE` already routes;
+the PWA, Vercel function and Redis driver need no change.
 
 ---
 
@@ -1015,7 +1023,7 @@ The smallest possible client module: `meta`, `Screen`, `SettingsFields`, its sty
 ```tsx
 /**
  * Click Race: the template client module. Copy this folder for a new game. The platform renders
- * the library card, the game home, the lobby, chat, players and the podium; a module only needs
+ * the front door, the lobby with its game picker, chat, players and the podium; a module only needs
  * a Screen (and, optionally, settings rows and the hooks listed in platform/game.ts).
  */
 import type { TemplateSettings, TemplateView } from '@shared/games/template/protocol';
@@ -1533,34 +1541,42 @@ clocks and timers). Document the stream in the game's protocol file and test the
 
 Everything a game screen needs to look like the rest of the site is in
 `client/src/platform/styles/` and `client/src/platform/components/`. Use these; add game CSS only
-for what is truly game-specific.
+for what is truly game-specific. The brand itself (palette, type, voice, the wordmark and the
+mascots) is documented in [`branding/`](../branding/README.md): dark charcoal and graphite
+surfaces, warm off-white type, lime for the one primary action, lilac sparingly; fine 1px
+borders, 8px controls and 12px panels, flat surfaces. No glow, gradients, blur or glossy effects
+anywhere, in a game stylesheet included.
 
 ### 8.1 Tokens ([`tokens.css`](../client/src/platform/styles/tokens.css))
 
-Defined on `:root`, redefined under `:root[data-theme='dark']` (the theme attribute is set before
-first paint by the inline script in `index.html` and kept by the `ThemeToggle`).
+Defined on `:root` (the dark theme, which is the default), redefined under
+`:root[data-theme='light']` (the theme attribute is set before first paint by the inline script
+in `index.html` and kept by the `ThemeToggle`; the operating system preference is not consulted).
 
 | Group | Tokens |
 | --- | --- |
-| Type | `--font-sans`, `--font-mono` |
-| Spacing | `--space-1` 4px, `--space-2` 8px, `--space-3` 12px, `--space-4` 16px, `--space-5` 24px, `--space-6` 32px, `--space-7` 48px, `--gutter` 16px |
-| Radii | `--radius-sm` 10px, `--radius-md` 14px, `--radius-lg` 22px, `--radius-pill` |
-| Shadows | `--shadow-sm`, `--shadow-md`, `--shadow-lg` |
-| Surfaces | `--color-bg`, `--color-surface`, `--color-surface-2`, `--color-surface-3`, `--color-border`, `--color-border-strong`, `--color-blob-1/2` (the background blobs) |
-| Text | `--color-text`, `--color-text-muted`, `--color-text-faint` (small text, AA on surfaces) |
-| Brand | `--color-primary`, `--color-primary-hover`, `--color-primary-soft`, `--color-primary-contrast`, `--color-primary-text`; `--color-secondary*` (orange) with the same five |
-| Status | `--color-success`, `-soft`, `-text`; `--color-warning*`; `--color-danger*`; `--color-info-soft`; `--color-focus` |
+| Type | `--font-sans` (body, system sans), `--font-display` (headings: `'Arial Black', 'Helvetica Neue', Arial, system-ui`, weight 900, tight tracking), `--font-mono` (room codes and small labels only) |
+| Spacing | `--space-1` 4px, `--space-2` 8px, `--space-3` 12px, `--space-4` 16px, `--space-5` 24px, `--space-6` 32px, `--space-7` 48px, `--space-8` 64px, `--gutter` 16px |
+| Radii | `--radius-sm` 8px (inputs, buttons), `--radius-md` 8px, `--radius-lg` 12px (panels), `--radius-pill` |
+| Shadows | `--shadow-sm` and `--shadow-md` are `none` (flat surfaces sit on their border); `--shadow-lg` is a soft drop for floating layers only (sheets, toasts) |
+| Surfaces | `--color-bg` #141514, `--color-surface` #20221F, `--color-surface-2`, `--color-surface-3`, `--color-border` #45483F, `--color-border-strong` |
+| Text | `--color-text` #F1F0E8, `--color-text-muted` #B4B7AE, `--color-text-faint` (small text, AA on the panels) |
+| Brand | `--color-primary` (lime #C7E976, a FILL that always carries `--color-primary-contrast` ink text), `--color-primary-hover`, `--color-primary-soft`, `--color-primary-text` (lime as text/border/stroke on dark, a dark olive on white); `--color-secondary*` (lilac #A699D5) with the same five |
+| Status | `--color-success`, `-soft`, `-text`; `--color-warning*`; `--color-danger*`; `--color-info-soft`; `--color-focus` (flat, restrained, AA on the panels) |
 | Chat | `--chat-correct-bg/fg`, `--chat-close-bg/fg`, `--chat-guessed-bg/fg` |
 | Misc | `--canvas-bg`, `--overlay-bg`, `--mobile-breakpoint` (760px, informational: media queries need the literal) |
 
-Use `*-text` variants for coloured text and the bright variants for icons, borders and fills.
+The one rule that keeps both themes legible: `--color-primary` / `--color-secondary` are fills
+(with their `-contrast` text); for coloured text, borders, rings and strokes use
+`--color-primary-text` / `--color-secondary-text`. Lime on a white panel is invisible, so the
+light theme swaps the `-text` variants for darker cuts while the fills stay lime and lilac.
 
 ### 8.2 Classes ([`components.css`](../client/src/platform/styles/components.css))
 
 | Purpose | Classes |
 | --- | --- |
-| Layout | `.card` (surface, border, `--radius-lg`, `--shadow-md`, `--space-5` padding), `.card__head`, `.card__title`, `.card__text` |
-| Buttons | `.btn` with `.btn--primary`, `.btn--secondary`, `.btn--ghost`, `.btn--danger`, sizes `.btn--lg` / `.btn--sm` / `.btn--xs`, `.btn--block`, `.btn--choice` (big option buttons); `.icon-btn`, `.icon-btn--sm` |
+| Layout | `.card` (surface, 1px border, `--radius-lg`, `--space-5` padding, no shadow), `.card__head`, `.card__title`, `.card__text` |
+| Buttons | `.btn` with `.btn--primary` (lime, ink text: the one loud action on a screen), `.btn--secondary` (outlined), `.btn--ghost`, `.btn--danger`, sizes `.btn--lg` / `.btn--sm` / `.btn--xs`, `.btn--block`, `.btn--choice` (big option buttons); `.icon-btn`, `.icon-btn--sm` |
 | Text inputs | `.input`, `.input--lg`, `.input.is-invalid`, `.textarea`, `.field`, `.field__label`, `.field__hint`, `.field__error`, `.field__ok` |
 | Badges | `.pill`, `.pill--accent`, `.banner`, `.banner--info`, `.banner--invite`, `.spinner`, `.ellipsis` (animated dots) |
 | Overlays | `.overlay__card`, `.overlay__card--wide`, `.overlay__kicker`, `.overlay__title`, `.overlay__hint`, `.overlay__footer` (the podium uses these; a game's own in-screen overlay can too) |
@@ -1568,7 +1584,7 @@ Use `*-text` variants for coloured text and the bright variants for icons, borde
 | Chat | `.chat`, `.chat__log`, `.chat__form`, `.chat__input`, `.chat__send`, `.chat-msg` with the kind modifiers `.chat-msg--system/guessed/correct/close/hint` (a plain `chat` line has no modifier rule) |
 | Timer | `.timer`, `.timer--lg`, `.timer--md`, `.timer--urgent` |
 | Sheets and toasts | `.sheet*`, `.menu-sheet*` (a phone options sheet: `.menu-sheet__row`, `.menu-sheet__label`, `.menu-sheet__leave`), `.toasts`, `.toast` with `.toast--success/warning/error` (an `info` toast uses the base style) |
-| Header | `.site-header`, `.site-header__actions`, `.brand`, `.brand__mark`, `.brand__crumb`, `.conn-pill` |
+| Header | `.site-header`, `.site-header__actions`, `.brand` (the wordmark link), `.wordmark` (sized by `--wordmark-width`), `.wordmark--lilac-io`, `.monogram`, `.brand__mark` (a game's own small mark in its in-game header), `.brand__crumb`, `.conn-pill` |
 | Misc | `.avatar--sm/md/lg/xl`, `.swatch`, `.emoji-choice`, `.code-input`, `.range`, `.toggle`, `.setting*`, `.podium*`, `.hide-mobile`, `.sr-only` |
 
 Game-specific classes live in the game's stylesheet; Skribble's `skribble.css` owns `.word*`,
@@ -1579,10 +1595,12 @@ position), and the whole `.game` layout, which is a good reference for a non-scr
 
 | Component | Props | Notes |
 | --- | --- | --- |
-| [`SiteHeader`](../client/src/platform/components/SiteHeader.tsx) | `crumb?: string`, `children?`, `showConnection?: boolean` (default true) | Brand links to `/` (inside a room that leaves the room: any navigation away from `/:slug/:CODE` does); renders the connection pill and the sound/theme toggles; put a Leave button in `children` |
+| [`SiteHeader`](../client/src/platform/components/SiteHeader.tsx) | `crumb?: string`, `children?`, `showConnection?: boolean` (default true), `showSound?: boolean` (default true) | The wordmark links to `/` (inside a room that leaves the room: any navigation away from `/:slug/:CODE` does); renders the connection pill and the sound/theme toggles; put a Leave button in `children` |
+| [`Wordmark`](../client/src/platform/components/Wordmark.tsx) / `Monogram` | `className?`, `lilacIo?` | The outlined boredgames.io logo as inline vector paths (`currentColor`, accessible name "boredgames.io", never live text) and the "bg." tile for tight spaces |
+| [`PhoneBored`](../client/src/platform/components/Mascots.tsx) / `PhoneHappy` | `className?` | The two phone characters from the brand pack, decorative (`aria-hidden`) |
 | [`Avatar`](../client/src/platform/components/Avatar.tsx) | `avatar`, `size?: 'sm' \| 'md' \| 'lg' \| 'xl'`, `dimmed?`, `className?` | Dim disconnected players |
-| [`AvatarPicker`](../client/src/platform/components/AvatarPicker.tsx) | `value`, `onChange(next)`, `compact?` | Used by the game home and the lobby |
-| [`CodeInput`](../client/src/platform/components/CodeInput.tsx) | `value`, `onChange(code)`, `onSubmit()`, `onInvalidChar()`, `disabled?`, `invalid?`, `autoFocus?` | The 4-box code field |
+| [`AvatarPicker`](../client/src/platform/components/AvatarPicker.tsx) | `value`, `onChange(next)`, `compact?` | Used by the front door's "Who's playing?" step and the lobby |
+| [`CodeInput`](../client/src/platform/components/CodeInput.tsx) | `value`, `onChange(code)`, `onSubmit()`, `onInvalidChar()`, `disabled?`, `invalid?`, `autoFocus?`, `labelledBy?`, `describedBy?`, `ref?: Ref<CodeInputHandle>` | The 4-box code field (A/B/C/D placeholders, uppercase, auto-advance, Backspace, arrows, paste of a code or an invite link, Enter submits, never auto-submits); `ref.focus(i)` moves to a box |
 | [`PlayerList`](../client/src/platform/components/PlayerList.tsx) | `room`, `meId: string \| null`, `isHost`, `mode: 'lobby' \| 'game'`, `game: AnyGameClientModule \| null` | Game mode ranks by score and shows kick / vote-kick; pass `useActiveGame()` as `game` to get your badges |
 | [`Chat`](../client/src/platform/components/Chat.tsx) | none | Reads the store; honours your `ChatInput` and `chatPlaceholder` |
 | [`SettingsPanel`](../client/src/platform/components/SettingsPanel.tsx) | `room`, `isHost`, `game` | Platform rows then your `SettingsFields`; the lobby renders it |
@@ -1594,7 +1612,7 @@ position), and the whole `.game` layout, which is a good reference for a non-scr
 | [`BottomSheet`](../client/src/platform/components/BottomSheet.tsx) | `open`, `title`, `onClose()`, `children`, `testId` | Phone sheet with focus trap and Escape; `${testId}-close`, `${testId}-backdrop` |
 | [`PodiumOverlay`](../client/src/platform/components/PodiumOverlay.tsx) | `room`, `isHost` | Rendered by the shell on `'ended'`; you never render it |
 | [`Toasts`](../client/src/platform/components/Toasts.tsx), [`ConnectionPill`](../client/src/platform/components/ConnectionPill.tsx), [`ThemeToggle`](../client/src/platform/components/ThemeToggle.tsx) / `SoundToggle` | none | Toasts is rendered once by the shell; add toasts with `usePlatformStore.getState().addToast(kind, text)` |
-| [`Icons`](../client/src/platform/components/Icons.tsx) | `Icon({ paths, size?, ...svg })` plus `DiceIcon`, `CrownIcon`, `CheckIcon`, `CopyIcon`, `LinkIcon`, `SunIcon`, `MoonIcon`, `SoundOnIcon`, `SoundOffIcon`, `CloseIcon`, `UsersIcon`, `ChevronIcon`, `ArrowRightIcon`, `LogoutIcon`, `PlayIcon`, `KickIcon`, `SparkIcon`, `EditIcon`, `SendIcon`, `MoreIcon`, `GamepadIcon` | Build game icons from the `Icon` primitive (24×24 stroke paths), as Skribble's [`Icons.tsx`](../client/src/games/skribble/components/Icons.tsx) does |
+| [`Icons`](../client/src/platform/components/Icons.tsx) | `Icon({ paths, size?, ...svg })` plus `DiceIcon`, `CrownIcon`, `CheckIcon`, `CopyIcon`, `LinkIcon`, `SunIcon`, `MoonIcon`, `SoundOnIcon`, `SoundOffIcon`, `CloseIcon`, `UsersIcon`, `ChevronIcon`, `ArrowRightIcon`, `LogoutIcon`, `PlayIcon`, `KickIcon`, `SparkIcon`, `EditIcon`, `SendIcon`, `MoreIcon` | Build game icons from the `Icon` primitive (24×24 stroke paths), as Skribble's [`Icons.tsx`](../client/src/games/skribble/components/Icons.tsx) does |
 
 ### 8.4 Mobile layout rules
 
@@ -1670,7 +1688,7 @@ Run from the repository root; everything is green at HEAD.
    determinism and non-mutation (`engine/determinism.test.ts`), purity and import boundaries
    (`engine/purity.test.ts`), the whole platform room behaviour
    (`drivers/room.platform.test.ts`), `.js` import extensions (`server/imports.test.ts`), the
-   library slug rules (`shared/platform/games.test.ts`). These `describe.each(GAME_IDS)` suites
+   slug rules (`shared/platform/games.test.ts`). These `describe.each(GAME_IDS)` suites
    grow by about 45 tests per game, so expect the total to jump. Add your own
    `server/games/<id>/<id>.test.ts` and `client/src/games/<id>/<id>.test.ts`. The Redis driver
    tests spawn a local `redis-server` and are skipped when it is not installed.
@@ -1683,7 +1701,7 @@ Run from the repository root; everything is green at HEAD.
    (`.github/workflows/ci.yml`) installs Chromium with `npx playwright install --with-deps chromium`.
 5. Phone viewport: add at least one e2e check for your screen at 390×844 (`isMobile`, `hasTouch`)
    asserting no horizontal overflow (`document.documentElement.scrollWidth <= 390`) and 44px
-   targets, as `library.spec.ts` does for the library and `mobile.spec.ts` for Skribble.
+   targets, as `home.spec.ts` does for the front door and `mobile.spec.ts` for Skribble.
 6. Manual pass: two browser tabs (or a phone on the same network via `npm run dev`), reload one
    mid-game (the seat survives, the view comes back from the snapshot and `welcome.extra`), let a
    player leave mid-game, join mid-game with the code, kick someone, finish a game and return to
@@ -1727,8 +1745,8 @@ Run from the repository root; everything is green at HEAD.
   silently; chat is 6 per 4 s with a `RATE_LIMITED` error; room create/join 5 per 10 s.
 - **Message size**: 64 KB per WebSocket frame (`MAX_WS_MESSAGE_BYTES`).
 - **`welcome.extra` is `undefined`** without a side store; `onWelcome` still fires.
-- **Document titles** are the platform's: "Bored Games" (library), "<Game> · Bored Games" (game
-  home), "<Game> · room CODE" (in a room).
+- **Document titles** are the platform's: "boredgames.io" (the front door), "boredgames.io · CODE"
+  (in a room).
 - **Storage keys** (`boredgames.name`, `boredgames.avatar`, `boredgames.prefs`, session
   `boredgames.session`) belong to the platform; a game that needs to remember something per device
   uses its own prefixed key and wraps every access in try/catch like

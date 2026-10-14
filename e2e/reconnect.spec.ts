@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
-import { readyAll } from './party';
+import { createParty, joinByCode, readyAll } from './party';
 
 /**
  * Two players: reloads in the middle of a turn must restore the seat, the role and the canvas
@@ -73,16 +73,8 @@ test.afterAll(async () => {
 });
 
 test('two players start a long turn and the drawer draws', async () => {
-  await host.page.goto('/skribble');
-  await host.page.getByTestId('home-name').fill(host.name);
-  await host.page.getByTestId('home-create').click();
-  const code = ((await host.page.getByTestId('room-code').textContent()) ?? '').replace(/\s+/g, '');
-
-  await guest.page.goto('/skribble');
-  await guest.page.getByTestId('home-name').fill(guest.name);
-  await guest.page.getByTestId('code-input-0').pressSequentially(code, { delay: 20 });
-  await guest.page.getByTestId('home-join').click();
-  await expect(guest.page.getByTestId('room-code')).toHaveText(code);
+  const code = await createParty(host.page, host.name);
+  await joinByCode(guest.page, guest.name, code);
   await expect(host.page.getByTestId('player-item')).toHaveCount(2);
 
   await host.page.getByTestId('settings-drawTime').fill('120');
@@ -148,8 +140,8 @@ test('the host kicks the other player, who lands on the home screen', async () =
 
   await expect(target.page.getByTestId('home-create')).toBeVisible();
   await expect(target.page.getByTestId('toast')).toContainText(/removed|kicked/i);
-  await expect(target.page).toHaveURL(/\/skribble$/);
-  await expect(target.page.getByTestId('invite-banner')).toHaveCount(0);
+  await expect(target.page).toHaveURL(/\/$/);
+  await expect(target.page.getByTestId('code-input-0')).toHaveValue('');
 
   await expect(host.page.getByTestId('chat-log')).toContainText(`${target.name} was kicked`);
   await expect(host.page.getByTestId('player-item')).toHaveCount(1);

@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type BrowserContext, type Page, type WebSocketRoute } from '@playwright/test';
-import { readyAll } from './party';
+import { createParty, joinByCode, readyAll } from './party';
 
 /**
  * Phones that go dark must not end the game. Part one (Skribble, two players): a guesser's link
@@ -90,20 +90,6 @@ async function wakeLockRequests(page: Page): Promise<number> {
   return page.evaluate(() => (window as unknown as { __wakeLockRequests?: string[] }).__wakeLockRequests?.length ?? 0);
 }
 
-async function readCode(page: Page): Promise<string> {
-  const code = ((await page.getByTestId('room-code').textContent()) ?? '').replace(/\s+/g, '');
-  expect(code).toMatch(/^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{4}$/);
-  return code;
-}
-
-async function joinByCode(p: Player, slug: string, code: string): Promise<void> {
-  await p.page.goto(`/${slug}`);
-  await p.page.getByTestId('home-name').fill(p.name);
-  await p.page.getByTestId('code-input-0').pressSequentially(code, { delay: 20 });
-  await p.page.getByTestId('home-join').click();
-  await expect(p.page.getByTestId('room-code')).toHaveText(code);
-}
-
 async function scoreOf(page: Page, name: string): Promise<number> {
   const raw = await page.locator(`[data-testid="player-item"][data-name="${name}"]`).getAttribute('data-score');
   return Number(raw ?? 'NaN');
@@ -143,14 +129,12 @@ test.describe('Skribble keeps going through a dropped link and a discarded tab',
   });
 
   test('two players join; the screen wake lock is requested once in a room', async () => {
-    await host.page.goto('/skribble');
+    await host.page.goto('/');
     expect(await wakeLockRequests(host.page)).toBe(0);
-    await host.page.getByTestId('home-name').fill(host.name);
-    await host.page.getByTestId('home-create').click();
-    code = await readCode(host.page);
+    code = await createParty(host.page, host.name);
     await expect.poll(() => wakeLockRequests(host.page)).toBeGreaterThan(0);
 
-    await joinByCode(guest, 'skribble', code);
+    await joinByCode(guest.page, guest.name, code);
     await expect.poll(() => wakeLockRequests(guest.page)).toBeGreaterThan(0);
     await expect(host.page.getByTestId('player-item')).toHaveCount(2);
 
@@ -243,7 +227,6 @@ test.describe('Skribble keeps going through a dropped link and a discarded tab',
     await page.goto(`/skribble/${code}`);
     await expect(page.getByTestId('game-header')).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId('home-join')).toHaveCount(0);
-    await expect(page.getByTestId('invite-banner')).toHaveCount(0);
     await expect(page.locator(`[data-testid="player-item"][data-name="${nameBefore}"]`)).toHaveClass(/player--me/);
     await expect(host.page.getByTestId('player-item')).toHaveCount(2);
     await expect(host.page.locator(`[data-testid="player-item"][data-name="${nameBefore}"]`)).not.toHaveClass(/player--offline/);
@@ -283,11 +266,8 @@ test.describe('Spy Game holds for a dropped phone and the host may remove it', (
   });
 
   test('three players start a Spy Game and the spy ends round one by naming the location', async () => {
-    await host.page.goto('/spygame');
-    await host.page.getByTestId('home-name').fill(host.name);
-    await host.page.getByTestId('home-create').click();
-    code = await readCode(host.page);
-    for (const p of [pia, quinn]) await joinByCode(p, 'spygame', code);
+    code = await createParty(host.page, host.name, 'spygame');
+    for (const p of [pia, quinn]) await joinByCode(p.page, p.name, code);
     await expect(host.page.getByTestId('player-item')).toHaveCount(3);
     await host.page.getByTestId('settings-rounds').fill('2');
     await host.page.getByTestId('settings-roundMinutes').fill('3');
@@ -403,11 +383,8 @@ test.describe('the waiting overlay fits a small phone with three long names', ()
 
   test('three phones drop during the reveal: the host sees every name and a 44px Remove for each, nothing overflows', async () => {
     test.setTimeout(120_000);
-    await host.page.goto('/spygame');
-    await host.page.getByTestId('home-name').fill(host.name);
-    await host.page.getByTestId('home-create').click();
-    const code = await readCode(host.page);
-    for (const g of guests) await joinByCode(g, 'spygame', code);
+    const code = await createParty(host.page, host.name, 'spygame');
+    for (const g of guests) await joinByCode(g.page, g.name, code);
     await expect(host.page.getByTestId('player-item')).toHaveCount(4);
     await host.page.getByTestId('settings-rounds').fill('2');
     await host.page.getByTestId('settings-roundMinutes').fill('3');

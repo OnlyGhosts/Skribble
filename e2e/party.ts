@@ -17,3 +17,60 @@ export async function readyAll(pages: Page[]): Promise<void> {
 export async function expectReadyCount(hostPage: Page, count: number): Promise<void> {
   await expect(hostPage.getByTestId('start-game')).toHaveAttribute('data-ready', String(count));
 }
+
+export const ROOM_CODE_RE = /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{4}$/;
+
+/** The code shown in the lobby. */
+export async function readRoomCode(page: Page): Promise<string> {
+  const code = ((await page.getByTestId('room-code').textContent()) ?? '').replace(/\s+/g, '');
+  expect(code).toMatch(ROOM_CODE_RE);
+  return code;
+}
+
+/**
+ * The "Who's playing?" step after Join room / Create room: shown on a first visit, skipped once a
+ * name is saved on the device. Fills it when it shows; either way the lobby is next (or, for a
+ * join the server refuses, the front door again with the error).
+ */
+export async function enterNameIfAsked(page: Page, name: string): Promise<void> {
+  const step = page.getByTestId('name-step');
+  const settled = step.or(page.getByTestId('room-code')).or(page.getByTestId('join-error'));
+  await expect(settled.first()).toBeVisible();
+  if (await step.isVisible()) {
+    await page.getByTestId('home-name').fill(name);
+    await page.getByTestId('home-continue').click();
+  }
+}
+
+/**
+ * Creates a party from the front door and returns its code. `gameSlug` picks the game the party
+ * starts on ('/?game=slug', the only way to reach the hidden template game); otherwise the first
+ * live game, and the host picks another in the lobby.
+ */
+export async function createParty(page: Page, name: string, gameSlug?: string, base = ''): Promise<string> {
+  await page.goto(`${base}/${gameSlug ? `?game=${gameSlug}` : ''}`);
+  await expect(page.getByTestId('home-create')).toBeVisible();
+  await page.getByTestId('home-create').click();
+  await enterNameIfAsked(page, name);
+  const code = await readRoomCode(page);
+  await expect(page).toHaveURL(new RegExp(`/${gameSlug ?? 'skribble'}/${code}$`));
+  return code;
+}
+
+/** Types the code into the four boxes (they auto-advance) and joins. */
+export async function joinByCode(page: Page, name: string, code: string, base = ''): Promise<void> {
+  await page.goto(`${base}/`);
+  await page.getByTestId('code-input-0').pressSequentially(code, { delay: 20 });
+  await page.getByTestId('home-join').click();
+  await enterNameIfAsked(page, name);
+  await expect(page.getByTestId('room-code')).toHaveText(code);
+}
+
+/** Opens an invite link ('/:slug/:CODE' or '/:CODE'): the boxes are filled, one tap joins. */
+export async function joinByLink(page: Page, name: string, path: string, code: string): Promise<void> {
+  await page.goto(path);
+  await expect(page.getByTestId('code-input-3')).toHaveValue(code[3]);
+  await page.getByTestId('home-join').click();
+  await enterNameIfAsked(page, name);
+  await expect(page.getByTestId('room-code')).toHaveText(code);
+}

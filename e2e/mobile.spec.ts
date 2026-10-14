@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type BrowserContext, type Locator, type Page } from '@playwright/test';
-import { readyAll } from './party';
+import { createParty, enterNameIfAsked, readyAll } from './party';
 
 /**
  * A desktop host and a phone guest (390x844, touch, 3x) share a two-player room. The phone is
@@ -217,16 +217,23 @@ test.afterAll(async () => {
   for (const p of players) await p.context.close();
 });
 
-test('the phone game home fits the viewport and its primary buttons are 44px targets', async () => {
-  await phone.page.goto('/skribble');
+test('the phone front door fits the viewport and its primary buttons are 44px targets', async () => {
+  await phone.page.goto('/');
   await expect(phone.page.getByTestId('home-create')).toBeVisible();
   await expect(phone.page.getByTestId('connection-status')).toHaveAttribute('data-status', 'connected');
   await expectNoHorizontalOverflow(phone.page, PORTRAIT.width);
-  for (const id of ['home-create', 'home-join', 'home-name', 'code-input-0']) {
+  for (const id of ['home-create', 'home-join', 'code-input-0']) {
     await expectTallEnough(phone.page.getByTestId(id), id);
   }
+  await phone.page.getByTestId('home-create').click();
+  await expect(phone.page.getByTestId('name-step')).toBeVisible();
+  await expectNoHorizontalOverflow(phone.page, PORTRAIT.width);
+  await expectTallEnough(phone.page.getByTestId('home-name'), 'home-name');
+  await expectTallEnough(phone.page.getByTestId('home-continue'), 'home-continue');
   const nameFontSize = await phone.page.getByTestId('home-name').evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
   expect(nameFontSize, 'inputs are at least 16px so iOS does not zoom on focus').toBeGreaterThanOrEqual(16);
+  await phone.page.getByTestId('home-back').click();
+  await expect(phone.page.getByTestId('join-panel')).toBeVisible();
 
   // The narrowest phones: the header bar must not push the theme toggle off screen.
   await phone.page.setViewportSize(SMALL_PORTRAIT);
@@ -236,19 +243,13 @@ test('the phone game home fits the viewport and its primary buttons are 44px tar
 });
 
 test('the host creates a room and the phone joins by typing the code', async () => {
-  await host.page.goto('/skribble');
-  await host.page.getByTestId('home-name').fill(host.name);
-  await host.page.getByTestId('home-create').click();
-  const codeEl = host.page.getByTestId('room-code');
-  await expect(codeEl).toBeVisible();
-  roomCode = ((await codeEl.textContent()) ?? '').replace(/\s+/g, '');
-  expect(roomCode).toHaveLength(4);
+  roomCode = await createParty(host.page, host.name);
 
-  await phone.page.getByTestId('home-name').fill(phone.name);
   // The four boxes auto-advance, so typing on the first one fills them all.
   await phone.page.getByTestId('code-input-0').pressSequentially(roomCode, { delay: 20 });
   await expect(phone.page.getByTestId('room-preview')).toContainText(/1 player in the party/);
   await phone.page.getByTestId('home-join').click();
+  await enterNameIfAsked(phone.page, phone.name);
   await expect(phone.page.getByTestId('room-code')).toHaveText(roomCode);
   await expect(host.page.getByTestId('player-item')).toHaveCount(2);
   await expect(phone.page.getByTestId('player-item')).toHaveCount(2);
@@ -531,7 +532,7 @@ test('leaving from the podium drops the app mode so the game home scrolls again'
   await expect(phone.page.getByTestId('overlay-game-end')).toBeVisible();
   await phone.page.getByTestId('podium-leave-yes').click();
   await expect(phone.page.getByTestId('home-create')).toBeVisible();
-  await expect(phone.page).toHaveURL(/\/skribble$/);
+  await expect(phone.page).toHaveURL(/\/$/);
   await expect.poll(async () => (await pageMetrics(phone.page)).isApp).toBe(false);
   await expect(host.page.getByTestId('chat-log')).toContainText(`${phone.name} left`);
 });

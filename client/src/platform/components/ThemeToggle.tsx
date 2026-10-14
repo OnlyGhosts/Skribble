@@ -1,13 +1,11 @@
 import { usePlatformStore } from '../store/usePlatformStore';
-import { DARK_SCHEME_QUERY, useMediaQuery } from '../lib/media';
-import type { Theme } from '../lib/storage';
+import { DEFAULT_THEME, type Theme } from '../lib/storage';
 import { MoonIcon, SoundOffIcon, SoundOnIcon, SunIcon } from './Icons';
 
 export function ThemeToggle() {
   const pref = usePlatformStore((s) => s.prefs.theme);
   const setTheme = usePlatformStore((s) => s.setTheme);
-  const systemDark = useMediaQuery(DARK_SCHEME_QUERY);
-  const resolved: Theme = pref ?? (systemDark ? 'dark' : 'light');
+  const resolved: Theme = pref ?? DEFAULT_THEME;
   const next: Theme = resolved === 'dark' ? 'light' : 'dark';
   return (
     <button

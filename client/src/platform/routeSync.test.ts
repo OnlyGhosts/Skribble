@@ -29,7 +29,7 @@ beforeEach(() => {
   resetStore();
   onLeave = vi.fn();
   registerGames(registryOf({ onLeave }));
-  setLocation('/skribble');
+  setLocation('/');
   refreshRoute();
   stop = startRouteSync();
 });
@@ -37,20 +37,20 @@ beforeEach(() => {
 afterEach(() => stop());
 
 describe('leaving the room through the address bar', () => {
-  it('the brand link (navigate to the library) leaves the room and stays on the library', () => {
+  it('the wordmark link (navigate to the front door) leaves the room and stays there', () => {
     enterRoom();
     expect(state().room).not.toBeNull();
     navigate('/');
     expect(state().room).toBeNull();
     expect(onLeave).toHaveBeenCalledTimes(1);
     expect(window.location.pathname).toBe('/');
-    expect(useRouter.getState().route).toEqual({ kind: 'library' });
+    expect(useRouter.getState().route).toEqual({ kind: 'home', code: null, game: null });
   });
 
-  it('Back out of a room lands on the page the user came from, not the game home', () => {
+  it('Back out of a room lands on the page the user came from', () => {
     setLocation('/');
     refreshRoute();
-    enterRoom('template'); // a cross-game join from the library
+    enterRoom('template'); // a party that started on the template game
     goBackTo('/');
     expect(state().room).toBeNull();
     expect(window.location.pathname).toBe('/');
@@ -65,11 +65,11 @@ describe('leaving the room through the address bar', () => {
     expect(onLeave).not.toHaveBeenCalled();
   });
 
-  it('an explicit leave while the address bar names the room moves to the game home and leaves once', () => {
+  it('an explicit leave while the address bar names the room moves to the front door and leaves once', () => {
     enterRoom();
     state().resetRoom();
     expect(onLeave).toHaveBeenCalledTimes(1);
-    expect(window.location.pathname).toBe('/skribble');
+    expect(window.location.pathname).toBe('/');
     expect(state().room).toBeNull();
   });
 
@@ -90,9 +90,9 @@ describe('leaving the room through the address bar', () => {
     setLocation('/skribble/ABCD');
     refreshRoute();
     state().handleServerMessage(welcome('bob', room()));
-    goBackTo('/skribble');
+    goBackTo('/');
     expect(state().room).toBeNull();
-    expect(window.location.pathname).toBe('/skribble');
+    expect(window.location.pathname).toBe('/');
   });
 });
 
@@ -101,8 +101,8 @@ describe('join errors stay on the page that raised them', () => {
     state().beginJoin({ t: 'join', code: 'ZZZZ', name: 'bob', avatar: { color: 0, emoji: 0 } });
     state().handleServerMessage({ t: 'error', code: 'ROOM_NOT_FOUND', message: 'nope' });
     expect(state().joinError?.code).toBe('ROOM_NOT_FOUND');
+    navigate('/ABCD');
     navigate('/');
-    navigate('/template');
     expect(state().joinError).toBeNull();
   });
 });

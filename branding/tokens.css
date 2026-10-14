@@ -1,0 +1,11 @@
+:root {
+  --bg-background: #141514;
+  --bg-surface: #20221F;
+  --bg-text: #F1F0E8;
+  --bg-lime: #C7E976;
+  --bg-lilac: #A699D5;
+  --bg-muted: #B4B7AE;
+  --bg-border: #45483F;
+  --bg-radius: 8px;
+  --bg-font: Arial, Helvetica, sans-serif;
+}

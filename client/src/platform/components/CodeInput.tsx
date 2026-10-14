@@ -1,6 +1,14 @@
-import { useEffect, useRef, type ChangeEvent, type ClipboardEvent, type KeyboardEvent } from 'react';
+import { useEffect, useImperativeHandle, useRef, type ChangeEvent, type ClipboardEvent, type KeyboardEvent, type Ref } from 'react';
 import { ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH, extractRoomCode } from '@shared/platform/roomCode';
 import { clearChar, padCode, writeChars } from '../lib/codeInput';
+
+/** Faint hints in the empty boxes; never a prefilled value. */
+const PLACEHOLDERS = ['A', 'B', 'C', 'D'];
+
+export interface CodeInputHandle {
+  /** Moves the focus to one box (clamped), e.g. the first invalid one after an error. */
+  focus(index?: number): void;
+}
 
 interface Props {
   value: string;
@@ -11,6 +19,11 @@ interface Props {
   disabled?: boolean;
   invalid?: boolean;
   autoFocus?: boolean;
+  /** The id of a visible "Room code" label; without one the group labels itself. */
+  labelledBy?: string;
+  /** The id of the hint or error text under the boxes. */
+  describedBy?: string;
+  ref?: Ref<CodeInputHandle>;
 }
 
 /** Splits raw typed/pasted text into accepted characters, reporting whether anything was rejected. */
@@ -24,8 +37,12 @@ function filterChars(raw: string): { accepted: string; rejected: boolean } {
   return { accepted, rejected };
 }
 
-/** Four single-character boxes that behave like one field: auto-advance, backspace, paste, Enter. */
-export function CodeInput({ value, onChange, onSubmit, onInvalidChar, disabled, invalid, autoFocus }: Props) {
+/**
+ * Four single-character boxes that behave like one field: uppercase, auto-advance, Backspace
+ * back, arrow keys, paste of a code or an invite link, Enter submits. Never submits on its own
+ * when the fourth character lands.
+ */
+export function CodeInput({ value, onChange, onSubmit, onInvalidChar, disabled, invalid, autoFocus, labelledBy, describedBy, ref }: Props) {
   const inputs = useRef<Array<HTMLInputElement | null>>([]);
   const chars = padCode(value);
 
@@ -39,6 +56,8 @@ export function CodeInput({ value, onChange, onSubmit, onInvalidChar, disabled, 
     el?.focus();
     el?.select();
   };
+
+  useImperativeHandle(ref, () => ({ focus: (index = 0) => focusBox(index) }));
 
   const writeFrom = (start: number, text: string) => {
     const next = writeChars(value, start, text);
@@ -120,7 +139,8 @@ export function CodeInput({ value, onChange, onSubmit, onInvalidChar, disabled, 
       className={`code-input${invalid ? ' is-invalid' : ''}`}
       data-testid="code-input"
       role="group"
-      aria-label="Room code"
+      aria-label={labelledBy ? undefined : 'Room code'}
+      aria-labelledby={labelledBy}
       tabIndex={-1}
       onKeyDown={handleGroupKeyDown}
     >
@@ -139,8 +159,11 @@ export function CodeInput({ value, onChange, onSubmit, onInvalidChar, disabled, 
           autoCorrect="off"
           spellCheck={false}
           enterKeyHint="go"
-          aria-label={`Code character ${i + 1} of ${ROOM_CODE_LENGTH}`}
+          aria-label={`Letter ${i + 1}`}
           aria-invalid={invalid || undefined}
+          aria-describedby={describedBy}
+          placeholder={PLACEHOLDERS[i]}
+          maxLength={ROOM_CODE_LENGTH}
           value={ch}
           disabled={disabled}
           onChange={handleChange(i)}

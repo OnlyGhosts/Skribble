@@ -1,5 +1,21 @@
+/*
+ * boredgames.io design tokens (see branding/BRAND_GUIDE.md and branding/design-tokens.json).
+ *
+ * Dark is the default theme: charcoal page, graphite panels, warm off-white type, lime for the one
+ * primary action, lilac sparingly. Surfaces are flat with fine 1px borders and modest corners; no
+ * glow, gradients or blur anywhere. The light theme is the same system on off-white.
+ *
+ * Two rules keep the palette legible in both themes:
+ * - `--color-primary` / `--color-secondary` are FILLS and always carry `--color-*-contrast` (ink) text.
+ * - `--color-primary-text` / `--color-secondary-text` are for text, borders, rings and strokes:
+ *   the accent itself on dark panels, a darker cut of it on white.
+ */
 :root {
-  --font-sans: ui-rounded, 'SF Pro Rounded', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  color-scheme: dark;
+
+  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  /* Headlines and the hero: a heavy compact grotesk from the system stack (the wordmark itself is outlined vector art). */
+  --font-display: 'Arial Black', 'Helvetica Neue', Arial, system-ui, sans-serif;
   --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
 
   --space-1: 4px;
@@ -9,115 +25,111 @@
   --space-5: 24px;
   --space-6: 32px;
   --space-7: 48px;
+  --space-8: 64px;
 
-  --radius-sm: 10px;
-  --radius-md: 14px;
-  --radius-lg: 22px;
+  /* 8px for inputs and buttons, 12px for panels. */
+  --radius-sm: 8px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
   --radius-pill: 999px;
 
   --gutter: 16px;
   --mobile-breakpoint: 760px;
 
-  --shadow-sm: 0 1px 2px rgb(27 26 46 / 0.06), 0 2px 8px rgb(27 26 46 / 0.06);
-  --shadow-md: 0 4px 14px rgb(27 26 46 / 0.08), 0 12px 32px rgb(27 26 46 / 0.08);
-  --shadow-lg: 0 18px 48px rgb(27 26 46 / 0.16);
+  /* Flat surfaces: panels sit on their border. Only floating layers (sheets, toasts) get a soft drop. */
+  --shadow-sm: none;
+  --shadow-md: none;
+  --shadow-lg: 0 12px 32px rgb(0 0 0 / 0.35);
 
-  --color-bg: #f4f3ff;
-  --color-blob-1: rgb(124 108 245 / 0.22);
-  --color-blob-2: rgb(255 123 84 / 0.18);
-  --color-surface: #ffffff;
-  --color-surface-2: #f6f5fc;
-  --color-surface-3: #ecebf7;
-  --color-border: #e4e2f3;
-  --color-border-strong: #c9c6e3;
-  --color-text: #1b1a2e;
-  --color-text-muted: #5f5d7a;
-  /* Small text (system chat lines, hints, counters): 4.9:1 on white, 4.6:1 on surface-2 (WCAG AA). */
-  --color-text-faint: #6f6d8c;
+  --color-bg: #141514;
+  --color-surface: #20221f;
+  --color-surface-2: #2a2c28;
+  --color-surface-3: #34372f;
+  --color-border: #45483f;
+  --color-border-strong: #5c6054;
+  --color-text: #f1f0e8;
+  --color-text-muted: #b4b7ae;
+  /* Small text (hints, counters, system chat lines): 5.6:1 on the panel colour (WCAG AA). */
+  --color-text-faint: #9ea196;
 
-  --color-primary: #6c5ce7;
-  --color-primary-hover: #5b4bd6;
-  --color-primary-soft: #ebe8ff;
-  --color-primary-contrast: #ffffff;
-  /* Primary as small text on the soft tint (hint letters): 5.4:1. */
-  --color-primary-text: #5646d6;
-  /* The secondary (orange) fill carries white text, so it is dark enough for 4.7:1. */
-  --color-secondary: #c9471a;
-  --color-secondary-hover: #b63f14;
-  --color-secondary-soft: #ffe9e1;
-  --color-secondary-contrast: #ffffff;
-  /* Secondary as text on a surface (the revealed word): 5.2:1 on white. */
-  --color-secondary-text: #c2410c;
-  --color-success: #16a34a;
-  --color-success-soft: #dcfce7;
-  /* Bright status colours stay for icons and borders; text uses these darker ones (5:1 on white). */
-  --color-success-text: #15803d;
-  --color-warning: #d97706;
-  --color-warning-soft: #fef3c7;
-  --color-warning-text: #b45309;
-  --color-danger: #dc2626;
-  --color-danger-soft: #fee2e2;
-  --color-danger-text: #b91c1c;
-  --color-info-soft: #e0f2fe;
-  --color-focus: #6c5ce7;
+  --color-primary: #c7e976;
+  --color-primary-hover: #d5f08f;
+  --color-primary-soft: #2f3624;
+  --color-primary-contrast: #141514;
+  --color-primary-text: #c7e976;
+  --color-secondary: #a699d5;
+  --color-secondary-hover: #b7acdf;
+  --color-secondary-soft: #2d2a3a;
+  --color-secondary-contrast: #141514;
+  --color-secondary-text: #b9aee0;
+  --color-success: #8fcf7c;
+  --color-success-soft: #25311f;
+  --color-success-text: #a6dc94;
+  --color-warning: #e2b75f;
+  --color-warning-soft: #35301f;
+  --color-warning-text: #ebc879;
+  --color-danger: #ef8d7f;
+  --color-danger-soft: #3b2725;
+  --color-danger-text: #f4a497;
+  --color-info-soft: #262f2e;
+  --color-focus: #c7e976;
 
-  --chat-correct-bg: #dcfce7;
-  --chat-correct-fg: #166534;
-  --chat-close-bg: #fef3c7;
-  --chat-close-fg: #92400e;
-  --chat-guessed-bg: #ecfdf5;
-  --chat-guessed-fg: #047857;
+  --chat-correct-bg: #25311f;
+  --chat-correct-fg: #c2e6ad;
+  --chat-close-bg: #35301f;
+  --chat-close-fg: #ebd28e;
+  --chat-guessed-bg: #212b25;
+  --chat-guessed-fg: #aedbb9;
 
   --canvas-bg: #ffffff;
-  --overlay-bg: rgb(27 26 46 / 0.55);
+  --overlay-bg: rgb(20 21 20 / 0.74);
 }
 
-:root[data-theme='dark'] {
-  color-scheme: dark;
-  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.3), 0 2px 8px rgb(0 0 0 / 0.25);
-  --shadow-md: 0 4px 14px rgb(0 0 0 / 0.35), 0 12px 32px rgb(0 0 0 / 0.3);
-  --shadow-lg: 0 18px 48px rgb(0 0 0 / 0.5);
+:root[data-theme='light'] {
+  color-scheme: light;
+  --shadow-lg: 0 12px 32px rgb(20 21 20 / 0.16);
 
-  --color-bg: #15142b;
-  --color-blob-1: rgb(124 108 245 / 0.22);
-  --color-blob-2: rgb(255 123 84 / 0.12);
-  --color-surface: #1f1d3a;
-  --color-surface-2: #262448;
-  --color-surface-3: #2f2c56;
-  --color-border: #34315c;
-  --color-border-strong: #4a4680;
-  --color-text: #f1f0ff;
-  --color-text-muted: #b4b1d6;
-  --color-text-faint: #9593bd;
+  --color-bg: #f1f0e8;
+  --color-surface: #ffffff;
+  --color-surface-2: #f5f4ee;
+  --color-surface-3: #e8e7df;
+  --color-border: #d8d7cd;
+  --color-border-strong: #b9b8ad;
+  --color-text: #141514;
+  --color-text-muted: #4f524a;
+  --color-text-faint: #666a60;
 
-  --color-primary: #8b7dff;
-  --color-primary-hover: #9d91ff;
-  --color-primary-soft: #2d2860;
-  --color-primary-contrast: #0f0e22;
-  --color-primary-text: #a99dff;
-  --color-secondary: #ff8f6b;
-  --color-secondary-hover: #ffa387;
-  --color-secondary-soft: #4a2a22;
-  --color-secondary-contrast: #0f0e22;
-  --color-secondary-text: #ff8f6b;
-  --color-success: #4ade80;
-  --color-success-soft: #14341f;
-  --color-success-text: #4ade80;
-  --color-warning: #fbbf24;
-  --color-warning-soft: #3d2e0b;
-  --color-warning-text: #fbbf24;
-  --color-danger: #f87171;
-  --color-danger-soft: #431b1b;
-  --color-danger-text: #f87171;
-  --color-info-soft: #122a3d;
-  --color-focus: #a99dff;
+  --color-primary: #c7e976;
+  --color-primary-hover: #b8de5f;
+  --color-primary-soft: #eef7d6;
+  --color-primary-contrast: #141514;
+  /* Lime as text or a border on white is invisible: a dark olive cut of it (5.3:1). */
+  --color-primary-text: #4f6a12;
+  --color-secondary: #a699d5;
+  --color-secondary-hover: #978ac9;
+  --color-secondary-soft: #ebe7f6;
+  --color-secondary-contrast: #141514;
+  /* The brand lilac (#A699D5) is 2.3:1 on off-white, so lilac text here, the hero's "More games." included, takes this darker cut (6.4:1). */
+  --color-secondary-text: #5a4a9c;
+  --color-success: #3f9a2f;
+  --color-success-soft: #e3f2dc;
+  --color-success-text: #2f7a22;
+  --color-warning: #b9801a;
+  --color-warning-soft: #f7ecd2;
+  --color-warning-text: #8c5f0c;
+  /* Deep enough for the page colour (off-white) to read on a danger fill at 4.6:1 (.btn--danger, the Spy Game's "Yes" vote). */
+  --color-danger: #c03f29;
+  --color-danger-soft: #f9e3df;
+  --color-danger-text: #a8371f;
+  --color-info-soft: #e6ebe7;
+  --color-focus: #141514;
 
-  --chat-correct-bg: #14341f;
-  --chat-correct-fg: #86efac;
-  --chat-close-bg: #3d2e0b;
-  --chat-close-fg: #fcd34d;
-  --chat-guessed-bg: #10291f;
-  --chat-guessed-fg: #6ee7b7;
+  --chat-correct-bg: #e3f2dc;
+  --chat-correct-fg: #255f1a;
+  --chat-close-bg: #f7ecd2;
+  --chat-close-fg: #6f4b08;
+  --chat-guessed-bg: #e8f1ea;
+  --chat-guessed-fg: #2c5f3a;
 
-  --overlay-bg: rgb(10 9 24 / 0.7);
+  --overlay-bg: rgb(20 21 20 / 0.55);
 }

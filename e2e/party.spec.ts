@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
-import { expectReadyCount, readyAll } from './party';
+import { createParty, expectReadyCount, joinByCode, readyAll } from './party';
 
 /**
  * The party stays together across games. Four players (one on a phone) create a Click Race
@@ -49,14 +49,6 @@ async function newPlayer(browser: Browser, name: string, options: Parameters<Bro
 
 const guests = (): Player[] => players.filter((p) => p !== host);
 
-async function joinByCode(p: Player, slug: string): Promise<void> {
-  await p.page.goto(`/${slug}`);
-  await p.page.getByTestId('home-name').fill(p.name);
-  await p.page.getByTestId('code-input-0').pressSequentially(code, { delay: 20 });
-  await p.page.getByTestId('home-join').click();
-  await expect(p.page.getByTestId('room-code')).toHaveText(code);
-}
-
 async function noHorizontalOverflow(page: Page, width: number): Promise<void> {
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
 }
@@ -86,13 +78,8 @@ test.afterAll(async () => {
 });
 
 test('the host creates a Click Race party, three friends join, and the lobby shows the game picker', async () => {
-  await host.page.goto('/template');
-  await host.page.getByTestId('home-name').fill(host.name);
-  await host.page.getByTestId('home-create').click();
-  code = ((await host.page.getByTestId('room-code').textContent()) ?? '').replace(/\s+/g, '');
-  expect(code).toMatch(ROOM_CODE_RE);
-  await expect(host.page).toHaveURL(new RegExp(`/template/${code}$`));
-  for (const g of guests()) await joinByCode(g, 'template');
+  code = await createParty(host.page, host.name, 'template');
+  for (const g of guests()) await joinByCode(g.page, g.name, code);
   for (const p of players) await expect(p.page.getByTestId('player-item')).toHaveCount(4);
 
   // The host picks from tappable cards (the hidden template game is offered only because it is the current one).
@@ -199,7 +186,7 @@ test('back to lobby keeps the party, and the host switches it to The Spy Game: t
   await host.page.getByTestId('game-picker').locator('[data-testid="game-tile"][data-game="spygame"]').click();
   for (const p of players) {
     await expect(p.page).toHaveURL(new RegExp(`/spygame/${code}$`));
-    await expect(p.page).toHaveTitle(`The Spy Game · room ${code}`);
+    await expect(p.page).toHaveTitle(`boredgames.io · ${code}`);
     await expect(p.page.getByTestId('room-code')).toHaveText(code);
     await expect(p.page.getByTestId('player-item')).toHaveCount(4);
     await expect(p.page.getByTestId('game-picker')).toHaveAttribute('data-game', 'spygame');

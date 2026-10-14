@@ -3,27 +3,38 @@ import { installBrowserGlobals } from '../test/env';
 
 installBrowserGlobals();
 
-const { parseRoute, routeCode, roomPath, gamePath } = await import('./router');
+const { parseRoute, routeCode, roomPath } = await import('./router');
 
 describe('parseRoute', () => {
-  it('maps the root to the library and a game slug to its home', () => {
-    expect(parseRoute('/')).toEqual({ kind: 'library' });
-    const home = parseRoute('/skribble');
-    expect(home.kind === 'game' && home.game.id).toBe('skribble');
-    expect(routeCode(home)).toBeNull();
+  it('maps the root to the front door without a code', () => {
+    expect(parseRoute('/')).toEqual({ kind: 'home', code: null, game: null });
+    expect(routeCode(parseRoute('/'))).toBeNull();
+  });
+
+  it('sends a bare game slug (the old per-game landing page) to the redirect', () => {
+    const route = parseRoute('/skribble');
+    expect(route.kind === 'game' && route.game.id).toBe('skribble');
+    expect(routeCode(route)).toBeNull();
     const hidden = parseRoute('/template/');
     expect(hidden.kind === 'game' && hidden.game.id).toBe('template');
   });
 
-  it('reads a room code after the slug, normalising its case', () => {
-    const route = parseRoute('/skribble/ab2k');
-    expect(route.kind).toBe('game');
-    expect(routeCode(route)).toBe('AB2K');
+  it('opens the front door with the code of an invite link, normalising its case', () => {
+    expect(parseRoute('/skribble/ab2k')).toEqual({ kind: 'home', code: 'AB2K', game: null });
+    expect(parseRoute('/spygame/AB2K')).toEqual({ kind: 'home', code: 'AB2K', game: null });
   });
 
-  it('treats a bare code (path or ?room=) as a legacy link to resolve', () => {
-    expect(parseRoute('/AB2K')).toEqual({ kind: 'code', code: 'AB2K' });
-    expect(parseRoute('/', '?room=ab2k')).toEqual({ kind: 'code', code: 'AB2K' });
+  it('treats a legacy bare code (path or ?room=) the same way', () => {
+    expect(parseRoute('/AB2K')).toEqual({ kind: 'home', code: 'AB2K', game: null });
+    expect(parseRoute('/ab2k')).toEqual({ kind: 'home', code: 'AB2K', game: null });
+    expect(parseRoute('/', '?room=ab2k')).toEqual({ kind: 'home', code: 'AB2K', game: null });
+    expect(parseRoute('/', '?room=ABIL')).toEqual({ kind: 'home', code: null, game: null });
+  });
+
+  it('lets ?game= pick the game Create starts on (hidden games included, for development and tests)', () => {
+    const route = parseRoute('/', '?game=template');
+    expect(route.kind === 'home' && route.game?.id).toBe('template');
+    expect(parseRoute('/', '?game=nope')).toEqual({ kind: 'home', code: null, game: null });
   });
 
   it('rejects codes with look-alike letters and unknown paths', () => {
@@ -33,8 +44,8 @@ describe('parseRoute', () => {
     expect(parseRoute('/skribble/AB2K/extra').kind).toBe('unknown');
   });
 
-  it('builds the paths the app navigates to', () => {
-    expect(gamePath('skribble')).toBe('/skribble');
+  it('builds the in-room path, which is also the invite link', () => {
+    expect(roomPath('skribble', 'AB2K')).toBe('/skribble/AB2K');
     expect(roomPath('template', 'AB2K')).toBe('/template/AB2K');
   });
 });

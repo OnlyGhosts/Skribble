@@ -1,6 +1,6 @@
 import { expect, test, type Browser, type BrowserContext, type Locator, type Page } from '@playwright/test';
 import { PROMPTS } from '../shared/games/quipgame/prompts';
-import { readyAll } from './party';
+import { createParty, enterNameIfAsked, readyAll } from './party';
 
 /**
  * A whole Quip Game between a desktop host and two phones (390x844, touch): the lobby settings,
@@ -44,12 +44,6 @@ async function newPlayer(browser: Browser, name: string, options: Parameters<Bro
 }
 
 const phones = (): Player[] => players.filter((p) => p !== host);
-
-async function readCode(page: Page): Promise<string> {
-  const code = ((await page.getByTestId('room-code').textContent()) ?? '').replace(/\s+/g, '');
-  expect(code).toMatch(ROOM_CODE_RE);
-  return code;
-}
 
 async function boxOf(locator: Locator): Promise<{ x: number; y: number; width: number; height: number }> {
   const box = await locator.boundingBox();
@@ -176,20 +170,17 @@ test.afterAll(async () => {
 });
 
 test('the host creates a Quip Game room, two phones join by code and the host tunes the settings', async () => {
-  await host.page.goto('/quipgame');
+  roomCode = await createParty(host.page, host.name, 'quipgame');
+  await expect(host.page.getByTestId('site-header').getByRole('img', { name: 'boredgames.io' })).toBeVisible();
   await expect(host.page.getByTestId('site-header')).toContainText('Quip Game');
-  await host.page.getByTestId('home-name').fill(host.name);
-  await host.page.getByTestId('home-create').click();
-  roomCode = await readCode(host.page);
-  await expect(host.page).toHaveURL(new RegExp(`/quipgame/${roomCode}$`));
   await expect(host.page.getByTestId('start-game')).toBeDisabled();
 
   for (const p of [pia, quinn]) {
-    await p.page.goto('/quipgame');
+    await p.page.goto('/');
     await p.page.getByTestId('code-input-0').pressSequentially(roomCode, { delay: 20 });
-    await expect(p.page.getByTestId('room-preview')).toContainText(/in the party/);
-    await p.page.getByTestId('home-name').fill(p.name);
+    await expect(p.page.getByTestId('room-preview')).toContainText(/in the party · Quip Game/);
     await p.page.getByTestId('home-join').click();
+    await enterNameIfAsked(p.page, p.name);
     await expect(p.page.getByTestId('room-code')).toHaveText(roomCode);
   }
   await expect(host.page.getByTestId('player-item')).toHaveCount(3);

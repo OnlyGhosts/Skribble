@@ -35,7 +35,7 @@ export function GamePicker({ room, isHost }: Props) {
     <section className="card game-picker" aria-labelledby="game-picker-heading" data-testid="game-picker" data-game={current.id}>
       <div className="card__head">
         <h2 className="card__title" id="game-picker-heading">
-          Pick the next game
+          Pick a game
         </h2>
         <span className="pill pill--accent">Host</span>
       </div>

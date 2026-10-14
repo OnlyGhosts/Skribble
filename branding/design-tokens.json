@@ -1,0 +1,33 @@
+{
+  "colors": {
+    "background": "#141514",
+    "surface": "#20221F",
+    "text": "#F1F0E8",
+    "lime": "#C7E976",
+    "lilac": "#A699D5",
+    "muted": "#B4B7AE",
+    "border": "#45483F"
+  },
+  "radius": {
+    "input": "8px",
+    "button": "8px",
+    "panel": "12px"
+  },
+  "spacing": [
+    4,
+    8,
+    12,
+    16,
+    24,
+    32,
+    48,
+    64,
+    96
+  ],
+  "font": {
+    "display": "Arial Black, Arial, sans-serif",
+    "body": "Arial, Helvetica, sans-serif",
+    "code": "ui-monospace, SFMono-Regular, monospace"
+  },
+  "note": "System font fallback only. Generated references do not identify an actual licensed font."
+}

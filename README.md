@@ -1,26 +1,70 @@
-# Bored Games
+# boredgames.io
 
-A library of games to play with friends, built on one platform. One person picks a game and
-creates a room, shares a **4-character code** (or a link), everyone else types it in and you are
-playing within seconds. No accounts, no app store, works in any modern browser on desktop and
-phones, installable as a home-screen app.
+*Less bored. More games.*
 
-Every game added to the library gets the rooms, codes, seats, lobby, chat, kicks, reconnects,
-scores and the podium for free: a game is a pure reducer on the server and a React screen on the
-client, and nothing else. The owner adds games over time; [docs/ADDING_A_GAME.md](docs/ADDING_A_GAME.md)
-is the copy-paste guide for the next one.
+Phone-first party games for people in the same room, built on one platform. One person creates a
+room, shares a **4-character code** (or a link), everyone else types it into the four boxes on the
+front door and you are playing within seconds. The host picks the game inside the room and the
+party stays together between games. No accounts, no app store, works in any modern browser on
+desktop and phones, installable as a home-screen app.
+
+Every game added gets the rooms, codes, seats, lobby, chat, kicks, reconnects, scores and the
+podium for free: a game is a pure reducer on the server and a React screen on the client, and
+nothing else. The owner adds games over time; [docs/ADDING_A_GAME.md](docs/ADDING_A_GAME.md) is
+the copy-paste guide for the next one.
 
 ## The games
 
-| Game | URL | Players | Status | What it is |
-| --- | --- | --- | --- | --- |
-| **Skribble** | `/skribble` | 2+ | live | A better skribbl.io: draw a word, everyone guesses, fast guesses and clear drawings score |
-| **The Spy Game** | `/spygame` | 3+ | live | One player is the spy and does not know the location; ask questions out loud, vote the spy out before they guess where you are |
-| **Quip Game** | `/quipgame` | 3+ | live | Write the funniest answer: two prompts each, answers go head to head, the room votes, the biggest laughs score |
-| **Click Race** | `/template` | 1+ | hidden | The template game: tap a button, first to the target wins. Not in the library; it proves the platform contract end to end and is the copy base for new games |
+| Game | Players | Status | What it is |
+| --- | --- | --- | --- |
+| **Skribble** | 2+ | live | A better skribbl.io: draw a word, everyone guesses, fast guesses and clear drawings score |
+| **The Spy Game** | 3+ | live | One player is the spy and does not know the location; ask questions out loud, vote the spy out before they guess where you are |
+| **Quip Game** | 3+ | live | Write the funniest answer: two prompts each, answers go head to head, the room votes, the biggest laughs score |
+| **Click Race** | 1+ | hidden | The template game: tap a button, first to the target wins. Never offered in the picker; a party starts on it through `/?game=template` for development and tests. It proves the platform contract end to end and is the copy base for new games |
 
-The library at `/` shows every game whose status is `live`; `soon` games appear as muted cards;
-`hidden` games stay reachable at their URL for development and tests.
+A new party starts on the first live game (Skribble); the lobby's game picker offers every game
+whose status is `live`, and the host can switch the party at any time. There is no game catalogue
+on the front door: `/` has exactly two things to do, join a room or create one.
+
+## The brand
+
+The site is **boredgames.io**, always one lowercase word. The brand lives with the code in
+[`branding/`](branding/README.md): the brief, the brand guide, the landing page spec, the design
+tokens, the mascots, the reference boards and the outlined logo files
+([`branding/logo/`](branding/logo/README.md)). The short version:
+
+- **Dark by default.** Charcoal page (`#141514`), graphite panels (`#20221F`), warm off-white type
+  (`#F1F0E8`), one lime primary action (`#C7E976`, always with ink text), lilac as the supporting
+  accent (`#A699D5`, used sparingly). Fine 1px borders, 8px controls, 12px panels, flat surfaces:
+  no glow, glass, gradients or blur anywhere. The theme toggle offers a light variant on the same
+  system (off-white page, white panels, ink text, the same lime and lilac); dark is what a new
+  visitor gets, whatever their operating system prefers. Tokens: `client/src/platform/styles/tokens.css`.
+- **The wordmark is a vector file, not text.** `branding/logo/boredgames-wordmark.svg` and its
+  variants are outlined (every letter a path, Poppins Black / Regular outlines under the SIL Open
+  Font License), so the logo renders identically everywhere and depends on no font. The app
+  inlines it (`client/src/platform/components/Wordmark.tsx`, `currentColor`, accessible name
+  "boredgames.io"); the copies in `client/public/brand/` are for anything that wants a URL. The
+  "bg." monogram covers tight spaces and the smile tile is the favicon and app icon
+  (`node scripts/brand-icons.mjs` regenerates the PNGs).
+- **Headlines depend on the system font stack.** Headings use `'Arial Black', 'Helvetica Neue',
+  Arial, system-ui` at weight 900 with tight tracking; body text is the system sans; monospace is
+  for room codes and small labels only. No font binaries are bundled, so headline rendering
+  varies by device (a Linux box without Arial Black falls back to its own heavy sans); the
+  wordmark does not.
+- **Voice.** Short, sociable, gently cheeky. Approved lines only: "Less bored. More games.",
+  "Get your people together.", "Boredom has left the chat.", "Made for one more round."; the rest
+  is functional microcopy. No fake stats, no claims.
+- **Mascots.** The two phone characters (lilac bored, lime happy) from `branding/assets/`,
+  rendered inline and decorative beside the hero on desktop, shrunk on tablets, hidden wherever
+  the hero collapses to one column (below 768px), where they would push the form below the fold.
+- **Lilac emphasis.** "More games." is set in the brand lilac itself on the dark theme (7:1 on
+  the charcoal page). On off-white that lilac is 2.3:1, so the light theme uses the darker cut
+  (`--color-secondary-text`, `#5A4A9C`) there, the one deliberate departure from the palette.
+- **Game content art is not part of the rebrand.** The Spy Game location illustrations
+  (`client/src/games/spygame/assets/locations/`, generated by `scripts/spygame-location-images.mjs`)
+  predate the brand and keep their gradient fills and sparkle dots; the chrome around them (cards,
+  tiles, marks, vote buttons) is flat and on the tokens. Regenerating them with flat fills on the
+  brand surfaces is a later content pass, deliberately left out so gameplay content stays as it was.
 
 ## Quick start
 
@@ -35,11 +79,13 @@ Open http://localhost:5173. The Vite dev server proxies `/ws` and `/api` to the 
 
 ## Playing with friends
 
-1. One player opens the site, picks a game and clicks **Create private room**. The lobby shows the
-   code (for example `XK4P`) and an invite link such as `https://your-host/skribble/XK4P`.
-2. Friends open the site and type the code into the four boxes on the front page (codes are one
-   namespace across games, so the code alone finds the right game), or open the link, and pick a
-   name and avatar.
+1. One player opens the site and taps **Create room** (a first visit asks "Who's playing?" for a
+   name and an avatar; both are remembered on the device). The lobby opens with **Pick a game**
+   at the top, the code (for example `XK4P`) and an invite link such as
+   `https://your-host/skribble/XK4P`.
+2. Friends open the site and type the code into the four boxes on the front door (codes are one
+   namespace across games, so the code alone finds the party whatever it is playing), or open the
+   link, which fills the boxes for them, and tap **Join room**.
 3. Everyone taps **Ready** (or **Sit out** to watch this one from the party), the host adjusts
    the settings and hits **Start** once enough players are ready (two for Skribble, three for
    the Spy Game and Quip Game). There is no cap on a game: everyone in the room plays, up to the
@@ -117,7 +163,7 @@ Vercel serves the client from its CDN and runs the game server as one Vercel Fun
 1. Push this repository to GitHub and open https://vercel.com/new. **Import** the repository and choose the branch to deploy.
 2. Keep the detected settings. `vercel.json` drives everything: it builds the client with `npm run build:client`, serves `dist/client`, routes `/ws` and `/api/*` to `api/server.ts`, gives that function a 300-second max duration and asks for Fluid compute. WebSockets need Fluid compute: it is on by default for new projects, but on a project created before April 2025 (or where it was switched off) enable it under **Settings → Functions → Fluid Compute**, otherwise `/api/*` works while every `/ws` upgrade is refused.
 3. Add a Redis store: in the project, open **Storage → Marketplace** and create a Redis (the Upstash or Redis Cloud free tier is plenty). Connect it to the project so it injects `REDIS_URL` (some providers call it `KV_URL`; both are read). Without it the function logs a loud warning and falls back to in-memory rooms, which only work while every player happens to hit the same instance.
-4. **Deploy**, then share the URL. Room links look like `https://your-project.vercel.app/skribble/XK4P` (a bare `https://your-project.vercel.app/XK4P` still works and redirects to the game the room runs).
+4. **Deploy**, then share the URL. Room links look like `https://your-project.vercel.app/skribble/XK4P` (a bare `https://your-project.vercel.app/XK4P` works too: both open the front door with the code filled in).
 
 Good to know:
 
@@ -166,12 +212,13 @@ There is no database to set up: `PORT` is the only required setting, `REDIS_URL`
 | `npm run typecheck` | Strict TypeScript for server, client and shared code |
 | `npm test` | Vitest unit tests (the platform engine and both game modules, protocol helpers, guess matching, codes, the client platform and game modules, the Redis driver across two instances; the Redis tests spawn `redis-server` and are skipped when it is not installed) |
 | `npm run build` | Production build of both halves |
-| `npm run test:e2e` | Playwright end-to-end tests driving several browser contexts through the library, whole games of Skribble and Click Race, reloads, kicks and phone layouts, plus two server instances sharing a Redis |
+| `npm run test:e2e` | Playwright end-to-end tests driving several browser contexts through the front door (the four boxes, paste, keys, errors, deep links, the name step, themes, four viewport widths), whole games of Skribble and Click Race, reloads, kicks and phone layouts, plus two server instances sharing a Redis |
+| `node scripts/brand-icons.mjs` | Regenerates the PNG app icons from the smile tile (`client/public/favicon.svg`) |
 | `npm run check` | Typecheck, unit tests and build in one go |
 
 ## How it's built
 
-The site is a library of games on one platform. The platform owns everything a room needs that is
+The site is a set of party games on one platform. The platform owns everything a room needs that is
 not game-specific; a game is a self-contained module on each side.
 
 ```
@@ -207,16 +254,19 @@ client/src/platform/ React 19 + zustand. game.ts is the client contract (GameCli
                    SettingsFields, playerBadge/playerMeta/playerClassName, ChatInput, chatPlaceholder,
                    onServerMessage, onWelcome, onRoom, onChat, onLeave) and registry.ts the slot the
                    games are installed into by main.tsx (the platform never imports a game). router.ts
-                   maps '/', '/:slug', '/:slug/:CODE' and legacy '/:CODE' with pushState; store/ holds
+                   maps '/' (the front door), '/:slug/:CODE' and legacy '/:CODE' (the front door with
+                   the code filled in) and '/:slug' (redirects to '/') with pushState; store/ holds
                    the connection, seat, room, chat, toasts and prefs; net/socket.ts is the one
                    WebSocket with auto-reconnect that hands game messages and welcome extras to the
-                   room's module; screens/ are Library, GameHome and Lobby; components/ is the design
-                   system (SiteHeader, Avatar, AvatarPicker, CodeInput, PlayerList, Chat, SettingsPanel +
-                   SettingControls, BottomSheet, Toasts, ThemeToggle/SoundToggle, ConnectionPill, Timer,
-                   PodiumOverlay, GamePicker, ReadyControls, ContentModeSetting, Icons); canvas/ the
-                   shared drawing canvas (renderer, flood fill, drawing hook, batching queue, Toolbar
-                   and GameCanvas) any game can opt into; styles/ the tokens, base, components,
-                   library, home and lobby CSS.
+                   room's module; screens/ are Home and Lobby; components/ is the design system
+                   (SiteHeader, Wordmark/Monogram, Mascots, Avatar, AvatarPicker, CodeInput, PlayerList,
+                   Chat, SettingsPanel + SettingControls, BottomSheet, Toasts, ThemeToggle/SoundToggle,
+                   ConnectionPill, Timer, PodiumOverlay, GamePicker, ReadyControls, ContentModeSetting,
+                   Icons); brand/ the outlined wordmark paths; canvas/ the shared drawing canvas
+                   (renderer, flood fill, drawing hook, batching queue, Toolbar and GameCanvas) any
+                   game can opt into; styles/ the tokens, base, components, home and lobby CSS.
+branding/          The brand pack: brief, guide, landing spec, tokens, mascots, references and the
+                   outlined logo files (logo/).
 client/src/games/  GAMES, the client registry (index.ts), and one folder per game: its module, store,
                    screen, components and stylesheet. skribble/ wires up the platform canvas and keeps
                    the type-into-the-blanks guess bar; quipgame/ and spygame/ their screens and
@@ -225,9 +275,22 @@ e2e/               Playwright specs. One browser, several contexts, real server.
 docs/              ADDING_A_GAME.md, the guide for the next game.
 ```
 
+## Room codes
+
 Room codes are one namespace: a room carries its `gameId`, `GET /api/rooms/:code` reveals it, and
-the client routes a bare code to the right game's home. In a room the URL is `/:slug/:CODE`, which
-is also the invite link.
+the front door's four boxes find the party whatever it is playing. In a room the URL is
+`/:slug/:CODE`, which is also the invite link; pasting a whole link into the boxes extracts the code.
+
+**Format and compatibility.** A code is four characters from `ABCDEFGHJKMNPQRSTUVWXYZ23456789`
+(`ROOM_CODE_ALPHABET` in `shared/platform/roomCode.ts`): letters without the look-alikes `I`, `L`
+and `O`, plus the digits `2`–`9`, so nothing gets misread over voice chat (923,521 codes). The
+rebrand brief asked for "four letters"; the live format was deliberately **not** changed, because
+active rooms, saved seats and invitations already carry alphanumeric codes, so the boxes accept
+letters and digits and show `A B C D` as placeholders only. Strict letter-only codes would mean
+changing `ROOM_CODE_ALPHABET` (generation and validation share it): existing rooms would stay
+joinable only as long as validation kept accepting digits, so such a move needs a two-step
+rollout (generate letters only first; drop digits from validation once every digit-bearing room
+has expired).
 
 Skribble's drawing coordinates live in a fixed 800×600 logical space, so every device sees the same
 picture regardless of screen size. The drawer renders locally and the server forwards ops to

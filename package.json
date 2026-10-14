@@ -2,7 +2,7 @@
   "name": "bored-games",
   "version": "0.1.0",
   "private": true,
-  "description": "Bored Games: a library of real-time multiplayer party games (Skribble first) joined with 4-character friend codes.",
+  "description": "boredgames.io: phone-first party games for people in the same room, joined with 4-character room codes.",
   "type": "module",
   "engines": {
     "node": "22.x"

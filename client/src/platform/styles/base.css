@@ -9,6 +9,7 @@ html {
   text-size-adjust: 100%;
 }
 
+/* A flat page: the colour comes from the tokens alone, nothing is painted behind the content. */
 body {
   margin: 0;
   font-family: var(--font-sans);
@@ -19,36 +20,6 @@ body {
   -webkit-font-smoothing: antialiased;
   min-height: 100dvh;
   overflow-x: hidden;
-}
-
-body::before,
-body::after {
-  content: '';
-  position: fixed;
-  z-index: -1;
-  border-radius: 50%;
-  filter: blur(80px);
-  pointer-events: none;
-}
-
-body::before {
-  width: 60vw;
-  height: 60vw;
-  max-width: 720px;
-  max-height: 720px;
-  top: -20vw;
-  left: -15vw;
-  background: var(--color-blob-1);
-}
-
-body::after {
-  width: 50vw;
-  height: 50vw;
-  max-width: 600px;
-  max-height: 600px;
-  right: -15vw;
-  bottom: -20vw;
-  background: var(--color-blob-2);
 }
 
 #root {
@@ -74,6 +45,16 @@ h2,
 h3,
 p {
   margin: 0;
+}
+
+/* Headlines: the heavy compact system grotesk, tight and close-set. */
+h1,
+h2,
+.display {
+  font-family: var(--font-display);
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
 }
 
 button,
@@ -118,13 +99,14 @@ ol {
 }
 
 :focus-visible {
-  outline: 3px solid var(--color-focus);
+  outline: 2px solid var(--color-focus);
   outline-offset: 2px;
   border-radius: var(--radius-sm);
 }
 
 ::selection {
-  background: var(--color-primary-soft);
+  background: var(--color-primary);
+  color: var(--color-primary-contrast);
 }
 
 .hide-mobile {

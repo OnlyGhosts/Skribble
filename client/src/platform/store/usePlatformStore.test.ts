@@ -33,13 +33,13 @@ describe('messages after leaving', () => {
 });
 
 describe('leaving a room', () => {
-  it('lands on the game home of the room that was left and tells the game module', () => {
+  it('lands on the front door after leaving and tells the game module', () => {
     const onLeave = vi.fn();
     registerGames(registryOf({ onLeave }));
     setLocation('/skribble/ABCD');
     state().handleServerMessage(welcome('bob', room()));
     state().resetRoom();
-    expect(window.location.pathname).toBe('/skribble');
+    expect(window.location.pathname).toBe('/');
     expect(onLeave).toHaveBeenCalledTimes(1);
     expect(state().room).toBeNull();
     expect(state().playerId).toBeNull();
@@ -48,7 +48,7 @@ describe('leaving a room', () => {
   it('leaves the address bar alone when it no longer names the room (Back out of a room)', () => {
     setLocation('/skribble/ABCD');
     state().handleServerMessage(welcome('bob', room()));
-    // The browser already moved to the previous entry (the library) before the app learnt about it.
+    // The browser already moved to the previous entry (the front door) before the app learnt about it.
     setLocation('/');
     state().resetRoom();
     expect(window.location.pathname).toBe('/');
@@ -56,9 +56,9 @@ describe('leaving a room', () => {
 
     setLocation('/skribble/ABCD');
     state().handleServerMessage(welcome('bob', room({ gameId: 'template' })));
-    setLocation('/skribble');
+    setLocation('/WXYZ');
     state().resetRoom();
-    expect(window.location.pathname).toBe('/skribble');
+    expect(window.location.pathname).toBe('/WXYZ');
   });
 
   it('keeps the join link when the seat expired but the room may still exist', () => {

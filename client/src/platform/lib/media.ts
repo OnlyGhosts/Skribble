@@ -11,8 +11,6 @@ export const PHONE_QUERY = '(max-width: 760px), (min-aspect-ratio: 3/2) and (max
 /** Fine pointer and hover: a desktop-class device where focusing an input never pops up a keyboard. */
 export const FINE_POINTER_QUERY = '(hover: hover) and (pointer: fine)';
 
-export const DARK_SCHEME_QUERY = '(prefers-color-scheme: dark)';
-
 export function matchesMedia(query: string): boolean {
   return typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia(query).matches;
 }

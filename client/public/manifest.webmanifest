@@ -1,13 +1,13 @@
 {
-  "name": "Bored Games",
-  "short_name": "Bored Games",
-  "description": "Games to play with friends. Share a code, play instantly.",
+  "name": "boredgames.io",
+  "short_name": "boredgames",
+  "description": "Get your people together. A room code is all it takes.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#f4f3ff",
-  "theme_color": "#6c5ce7",
+  "background_color": "#141514",
+  "theme_color": "#141514",
   "icons": [
     { "src": "/icons/icon.svg", "type": "image/svg+xml", "sizes": "any" },
     { "src": "/icons/icon-192.png", "type": "image/png", "sizes": "192x192", "purpose": "any maskable" },

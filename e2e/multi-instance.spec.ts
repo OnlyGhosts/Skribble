@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
-import { readyAll } from './party';
+import { createParty, enterNameIfAsked, readyAll } from './party';
 
 /**
  * Two server instances sharing one Redis (started by e2e/launch-cluster.mjs): the host plays on
@@ -115,17 +115,14 @@ test.afterAll(async () => {
 });
 
 test('the host creates a room on instance A and the guest joins it by code on instance B', async () => {
-  await host.page.goto(`${host.base}/skribble`);
-  await host.page.getByTestId('home-name').fill(host.name);
-  await host.page.getByTestId('home-create').click();
-  code = ((await host.page.getByTestId('room-code').textContent()) ?? '').replace(/\s+/g, '');
+  code = await createParty(host.page, host.name, undefined, host.base);
   expect(code).toMatch(/^[A-Z2-9]{4}$/);
 
-  await guest.page.goto(`${guest.base}/skribble`);
-  await guest.page.getByTestId('home-name').fill(guest.name);
+  await guest.page.goto(`${guest.base}/`);
   await guest.page.getByTestId('code-input-0').pressSequentially(code, { delay: 20 });
   await expect(guest.page.getByTestId('room-preview')).toContainText(/1 player in the party/);
   await guest.page.getByTestId('home-join').click();
+  await enterNameIfAsked(guest.page, guest.name);
   await expect(guest.page.getByTestId('room-code')).toHaveText(code);
 
   await expect(host.page.getByTestId('player-item')).toHaveCount(2);
@@ -196,7 +193,7 @@ test('the second drawer draws, is cut off, and rejoins through the other instanc
 
   const otherBase = second.base === INSTANCE_A ? INSTANCE_B : INSTANCE_A;
   const back = await newPlayer(browser, `${second.name}-back`, otherBase);
-  await back.page.goto(`${otherBase}/skribble`);
+  await back.page.goto(`${otherBase}/`);
   await back.page.evaluate(([key, value]) => sessionStorage.setItem(key, value), [SESSION_KEY, stored ?? ''] as const);
   await back.page.goto(`${otherBase}/skribble/${code}`);
 

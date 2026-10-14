@@ -47,8 +47,8 @@
 
 .tool-btn.is-active {
   background: var(--color-primary-soft);
-  border-color: var(--color-primary);
-  color: var(--color-primary);
+  border-color: var(--color-primary-text);
+  color: var(--color-primary-text);
 }
 
 .tool-btn:disabled {
@@ -71,7 +71,7 @@
 }
 
 .size-btn.is-active {
-  border-color: var(--color-primary);
+  border-color: var(--color-primary-text);
   background: var(--color-primary-soft);
 }
 

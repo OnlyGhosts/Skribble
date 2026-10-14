@@ -5,8 +5,11 @@ import { SESSION_STORAGE_KEY, type StoredSession } from '@shared/platform/protoc
 
 export type Theme = 'light' | 'dark';
 
+/** Dark is the brand's default; the toggle's choice is remembered (index.html applies it before first paint). */
+export const DEFAULT_THEME: Theme = 'dark';
+
 export interface Prefs {
-  /** `null` follows the operating system preference. */
+  /** `null` means the default theme (dark). */
   theme: Theme | null;
   sound: boolean;
 }

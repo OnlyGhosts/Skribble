@@ -3,7 +3,7 @@ import type { ChatMessage, ErrorCode, PlatformClientMessageOf, PlatformServerMes
 import { friendlyError, rejoinFailureText, type JoinErrorCode } from '../lib/format';
 import { loadPrefs, savePrefs, type Prefs, type Theme } from '../lib/storage';
 import { registeredGame } from '../registry';
-import { codeFromLocation, gamePath, navigate } from '../router';
+import { codeFromLocation, navigate } from '../router';
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'reconnecting';
 export type ToastKind = 'info' | 'success' | 'warning' | 'error';
@@ -64,10 +64,10 @@ interface PlatformActions {
   clearJoinError(): void;
   /**
    * Leaves room state behind and tells the game module (`onLeave`). An address bar still naming
-   * the room moves to the game's home synchronously, so the home screen never reads the old room
-   * code; one that already went elsewhere (Back, the brand link) is left where the user put it.
-   * `keepUrl` preserves the room's URL when the seat expired but the room may still exist (one
-   * click joins again).
+   * the room moves to the front door ('/') synchronously, so the home screen never reads the old
+   * room code; one that already went elsewhere (Back, the wordmark link) is left where the user
+   * put it. `keepUrl` preserves the room's URL when the seat expired but the room may still exist
+   * (one click joins again).
    */
   resetRoom(opts?: { keepUrl?: boolean }): void;
   addToast(kind: ToastKind, text: string): void;
@@ -161,7 +161,7 @@ export const usePlatformStore = create<PlatformStore>()((set, get) => ({
     if (room) registeredGame(room.gameId)?.onLeave?.();
     set({ room: null, playerId: null, chat: [], rejoining: false, joinPending: false, pendingJoin: null, playAgainPending: false });
     // After the state is cleared, so routeSync sees a room-less store and does not leave a second time.
-    if (room && !opts?.keepUrl && codeFromLocation() === room.code) navigate(gamePath(room.gameId), { replace: true });
+    if (room && !opts?.keepUrl && codeFromLocation() === room.code) navigate('/', { replace: true });
   },
 
   addToast: (kind, text) => {

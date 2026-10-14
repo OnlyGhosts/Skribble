@@ -1,40 +1,33 @@
 import { useEffect } from 'react';
-import { gameById } from '@shared/platform/games';
 import type { RoomState } from '@shared/platform/protocol';
+import { SITE_NAME } from '@shared/platform/site';
 import { PodiumOverlay } from './platform/components/PodiumOverlay';
 import { ReconnectingBanner } from './platform/components/ReconnectingBanner';
 import { Toasts } from './platform/components/Toasts';
 import { WaitingOverlay } from './platform/components/WaitingOverlay';
-import { DARK_SCHEME_QUERY } from './platform/lib/media';
 import { setSoundEnabled, unlockAudio } from './platform/lib/sound';
-import { fetchPreview } from './platform/lib/useRoomPreview';
+import { DEFAULT_THEME } from './platform/lib/storage';
 import { useViewport } from './platform/lib/useViewport';
 import { wakeLock } from './platform/lib/wakeLock';
 import { socket } from './platform/net/socket';
 import { registeredGame } from './platform/registry';
 import { codeFromLocation, navigate, roomPath, startRouter, useRouter } from './platform/router';
 import { startRouteSync } from './platform/routeSync';
-import { GameHome } from './platform/screens/GameHome';
-import { Library } from './platform/screens/Library';
+import { Home } from './platform/screens/Home';
 import { Lobby } from './platform/screens/Lobby';
 import { selectIsHost } from './platform/store/selectors';
 import { usePlatformStore } from './platform/store/usePlatformStore';
 
-const THEME_COLORS = { light: '#6c5ce7', dark: '#15142b' } as const;
+/** The browser chrome colour per theme: the page colour of each. */
+const THEME_COLORS = { dark: '#141514', light: '#f1f0e8' } as const;
 
+/** Dark unless the toggle chose light; the operating system preference is not consulted. */
 function useTheme(): void {
   const theme = usePlatformStore((s) => s.prefs.theme);
   useEffect(() => {
-    const mq = window.matchMedia(DARK_SCHEME_QUERY);
-    const apply = () => {
-      const resolved = theme ?? (mq.matches ? 'dark' : 'light');
-      document.documentElement.dataset.theme = resolved;
-      document.querySelector('meta[name="theme-color"]')?.setAttribute('content', THEME_COLORS[resolved]);
-    };
-    apply();
-    if (theme !== null) return;
-    mq.addEventListener('change', apply);
-    return () => mq.removeEventListener('change', apply);
+    const resolved = theme ?? DEFAULT_THEME;
+    document.documentElement.dataset.theme = resolved;
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', THEME_COLORS[resolved]);
   }, [theme]);
 }
 
@@ -48,7 +41,7 @@ function useUrlSync(): void {
   useEffect(() => {
     if (!code || !gameId) return;
     navigate(roomPath(gameId, code), { replace: codeFromLocation() === code });
-    document.title = `${gameById(gameId).name} · room ${code}`;
+    document.title = `${SITE_NAME} · ${code}`;
   }, [code, gameId]);
 }
 
@@ -75,38 +68,21 @@ function useWakeLock(inRoom: boolean): void {
   }, [inRoom]);
 }
 
-/** A legacy bare-code link: the preview says which game the room runs, then the URL becomes '/:slug/:CODE'. */
-function LegacyCode({ code }: { code: string }) {
-  const addToast = usePlatformStore((s) => s.addToast);
+/** '/:slug': the per-game landing pages are gone; a game is picked inside the room. */
+function GameRedirect() {
   useEffect(() => {
-    const controller = new AbortController();
-    fetchPreview(code, controller.signal)
-      .then((preview) => {
-        if (controller.signal.aborted) return;
-        if (preview?.exists) {
-          navigate(roomPath(preview.gameId, code), { replace: true });
-          return;
-        }
-        addToast('warning', `There is no room with code ${code} right now.`);
-        navigate('/', { replace: true });
-      })
-      .catch(() => {
-        if (controller.signal.aborted) return;
-        addToast('error', "Couldn't look up that room code. Check your connection and try again.");
-        navigate('/', { replace: true });
-      });
-    return () => controller.abort();
-  }, [code, addToast]);
-  return <Library resolvingCode={code} />;
+    navigate('/', { replace: true });
+  }, []);
+  return <Home code={null} game={null} />;
 }
 
 function UnknownRoute() {
   const addToast = usePlatformStore((s) => s.addToast);
   useEffect(() => {
-    addToast('warning', 'That page does not exist; here is the library instead.');
+    addToast('warning', 'That page does not exist; here is the front door instead.');
     navigate('/', { replace: true });
   }, [addToast]);
-  return <Library />;
+  return <Home code={null} game={null} />;
 }
 
 /** Inside a room: the platform lobby, or the game's own screen with the platform podium once it ended. */
@@ -148,10 +124,9 @@ export function App() {
 
   let screen;
   if (room) screen = <RoomScreen room={room} />;
-  else if (route.kind === 'game') screen = <GameHome key={route.game.id} game={route.game} code={route.code} />;
-  else if (route.kind === 'code') screen = <LegacyCode code={route.code} />;
+  else if (route.kind === 'game') screen = <GameRedirect />;
   else if (route.kind === 'unknown') screen = <UnknownRoute />;
-  else screen = <Library />;
+  else screen = <Home code={route.code} game={route.game} />;
 
   return (
     <>

@@ -15,7 +15,11 @@ const { Timer } = await import('./Timer');
 const { PodiumOverlay } = await import('./PodiumOverlay');
 const { WaitingOverlay, missingPlayers, waitingTitle } = await import('./WaitingOverlay');
 const { ReconnectingBanner, reconnectLabel } = await import('./ReconnectingBanner');
-const { homeView } = await import('../screens/GameHome');
+const { gameById } = await import('@shared/platform/games');
+const { cleanName, firstInvalidBox, focusAfterRefusal, homeView, initialGame } = await import('../screens/Home');
+const { Monogram, Wordmark } = await import('./Wordmark');
+const { PhoneBored, PhoneHappy } = await import('./Mascots');
+const { SiteHeader } = await import('./SiteHeader');
 const { remainingMs } = await import('../lib/useCountdown');
 
 /** The z-index of the first rule whose selector list starts with `selector`. */
@@ -35,6 +39,18 @@ function ruleOf(css: string, selector: string): string {
 
 function stylesheet(name: string): string {
   return readFileSync(fileURLToPath(new URL(`../styles/${name}`, import.meta.url)), 'utf8');
+}
+
+/** The whole `@media <query> { ... }` block, braces balanced. */
+function mediaBlock(css: string, query: string): string {
+  const start = css.indexOf(`@media ${query} {`);
+  if (start < 0) throw new Error(`no @media ${query}`);
+  let depth = 0;
+  for (let i = css.indexOf('{', start); i < css.length; i++) {
+    if (css[i] === '{') depth++;
+    else if (css[i] === '}' && --depth === 0) return css.slice(start, i + 1);
+  }
+  throw new Error(`unbalanced @media ${query}`);
 }
 
 /** Attributes of the first tag carrying `data-testid="<id>"` in the markup. */
@@ -184,12 +200,93 @@ describe('reconnecting banner', () => {
   });
 });
 
-describe('game home while rejoining', () => {
-  it('shows the rejoining spinner or the join form, never both once the rejoin has dragged on', () => {
+describe('front door', () => {
+  it('shows the rejoining spinner or the form, never both once the rejoin has dragged on', () => {
     expect(homeView(false, false)).toBe('form');
     expect(homeView(false, true)).toBe('form');
     expect(homeView(true, false)).toBe('rejoining');
     expect(homeView(true, true)).toBe('stale');
+  });
+
+  it('starts a new party on the first live game of the registry', () => {
+    expect(initialGame().id).toBe('skribble');
+    expect(initialGame().status).toBe('live');
+    expect(initialGame(gameById('template')).id).toBe('template');
+  });
+
+  it('focuses the first empty box after a failed submit, or the first box when a complete code was refused', () => {
+    expect(firstInvalidBox('')).toBe(0);
+    expect(firstInvalidBox('AB')).toBe(2);
+    expect(firstInvalidBox('A C')).toBe(1);
+    expect(firstInvalidBox('ABCD')).toBe(0);
+  });
+
+  it('sends the focus to the first invalid box for a code error and to Join room for every other refusal, never to <body>', () => {
+    expect(focusAfterRefusal('ROOM_NOT_FOUND', 'AB2K')).toBe(0);
+    expect(focusAfterRefusal('INVALID_CODE', 'AB')).toBe(2);
+    for (const code of ['ROOM_FULL', 'GAME_IN_PROGRESS', 'OFFLINE', 'TIMEOUT', 'RATE_LIMITED', 'INTERNAL'] as const) {
+      expect(focusAfterRefusal(code, 'AB2K'), code).toBe('join');
+    }
+  });
+
+  it('sets "More games." in the brand lilac on dark and the darker cut only on the light theme', () => {
+    const css = stylesheet('home.css');
+    expect(ruleOf(css, '.hero__accent')).toContain('color: var(--color-secondary)');
+    expect(ruleOf(css, '.hero__accent')).not.toContain('--color-secondary-text');
+    expect(ruleOf(css, ":root[data-theme='light'] .hero__accent")).toContain('color: var(--color-secondary-text)');
+    const tokens = stylesheet('tokens.css');
+    expect(tokens).toMatch(/\n:root \{[^]*?--color-secondary: #a699d5;/);
+  });
+
+  it('hides the mascots wherever the hero is single-column, so they never push Create below the fold', () => {
+    const css = stylesheet('home.css');
+    expect(ruleOf(css, '.hero__mascots')).toContain('display: flex');
+    // The hero drops to one column at 767px; the mascots go with it, not at some narrower width of their own.
+    const phone = mediaBlock(css, '(max-width: 767px)');
+    expect(phone).toMatch(/\.hero \{[^}]*grid-template-columns: minmax\(0, 1fr\);/);
+    expect(phone).toMatch(/\.hero__mascots \{[^}]*display: none;/);
+    expect(css).not.toContain('639px');
+  });
+
+  it('cleans a name the way the handlers want it', () => {
+    expect(cleanName('  Pia   Lee ')).toBe('Pia Lee');
+    expect(cleanName('   ')).toBe('');
+  });
+});
+
+describe('wordmark and mascots', () => {
+  it('renders the outlined wordmark as vector paths with "boredgames.io" as its accessible name, never as live text', () => {
+    const html = renderToString(createElement(Wordmark));
+    expect(html).toContain('<title');
+    expect(html).toContain('boredgames.io</title>');
+    expect(html).toContain('role="img"');
+    expect(html.match(/<path /g)?.length).toBe(2);
+    expect(html).not.toContain('<text');
+    expect(html).toContain('fill="currentColor"');
+    expect(html).not.toMatch(/font-family/);
+    const mono = renderToString(createElement(Monogram));
+    expect(mono).toContain('boredgames.io</title>');
+    expect(mono).toContain('<rect');
+  });
+
+  it('renders the pack mascots flat and decorative: solid fills, a hard shadow, no screen lines', () => {
+    for (const Mascot of [PhoneBored, PhoneHappy]) {
+      const html = renderToString(createElement(Mascot));
+      expect(html).toContain('aria-hidden="true"');
+      expect(html).not.toMatch(/gradient|filter|opacity/);
+      expect(html.match(/<rect /g)?.length).toBe(2);
+    }
+    expect(renderToString(createElement(PhoneBored))).toContain('#A699D5');
+    expect(renderToString(createElement(PhoneHappy))).toContain('#C7E976');
+  });
+
+  it('puts the wordmark (no controller icon, no live site name) in the site header', () => {
+    const html = renderToString(createElement(SiteHeader));
+    expect(html).toContain('data-testid="wordmark"');
+    expect(html).not.toContain('brand__mark');
+    // The only "boredgames.io" in the markup is the SVG's accessible title, never a live-text span.
+    expect(html.replace(/<title[^>]*>boredgames\.io<\/title>/, '')).not.toContain('boredgames.io');
+    expect(html).toContain('data-testid="theme-toggle"');
   });
 });
 

@@ -1,7 +1,8 @@
 import type { CSSProperties } from 'react';
 
 const PIECES = 36;
-const COLORS = ['#f59e0b', '#ef4444', '#6c5ce7', '#16a34a', '#0ea5e9', '#ec4899'];
+// The brand palette only: lime, lilac, off-white and their quieter cuts.
+const COLORS = ['#c7e976', '#a699d5', '#f1f0e8', '#8fcf7c', '#b9aee0', '#e2b75f'];
 
 /** A deterministic spread (no Math.random: the pieces look the same on every render and in tests). */
 function pieceStyle(i: number): CSSProperties {

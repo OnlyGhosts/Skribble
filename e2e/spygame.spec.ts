@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type BrowserContext, type Locator, type Page } from '@playwright/test';
-import { readyAll } from './party';
+import { createParty, enterNameIfAsked, readyAll } from './party';
 
 /**
  * A whole two-round Spy Game between a desktop host and two phones (390x844, touch): roles,
@@ -45,12 +45,6 @@ async function newPlayer(browser: Browser, name: string, options: Parameters<Bro
 }
 
 const phones = (): Player[] => players.filter((p) => p !== host);
-
-async function readCode(page: Page): Promise<string> {
-  const code = ((await page.getByTestId('room-code').textContent()) ?? '').replace(/\s+/g, '');
-  expect(code).toMatch(ROOM_CODE_RE);
-  return code;
-}
 
 async function roleOf(p: Player): Promise<string> {
   return (await p.page.getByTestId('spygame-role').getAttribute('data-role')) ?? '';
@@ -120,21 +114,17 @@ test.afterAll(async () => {
 });
 
 test('the host creates a Spy Game room, two phones join by code and the host tunes the settings', async () => {
-  await host.page.goto('/spygame');
+  roomCode = await createParty(host.page, host.name, 'spygame');
   await expect(host.page.getByTestId('site-header')).toContainText('The Spy Game');
-  await host.page.getByTestId('home-name').fill(host.name);
-  await host.page.getByTestId('home-create').click();
-  roomCode = await readCode(host.page);
-  await expect(host.page).toHaveURL(new RegExp(`/spygame/${roomCode}$`));
   // Three players are needed.
   await expect(host.page.getByTestId('start-game')).toBeDisabled();
 
   for (const p of [pia, quinn]) {
-    await p.page.goto('/spygame');
+    await p.page.goto('/');
     await p.page.getByTestId('code-input-0').pressSequentially(roomCode, { delay: 20 });
-    await expect(p.page.getByTestId('room-preview')).toContainText(/in the party/);
-    await p.page.getByTestId('home-name').fill(p.name);
+    await expect(p.page.getByTestId('room-preview')).toContainText(/in the party · The Spy Game/);
     await p.page.getByTestId('home-join').click();
+    await enterNameIfAsked(p.page, p.name);
     await expect(p.page.getByTestId('room-code')).toHaveText(roomCode);
     await expect(p.page).toHaveURL(new RegExp(`/spygame/${roomCode}$`));
   }
@@ -244,6 +234,9 @@ test('an accusation pauses the clock and opens the vote sheet; a tie fails and p
     const box = await boxOf(other.page.getByTestId(id));
     expect(box.height, `${id} is a 44px target`).toBeGreaterThanOrEqual(MIN_TARGET);
   }
+  // "Yes, spy" is ink on the restrained salmon danger fill (7.7:1), never white on it.
+  await expect(other.page.getByTestId('vote-yes')).toHaveCSS('background-color', 'rgb(239, 141, 127)');
+  await expect(other.page.getByTestId('vote-yes')).toHaveCSS('color', 'rgb(20, 21, 20)');
   // The accuser's auto-Yes is already on the board. Nothing says how many may still vote: that would name the spy.
   await expect(other.page.getByTestId('vote-tally')).toHaveAttribute('data-yes', '1');
   await expect(other.page.getByTestId('vote-tally')).toHaveAttribute('data-no', '0');
