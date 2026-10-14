@@ -77,6 +77,7 @@ export function MyHand({ room, view, meId, size }: Props) {
       aria-label="You"
       data-testid="my-area"
       data-role="player"
+      data-player-id={meId}
       data-chips={seat.chips}
       data-status={seat.busted ? 'out' : seat.status}
       data-my-turn={myTurn}
