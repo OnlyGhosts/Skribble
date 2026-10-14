@@ -15,6 +15,8 @@ import { isGuesser, isHangman, isNewSection, isNewTurn, isOut } from './hooks';
 import { chatPlaceholderFor } from './lib/text';
 import { HangmanScreen } from './Screen';
 import { HangmanSettingsFields } from './SettingsFields';
+import { playHangmanSounds } from './sfx';
+import { hangmanSounds } from './sounds';
 import { useHangmanStore } from './store';
 import './hangman.css';
 
@@ -24,6 +26,7 @@ export const hangmanClient = defineGameClient<HangmanView, HangmanSettings>({
   meta,
   Screen: HangmanScreen,
   SettingsFields: HangmanSettingsFields,
+  sounds: hangmanSounds,
 
   playerBadge(room, player) {
     const view = room.game;
@@ -111,11 +114,7 @@ export const hangmanClient = defineGameClient<HangmanView, HangmanSettings>({
         vibrate(30);
       }
     }
-    if (view.phase === 'turnEnd' && before?.phase !== 'turnEnd' && prev) playCue('turnEnd');
-  },
-
-  onChat(message) {
-    if (message.kind === 'correct') playCue('correct');
+    if (prev && before) playHangmanSounds(view, before, me);
   },
 
   onLeave() {

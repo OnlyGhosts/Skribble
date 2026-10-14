@@ -51,12 +51,12 @@ function useSound(): void {
   useEffect(() => setSoundEnabled(sound), [sound]);
   useEffect(() => {
     loadPlatformSoundsAfterGesture();
+    // A touch only counts as a gesture once it ends (pointerup, touchend); a mouse already on pointerdown.
+    const events = ['pointerdown', 'pointerup', 'touchend', 'keydown'] as const;
     const unlock = () => unlockAudio();
-    window.addEventListener('pointerdown', unlock, { passive: true });
-    window.addEventListener('keydown', unlock);
+    for (const type of events) window.addEventListener(type, unlock, { passive: true });
     return () => {
-      window.removeEventListener('pointerdown', unlock);
-      window.removeEventListener('keydown', unlock);
+      for (const type of events) window.removeEventListener(type, unlock);
     };
   }, []);
 }

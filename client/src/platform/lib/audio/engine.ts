@@ -41,22 +41,16 @@ export class SoundEngine {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
   private on = true;
+  /** A user gesture has happened: browsers block audio before one. */
   private gestured = false;
   private readonly samples = new Map<string, Sample>();
   private readonly rendered = new Map<Render, AudioBuffer>();
+  /** Sounds made in code waiting for the context to render them ahead of their first play. */
+  private readonly toRender = new Set<Render>();
   private readonly lastPlayed = new Map<string, number>();
   private readonly afterGesture: (() => void)[] = [];
 
   constructor(private readonly env: AudioEnv) {}
-
-  get enabled(): boolean {
-    return this.on;
-  }
-
-  /** A user gesture has happened (browsers block audio before one). */
-  get unlocked(): boolean {
-    return this.gestured;
-  }
 
   setEnabled(on: boolean): void {
     this.on = on;
@@ -67,7 +61,7 @@ export class SoundEngine {
   unlock(): void {
     const first = !this.gestured;
     this.gestured = true;
-    if (this.on && this.context() && first) this.decodeAll();
+    if (this.on) this.context();
     if (!first) return;
     for (const fn of this.afterGesture.splice(0)) {
       try {
@@ -84,9 +78,13 @@ export class SoundEngine {
     else this.afterGesture.push(fn);
   }
 
-  /** Starts fetching these files; idempotent. Decoding waits for the context. */
-  load(urls: readonly string[]): void {
+  /** Starts fetching these files (and readies these sounds made in code); idempotent. Decoding and rendering wait for the context. */
+  load(urls: readonly string[], renders: readonly Render[] = []): void {
     for (const url of urls) this.sample(url);
+    for (const render of renders) {
+      if (this.ctx) this.renderBuffer(this.ctx, render);
+      else this.toRender.add(render);
+    }
   }
 
   /** True once the file is decoded and can play at once. */
@@ -136,6 +134,7 @@ export class SoundEngine {
         master.connect(ctx.destination);
         this.ctx = ctx;
         this.master = master;
+        this.prepareAll();
       }
       if (this.ctx.state === 'suspended') void this.ctx.resume().catch(() => undefined);
       return this.ctx;
@@ -174,13 +173,18 @@ export class SoundEngine {
     return sample.decoding;
   }
 
-  private decodeAll(): void {
+  private prepareAll(): void {
     for (const url of this.samples.keys()) void this.decode(url);
+    const ctx = this.ctx;
+    if (!ctx) return;
+    for (const render of this.toRender) this.renderBuffer(ctx, render);
+    this.toRender.clear();
   }
 
   private renderBuffer(ctx: AudioContext, render: Render): AudioBuffer {
     let buffer = this.rendered.get(render);
     if (!buffer) {
+      this.toRender.delete(render);
       const data = render(ctx.sampleRate, () => this.env.random());
       buffer = ctx.createBuffer(1, Math.max(1, data.length), ctx.sampleRate);
       buffer.getChannelData(0).set(data);

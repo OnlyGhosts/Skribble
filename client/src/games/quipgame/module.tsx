@@ -14,6 +14,8 @@ import { RESULT_PHASES, WRITING_PHASES, phaseEntered, stepChanged } from './hook
 import { chatPlaceholderFor } from './lib/text';
 import { QuipGameScreen } from './Screen';
 import { QuipgameSettingsFields } from './SettingsFields';
+import { clearQuipgameSounds, playRevealSounds } from './sfx';
+import { quipgameSounds } from './sounds';
 import { useQuipgameStore } from './store';
 import './quipgame.css';
 
@@ -21,6 +23,7 @@ export const quipgameClient = defineGameClient<QuipgameView, QuipgameSettings>({
   meta: gameById('quipgame'),
   Screen: QuipGameScreen,
   SettingsFields: QuipgameSettingsFields,
+  sounds: quipgameSounds,
 
   playerBadge(room, player) {
     const view = room.game;
@@ -60,6 +63,7 @@ export const quipgameClient = defineGameClient<QuipgameView, QuipgameSettings>({
   onRoom(room, prev) {
     const store = useQuipgameStore.getState();
     if (room.phase === 'lobby') {
+      clearQuipgameSounds();
       store.reset();
       return;
     }
@@ -79,11 +83,12 @@ export const quipgameClient = defineGameClient<QuipgameView, QuipgameSettings>({
       playCue('turnEnd');
       vibrate(40);
     } else if (phaseEntered(prev, room, RESULT_PHASES) || (stepChanged(prev, room) && RESULT_PHASES.includes(view.phase))) {
-      playCue('correct');
+      playRevealSounds(view);
     }
   },
 
   onLeave() {
+    clearQuipgameSounds();
     useQuipgameStore.getState().reset();
   },
 });

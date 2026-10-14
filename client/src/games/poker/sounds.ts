@@ -11,5 +11,5 @@ export const pokerSounds = defineSounds('poker', {
   allIn: { file: TABLE_FILES.pushAll, volume: 0.55 },
   fold: { file: TABLE_FILES.toss, volume: 0.45 },
   collect: { file: TABLE_FILES.collect, volume: 0.55 },
-  win: { file: 'stings/win', volume: 0.7, cooldownMs: 2000 },
+  win: { file: 'stings/win', volume: 0.7, cooldownMs: 2000, steady: true },
 });

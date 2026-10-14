@@ -1,4 +1,5 @@
 import { socket } from '../../platform/net/socket';
+import { spygameSounds } from './sounds';
 
 export function guessLocation(locationId: string): void {
   socket.send({ t: 'guess', locationId });
@@ -9,6 +10,7 @@ export function accusePlayer(playerId: string): void {
 }
 
 export function castVote(yes: boolean): void {
+  spygameSounds.play('vote');
   socket.send({ t: 'vote', yes });
 }
 

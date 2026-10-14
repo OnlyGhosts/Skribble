@@ -519,6 +519,8 @@ export interface GameClientModule<V = unknown, S = Record<string, unknown>> {
   meta: GameMeta;
   /** Rendered while the room is 'playing' or 'ended' (the platform adds the podium overlay for 'ended'). */
   Screen: ComponentType<GameScreenProps<V, S>>;
+  /** The game's sound effects; the platform starts loading them when the game screen mounts. */
+  sounds?: AnySoundBank;
   /** Extra rows inside the lobby settings panel, under the platform fields. */
   SettingsFields?: ComponentType<SettingsFieldsProps<S>>;
   /** A small badge in the corner of the player's avatar (Skribble: pencil / check). */
@@ -1749,7 +1751,40 @@ is the reference for a scrolling column with a canvas and a keys panel.
 
 ### 8.5 Sound, haptics, formatting
 
-- [`lib/sound.ts`](../client/src/platform/lib/sound.ts): `playCue('correct' | 'yourTurn' | 'tick' | 'turnEnd')`, silent when the user muted sound.
+- [`lib/sound.ts`](../client/src/platform/lib/sound.ts): `playCue('correct' | 'yourTurn' | 'tick' | 'turnEnd' | 'fanfare')`
+  for the short note cues, and `defineSounds(group, { name: def })` for a game's own sound
+  effects. Everything is silent when the user muted sound, before the first tap, and never throws.
+
+**Sound effects.** A game declares its sounds once, in `client/src/games/<id>/sounds.ts` (no
+React, no CSS: the unit tests and the e2e suite import it), sets the bank as the module's
+`sounds` and adds it to `GAME_SOUND_BANKS` in
+[`client/src/games/sounds.ts`](../client/src/games/sounds.ts); the platform starts fetching the
+files when the game screen mounts (its own sounds load after the first tap). Each sound is a
+recorded file under [`client/public/sounds/`](../client/public/sounds/) (named without
+`/sounds/` or `.mp3`; an array picks one at random each time) or a sound made in code
+(`render`: the shared `splash`, `whoosh`, `drumroll` and `applause`, or your own pure function of
+the sample rate). `volume` is its level before the 0.6 master (cards and clicks about 0.3 to
+0.5, wins about 0.7); `cooldownMs` drops repeats that come too fast (60 ms by default); every
+play wanders up to 4% off pitch unless `steady` is set (musical stings).
+
+```ts
+export const pokerSounds = defineSounds('poker', {
+  deal: { file: TABLE_FILES.deal, volume: 0.4, cooldownMs: 40 },
+  check: { file: TABLE_FILES.knock, volume: 0.5 },
+  win: { file: 'stings/win', volume: 0.7, cooldownMs: 2000, steady: true },
+});
+pokerSounds.play('check', { volume: mine ? 1 : ONLOOKER_VOLUME });
+```
+
+Play a sound where the moment happens: in `onRoom` (comparing `prev` with the new snapshot), in
+an action (a tap the player just made), or timed to an animation with `createSoundSchedule()`
+(the card games use `scheduleTimelineSounds` in
+[`platform/table/sounds.ts`](../client/src/platform/table/sounds.ts) so a card's sound lands with
+the card). Someone else's moment plays at `ONLOOKER_VOLUME`. A new file gets a row in
+[`CREDITS.md`](../client/public/sounds/CREDITS.md) (pack, original file, licence; only CC0 or
+your own) and goes through `scripts/sounds/build.sh`; the unit tests fail on a file nothing
+plays, a missing credit or a set over 800 KB, and `e2e/sounds.spec.ts` checks every file is
+served and decodes.
 - [`lib/haptics.ts`](../client/src/platform/lib/haptics.ts): `vibrate(ms)`.
 - [`lib/format.ts`](../client/src/platform/lib/format.ts): `formatSeconds`, `formatPoints` (+N), `plural`, `ordinal`, `friendlyError`.
 - [`lib/useCountdown.ts`](../client/src/platform/lib/useCountdown.ts): `useCountdown(endsAt)` (ms) and `useCountdownSeconds(endsAt)` on the server clock; `remainingMs(endsAt, clockOffset)` for non-hook code.
@@ -1819,6 +1854,9 @@ Run from the repository root; everything is green at HEAD.
 7. Hygiene: no `Date.now` / `Math.random` / timers in `server/games/<id>/`, `.js` extensions on
    relative imports in `shared/` and `server/`, comments only where the logic is not obvious,
    small modules.
+8. Sound: a live game has a `sounds` bank (section 8.5), listed in `GAME_SOUND_BANKS`, every new
+   file credited in `client/public/sounds/CREDITS.md`; `client/src/games/sounds.test.ts` and
+   `e2e/sounds.spec.ts` check them. Play a round with sound on and once with it off.
 
 ---
 

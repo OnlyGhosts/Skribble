@@ -41,6 +41,10 @@ called Scribble), the owner's decisions win. The short version:
   device. Tokens, including a `--game-<id>` accent per game: `client/src/platform/styles/tokens.css`.
 - **Type.** Space Grotesk for headings, Inter for text, IBM Plex Mono for room codes, self-hosted
   latin subsets under the SIL Open Font License (`client/public/fonts/`, with the licences).
+- **Sound.** Short effects for every game (cards, chips, dice, splashes, stings), from Kenney's
+  CC0 packs, mono MP3 under 800 KB in all (`client/public/sounds/`, with `CREDITS.md` listing each
+  file's pack and original and what plays when). A game's sounds load when its screen mounts;
+  the switch in the settings menu mutes everything.
 - **The wordmark is outlined Space Grotesk, not text.** The app inlines it
   (`client/src/platform/components/Wordmark.tsx`, accessible name "boredgames.io"): "bored" and
   ".io" in the text colour, "games" in lime on dark and deep olive (`#405D17`) on light.
@@ -250,7 +254,8 @@ client/src/platform/ React 19 + zustand. game.ts is the client contract (GameCli
                    (SiteHeader, Wordmark, Mascots, GameGlyph/GameMark, Avatar, AvatarPicker, CodeInput,
                    PlayerList, Chat, SettingsPanel + SettingControls, BottomSheet, Toasts, Preferences
                    (the settings gear: theme and sound), ConnectionPill, Timer, PodiumOverlay, GamePicker, ReadyControls, ContentModeSetting,
-                   Icons); brand/ the outlined wordmark paths; canvas/ the shared drawing canvas
+                   Icons); lib/sound.ts and lib/audio/ the sound engine (banks, cooldowns, effects
+                   made in code); brand/ the outlined wordmark paths; canvas/ the shared drawing canvas
                    (renderer, flood fill, drawing hook, batching queue, Toolbar and GameCanvas) any
                    game can opt into; styles/ the tokens, base, components, home and lobby CSS.
 branding/          The brand pack: brief, guide, landing spec, tokens, mascots, references and the

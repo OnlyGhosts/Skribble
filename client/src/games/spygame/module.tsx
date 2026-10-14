@@ -3,7 +3,7 @@
  * cues (sound, haptics, the vote sheet) that react to snapshots. Snapshots carry everything, so
  * there are no server messages to handle.
  */
-import type { SpygameSettings, SpygameView } from '@shared/games/spygame/protocol';
+import { outcomeWinner, type SpygameSettings, type SpygameView } from '@shared/games/spygame/protocol';
 import { gameById } from '@shared/platform/games';
 import { defineGameClient } from '../../platform/game';
 import { formatPoints } from '../../platform/lib/format';
@@ -15,6 +15,7 @@ import { canGuessNow, isNewRound, nameOf, roundEnded, spyWentAway, voteEnded, vo
 import { chatPlaceholderFor, voteNotice, waitingNotice, wrongGuessNotice } from './lib/text';
 import { SpyGameScreen } from './Screen';
 import { SpygameSettingsFields } from './SettingsFields';
+import { spygameSounds as sfx } from './sounds';
 import { useSpygameStore } from './store';
 import './spygame.css';
 
@@ -22,6 +23,7 @@ export const spygameClient = defineGameClient<SpygameView, SpygameSettings>({
   meta: gameById('spygame'),
   Screen: SpyGameScreen,
   SettingsFields: SpygameSettingsFields,
+  sounds: sfx,
 
   playerBadge(room, player) {
     const view = room.game;
@@ -72,13 +74,13 @@ export const spygameClient = defineGameClient<SpygameView, SpygameSettings>({
     if (isNewRound(prev, room)) {
       store.clearSelections();
       // A fresh entry (welcome) is not a round starting under this player's feet.
-      if (prev) playCue('yourTurn');
+      if (prev) sfx.play('reveal');
     }
     // The phone column scrolls, so a change that lands above the fold is also announced as a toast.
     if (voteStarted(prev, room)) {
       const vote = room.game.vote;
       if (prev) {
-        playCue('correct');
+        sfx.play('accuse');
         vibrate(40);
       }
       store.highlightPlayer(null);
@@ -87,7 +89,7 @@ export const spygameClient = defineGameClient<SpygameView, SpygameSettings>({
     }
     if (voteEnded(prev, room)) store.setVoteSheetOpen(false);
     if (wrongGuessAdded(prev, room)) {
-      playCue('correct');
+      sfx.play('wrongGuess');
       addToast('warning', wrongGuessNotice(room.game.guessesLeft));
       store.highlightLocation(null);
     }
@@ -96,7 +98,9 @@ export const spygameClient = defineGameClient<SpygameView, SpygameSettings>({
     // the spy's pause, a wrong guess, the reveal): the next tap must never send a guess on its own.
     if (!canGuessNow(room.game) && store.highlightedLocation !== null) store.highlightLocation(null);
     if (roundEnded(prev, room)) {
-      playCue('turnEnd');
+      const outcome = room.game.reveal?.outcome;
+      if (outcome === undefined || outcome === 'spyLeft') playCue('turnEnd');
+      else sfx.play(outcomeWinner(outcome) === 'spy' ? 'spyWins' : 'caught');
       store.clearSelections();
     }
   },

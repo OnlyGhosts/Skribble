@@ -1,5 +1,6 @@
 import { socket } from '../../platform/net/socket';
 import { hangmanCanvas } from './canvas';
+import { hangmanSounds } from './sounds';
 import { useHangmanStore } from './store';
 
 export function chooseWord(index: number): void {
@@ -13,6 +14,7 @@ export function sendCustomWord(text: string): boolean {
 }
 
 export function guessLetter(letter: string): void {
+  hangmanSounds.play('key');
   socket.send({ t: 'letter', letter: letter.toUpperCase() });
 }
 
