@@ -2,7 +2,7 @@
  * The game registry: every game the site offers, in library order. Adding a game means adding a
  * GameId, a GameMeta entry here, a server module (server/games) and a client module (client/src/games).
  */
-export type GameId = 'skribble' | 'spygame' | 'quipgame' | 'hangman' | 'template';
+export type GameId = 'skribble' | 'spygame' | 'quipgame' | 'hangman' | 'battleships' | 'template';
 
 export type GameStatus = 'live' | 'soon' | 'hidden';
 
@@ -101,6 +101,25 @@ export const GAME_LIST: readonly GameMeta[] = [
     maxPlayers: null,
     icon: '🪢',
     accent: '#b45309',
+    status: 'live',
+  },
+  {
+    id: 'battleships',
+    slug: 'battleships',
+    name: 'Battleships',
+    tagline: 'Hunt the fleets. Last one floating wins.',
+    description:
+      'Hide your fleet on a grid, then take turns calling shots at everyone else. Play every player for themselves or in two teams sharing one board, and roll the dice after each shot for a chance to slip an undamaged ship into new waters. The last fleet afloat wins.',
+    howToPlay: [
+      'Place your ships on your grid before the clock runs out, or let the game place them for you.',
+      'On your turn pick an opponent and a cell: miss, hit or sunk, and everyone hears about it.',
+      'Roll a 5 or 6 after your shot and you may secretly slide an undamaged ship one cell.',
+      'A fleet with every ship sunk is out; the last player or team floating wins.',
+    ],
+    minPlayers: 2,
+    maxPlayers: 8,
+    icon: '🚢',
+    accent: '#0369a1',
     status: 'live',
   },
   {

@@ -47,6 +47,13 @@ export const GAME_TEST_FIXTURES: Readonly<Record<GameId, GameTestFixture>> = {
     // With rng () => 0 the host is the first hangman and 'APPLE' their first choice.
     validMessage: { t: 'chooseWord', index: 0 },
   },
+  battleships: {
+    // Solo on the small board with no dice, so rng () => 0 packs every fleet into the top rows and auto shots scan from A1.
+    settings: { mode: 'solo', boardSize: 8, fleet: 'small', placeSeconds: 30, turnSeconds: 10, diceMoves: false },
+    longSettings: { boardSize: 10, fleet: 'classic', placeSeconds: 120, turnSeconds: 60 },
+    // Any captain may ask for a random layout while the fleets are being placed.
+    validMessage: { t: 'autoPlace' },
+  },
   template: {
     settings: {},
     longSettings: { timeLimit: 120 },

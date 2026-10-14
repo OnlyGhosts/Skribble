@@ -1,0 +1,1108 @@
+/* ---------- Battleships: layout ---------- */
+.bs {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr) 320px;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: var(--space-4);
+  height: 100dvh;
+  padding: var(--space-4) var(--gutter);
+  width: min(1500px, 100%);
+  margin: 0 auto;
+}
+
+.bs__top {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+}
+
+.bs__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.bs__turn {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+  min-width: 0;
+}
+
+.bs__turn strong {
+  font-weight: 800;
+}
+
+.bs__turn small {
+  color: var(--color-text-faint);
+  font-weight: 600;
+  font-size: 0.75rem;
+}
+
+.bs__clock {
+  justify-self: center;
+}
+
+.bs__side {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.bs__players-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 44px;
+  padding: 0 10px;
+  border-radius: var(--radius-pill);
+  background: var(--color-primary-soft);
+  color: var(--color-primary-text);
+  font-weight: 800;
+  font-size: 0.9rem;
+}
+
+.bs__icon-btn {
+  width: 44px;
+  height: 44px;
+}
+
+.bs-dice {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+  padding: 0 10px;
+  border-radius: var(--radius-pill);
+  background: var(--color-secondary-soft);
+  color: var(--color-secondary-text);
+  font-weight: 800;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+  animation: bs-pop 0.3s ease;
+}
+
+.bs__left {
+  grid-row: 2;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-4);
+}
+
+.bs__players,
+.bs__log {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-3);
+}
+
+.bs__players-body,
+.bs__log-body {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.bs__log-title {
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-faint);
+  padding: 0 4px 8px;
+}
+
+/* One column inside a fixed frame: the status, the tabs and the grid on show scroll as a whole. */
+.bs__main {
+  position: relative;
+  grid-row: 2;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.bs__scroll {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  padding: 2px;
+}
+
+.bs__chat {
+  grid-row: 2;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-3);
+}
+
+.bs__chat-sheet {
+  display: flex;
+  flex-direction: column;
+  height: min(60vh, 520px);
+}
+
+/* ---------- Status line, banners, teams ---------- */
+.bs-status {
+  display: flex;
+  align-items: baseline;
+  gap: 4px 10px;
+  flex-wrap: wrap;
+  padding: 8px 14px;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  line-height: 1.3;
+}
+
+.bs-status strong {
+  font-weight: 800;
+}
+
+.bs-status__count {
+  margin-left: auto;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-text-faint);
+  white-space: nowrap;
+}
+
+.bs-status .bs-dice {
+  margin-left: auto;
+  min-height: 26px;
+  padding: 0 8px;
+  font-size: 0.8rem;
+}
+
+.bs-status span {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+
+.bs-status--mine {
+  background: var(--color-primary-soft);
+  border-color: var(--color-primary-text);
+}
+
+.bs-status--mine strong {
+  color: var(--color-primary-text);
+}
+
+.bs-banner {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.bs-banner--out {
+  background: var(--color-danger-soft);
+  color: var(--color-danger-text);
+}
+
+.bs-teams {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.bs-teams__team {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  font-size: 0.85rem;
+  min-width: 0;
+}
+
+.bs-teams__team span {
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bs-teams__team--mine {
+  border-color: var(--color-primary-text);
+}
+
+.bs-teams__team--out {
+  opacity: 0.55;
+}
+
+/* ---------- Tabs ---------- */
+/* The strip, the status and the banners above it never shrink: the column scrolls instead. */
+.bs__strip {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.bs__panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.bs-tabs-wrap {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  min-height: 44px;
+  min-width: 0;
+}
+
+.bs-tabs {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+  scroll-behavior: smooth;
+}
+
+.bs-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.bs-tabs__more {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  min-height: 44px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface);
+  color: var(--color-text);
+  touch-action: manipulation;
+}
+
+.bs-tab {
+  flex: 1 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-2);
+  color: var(--color-text-muted);
+  font-weight: 700;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  touch-action: manipulation;
+}
+
+.bs-tab small {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--color-text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.bs-tab.is-active {
+  background: var(--color-surface);
+  border-color: var(--color-border-strong);
+  color: var(--color-text);
+}
+
+.bs-tab--turn::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-primary);
+}
+
+.bs-tab--out {
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+
+/* ---------- Boards ---------- */
+.bs-own,
+.bs-target,
+.bs-place,
+.bs-move {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+}
+
+.bs-target__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+  flex-wrap: wrap;
+}
+
+.bs-target__who {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+  min-width: 0;
+}
+
+.bs-target__who strong {
+  font-weight: 800;
+}
+
+.bs-target__who small {
+  color: var(--color-text-faint);
+  font-weight: 600;
+  font-size: 0.78rem;
+}
+
+.bs-board {
+  width: min(100%, 400px);
+  margin: 0 auto;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.bs-board__cols {
+  display: grid;
+  grid-template-columns: repeat(var(--bs-size), minmax(0, 1fr));
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--color-text-faint);
+  text-align: center;
+  line-height: 14px;
+}
+
+.bs-board__grid {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(var(--bs-size), minmax(0, 1fr));
+  border: 1px solid var(--color-border-strong);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--color-surface-2);
+}
+
+/* A row is a landmark for assistive tech only: its cells sit in the grid as if it were not there. */
+.bs-board__row {
+  display: contents;
+}
+
+.bs-cell {
+  position: relative;
+  aspect-ratio: 1;
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-text);
+  padding: 0;
+  touch-action: manipulation;
+  transition: background-color 0.12s ease;
+}
+
+.bs-cell:disabled {
+  cursor: default;
+}
+
+.bs-board--live .bs-cell:not(:disabled):hover {
+  background: var(--color-surface-3);
+}
+
+.bs-cell__row {
+  position: absolute;
+  left: 2px;
+  top: 1px;
+  font-size: 0.55rem;
+  font-weight: 700;
+  color: var(--color-text-faint);
+  line-height: 1;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.bs-cell[data-mark] {
+  z-index: 3;
+}
+
+.bs-cell[data-mark]::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  border-radius: 50%;
+}
+
+.bs-cell[data-mark='miss']::after {
+  width: 28%;
+  height: 28%;
+  background: var(--color-border-strong);
+}
+
+.bs-cell[data-mark='hit']::after,
+.bs-cell[data-mark='sunk']::after {
+  width: 58%;
+  height: 58%;
+  background: var(--color-danger);
+}
+
+.bs-cell[data-mark='sunk'] {
+  background: var(--color-danger-soft);
+}
+
+.bs-cell[data-mark='sunk']::after {
+  border-radius: 20%;
+}
+
+.bs-cell[data-state='aimed'] {
+  background: var(--color-primary-soft);
+  box-shadow: inset 0 0 0 2px var(--color-primary-text);
+  z-index: 2;
+}
+
+.bs-cell[data-state='invalid'] {
+  background: var(--color-danger-soft);
+  box-shadow: inset 0 0 0 2px var(--color-danger);
+  z-index: 2;
+}
+
+.bs-cell[data-fresh='hit']::after,
+.bs-cell[data-fresh='sunk']::after {
+  animation: bs-hit 0.5s ease;
+}
+
+.bs-cell[data-fresh='miss']::after {
+  animation: bs-miss 0.6s ease;
+}
+
+.bs-cell[data-fresh='sunk'] {
+  animation: bs-sunk 0.6s ease;
+}
+
+.bs-ship {
+  position: absolute;
+  z-index: 1;
+  box-sizing: border-box;
+  border: 3px solid var(--color-surface-2);
+  border-radius: 999px;
+  background: var(--bs-accent, var(--color-secondary));
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+.bs-ship--selected {
+  background: var(--color-primary);
+  opacity: 1;
+  z-index: 4;
+}
+
+.bs-ship--damaged {
+  opacity: 0.75;
+}
+
+.bs-ship--sunk {
+  background: var(--color-text-faint);
+  opacity: 0.5;
+}
+
+/* ---------- Fleet pills ---------- */
+.bs-fleet {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.bs-fleet__ship,
+.bs-tray__ship,
+.bs-move__ship {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.bs-fleet__seg,
+.bs-tray__seg {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--bs-accent, var(--color-secondary));
+}
+
+.bs-fleet__ship--sunk .bs-fleet__seg {
+  background: var(--color-border-strong);
+}
+
+/* ---------- Placing ---------- */
+.bs-tray {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 44px;
+}
+
+.bs-tray__ship {
+  align-items: center;
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-2);
+  touch-action: manipulation;
+}
+
+.bs-tray__ship .bs-tray__seg {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+}
+
+.bs-tray__ship.is-selected {
+  border-color: var(--color-primary-text);
+  background: var(--color-primary-soft);
+}
+
+.bs-tray__ship.is-selected .bs-tray__seg {
+  background: var(--color-primary);
+}
+
+.bs-tray__empty {
+  display: flex;
+  align-items: center;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+
+.bs-place__hint {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.bs-place__error {
+  color: var(--color-danger-text);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.bs-place__actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.bs-place__actions .btn {
+  min-height: 44px;
+  padding: 0 10px;
+}
+
+/* ---------- Firing ---------- */
+.bs-target__fire {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.bs-target__aim {
+  font-weight: 700;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+
+/* The aimed coordinate reads large enough to check before the second tap, however small the cells. */
+.bs-target__aim[data-cell] {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bs-target__aim[data-cell]::after {
+  content: attr(data-cell);
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: var(--radius-md);
+  background: var(--color-primary-soft);
+  color: var(--color-primary-text);
+  font-size: 1.25rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.bs-fire {
+  min-height: 48px;
+  min-width: 160px;
+  flex: 1 1 160px;
+}
+
+/* ---------- The move window ---------- */
+.bs-move {
+  border-color: var(--color-secondary-text);
+}
+
+.bs-move__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.bs-move__title {
+  font-weight: 800;
+  font-size: 1.2rem;
+}
+
+.bs-move__hint {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+.bs-move__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bs-move__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 56px 56px;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-2);
+}
+
+.bs-move__ship {
+  align-items: center;
+  gap: 3px;
+}
+
+.bs-move__ship small {
+  margin-left: 8px;
+  color: var(--color-text);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.bs-move__row:hover,
+.bs-move__row:focus-within {
+  background: var(--color-primary-soft);
+}
+
+.bs-move__btn {
+  min-height: 44px;
+  padding: 0;
+}
+
+/* ---------- Shot log ---------- */
+.bs-log {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bs-log__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-2);
+  font-size: 0.85rem;
+}
+
+.bs-log__who {
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bs-log__what {
+  color: var(--color-text-muted);
+  font-weight: 600;
+}
+
+.bs-log__row--hit .bs-log__what {
+  color: var(--chat-close-fg);
+}
+
+.bs-log__row--sunk .bs-log__what {
+  color: var(--chat-correct-fg);
+}
+
+.bs-log__dice {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: var(--color-secondary-text);
+}
+
+.bs-log__empty {
+  color: var(--color-text-faint);
+  font-size: 0.9rem;
+  padding: 8px 4px;
+}
+
+/* ---------- Settings: a row of options ---------- */
+.bs-choice {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+}
+
+.bs-choice__option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 44px;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  text-align: left;
+  font-size: 0.9rem;
+}
+
+.bs-choice__option.is-selected {
+  border-color: var(--color-primary-text);
+  background: var(--color-primary-soft);
+}
+
+.bs-choice__label {
+  font-weight: 700;
+}
+
+.bs-choice__blurb {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
+/* ---------- Player list hooks ---------- */
+.player__badge--shooter {
+  color: #fff;
+}
+
+.player__badge--sunk {
+  background: var(--color-danger);
+}
+
+.player__badge--captain {
+  background: var(--color-secondary);
+}
+
+.player--sunk {
+  opacity: 0.55;
+}
+
+.player--shooter {
+  background: var(--color-primary-soft);
+}
+
+@keyframes bs-hit {
+  0% {
+    transform: scale(0.2);
+  }
+  60% {
+    transform: scale(1.3);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes bs-miss {
+  0% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes bs-sunk {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-2px);
+  }
+  75% {
+    transform: translateX(2px);
+  }
+}
+
+@keyframes bs-pop {
+  0% {
+    transform: scale(0.6);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@media (max-width: 1100px) {
+  .bs {
+    grid-template-columns: 240px minmax(0, 1fr) 280px;
+  }
+}
+
+/* ---------- Phones: one scrolling column under a compact bar ---------- */
+@media (max-width: 760px), (min-aspect-ratio: 3/2) and (max-height: 520px) {
+  .bs {
+    display: flex;
+    flex-direction: column;
+    height: var(--app-height, 100dvh);
+    min-height: 0;
+    width: 100%;
+    overflow: hidden;
+    gap: var(--space-2);
+    padding: calc(var(--space-2) + env(safe-area-inset-top)) calc(var(--space-2) + env(safe-area-inset-right)) calc(var(--space-2) + env(safe-area-inset-bottom))
+      calc(var(--space-2) + env(safe-area-inset-left));
+  }
+
+  .bs__top {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    border-radius: var(--radius-md);
+    min-height: 56px;
+  }
+
+  .bs__brand {
+    flex: 1 1 0;
+  }
+
+  .bs__turn strong,
+  .bs__turn small {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .bs__turn strong {
+    font-size: 0.85rem;
+  }
+
+  .bs__turn small {
+    font-size: 0.7rem;
+  }
+
+  .bs .timer--lg {
+    width: 44px;
+    height: 44px;
+    font-size: 0.82rem;
+    letter-spacing: -0.02em;
+  }
+
+  .bs__main {
+    flex: 1 1 0;
+  }
+
+  /* Ten 36px cells plus the card's hairline need the full 390px less the gutters: no side padding here. */
+  .bs__scroll {
+    gap: var(--space-2);
+    padding-inline: 0;
+  }
+
+  /* Ten 36px cells need 360px: the board card keeps only a hairline of padding on a 390px screen. */
+  .bs-own,
+  .bs-target,
+  .bs-place,
+  .bs-move {
+    padding: var(--space-2) 4px;
+    border-radius: var(--radius-md);
+    gap: var(--space-2);
+  }
+
+  .bs-target__head,
+  .bs-target__fire,
+  .bs-tray,
+  .bs-place__hint,
+  .bs-place__error,
+  .bs-place__actions,
+  .bs-move__head,
+  .bs-move__list,
+  .bs-move .btn--block {
+    margin: 0 4px;
+  }
+
+  .bs-board {
+    width: 100%;
+  }
+
+  .bs-status {
+    padding: 6px 12px;
+  }
+
+  .bs__strip,
+  .bs__panel {
+    gap: var(--space-2);
+  }
+
+  .bs-place__actions .btn {
+    font-size: 0.85rem;
+    padding: 0 6px;
+  }
+}
+
+/* The narrowest phones: tighter chrome in the bar, and the board takes the gutters too (ten cells of ~31px on 320px). */
+@media (max-width: 359px) {
+  .bs__top {
+    gap: 4px;
+    padding: 6px;
+  }
+
+  .bs__side {
+    gap: 4px;
+  }
+
+  .bs__players-btn {
+    padding: 0 8px;
+  }
+
+  .bs__turn strong {
+    font-size: 0.8rem;
+  }
+}
+
+@media (max-width: 340px) {
+  .bs {
+    padding-inline: 2px;
+  }
+
+  .bs__scroll {
+    padding-inline: 0;
+  }
+
+  .bs-own,
+  .bs-target,
+  .bs-place {
+    padding-inline: 0;
+    border-inline: 0;
+    border-radius: 0;
+  }
+}
+
+/*
+ * Landscape phones: the board is capped by the height left under the bar and everything else sits
+ * beside it. The status and the tabs take the top right, the move window the bottom right; inside
+ * a board card the header, the fire row or the placement tray stand to the right of the grid, so
+ * the whole grid stays on screen while placing, aiming or moving.
+ */
+@media (min-aspect-ratio: 3/2) and (max-height: 520px) {
+  .bs__scroll {
+    display: grid;
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    align-content: start;
+    gap: var(--space-2);
+  }
+
+  .bs__strip {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .bs__panel {
+    display: contents;
+  }
+
+  .bs-own,
+  .bs-target,
+  .bs-place {
+    grid-column: 1;
+    grid-row: 1 / 3;
+    align-self: start;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-auto-rows: auto;
+    align-items: start;
+    gap: var(--space-2);
+    padding: var(--space-2);
+  }
+
+  .bs-move {
+    grid-column: 2;
+    grid-row: 2;
+    align-self: start;
+  }
+
+  .bs-board {
+    grid-column: 1;
+    grid-row: 1 / span 6;
+    width: calc(var(--app-height, 100dvh) - 112px);
+    margin: 0;
+  }
+
+  .bs-target__head,
+  .bs-target__fire,
+  .bs-tray,
+  .bs-place__hint,
+  .bs-place__error,
+  .bs-place__actions {
+    grid-column: 2;
+    margin: 0;
+  }
+
+  .bs-target__head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .bs-target__fire {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  /* The column beside the grid is short: a smaller hint, Rotate and Auto-place side by side, Ready across. */
+  .bs-place__hint {
+    font-size: 0.8rem;
+  }
+
+  .bs-place__actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .bs-place__actions .btn--primary {
+    grid-column: 1 / -1;
+  }
+}
