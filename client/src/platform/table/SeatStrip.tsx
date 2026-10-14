@@ -7,6 +7,8 @@ interface StripProps {
   /** The seat whose turn it is: lit and scrolled into view. */
   turnId: string | undefined;
   label: string;
+  /** Scroll back to the start when the turn is on a seat outside the strip (mine). */
+  homeWhenAway?: boolean;
   children: ReactNode;
 }
 
@@ -14,7 +16,7 @@ interface StripProps {
  * The other players in one horizontal strip that never collapses: it scrolls sideways rather than
  * squeezing, and keeps the seat whose turn it is in view (back to the start between turns).
  */
-export function SeatStrip({ turnId, label, children }: StripProps) {
+export function SeatStrip({ turnId, label, homeWhenAway = false, children }: StripProps) {
   const strip = useRef<HTMLUListElement>(null);
 
   useEffect(() => {
@@ -25,10 +27,13 @@ export function SeatStrip({ turnId, label, children }: StripProps) {
       return;
     }
     const el = list.querySelector<HTMLElement>(`[data-player-id="${CSS.escape(turnId)}"]`);
-    if (!el) return;
+    if (!el) {
+      if (homeWhenAway) list.scrollTo?.({ left: 0, behavior: 'smooth' });
+      return;
+    }
     const left = el.offsetLeft - (list.clientWidth - el.offsetWidth) / 2;
     list.scrollTo?.({ left: Math.max(0, left), behavior: 'smooth' });
-  }, [turnId]);
+  }, [turnId, homeWhenAway]);
 
   return (
     <ul ref={strip} className="tbl-seats" aria-label={label} data-testid="seats">

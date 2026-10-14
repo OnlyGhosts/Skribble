@@ -282,6 +282,11 @@ describe('the animation timeline', () => {
     expect(Object.keys(tl.arrivals)).toHaveLength(6);
     blackjackClient.onRoom?.(dealt, null);
     expect(useBlackjackStore.getState().timeline.arrivals).toEqual({});
+    // A reconnect: a welcome with the old room still in the store snaps too.
+    blackjackClient.onRoom?.(state, dealt);
+    blackjackClient.onWelcome?.(undefined);
+    blackjackClient.onRoom?.(dealt, state);
+    expect(useBlackjackStore.getState().timeline.arrivals).toEqual({});
   });
 });
 

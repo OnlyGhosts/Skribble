@@ -25,12 +25,6 @@ export function isInHand(view: PokerView | null, playerId: string | null): boole
   return playerId !== null && view !== null && view.order.includes(playerId);
 }
 
-/** Still holding cards in a hand being played: not folded, not out. */
-export function holdsCards(view: PokerView, playerId: string): boolean {
-  const status = view.players[playerId]?.status;
-  return isInHand(view, playerId) && (status === 'waiting' || status === 'acting' || status === 'allIn');
-}
-
 /**
  * The table round from the seat after `meId`: the hand's seats in order, then the participants
  * not dealt in (busted, or seated from the next hand) by join order. Without a seat of my own the

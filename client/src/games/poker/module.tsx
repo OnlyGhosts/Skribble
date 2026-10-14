@@ -13,6 +13,7 @@ import { playCue } from '../../platform/lib/sound';
 import { usePlatformStore } from '../../platform/store/usePlatformStore';
 import { OUTCOMES } from '../../platform/table/timeline';
 import { cancelCue, cueAt } from '../../platform/table/cues';
+import { createEntryFlag } from '../../platform/table/entry';
 import { CardsIcon, OutIcon } from './components/Icons';
 import { isInHand, isMyTurn, seatOf, stepOf } from './hooks';
 import { chatPlaceholderFor } from './lib/text';
@@ -20,6 +21,9 @@ import { PokerScreen } from './Screen';
 import { PokerSettingsFields } from './SettingsFields';
 import { usePokerStore } from './store';
 import './poker.css';
+
+/** A welcome (a join or a reconnect) shows the table at once. */
+const entry = createEntryFlag();
 
 const meta = gameById('poker');
 
@@ -77,7 +81,12 @@ export const pokerClient = defineGameClient<PokerView, PokerSettings>({
     return chatPlaceholderFor(room.game?.phase, isInHand(room.game, meId));
   },
 
+  onWelcome() {
+    entry.mark();
+  },
+
   onRoom(room, prev) {
+    const fresh = entry.take() || !prev?.game;
     const store = usePokerStore.getState();
     if (room.phase === 'lobby' || !room.game) {
       cancelCue();
@@ -89,9 +98,9 @@ export const pokerClient = defineGameClient<PokerView, PokerSettings>({
     if (room.phase !== 'playing') store.setConfirmEnd(false);
     const me = usePlatformStore.getState().playerId;
     const before = store.timeline;
-    const timeline = store.applyView(view, me, Date.now(), !prev?.game, !prefersReducedMotion());
+    const timeline = store.applyView(view, me, Date.now(), fresh, !prefersReducedMotion());
     // A fresh entry (welcome) is not a turn starting under this player's feet.
-    if (!prev?.game || me === null) return;
+    if (fresh || !prev?.game || me === null) return;
     if (isMyTurn(view, me) && !isMyTurn(prev.game, me)) {
       // The cue comes when my turn shows: once the cards that came with it have landed.
       cueAt(Math.max(Date.now(), timeline.endsAt), () => {

@@ -183,6 +183,26 @@ a chip amount setting with presets and a numeric field is
 `cards.css`. Poker's hand rankings (`evaluateBest`, `compareHands`, `handName`) are in
 [`shared/games/poker/hands.ts`](../shared/games/poker/hands.ts).
 
+**Card tables.** A Stake-style card table is a kit in
+[`client/src/platform/table/`](../client/src/platform/table) (styles: the platform's `table.css`, `.tbl*`),
+used by Blackjack and Poker: `TableShell` (the top bar, the table, the control panel under it on a
+phone and in a left column on a desktop, the chat on the right, the players / chat / options
+sheets), the felt (`.tbl-felt`, `.tbl-felt__top` for discards, centre piece and deck), `Deck` and
+`DiscardTray` (the anchors cards fly from and to), `TableRibbon`, `SeatStrip` / `MiniSeat` (the other
+players in one sideways-scrolling strip, the seat whose turn it is lit and scrolled into view),
+`PanelShell` / `PanelLabelRow` / `AmountField` / `PanelMoves` / `MoveButton` (the control panel:
+the status line, the amount with its quick amounts joined to it, the moves always in place and
+dimmed when not on offer), `TotalPill` / `PayoutFloat` / `outlineClass` (the outcome colours),
+`TableCard` (a card that slides in from the deck, turns over and leaves for the discards),
+`ChipFlights` (chips sliding between `data-table-anchor` places) and `useHotkeys` in
+[`lib/hotkeys.ts`](../client/src/platform/lib/hotkeys.ts) (desktop shortcuts that never fire while
+typing). The animations run off a timeline planned from two snapshots
+([`table/timeline.ts`](../client/src/platform/table/timeline.ts): `beginPlan` / `finishPlan` in the
+game's own planner, then `cardShown`, `faceDown`, `departure`, `valueAt`, `flightsAt`, `frameAt`...
+to draw it); a welcome (`createEntryFlag`), reduced motion or a backlog over three seconds shows
+the truth at once. Blackjack's [`lib/timeline.ts`](../client/src/games/blackjack/lib/timeline.ts) and
+Poker's [`lib/timeline.ts`](../client/src/games/poker/lib/timeline.ts) are the two planners.
+
 ---
 
 ## 3. The contract
@@ -1620,7 +1640,7 @@ light theme swaps the `-text` variants for darker cuts while the fills stay lime
 
 The type-into-the-blanks guess bar (`.guess-*`, `.gtile*`) is the platform's `guess.css`, rendered
 by `GuessTiles`; playing cards, chip counts and the chip setting (`.playing-card*`, `.chip-count*`,
-`.chips-setting*`) are `cards.css`; the canvas and its toolbar (`.canvas-*`, `.toolbar*`) are the platform canvas's
+`.chips-setting*`) are `cards.css`; the card-table kit (`.tbl*`) is `table.css`; the canvas and its toolbar (`.canvas-*`, `.toolbar*`) are the platform canvas's
 `canvas.css`. Game-specific classes live in the game's stylesheet; Scribble's `skribble.css` owns
 `.word*`, `.tile*`, `.rating*`, `.overlay` (its in-canvas overlay position), and the whole `.game`
 layout, which is a good reference for a non-scrolling phone game; Hangman's `hangman.css` (`.hm*`)

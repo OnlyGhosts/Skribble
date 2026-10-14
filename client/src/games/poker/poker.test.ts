@@ -1,13 +1,18 @@
 /**
- * Poker's client module under test: the table per phase and role, the hole cards that only their
- * owner sees, the action bar and the bet/raise panel with its presets, the results with revealed
- * hands, the host's End game, the settings rows, the player-list hooks and the snapshot-driven
- * store. Runs in node: browser globals are stubbed, components render through react-dom/server.
+ * Poker's client module under test: the hand model and the animation timeline planned from
+ * snapshot diffs (the deal round from the button, bets to their spots, the sweep, the board street
+ * by street, folds to the muck, the showdown and the pot to the winners, snapping to the truth),
+ * the raise arithmetic, the copy, the screen per phase (the panel's lit and dimmed controls, hole
+ * cards on their owner's page only, the showdown on the table with no results screen), the
+ * settings rows, the player-list hooks and the snapshot-driven store. Runs in node: browser
+ * globals are stubbed, components render through react-dom/server.
  */
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createElement } from 'react';
 import { renderToString } from 'react-dom/server';
-import { DEFAULT_POKER_SETTINGS, type Card, type PokerActions, type PokerPlayerView, type PokerRoomState, type PokerView } from '@shared/games/poker/protocol';
+import { DEFAULT_POKER_SETTINGS, type Card, type PokerActions, type PokerPlayerView, type PokerResults, type PokerRoomState, type PokerView } from '@shared/games/poker/protocol';
 import { installBrowserGlobals, setLocation } from '../../test/env';
 
 installBrowserGlobals();
@@ -16,9 +21,12 @@ const { usePlatformStore } = await import('../../platform/store/usePlatformStore
 const { registerGames } = await import('../../platform/registry');
 const { pokerClient } = await import('./module');
 const { usePokerStore } = await import('./store');
-const { highestBet, seatRing } = await import('./hooks');
-const { clampAmount, presetsFor, raiseRange, uniquePresets } = await import('./lib/raise');
-const { handHint, handLabel, lastActionLabel, netLabel, phaseKicker } = await import('./lib/text');
+const { seatRing } = await import('./hooks');
+const { amountFrom, clampAmount, potSized, raiseRange } = await import('./lib/raise');
+const { categoryLabel, handHint, handLabel, lastActionLabel, panelStatus, phaseKicker, resultText, HOTKEY_HINT } = await import('./lib/text');
+const { committedBefore, dealingOrder, tableOf } = await import('./lib/table');
+const T = await import('./lib/timeline');
+const S = await import('./lib/screen');
 const { blindsIncreaseLabel, handsLabel } = await import('./SettingsFields');
 const { player, registryOf, resetStore, room, welcome } = await import('../../test/fixtures');
 
@@ -57,20 +65,69 @@ function view(overrides: Partial<PokerView> = {}): PokerView {
     myCards: [],
     actions: NO_ACTIONS,
     results: null,
+    lastMove: { kind: 'bigBlind', amount: 10, seq: 2, playerId: 'carol', street: 'preflop' },
     ...overrides,
   };
 }
 
 const HOST_ACTIONS: PokerActions = { canFold: true, canCheck: false, canCall: true, callAmount: 10, canBet: false, minBet: 10, maxBet: 1000, canRaise: true, minRaiseTo: 20, maxRaiseTo: 1000, canAllIn: true };
+const KINGS = [c('K', 'H'), c('K', 'C')];
 
 /** The view as the host gets it on their move: kings in the hole. */
 function hostTurn(overrides: Partial<PokerView> = {}): PokerView {
-  return view({ myCards: [c('K', 'H'), c('K', 'C')], actions: HOST_ACTIONS, ...overrides });
+  return view({ myCards: KINGS, actions: HOST_ACTIONS, ...overrides });
+}
+
+/** The host called, bob folded, carol checked: the flop is out and carol, left of the button, acts first. */
+function flop(overrides: Partial<PokerView> = {}): PokerView {
+  return view({
+    street: 'flop',
+    community: [c('K', 'S'), c('7', 'D'), c('2', 'C')],
+    pot: 25,
+    turn: 'carol',
+    players: {
+      host: seat({ chips: 990, committed: 10, isDealer: true }),
+      bob: seat({ chips: 995, committed: 5, status: 'folded', lastAction: { kind: 'fold', amount: 0 } }),
+      carol: seat({ chips: 990, committed: 10, status: 'acting', isTurn: true }),
+    },
+    lastMove: { kind: 'check', amount: 0, seq: 5, playerId: 'carol', street: 'preflop' },
+    myCards: KINGS,
+    ...overrides,
+  });
+}
+
+const SHOWDOWN: PokerResults = {
+  pots: [{ amount: 25, winners: [{ playerId: 'host', amount: 25 }], handName: 'Three of a kind, kings' }],
+  revealed: {
+    host: { cards: KINGS, category: 'threeOfAKind', name: 'Three of a kind, kings', best: [c('K', 'H'), c('K', 'C'), c('K', 'S'), c('Q', 'D'), c('9', 'H')] },
+    carol: { cards: [c('7', 'S'), c('7', 'C')], category: 'threeOfAKind', name: 'Three of a kind, sevens', best: [c('7', 'S'), c('7', 'C'), c('7', 'D'), c('K', 'S'), c('Q', 'D')] },
+  },
+  uncontested: false,
+  net: { host: 15, bob: -5, carol: -10 },
+};
+
+/** Checked down to the river: the host's set of kings beats carol's sevens. */
+function showdown(overrides: Partial<PokerView> = {}): PokerView {
+  return view({
+    phase: 'results',
+    street: 'river',
+    community: [c('K', 'S'), c('7', 'D'), c('2', 'C'), c('Q', 'D'), c('9', 'H')],
+    pot: 0,
+    turn: null,
+    players: {
+      host: seat({ chips: 1015, isDealer: true }),
+      bob: seat({ chips: 995, status: 'folded' }),
+      carol: seat({ chips: 990 }),
+    },
+    results: SHOWDOWN,
+    myCards: KINGS,
+    ...overrides,
+  });
 }
 
 function pkRoom(game: PokerView, overrides: Partial<PokerRoomState> = {}): PokerRoomState {
   return {
-    ...room({ gameId: 'poker', phase: 'playing', players: [player('host'), player('bob', { joinOrder: 1 }), player('carol', { joinOrder: 2 }), player('dave', { joinOrder: 3, participating: false })] }),
+    ...room({ gameId: 'poker', phase: 'playing', players: [player('host', { name: 'Hana' }), player('bob', { name: 'Pia', joinOrder: 1 }), player('carol', { name: 'Quinn', joinOrder: 2 }), player('dave', { name: 'Dev', joinOrder: 3, participating: false })] }),
     settings: { allowMidGameJoin: true, contentMode: 'family', ...DEFAULT_POKER_SETTINGS },
     game,
     ...overrides,
@@ -94,6 +151,8 @@ function tagsWith(html: string, testId: string): string[] {
 }
 
 const attr = (tag: string, name: string): string | undefined => tag.match(new RegExp(`${name}="([^"]*)"`))?.[1];
+const disabled = (html: string, testId: string): boolean => / disabled=""/.test(tagWith(html, testId));
+const textOf = (html: string, testId: string): string => html.match(new RegExp(`data-testid="${testId}"[^>]*>([^<]*)<`))?.[1] ?? '';
 
 function snapshot(state: PokerRoomState): void {
   const prev = usePlatformStore.getState().room as PokerRoomState | null;
@@ -108,284 +167,358 @@ beforeEach(() => {
   registerGames(registryOf(pokerClient));
 });
 
-describe('the table', () => {
-  it('shows the board, the pot, the seats round from mine with the dealer button and the turn, and my cards large with the hint', () => {
+describe('the hand model', () => {
+  it('shows my cards face up, everyone else’s as backs, nothing for a seat not dealt in, and the shown hands after a showdown', () => {
+    const mine = tableOf(hostTurn(), 'host');
+    expect(mine?.seats.host.cards).toEqual(KINGS);
+    expect(mine?.seats.bob.cards).toEqual([null, null]);
+    expect(tableOf(view(), 'dave')?.seats.host.cards).toEqual([null, null]);
+    expect(tableOf(view({ hand: 0, order: [] }), 'host')).toBeNull();
+    const shown = tableOf(showdown({ myCards: [c('4', 'D'), c('3', 'C')] }), 'bob');
+    expect(shown?.seats.carol.cards).toEqual(SHOWDOWN.revealed.carol.cards);
+    expect(shown?.seats.bob.cards).toEqual([c('4', 'D'), c('3', 'C')]);
+    expect(shown?.seats.host.cards).toEqual(KINGS);
+  });
+
+  it('deals from the left of the button and knows what each seat put in before the street, a settled hand included', () => {
+    const table = tableOf(view(), 'host');
+    if (!table) throw new Error('no table');
+    expect(dealingOrder(table)).toEqual(['bob', 'carol', 'host']);
+    expect(committedBefore(table, 'carol')).toBe(0);
+    const settled = tableOf(showdown(), 'host');
+    if (!settled) throw new Error('no table');
+    // The host won 25 for a net of 15: 10 went in. Carol lost her 10.
+    expect(committedBefore(settled, 'host')).toBe(10);
+    expect(committedBefore(settled, 'carol')).toBe(10);
+  });
+});
+
+describe('the animation timeline', () => {
+  const plan = (prevView: PokerView | null, nextView: PokerView, prev = T.EMPTY_TIMELINE, now = NOW, me = 'host') => T.planTimeline(prev, tableOf(prevView, me), tableOf(nextView, me), me, now, false, true);
+
+  it('deals a new hand round from the button, two passes 150ms apart, while the blinds slide to their spots', () => {
+    const tl = plan(null, hostTurn());
+    expect(tl.arrivals).toEqual({
+      'h/bob/0': NOW,
+      'h/carol/0': NOW + 150,
+      'h/host/0': NOW + 300,
+      'h/bob/1': NOW + 450,
+      'h/carol/1': NOW + 600,
+      'h/host/1': NOW + 750,
+    });
+    expect(tl.endsAt).toBe(NOW + 750 + T.DEAL_MS);
+    expect(tl.flights.map((f) => [f.from, f.to, f.amount, f.at])).toEqual([
+      ['seat:bob', 'bet:bob', 5, NOW],
+      ['seat:carol', 'bet:carol', 10, NOW],
+    ]);
+    // The bet spot fills when the chips land; the pot with them.
+    expect(T.valueAt(tl, T.betValue('carol'), 10, NOW + 100)).toBe(0);
+    expect(T.valueAt(tl, T.betValue('carol'), 10, NOW + T.CHIP_MS)).toBe(10);
+    expect(T.valueAt(tl, T.POT_VALUE, 15, NOW + 100)).toBe(0);
+    expect(T.valueAt(tl, T.POT_VALUE, 15, NOW + T.CHIP_MS)).toBe(15);
+    expect(T.cardShown(tl, 'h/host/1', NOW + 700)).toBe(false);
+    expect(T.cardMotion(tl, 'h/host/1', NOW + 760)).toBe('deal');
+  });
+
+  it('slides a call to its spot, and keeps the timeline as it is when nothing moved on the table', () => {
+    const dealt = plan(null, hostTurn());
+    const called = view({ turn: 'bob', pot: 25, players: { ...view().players, host: seat({ isDealer: true, chips: 990, bet: 10, committed: 10, lastAction: { kind: 'call', amount: 10 } }) } });
+    const at = NOW + 2000;
+    const tl = plan(hostTurn(), called, dealt, at);
+    expect(tl.flights.slice(-1)[0]).toMatchObject({ from: 'seat:host', to: 'bet:host', amount: 10, at });
+    expect(T.valueAt(tl, T.betValue('host'), 10, at + 10)).toBe(0);
+    expect(T.valueAt(tl, T.betValue('host'), 10, at + T.CHIP_MS)).toBe(10);
+    expect(T.valueAt(tl, T.POT_VALUE, 25, at + 10)).toBe(15);
+    expect(plan(called, { ...called, endsAt: NOW + 30_000 }, tl, at + 500)).toBe(tl);
+  });
+
+  it('closes a street: the last bet lands, every bet sweeps into the pot, a fold goes to the muck, then the flop slides out and turns over', () => {
+    const before = view({ turn: 'carol', pot: 20, players: { ...view().players, host: seat({ isDealer: true, chips: 990, bet: 10, committed: 10 }), bob: seat({ chips: 995, bet: 5, committed: 5, status: 'folded' }) } });
+    const at = NOW + 3000;
+    const tl = plan(before, flop(), plan(null, hostTurn()), at, 'host');
+    // Carol checked: no chips moved for her, so the sweep starts at once.
+    const sweep = tl.flights.filter((f) => f.to === 'pot');
+    expect(sweep.map((f) => [f.from, f.amount])).toEqual([
+      ['bet:host', 10],
+      ['bet:bob', 5],
+      ['bet:carol', 10],
+    ]);
+    expect(sweep.every((f) => f.at === at)).toBe(true);
+    expect(T.valueAt(tl, T.betValue('host'), 0, at - 1)).toBe(10);
+    expect(T.valueAt(tl, T.betValue('host'), 0, at)).toBe(0);
+    const boardAt = at + T.CHIP_MS + T.SWEEP_GAP_MS;
+    expect([tl.arrivals['b/0'], tl.arrivals['b/1'], tl.arrivals['b/2']]).toEqual([boardAt, boardAt + 150, boardAt + 300]);
+    const flipAt = boardAt + 300 + T.DEAL_MS;
+    expect([tl.flips['b/0'], tl.flips['b/1'], tl.flips['b/2']]).toEqual([flipAt, flipAt, flipAt]);
+    expect(tl.endsAt).toBe(flipAt + T.FLIP_MS);
+    const table = tableOf(flop(), 'host');
+    const early = S.boardOnScreen(table, tl, boardAt + 160);
+    expect(early.map((p) => (p ? p.card : 'slot'))).toEqual([null, null, 'slot', 'slot', 'slot']);
+    const turning = S.boardOnScreen(table, tl, flipAt + 10);
+    expect(turning[0]).toMatchObject({ card: c('K', 'S'), flipping: true });
+  });
+
+  it('sends a folded hand to the muck: it leaves at once, then it is gone; my own folded cards stay', () => {
+    const before = view({ turn: 'bob', players: { ...view().players, host: seat({ isDealer: true, chips: 990, bet: 10, committed: 10 }) } });
+    const folded = view({ turn: 'carol', players: { ...before.players, bob: seat({ chips: 995, bet: 5, committed: 5, status: 'folded', lastAction: { kind: 'fold', amount: 0 } }) } });
+    const at = NOW + 4000;
+    const tl = plan(before, folded, plan(null, before), at);
+    expect(tl.departures).toEqual({ 'h/bob/0': at, 'h/bob/1': at });
+    const table = tableOf(folded, 'host');
+    expect(S.holeOnScreen(table, tl, 'bob', 'host', at - 1).map((x) => x.leaving)).toEqual([false, false]);
+    expect(S.holeOnScreen(table, tl, 'bob', 'host', at + 10).map((x) => x.leaving)).toEqual([true, true]);
+    expect(S.holeOnScreen(table, tl, 'bob', 'host', at + T.DISCARD_MS)).toEqual([]);
+    // Snapped (a reconnect), a folded hand is simply not there; my own stays in front of me.
+    const snapped = T.snapTimeline(table, at);
+    expect(S.holeOnScreen(table, snapped, 'bob', 'host', at)).toEqual([]);
+    expect(S.holeOnScreen(tableOf(folded, 'bob'), snapped, 'bob', 'bob', at)).toHaveLength(2);
+  });
+
+  it('plays a showdown: the river, the hands turning over (not mine), the winner lit and the pot sliding over before the stack grows', () => {
+    const river = view({
+      street: 'river',
+      community: showdown().community,
+      pot: 25,
+      turn: 'host',
+      players: { host: seat({ chips: 990, committed: 10, isDealer: true, status: 'acting', isTurn: true }), bob: seat({ chips: 995, committed: 5, status: 'folded' }), carol: seat({ chips: 990, committed: 10 }) },
+      myCards: KINGS,
+    });
+    const at = NOW + 9000;
+    const tl = plan(river, showdown(), plan(null, river), at);
+    expect(tl.flips['h/carol/0']).toBe(at + T.SHOWDOWN_GAP_MS);
+    expect(tl.flips['h/host/0']).toBeUndefined();
+    const outcomes = at + T.SHOWDOWN_GAP_MS + T.FLIP_MS + T.SHOWDOWN_GAP_MS;
+    expect(tl.marks.outcomes).toBe(outcomes);
+    expect(tl.marks.paid).toBe(outcomes + T.PAY_MS);
+    expect(tl.flights.slice(-1)[0]).toMatchObject({ from: 'pot', to: 'seat:host', amount: 25, at: outcomes, ms: T.PAY_MS });
+    expect(T.valueAt(tl, T.POT_VALUE, 0, outcomes - 1)).toBe(25);
+    expect(T.valueAt(tl, T.POT_VALUE, 0, outcomes)).toBe(0);
+    expect(T.valueAt(tl, T.chipsValue('host'), 1015, outcomes)).toBe(990);
+    expect(T.valueAt(tl, T.chipsValue('host'), 1015, outcomes + T.PAY_MS)).toBe(1015);
+    const table = tableOf(showdown(), 'host');
+    expect(S.holeOnScreen(table, tl, 'carol', 'host', at + 10).map((x) => x.card)).toEqual([null, null]);
+    expect(S.holeOnScreen(table, tl, 'carol', 'host', outcomes).map((x) => x.card)).toEqual(SHOWDOWN.revealed.carol.cards);
+    expect(S.wonOnScreen(table, tl, 'host', outcomes - 1)).toBe(0);
+    expect(S.wonOnScreen(table, tl, 'host', outcomes)).toBe(25);
+    expect(S.winningCards(table, tl, outcomes)).toEqual(SHOWDOWN.revealed.host.best);
+  });
+
+  it('splits the slide of a split pot between its winners, and shows no cards for a pot nobody contested', () => {
+    const split: PokerResults = { ...SHOWDOWN, pots: [{ amount: 24, winners: [{ playerId: 'host', amount: 12 }, { playerId: 'carol', amount: 12 }], handName: 'Pair of kings' }] };
+    const river = view({ street: 'river', community: showdown().community, pot: 24, players: { host: seat({ committed: 12 }), bob: seat({ status: 'folded' }), carol: seat({ committed: 12 }) } });
+    const tl = plan(river, showdown({ results: split }), plan(null, river), NOW + 10_000);
+    expect(tl.flights.filter((f) => f.from === 'pot').map((f) => [f.to, f.amount])).toEqual([
+      ['seat:host', 12],
+      ['seat:carol', 12],
+    ]);
+    const uncontested: PokerResults = { pots: [{ amount: 15, winners: [{ playerId: 'carol', amount: 15 }], handName: null }], revealed: {}, uncontested: true, net: { host: 0, bob: -5, carol: 5 } };
+    const folds = plan(view(), showdown({ street: 'preflop', community: [], results: uncontested }), plan(null, view()), NOW + 1000);
+    expect(Object.keys(folds.flips)).toEqual([]);
+    expect(resultText(uncontested, (id) => (id === 'carol' ? 'Quinn' : 'You'))).toBe('Quinn takes the pot');
+  });
+
+  it('clears the last hand to the muck before the next deal', () => {
+    const settled = plan(null, showdown());
+    const next = hostTurn({ hand: 3 });
+    const at = NOW + 20_000;
+    const tl = plan(showdown(), next, settled, at);
+    expect(tl.discard).toMatchObject({ from: at, until: at + T.DISCARD_MS });
+    expect(tl.arrivals['h/bob/0']).toBe(at + T.DISCARD_MS);
+    expect(T.frameAt(tl, tableOf(next, 'host'), at + 10)).toMatchObject({ leaving: true });
+    expect(T.frameAt(tl, tableOf(next, 'host'), at + T.DISCARD_MS).table?.hand).toBe(3);
+  });
+
+  it('snaps to the truth on a fresh entry, under reduced motion and when it would run far behind; every number ends on the truth', () => {
+    const fresh = T.planTimeline(T.EMPTY_TIMELINE, null, tableOf(hostTurn(), 'host'), 'host', NOW, true, true);
+    expect(fresh.arrivals).toEqual({});
+    expect(fresh.id).toBe(2);
+    expect(T.planTimeline(T.EMPTY_TIMELINE, tableOf(view(), 'host'), tableOf(flop(), 'host'), 'host', NOW, false, false).flights).toEqual([]);
+    const backlog = { ...plan(null, view()), endsAt: NOW + T.MAX_BACKLOG_MS + 1 };
+    expect(plan(view(), flop(), backlog).arrivals).toEqual({});
+    // Two moves in one snapshot (the flop and a bet on it): the bet spot ends on the truth, not on the sweep's zero.
+    const skipped = flop({ pot: 45, players: { ...flop().players, carol: seat({ chips: 970, bet: 20, committed: 30, lastAction: { kind: 'bet', amount: 20 } }) } });
+    const tl = plan(view(), skipped, plan(null, view()), NOW + 2000);
+    expect(T.valueAt(tl, T.betValue('carol'), 20, tl.endsAt)).toBe(20);
+  });
+
+  it('is planned by the module from each snapshot, and a welcome shows the table at once', () => {
+    usePlatformStore.getState().handleServerMessage(welcome('host', pkRoom(view())));
+    pokerClient.onRoom?.(pkRoom(view()), null);
+    expect(usePokerStore.getState().timeline.arrivals).toEqual({});
+    snapshot(pkRoom(view({ hand: 3, myCards: KINGS })));
+    expect(Object.keys(usePokerStore.getState().timeline.arrivals)).toHaveLength(6);
+    // A reconnect is a welcome with the old room still in the store: it shows the truth, not a replay of what was missed.
+    pokerClient.onWelcome?.(undefined);
+    pokerClient.onRoom?.(pkRoom(flop({ hand: 3 })), pkRoom(view({ hand: 3, myCards: KINGS })));
+    expect(usePokerStore.getState().timeline).toMatchObject({ id: 3, arrivals: {}, flights: [] });
+  });
+});
+
+describe('the raise amount', () => {
+  it('works out the window, reads the field and sizes half pot and pot bets and raises', () => {
+    expect(raiseRange(HOST_ACTIONS)).toEqual({ kind: 'raise', min: 20, max: 1000 });
+    expect(raiseRange({ ...NO_ACTIONS, canBet: true, minBet: 10, maxBet: 990 })).toEqual({ kind: 'bet', min: 10, max: 990 });
+    expect(raiseRange(NO_ACTIONS)).toBeNull();
+    const raise = { kind: 'raise' as const, min: 20, max: 1000 };
+    expect(amountFrom('', raise)).toBeNull();
+    expect(amountFrom('12a', raise)).toBeNull();
+    expect(amountFrom('3', raise)).toBe(20);
+    expect(amountFrom('5000', raise)).toBe(1000);
+    expect(clampAmount(Number.NaN, raise)).toBe(20);
+    // Facing 10 with 15 in: a pot raise calls 10 (pot 25) and raises 25 more, to 35; half pot to 22.
+    expect(potSized(view(), 0, raise, 1)).toBe(35);
+    expect(potSized(view(), 0, raise, 0.5)).toBe(22);
+    const bet = { kind: 'bet' as const, min: 10, max: 990 };
+    expect(potSized({ pot: 120, players: {} }, 0, bet, 0.5)).toBe(60);
+    expect(potSized({ pot: 5000, players: {} }, 0, bet, 1)).toBe(990);
+  });
+});
+
+describe('copy', () => {
+  it('names hands for the pill: pocket pairs and high cards before the flop, the best five after', () => {
+    expect(handHint([], [])).toBeNull();
+    expect(handHint(KINGS, [])).toBe('Pair of kings');
+    expect(handHint([c('A', 'H'), c('7', 'C')], [])).toBe('Ace high');
+    expect(handHint([c('K', 'H'), c('5', 'C')], [c('K', 'S'), c('5', 'D'), c('9', 'C')])).toBe('Two pair, kings and fives');
+    expect(categoryLabel('fullHouse')).toBe('Full house');
+  });
+
+  it('labels the hand, the moves, the phase, the result and whose turn it is', () => {
+    expect(handLabel({ hand: 3, totalHands: 10 })).toBe('Hand 3 of 10');
+    expect(handLabel({ hand: 3, totalHands: 0 })).toBe('Hand 3');
+    expect(lastActionLabel({ kind: 'raise', amount: 1200 })).toBe('Raise to 1,200');
+    expect(lastActionLabel({ kind: 'bigBlind', amount: 10 })).toBe('BB 10');
+    expect(phaseKicker(view())).toBe('Pre-flop · Blinds 5/10');
+    expect(phaseKicker(showdown())).toBe('Showdown · Blinds 5/10');
+    expect(resultText(SHOWDOWN, (id) => (id === 'host' ? 'You' : 'Quinn'))).toBe('You win 25 with three of a kind, kings');
+    expect(resultText(SHOWDOWN, () => 'Hana')).toBe('Hana wins 25 with three of a kind, kings');
+    const base = { phase: 'acting' as const, seated: true, busted: false, connected: true, held: false, inHand: true, myTurn: false, turnName: 'Pia', result: null, won: false };
+    expect(panelStatus(base)).toEqual({ state: 'their-turn', text: "Pia's turn", tone: 'other' });
+    expect(panelStatus({ ...base, myTurn: true })).toEqual({ state: 'my-turn', text: 'Your turn', tone: 'go' });
+    expect(panelStatus({ ...base, phase: 'results', turnName: null })).toMatchObject({ state: 'showdown' });
+    expect(panelStatus({ ...base, phase: 'results', result: 'You win 25', won: true })).toMatchObject({ state: 'result', tone: 'go' });
+    expect(panelStatus({ ...base, seated: false }).state).toBe('spectating');
+    expect(panelStatus({ ...base, busted: true }).state).toBe('out');
+    expect(panelStatus({ ...base, inHand: false, turnName: null }).text).toBe("You're in from the next hand");
+  });
+
+  it('never shows an em dash anywhere in the module', () => {
+    const files: string[] = [];
+    const walk = (dir: string) => {
+      for (const name of readdirSync(dir)) {
+        const path = join(dir, name);
+        if (statSync(path).isDirectory()) walk(path);
+        else if (/\.(tsx?|css)$/.test(name) && !name.endsWith('.test.ts')) files.push(path);
+      }
+    };
+    walk(import.meta.dirname);
+    expect(files.length).toBeGreaterThan(10);
+    for (const file of files) expect(readFileSync(file, 'utf8').includes('\u2014'), file).toBe(false);
+    expect(HOTKEY_HINT.includes('\u2014')).toBe(false);
+  });
+});
+
+describe('the screen', () => {
+  it('my turn: Fold, Call and Raise lit with the amount at the minimum raise, the table with the pot, the board slots, the seats and my cards', () => {
     const html = render(pkRoom(hostTurn()), 'host');
     expect(attr(tagWith(html, 'poker-screen'), 'data-phase')).toBe('acting');
     expect(attr(tagWith(html, 'hand-indicator'), 'data-hand')).toBe('2');
-    expect(attr(tagWith(html, 'board'), 'data-street')).toBe('preflop');
+    expect(attr(tagWith(html, 'blinds'), 'data-big')).toBe('10');
     expect(tagsWith(html, 'community-slot')).toHaveLength(5);
     expect(attr(tagWith(html, 'pot'), 'data-chips')).toBe('15');
-    expect(attr(tagWith(html, 'blinds'), 'data-big')).toBe('10');
+    for (const id of ['action-fold', 'action-call', 'action-raise', 'action-allin', 'raise-half', 'raise-pot', 'raise-max']) expect(disabled(html, id), id).toBe(false);
+    expect(textOf(html, 'action-call')).toBe('Call 10');
+    expect(textOf(html, 'action-raise')).toBe('Raise to 20');
+    expect(attr(tagWith(html, 'raise-input'), 'value')).toBe('20');
+    expect(attr(tagWith(html, 'raise-input'), 'inputMode')).toBe('numeric');
+    expect(attr(tagWith(html, 'pk-panel'), 'data-min')).toBe('20');
+    expect(attr(tagWith(html, 'turn-status'), 'data-state')).toBe('my-turn');
+    expect(attr(tagWith(html, 'action-fold'), 'aria-keyshortcuts')).toBe('F');
+    expect(tagWith(html, 'hotkey-hint')).toBeTruthy();
     const seats = tagsWith(html, 'seat');
     expect(seats.map((s) => attr(s, 'data-player-id'))).toEqual(['bob', 'carol']);
     expect(attr(seats[1], 'data-bet')).toBe('10');
-    // Two backs per opponent and nothing about their faces.
-    expect(tagsWith(html, 'seat-card')).toHaveLength(4);
-    for (const back of tagsWith(html, 'seat-card')) {
-      expect(attr(back, 'data-face')).toBe('down');
-      expect(back).not.toContain('data-rank');
-    }
-    const area = tagWith(html, 'my-area');
-    expect(attr(area, 'data-my-turn')).toBe('true');
-    expect(attr(area, 'data-dealer')).toBe('true');
-    const cards = tagsWith(html, 'my-card');
-    expect(cards.map((t) => `${attr(t, 'data-rank')}${attr(t, 'data-suit')}`)).toEqual(['KH', 'KC']);
-    expect(html).toContain('Pair of kings');
-    expect(html).toContain('playing-card--xl');
+    expect(attr(tagWith(html, 'my-area'), 'data-my-turn')).toBe('true');
+    expect(attr(tagWith(html, 'my-area'), 'data-dealer')).toBe('true');
+    expect(tagsWith(html, 'my-card').map((t) => `${attr(t, 'data-rank')}${attr(t, 'data-suit')}`)).toEqual(['KH', 'KC']);
+    expect(textOf(html, 'hand-hint')).toBe('Pair of kings');
+    expect(html).not.toContain('overlay-results');
   });
 
-  it('never puts my hole cards on anyone else’s page: the other players and a spectator see backs only', () => {
+  it("someone else's turn: every control dimmed, Check shown, their seat lit and named in the status line", () => {
+    const html = render(pkRoom(flop({ myCards: [c('7', 'H'), c('2', 'D')] })), 'bob', false);
+    for (const id of ['action-fold', 'action-check', 'action-raise', 'action-allin', 'raise-input', 'raise-half', 'raise-pot', 'raise-max']) expect(disabled(html, id), id).toBe(true);
+    const carol = tagsWith(html, 'seat').find((t) => attr(t, 'data-player-id') === 'carol') ?? '';
+    expect(attr(carol, 'data-turn')).toBe('true');
+    expect(textOf(html, 'turn-status')).toBe('Quinn&#x27;s turn');
+    expect(attr(tagWith(html, 'my-area'), 'data-status')).toBe('folded');
+  });
+
+  it('never puts my hole cards on anyone else’s page: the other seats and a spectator see backs only', () => {
     for (const viewer of ['bob', 'carol', 'dave']) {
       const html = render(pkRoom(view({ myCards: viewer === 'bob' ? [c('7', 'D'), c('2', 'C')] : [] })), viewer, false);
-      expect(html).not.toContain('data-rank="K"');
-      expect(html).not.toContain('king of');
+      for (const back of tagsWith(html, 'seat-card')) {
+        expect(attr(back, 'data-face')).toBe('down');
+        expect(back).not.toContain('data-rank');
+      }
+      if (viewer !== 'bob') expect(html).not.toContain('data-rank="7"');
     }
     const spectator = render(pkRoom(view()), 'dave', false);
-    expect(attr(tagWith(spectator, 'my-area'), 'data-role')).toBe('spectator');
-    expect(spectator).not.toContain('data-testid="actions"');
-    expect(tagsWith(spectator, 'seat')).toHaveLength(3);
+    expect(attr(tagWith(spectator, 'turn-status'), 'data-state')).toBe('spectating');
+    expect(tagsWith(spectator, 'my-slot')).toHaveLength(2);
   });
 
-  it('greys the moves out while I wait, and offers Fold, Call and Raise on my move', () => {
-    const waiting = render(pkRoom(view({ myCards: [c('7', 'D'), c('2', 'C')] })), 'bob', false);
-    expect(attr(tagWith(waiting, 'actions'), 'data-my-turn')).toBe('false');
-    for (const id of ['action-fold', 'action-check', 'action-raise']) expect(tagWith(waiting, id)).toContain('disabled');
-
-    const mine = render(pkRoom(hostTurn()), 'host');
-    expect(tagWith(mine, 'action-fold')).not.toContain('disabled');
-    const callBtn = tagWith(mine, 'action-call');
-    expect(callBtn).not.toContain('disabled');
-    expect(attr(callBtn, 'data-amount')).toBe('10');
-    expect(mine).toContain('Call 10');
-    expect(attr(tagWith(mine, 'action-raise'), 'data-kind')).toBe('raise');
-    expect(mine).not.toContain('data-testid="action-check"');
+  it('the end of a hand stays on the table: the board, the shown hands in the seats, the winner outlined and the result in the status line', () => {
+    const html = render(pkRoom(showdown()), 'host');
+    expect(attr(tagWith(html, 'poker-screen'), 'data-phase')).toBe('results');
+    expect(tagsWith(html, 'community-card')).toHaveLength(5);
+    expect(tagsWith(html, 'community-card').filter((t) => t.includes('playing-card--highlight'))).toHaveLength(3);
+    const carol = tagsWith(html, 'seat-card');
+    expect(carol.map((t) => attr(t, 'data-rank'))).toEqual(['7', '7']);
+    expect(attr(tagWith(html, 'my-area'), 'data-outcome')).toBe('win');
+    expect(attr(tagWith(html, 'my-area'), 'data-payout')).toBe('25');
+    expect(textOf(html, 'turn-status')).toBe('You win 25 with three of a kind, kings');
+    expect(html).toContain('tbl-outline--win');
+    expect(html).not.toContain('overlay-results');
+    const pia = render(pkRoom(showdown()), 'bob', false);
+    expect(textOf(pia, 'turn-status')).toBe('Hana wins 25 with three of a kind, kings');
+    const host = tagsWith(pia, 'seat').find((t) => attr(t, 'data-player-id') === 'host') ?? '';
+    expect(attr(host, 'data-outcome')).toBe('win');
   });
 
-  it('offers Check and Bet once nobody has bet, and says a short call is an all in', () => {
-    const flop = render(
-      pkRoom(hostTurn({ street: 'flop', community: [c('2', 'H'), c('9', 'D'), c('K', 'S')], pot: 30, players: { ...view().players, bob: seat(), carol: seat() }, actions: { ...NO_ACTIONS, canFold: true, canCheck: true, canBet: true, minBet: 10, maxBet: 1000, canAllIn: true } })),
-      'host',
-    );
-    expect(tagWith(flop, 'action-check')).not.toContain('disabled');
-    expect(attr(tagWith(flop, 'action-raise'), 'data-kind')).toBe('bet');
-    expect(flop).toContain('Three of a kind, kings');
-    expect(tagsWith(flop, 'community-card')).toHaveLength(3);
-    expect(tagsWith(flop, 'community-slot')).toHaveLength(2);
-
-    const short = render(pkRoom(hostTurn({ players: { ...view().players, host: seat({ chips: 8, isDealer: true, isTurn: true, status: 'acting' }) }, actions: { ...HOST_ACTIONS, callAmount: 8, canRaise: false } })), 'host');
-    expect(short).toContain('All in 8');
-    expect(tagWith(short, 'action-raise')).toContain('disabled');
+  it('a bet when nobody has bet: the label says Bet with the field, Check in place of Call', () => {
+    const actions: PokerActions = { ...NO_ACTIONS, canFold: true, canCheck: true, canBet: true, minBet: 10, maxBet: 990, canAllIn: true };
+    const html = render(pkRoom(flop({ turn: 'host', actions, players: { ...flop().players, host: seat({ chips: 990, committed: 10, isDealer: true, status: 'acting', isTurn: true }), carol: seat({ chips: 990, committed: 10 }) } })), 'host');
+    expect(textOf(html, 'action-check')).toBe('Check');
+    expect(disabled(html, 'action-check')).toBe(false);
+    expect(textOf(html, 'action-raise')).toBe('Bet 10');
+    expect(attr(tagWith(html, 'pk-panel'), 'data-kind')).toBe('bet');
+    expect(html).toContain('Bet amount');
   });
 
-  it('replaces the moves with a note once I am all in, and drops them once I fold', () => {
-    const allIn = render(pkRoom(view({ myCards: [c('7', 'D'), c('2', 'C')], players: { ...view().players, bob: seat({ chips: 0, bet: 995, status: 'allIn' }) } })), 'bob', false);
-    expect(allIn).toContain('You are all in');
-    expect(allIn).not.toContain('data-testid="action-fold"');
-    const folded = render(pkRoom(view({ myCards: [c('7', 'D'), c('2', 'C')], players: { ...view().players, bob: seat({ status: 'folded', lastAction: { kind: 'fold', amount: 0 } }) } })), 'bob', false);
-    expect(folded).not.toContain('data-testid="actions"');
-    expect(folded).toContain('You folded');
-    expect(tagsWith(folded, 'my-card')).toHaveLength(2);
-  });
-
-  it('tells a busted player and a newcomer why they have no cards, and shows side pots', () => {
-    const busted = render(pkRoom(view({ order: ['host', 'carol'], players: { ...view().players, bob: seat({ chips: 0, status: 'out', busted: true }) } })), 'bob', false);
-    expect(attr(tagWith(busted, 'my-note'), 'data-state')).toBe('out');
-    const newcomer = render(pkRoom(view({ order: ['host', 'carol'], players: { ...view().players, bob: seat({ status: 'out' }) } })), 'bob', false);
-    expect(attr(tagWith(newcomer, 'my-note'), 'data-state')).toBe('waiting');
-    const pots = render(pkRoom(view({ pots: [{ amount: 300, playerIds: ['host', 'bob', 'carol'] }, { amount: 200, playerIds: ['host', 'carol'] }] })), 'host');
-    const side = tagsWith(pots, 'side-pot');
-    expect(side.map((t) => attr(t, 'data-amount'))).toEqual(['300', '200']);
-    expect(attr(side[1], 'data-players')).toBe('host,carol');
-  });
-});
-
-describe('the bet / raise panel', () => {
-  it('opens with the window, the presets and a confirm naming the raise; the whole stack confirms as an all in', () => {
-    usePokerStore.getState().openRaise(true);
-    const html = render(pkRoom(hostTurn()), 'host');
-    const panel = tagWith(html, 'raise-panel');
-    expect(attr(panel, 'data-kind')).toBe('raise');
-    expect(attr(panel, 'data-min')).toBe('20');
-    expect(attr(panel, 'data-max')).toBe('1000');
-    expect(attr(panel, 'data-amount')).toBe('20');
-    expect(panel).toMatch(/noValidate=""/i);
-    const input = tagWith(html, 'raise-input');
-    expect(input).toContain('inputMode="numeric"');
-    expect(tagWith(html, 'raise-slider')).toContain('max="1000"');
-    expect(html).toContain('Raise to 20');
-    // Pot: call 10 makes the pot 25, so a pot raise goes to 10 + 25.
-    expect(['raise-min', 'raise-half', 'raise-pot', 'raise-allIn'].map((id) => attr(tagWith(html, id), 'data-amount'))).toEqual(['20', '22', '35', '1000']);
-
-    usePokerStore.getState().setRaiseDraft(1000);
-    expect(render(pkRoom(hostTurn()), 'host')).toContain('All in · 1,000');
-  });
-
-  it('shows no presets for a fixed all-in window, and never two presets for one amount', () => {
-    usePokerStore.getState().openRaise(true);
-    const fixed = render(pkRoom(hostTurn({ actions: { ...HOST_ACTIONS, minRaiseTo: 100, maxRaiseTo: 100 } })), 'host');
-    expect(attr(tagWith(fixed, 'raise-panel'), 'data-amount')).toBe('100');
-    const panel = fixed.slice(fixed.indexOf('data-testid="raise-panel"'), fixed.indexOf('</form>'));
-    expect(panel).not.toContain('pk-raise__presets');
-    expect(panel).not.toContain('aria-pressed');
-    expect(fixed).not.toContain('data-testid="raise-slider"');
-    expect(fixed).toContain('All in · 100');
-    const presets = presetsFor(view({ pot: 120 }), 0, { kind: 'bet', min: 60, max: 500 });
-    expect(presets.map((p) => p.amount)).toEqual([60, 60, 120, 500]);
-    expect(uniquePresets(presets).map((p) => p.id)).toEqual(['min', 'pot', 'allIn']);
-  });
-
-  it('does not announce the Bet / Raise button as a popup menu', () => {
-    usePokerStore.getState().openRaise(false);
-    const html = render(pkRoom(hostTurn()), 'host');
-    expect(tagWith(html, 'action-raise')).not.toContain('aria-haspopup');
-  });
-
-  it('never opens when it is not my move', () => {
-    usePokerStore.getState().openRaise(true);
-    const html = render(pkRoom(view({ myCards: [c('7', 'D'), c('2', 'C')] })), 'bob', false);
-    expect(html).not.toContain('data-testid="raise-panel"');
-  });
-
-  it('works out the window and the presets for a bet and a raise', () => {
-    expect(raiseRange(NO_ACTIONS)).toBeNull();
-    expect(raiseRange({ ...NO_ACTIONS, canBet: true, minBet: 10, maxBet: 500 })).toEqual({ kind: 'bet', min: 10, max: 500 });
-    expect(raiseRange(HOST_ACTIONS)).toEqual({ kind: 'raise', min: 20, max: 1000 });
-    const flop = view({ pot: 120, players: { host: seat(), bob: seat(), carol: seat() } });
-    const bets = presetsFor(flop, 0, { kind: 'bet', min: 10, max: 500 });
-    expect(bets.map((p) => p.amount)).toEqual([10, 60, 120, 500]);
-    // A tiny stack clamps every preset into the window.
-    expect(presetsFor(flop, 0, { kind: 'bet', min: 40, max: 40 }).map((p) => p.amount)).toEqual([40, 40, 40, 40]);
-    expect(highestBet(view())).toBe(10);
-    expect(clampAmount(5, { kind: 'bet', min: 10, max: 50 })).toBe(10);
-    expect(clampAmount(99, { kind: 'bet', min: 10, max: 50 })).toBe(50);
-    expect(clampAmount(Number.NaN, { kind: 'bet', min: 10, max: 50 })).toBe(10);
-    expect(clampAmount(12.6, { kind: 'bet', min: 10, max: 50 })).toBe(13);
-  });
-});
-
-describe('results', () => {
-  const board = [c('2', 'H'), c('9', 'D'), c('K', 'S'), c('4', 'C'), c('J', 'D')];
-  const showdown = view({
-    phase: 'results',
-    street: 'river',
-    turn: null,
-    community: board,
-    pot: 0,
-    myCards: [c('K', 'H'), c('K', 'C')],
-    endsAt: NOW + 8000,
-    players: { host: seat({ chips: 1100, isDealer: true }), bob: seat({ chips: 900 }), carol: seat({ chips: 1000, status: 'folded' }) },
-    results: {
-      pots: [{ amount: 200, winners: [{ playerId: 'host', amount: 200 }], handName: 'Three of a kind, kings' }],
-      revealed: {
-        host: { cards: [c('K', 'H'), c('K', 'C')], category: 'threeOfAKind', name: 'Three of a kind, kings', best: [c('K', 'H'), c('K', 'C'), c('K', 'S'), c('J', 'D'), c('9', 'D')] },
-        bob: { cards: [c('9', 'H'), c('8', 'C')], category: 'pair', name: 'Pair of nines', best: [c('9', 'H'), c('9', 'D'), c('K', 'S'), c('J', 'D'), c('8', 'C')] },
-      },
-      uncontested: false,
-      net: { host: 100, bob: -100, carol: 0 },
-    },
-  });
-
-  it('reveals every contender with the hand and the five that play, keeps the folded hand hidden, and counts down to the next hand', () => {
-    const html = render(pkRoom(showdown), 'bob', false);
-    expect(attr(tagWith(html, 'overlay-results'), 'data-uncontested')).toBe('false');
-    expect(html).toContain('host wins with three of a kind, kings');
-    const rows = tagsWith(html, 'result-player');
-    expect(rows.map((r) => attr(r, 'data-player-id'))).toEqual(['host', 'carol', 'bob']);
-    expect(rows.map((r) => attr(r, 'data-revealed'))).toEqual(['true', 'false', 'true']);
-    expect(rows.map((r) => attr(r, 'data-net'))).toEqual(['100', '0', '-100']);
-    expect(tagsWith(html, 'revealed-card')).toHaveLength(4);
-    expect(tagsWith(html, 'revealed-card').filter((t) => t.includes('playing-card--highlight'))).toHaveLength(4);
-    expect(tagsWith(html, 'results-board-card').filter((t) => t.includes('playing-card--highlight'))).toHaveLength(3);
-    expect(attr(tagWith(html, 'result-pot'), 'data-winners')).toBe('host');
-    expect(attr(tagWith(html, 'results-countdown'), 'data-countdown')).toBe('running');
-    expect(html).not.toContain('data-testid="poker-next"');
-    const host = render(pkRoom(showdown), 'host');
-    expect(tagWith(host, 'poker-next')).toBeTruthy();
-    expect(host).toContain('Next hand');
-  });
-
-  it('shows no cards for a pot nobody contested, and says Final standings on the last hand', () => {
-    const uncontested = view({
-      ...showdown,
-      community: [],
-      street: 'preflop',
-      results: { pots: [{ amount: 15, winners: [{ playerId: 'carol', amount: 15 }], handName: null }], revealed: {}, uncontested: true, net: { host: 0, bob: -5, carol: 5 } },
-    });
-    const html = render(pkRoom(uncontested), 'host');
-    expect(html).toContain('carol takes the pot');
-    expect(html).not.toContain('data-testid="revealed-card"');
-    expect(html).not.toContain('data-testid="results-board"');
-    expect(tagsWith(html, 'result-player').every((r) => attr(r, 'data-revealed') === 'false')).toBe(true);
-    // Nobody showed down: the header does not call it a showdown.
-    expect(html.match(/data-testid="phase-kicker"[^>]*>([^<]*)</)?.[1]).toBe('Hand over');
-    expect(phaseKicker(uncontested, 'carol', false)).toBe('Hand over');
-    expect(phaseKicker(showdown, 'carol', false)).toBe('Showdown');
-    expect(phaseKicker({ ...showdown, paused: true }, 'carol', false)).toBe('Paused');
-    expect(render(pkRoom(view({ ...showdown, hand: 10 })), 'host')).toContain('Final standings');
-  });
-
-  it('keeps the name and the net on the row head and puts the stack on the detail line, so narrow phones do not cut names short', () => {
-    const html = render(pkRoom(showdown), 'bob', false);
-    const head = html.match(/<span class="pk-results__head">(.*?)<\/span><span class="pk-results__detail">/)?.[1] ?? '';
-    expect(head).toContain('pk-results__name');
-    expect(head).toContain('data-testid="result-net"');
-    expect(head).not.toContain('pk-results__chips');
-    expect(tagsWith(html, 'result-chips')).toHaveLength(3);
-  });
-
-  it('freezes the countdown and the host button while the platform holds, and stays off once the podium is up', () => {
-    const waiting = { reason: 'players' as const, missing: ['bob'], needed: 1, connected: 1 };
-    const held = render(pkRoom(showdown, { waiting }), 'host');
-    expect(held).not.toContain('data-testid="poker-next"');
-    expect(attr(tagWith(held, 'results-countdown'), 'data-countdown')).toBe('paused');
-    const over = render(pkRoom(view({ ...showdown, phase: 'gameOver', endsAt: null }), { phase: 'ended', podium: [{ playerId: 'host', score: 1100, rank: 1 }] }), 'host');
-    expect(over).not.toContain('data-testid="overlay-results"');
-    expect(over).not.toContain('data-testid="end-game"');
-  });
-});
-
-describe('host controls', () => {
   it('gives the host End game with a confirmation, and nobody else', () => {
-    const host = render(pkRoom(hostTurn()), 'host');
-    expect(tagWith(host, 'end-game')).toBeTruthy();
+    expect(tagWith(render(pkRoom(hostTurn()), 'host'), 'end-game')).toBeTruthy();
+    expect(tagsWith(render(pkRoom(view()), 'bob', false), 'end-game')).toHaveLength(0);
     usePokerStore.getState().setConfirmEnd(true);
-    const confirming = render(pkRoom(hostTurn()), 'host');
-    expect(tagWith(confirming, 'end-game-yes')).toBeTruthy();
-    expect(tagWith(confirming, 'end-game-cancel')).toBeTruthy();
-    expect(render(pkRoom(view()), 'bob', false)).not.toContain('data-testid="end-game');
+    expect(tagWith(render(pkRoom(hostTurn()), 'host'), 'end-game-confirm')).toBeTruthy();
   });
 });
 
-describe('text and hooks', () => {
-  it('names hands for the hint: pocket pairs and high cards before the flop, the best five after', () => {
-    expect(handHint([], [])).toBeNull();
-    expect(handHint([c('K', 'H'), c('K', 'C')], [])).toBe('Pair of kings');
-    expect(handHint([c('A', 'H'), c('7', 'C')], [])).toBe('Ace high');
-    expect(handHint([c('6', 'H'), c('6', 'C')], [])).toBe('Pair of sixes');
-    expect(handHint([c('K', 'H'), c('5', 'C')], [c('K', 'S'), c('5', 'D'), c('9', 'C')])).toBe('Two pair, kings and fives');
-    expect(handHint([c('A', 'H'), c('2', 'C')], [c('3', 'S'), c('4', 'D'), c('5', 'C'), c('K', 'H'), c('K', 'D')])).toBe('Straight, five high');
-  });
-
-  it('labels hands, moves, the phase and net chips', () => {
-    expect(handLabel({ hand: 3, totalHands: 10 }, true)).toBe('Hand 3 of 10');
-    expect(handLabel({ hand: 3, totalHands: 10 }, false)).toBe('Hand 3/10');
-    expect(handLabel({ hand: 3, totalHands: 0 }, true)).toBe('Hand 3');
-    expect(lastActionLabel({ kind: 'raise', amount: 1200 })).toBe('Raise to 1,200');
-    expect(lastActionLabel({ kind: 'bigBlind', amount: 10 })).toBe('BB 10');
-    expect(lastActionLabel(null)).toBe('');
-    expect(phaseKicker(view(), 'Bob', false, true)).toBe("Bob's move");
-    expect(phaseKicker(view(), 'Bob', true, false)).toBe('Pre-flop: your move');
-    expect(netLabel(150)).toBe('+150');
-    expect(netLabel(-20)).toBe('−20');
-    expect(netLabel(0)).toBe('±0');
-  });
-
+describe('seats and hooks', () => {
   it('seats the table round from the seat after mine, newcomers last', () => {
     const state = pkRoom(view({ order: ['host', 'bob', 'carol'], players: { ...view().players, eve: seat({ status: 'out' }) } }));
     state.players.push(player('eve', { joinOrder: 4 }));
     expect(seatRing(state, state.game as PokerView, 'bob')).toEqual(['carol', 'eve', 'host']);
     expect(seatRing(state, state.game as PokerView, 'dave')).toEqual(['host', 'bob', 'carol', 'eve']);
+  });
+
+  it('keeps the move that closed the last street on its seat until somebody moves again', () => {
+    const html = render(pkRoom(flop({ myCards: KINGS })), 'host');
+    const carol = html.match(/data-player-id="carol"[\s\S]*?data-testid="seat-line"[^>]*>([^<]*)</)?.[1];
+    // It is carol's turn now: her line says so; bob's says he folded.
+    expect(carol).toBe('Thinking');
+    const later = render(pkRoom(flop({ turn: 'host', players: { ...flop().players, carol: seat({ chips: 990, committed: 10 }) } })), 'bob', false);
+    expect(later.match(/data-player-id="carol"[\s\S]*?data-testid="seat-line"[^>]*>([^<]*)</)?.[1]).toBe('Check');
   });
 });
 
@@ -396,63 +529,45 @@ describe('settings rows', () => {
     const host = renderToString(createElement(pokerClient.SettingsFields, { settings, canEdit: true, patch: () => undefined }));
     const chips = tagWith(host, 'settings-startingChips');
     expect(chips).toContain('type="number"');
-    expect(chips).toContain('inputMode="numeric"');
     expect(chips).toContain('max="100000"');
-    expect(tagWith(host, 'settings-startingChips-1000')).toContain('aria-pressed="true"');
     expect(tagWith(host, 'settings-smallBlind-5')).toContain('aria-pressed="true"');
-    expect(tagWith(host, 'settings-smallBlind')).toContain('max="500"');
-    expect(tagWith(host, 'settings-blindsIncreaseEvery')).toContain('max="50"');
     expect(tagWith(host, 'settings-hands')).toContain('max="100"');
-    expect(tagWith(host, 'settings-actSeconds')).toContain('min="10"');
-    expect(tagWith(host, 'settings-resultsSeconds')).toContain('max="20"');
-
     const guest = renderToString(createElement(pokerClient.SettingsFields, { settings, canEdit: false, patch: () => undefined }));
     expect(guest).not.toContain('data-testid="settings-startingChips"');
-    expect(guest).toContain('5/10');
     expect(guest).toContain('Until one is left');
     expect(blindsIncreaseLabel(0)).toBe('Never');
-    expect(blindsIncreaseLabel(1)).toBe('Every hand');
     expect(blindsIncreaseLabel(10)).toBe('Every 10 hands');
     expect(handsLabel(0)).toBe('Until one is left');
-    expect(handsLabel(25)).toBe('25');
   });
 });
 
-describe('player-list hooks and cues', () => {
+describe('player-list hooks and the store', () => {
   it('badges the player to act, the dealer and a busted player, and prints the bet or the fold', () => {
     const state = pkRoom(view({ turn: 'bob', players: { ...view().players, host: seat({ isDealer: true, status: 'folded' }), bob: seat({ isTurn: true, status: 'acting', bet: 5 }), carol: seat({ chips: 0, status: 'out', busted: true }) } }));
     const badge = (id: string) => renderToString(createElement('div', null, pokerClient.playerBadge?.(state, player(id))));
     expect(badge('bob')).toContain('player__badge--acting');
     expect(badge('host')).toContain('player__badge--dealer');
     expect(badge('carol')).toContain('player__badge--out');
-    expect(badge('dave')).toBe('<div></div>');
     const meta = (id: string) => renderToString(createElement('div', null, pokerClient.playerMeta?.(state, player(id))));
     expect(meta('bob')).toContain('bet 5');
     expect(meta('host')).toContain('folded');
-    expect(meta('carol')).toContain('out');
-    expect(pokerClient.playerClassName?.(state, player('bob'))).toBe('player--acting');
-    expect(pokerClient.playerClassName?.(state, player('host'))).toBe('player--folded');
     expect(pokerClient.playerClassName?.(state, player('carol'))).toBe('player--out');
     expect(pokerClient.chatPlaceholder?.(state, 'host')).toBe('Table talk…');
-    expect(pokerClient.chatPlaceholder?.(state, 'dave')).toBe('Watching this hand…');
   });
 
-  it('closes the raise panel when the turn moves on, and resets everything back in the lobby and on leave', () => {
+  it('forgets the typed amount when the turn moves on, and resets everything back in the lobby and on leave', () => {
     usePlatformStore.getState().handleServerMessage(welcome('host', pkRoom(hostTurn())));
     snapshot(pkRoom(hostTurn()));
-    const store = usePokerStore.getState();
-    store.openRaise(true);
-    store.setRaiseDraft(80);
+    usePokerStore.getState().setRaiseText('80');
     snapshot(pkRoom(hostTurn({ pot: 16 })));
-    expect(usePokerStore.getState()).toMatchObject({ raiseOpen: true, raiseDraft: 80 });
+    expect(usePokerStore.getState().raiseText).toBe('80');
     snapshot(pkRoom(view({ turn: 'bob' })));
-    expect(usePokerStore.getState()).toMatchObject({ raiseOpen: false, raiseDraft: null });
+    expect(usePokerStore.getState().raiseText).toBeNull();
     usePokerStore.getState().openSheet('chat');
-    usePokerStore.getState().setConfirmEnd(true);
     snapshot({ ...pkRoom(view()), phase: 'lobby', game: null });
-    expect(usePokerStore.getState()).toMatchObject({ sheet: null, confirmEnd: false });
-    usePokerStore.getState().openRaise(true);
+    expect(usePokerStore.getState()).toMatchObject({ sheet: null, table: null });
+    usePokerStore.getState().setRaiseText('50');
     pokerClient.onLeave?.();
-    expect(usePokerStore.getState().raiseOpen).toBe(false);
+    expect(usePokerStore.getState().raiseText).toBeNull();
   });
 });

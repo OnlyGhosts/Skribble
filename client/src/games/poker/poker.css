@@ -86,9 +86,14 @@
 .pk-bet {
   display: inline-flex;
   align-items: center;
+  align-self: center;
   min-width: 1px;
   min-height: 14px;
   font-size: 0.72rem;
+}
+
+.tbl-seat__cards > .pk-bet {
+  margin-left: 6px;
 }
 
 .pk-bet .chip-count {

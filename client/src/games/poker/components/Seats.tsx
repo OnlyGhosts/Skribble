@@ -55,7 +55,7 @@ export function Seats({ room, view, ids, meId, table, timeline, live, now, leavi
   const best = winningCards(table, timeline, now);
   if (ids.length === 0) return null;
   return (
-    <SeatStrip turnId={turnId} label="Other players">
+    <SeatStrip turnId={turnId} label="Other players" homeWhenAway>
       {ids.map((id) => {
         const player = playerOf(room, id);
         const seat = view.players[id];
@@ -75,17 +75,15 @@ export function Seats({ room, view, ids, meId, table, timeline, live, now, leavi
             turn={turnId === id}
             dimmed={seat.busted || seat.status === 'folded' || !view.order.includes(id)}
             badge={seat.isDealer && <DealerButton testId="seat-dealer" />}
-            meta={
-              <span className="pk-bet" data-table-anchor={betAnchor(id)} data-testid="seat-bet" data-bet={bet}>
-                {bet > 0 && <Chips value={bet} size={11} />}
-              </span>
-            }
             className={won > 0 ? 'pk-seat--win' : undefined}
             data={{ 'data-chips': seat.chips, 'data-bet': seat.bet, 'data-status': status, 'data-dealer': seat.isDealer, 'data-outcome': won > 0 ? 'win' : undefined, 'data-payout': won > 0 ? won : undefined }}
           >
             {holeOnScreen(table, timeline, id, meId, now).map((c) => (
               <TableCard key={`${timeline.id}:${c.key}`} card={c.card} size="sm" motion={c.motion} leaving={leaving || c.leaving} flipping={c.flipping} highlight={c.card !== null && best.some((b) => c.card !== null && sameCard(b, c.card))} testId="seat-card" />
             ))}
+            <span className="pk-bet" data-table-anchor={betAnchor(id)} data-testid="seat-bet" data-bet={bet}>
+              {bet > 0 && <Chips value={bet} size={11} />}
+            </span>
             {won > 0 && paidOut(timeline, now) && <PayoutFloat text={payoutText(won)} />}
           </MiniSeat>
         );

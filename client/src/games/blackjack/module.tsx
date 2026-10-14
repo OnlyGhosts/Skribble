@@ -11,6 +11,7 @@ import { playCue } from '../../platform/lib/sound';
 import { usePlatformStore } from '../../platform/store/usePlatformStore';
 import { CardsIcon, OutIcon, StarIcon } from './components/Icons';
 import { cancelCue, cueAt } from '../../platform/table/cues';
+import { createEntryFlag } from '../../platform/table/entry';
 import { isActing, isInRound, prefersReducedMotion, seatOf } from './hooks';
 import { outcomesAt } from './lib/timeline';
 import { chatPlaceholderFor, formatChips } from './lib/text';
@@ -18,6 +19,9 @@ import { BlackjackScreen } from './Screen';
 import { BlackjackSettingsFields } from './SettingsFields';
 import { useBlackjackStore } from './store';
 import './blackjack.css';
+
+/** A welcome (a join or a reconnect) shows the table at once. */
+const entry = createEntryFlag();
 
 const meta = gameById('blackjack');
 
@@ -71,7 +75,12 @@ export const blackjackClient = defineGameClient<BlackjackView, BlackjackSettings
     return chatPlaceholderFor(room.game?.phase, isInRound(room.game, meId));
   },
 
+  onWelcome() {
+    entry.mark();
+  },
+
   onRoom(room, prev) {
+    const fresh = entry.take() || !prev?.game;
     const store = useBlackjackStore.getState();
     if (room.phase === 'lobby' || !room.game) {
       cancelCue();
@@ -80,8 +89,8 @@ export const blackjackClient = defineGameClient<BlackjackView, BlackjackSettings
     }
     const view = room.game;
     const before = store.timeline;
-    const timeline = store.applyView(view, Date.now(), !prev?.game, !prefersReducedMotion());
-    if (!prev?.game) return;
+    const timeline = store.applyView(view, Date.now(), fresh, !prefersReducedMotion());
+    if (fresh || !prev?.game) return;
     const me = usePlatformStore.getState().playerId;
     if (me === null) return;
     if (isActing(view, me) && !isActing(prev.game, me)) {
