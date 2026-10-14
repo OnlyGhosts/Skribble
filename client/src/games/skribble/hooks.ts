@@ -1,5 +1,5 @@
 import type { SkribblePhase, SkribbleRoomState, SkribbleView } from '@shared/games/skribble/protocol';
-import type { PlayerPublic, RoomState } from '@shared/platform/protocol';
+import type { RoomState } from '@shared/platform/protocol';
 import type { PlatformStore } from '../../platform/store/usePlatformStore';
 
 /**
@@ -33,11 +33,6 @@ export function hasGuessed(view: SkribbleView | null, playerId: string | null): 
 }
 
 export const selectHasGuessed = (s: PlatformStore): boolean => hasGuessed(selectView(s), s.playerId);
-
-export const selectDrawer = (s: PlatformStore): PlayerPublic | null => {
-  const drawerId = selectDrawerId(s);
-  return drawerId ? (s.room?.players.find((p) => p.id === drawerId) ?? null) : null;
-};
 
 /** Identifies a drawing turn; `null` outside the drawing phase. */
 export function drawingTurnKey(room: SkribbleRoomState | null): string | null {

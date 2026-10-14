@@ -4,7 +4,7 @@
  */
 import { z } from 'zod';
 import { CANVAS_SIDE_MESSAGE_TYPES, canvasClientMessageOptions, isCanvasWelcomeExtra, type CanvasServerMessage, type CanvasWelcomeExtra } from '../../platform/canvas.js';
-import type { RoomState, WelcomeMessage } from '../../platform/protocol.js';
+import type { RoomState } from '../../platform/protocol.js';
 import { parseWordList } from '../../platform/words.js';
 
 // ---------------------------------------------------------------------------
@@ -68,8 +68,7 @@ export function normalizeSkribbleSettings(s: SkribbleSettings): SkribbleSettings
 // Drawing: the platform's shared canvas (shared/platform/canvas.ts), re-exported for Skribble's imports
 // ---------------------------------------------------------------------------
 
-export { drawOpSchema, hexColorSchema, toolSchema } from '../../platform/canvas.js';
-export type { CanvasAction, DrawOp, Tool } from '../../platform/canvas.js';
+export type { CanvasAction, DrawOp } from '../../platform/canvas.js';
 
 // ---------------------------------------------------------------------------
 // Messages
@@ -159,4 +158,3 @@ export interface SkribbleView {
 }
 
 export type SkribbleRoomState = RoomState<SkribbleView, SkribbleSettings>;
-export type SkribbleWelcome = WelcomeMessage<SkribbleView, SkribbleSettings>;

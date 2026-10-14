@@ -46,7 +46,7 @@ export function Hand({ playerId, index, hand, timeline, now, leaving, size, acti
   const { cards, total, outcome } = handOnScreen(playerId, index, hand, timeline, now);
   const bust = total !== null && total.total > 21;
   const tone = toneOf(outcome, bust, hand.status === 'blackjack' && cards.length === 2, active);
-  const payout = outcome && hand.payout !== null ? payoutText(hand.payout) : '';
+  const payout = outcome && outcome !== 'push' && hand.payout !== null ? payoutText(hand.payout) : '';
   return (
     <div
       role="group"

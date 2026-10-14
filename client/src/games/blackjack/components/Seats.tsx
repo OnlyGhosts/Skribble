@@ -33,7 +33,8 @@ export function seatLine(view: BlackjackView, id: string, hands: TableHand[], se
     const back = hands.reduce((sum, h) => sum + (h.payout ?? 0), 0);
     const staked = hands.reduce((sum, h) => sum + h.bet, 0);
     const outcome = hands.length === 1 && hands[0].outcome ? outcomeLabel(hands[0].outcome) : back > staked ? 'Win' : back === staked ? 'Push' : 'Lost';
-    return { state: 'settled', text: back > 0 ? `${outcome} ${payoutText(back)}` : outcome, tone: 'strong' };
+    // A push only hands the stake back: no "+N", which would read as a win.
+    return { state: 'settled', text: back > 0 && outcome !== 'Push' ? `${outcome} ${payoutText(back)}` : outcome, tone: 'strong' };
   }
   if (view.phase === 'acting' && hands.length > 0) {
     const order = view.order.indexOf(id);

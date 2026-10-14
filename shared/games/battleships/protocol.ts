@@ -65,7 +65,6 @@ export const DEFAULT_BATTLESHIPS_SETTINGS: BattleshipsSettings = {
 /** Shot events kept in the view's log. */
 export const BATTLESHIPS_LOG_LENGTH = 12;
 export const BATTLESHIPS_TEAM_IDS = ['A', 'B'] as const;
-export type BattleshipsTeamId = (typeof BATTLESHIPS_TEAM_IDS)[number];
 /** The faces of the die rolled at the start of every turn under move or fire. */
 export const BATTLESHIPS_DIE_FACES = 6;
 

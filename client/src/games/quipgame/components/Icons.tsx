@@ -1,7 +1,5 @@
 import { Icon, type IconProps } from '../../../platform/components/Icons';
 
-/** A speech bubble: the game's mark and the chat button. */
-export const BubbleIcon = (p: IconProps) => <Icon {...p} paths="M21 12a8 8 0 0 1-8 8H5l-2 2V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8Z" />;
 /** A pen: still writing. */
 export const PenIcon = (p: IconProps) => <Icon {...p} paths={['M12 20h9', 'M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z']} />;
 /** An eye: a spectator. */

@@ -34,7 +34,6 @@ export const platformSettingsSchema = z.object({
 export type PlatformSettings = z.infer<typeof platformSettingsSchema>;
 
 export const platformSettingsPatchSchema = platformSettingsSchema.partial();
-export type PlatformSettingsPatch = z.infer<typeof platformSettingsPatchSchema>;
 
 export function defaultPlatformSettings(_meta: GameMeta): PlatformSettings {
   return { allowMidGameJoin: true, contentMode: 'family' };

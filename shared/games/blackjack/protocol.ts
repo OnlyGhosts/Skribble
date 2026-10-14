@@ -12,8 +12,7 @@ import type { RoomState } from '../../platform/protocol.js';
 
 import type { Card } from '../../platform/cards.js';
 
-export { CARD_RANKS, CARD_SUITS } from '../../platform/cards.js';
-export type { Card, CardRank, CardSuit } from '../../platform/cards.js';
+export type { Card, CardRank } from '../../platform/cards.js';
 
 // ---------------------------------------------------------------------------
 // Settings

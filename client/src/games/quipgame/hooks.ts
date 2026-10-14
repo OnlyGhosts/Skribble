@@ -5,10 +5,6 @@ export function playerOf(room: RoomState, id: string | null | undefined): Player
   return id ? room.players.find((p) => p.id === id) : undefined;
 }
 
-export function nameOf(room: RoomState, id: string | null | undefined): string {
-  return playerOf(room, id)?.name ?? 'Someone';
-}
-
 export const WRITING_PHASES: readonly QuipgamePhase[] = ['writing', 'finalWriting'];
 export const RESULT_PHASES: readonly QuipgamePhase[] = ['result', 'finalResult'];
 

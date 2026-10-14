@@ -404,6 +404,17 @@ describe('copy', () => {
     expect(seatLine(next, 'bob', bobHands, true, false)).toMatchObject({ state: 'settled', text: 'Lost' });
   });
 
+  it('shows the chips won on a win, but no amount on a push (the stake only comes back)', async () => {
+    const { seatLine } = await import('./components/Seats');
+    const next = nextBetting();
+    const bobHands = tableOf(next)?.hands.bob ?? [];
+    expect(bobHands.length).toBeGreaterThan(0);
+    const settle = (outcome: 'win' | 'push', payout: number) => bobHands.map((h) => ({ ...h, outcome, payout }));
+    const bet = bobHands[0].bet;
+    expect(seatLine(next, 'bob', settle('win', bet * 2), true, false)).toMatchObject({ state: 'settled', text: `Win +${bet * 2}` });
+    expect(seatLine(next, 'bob', settle('push', bet), true, false)).toMatchObject({ state: 'settled', text: 'Push' });
+  });
+
   it('never shows an em dash or mentions insurance anywhere in the module', () => {
     const files: string[] = [];
     const walk = (dir: string) => {

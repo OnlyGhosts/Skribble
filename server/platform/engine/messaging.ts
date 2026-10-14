@@ -27,10 +27,6 @@ export function sendTo(cx: Cx, playerId: string, msg: OutboundMessage): void {
   if (p?.connected) cx.effects.push({ type: 'send', to: [playerId], msg });
 }
 
-export function broadcast(cx: Cx, msg: OutboundMessage, except?: string): void {
-  cx.effects.push({ type: 'send', to: except === undefined ? 'all' : { except: [except] }, msg });
-}
-
 /** Snapshots are rendered now, not when the driver runs the effects: later steps of the same action may change the state again. */
 export function broadcastSnapshot(cx: Cx, except?: string): void {
   for (const p of connectedPlayers(cx.data)) {

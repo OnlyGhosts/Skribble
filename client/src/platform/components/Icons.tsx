@@ -42,15 +42,10 @@ export const GearIcon = (p: IconProps) => (
   />
 );
 export const LinkIcon = (p: IconProps) => <Icon {...p} paths={['M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1', 'M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1']} />;
-export const SunIcon = (p: IconProps) => <Icon {...p} paths={['M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10Z', 'M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4']} />;
-export const MoonIcon = (p: IconProps) => <Icon {...p} paths="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z" />;
-export const SoundOnIcon = (p: IconProps) => <Icon {...p} paths={['M11 5 6 9H2v6h4l5 4V5Z', 'M15.5 8.5a5 5 0 0 1 0 7', 'M18.5 5.5a9 9 0 0 1 0 13']} />;
-export const SoundOffIcon = (p: IconProps) => <Icon {...p} paths={['M11 5 6 9H2v6h4l5 4V5Z', 'm23 9-6 6', 'm17 9 6 6']} />;
 export const AlertIcon = (p: IconProps) => <Icon {...p} paths={['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Z', 'M12 8v5', 'M12 16h.01']} />;
 export const CloseIcon = (p: IconProps) => <Icon {...p} paths="M5 5l14 14M19 5 5 19" />;
 export const UsersIcon = (p: IconProps) => <Icon {...p} paths={['M8 11a4 4 0 1 0 0-8a4 4 0 1 0 0 8', 'M2 21v-3q0-4 6-4t6 4v3', 'M16 5q6 0 4 6', 'M17 14q5 0 5 7']} />;
 export const ChevronIcon = (p: IconProps) => <Icon {...p} paths="m6 9 6 6 6-6" />;
-export const ArrowRightIcon = (p: IconProps) => <Icon {...p} paths={['M5 12h14', 'm13 6 6 6-6 6']} />;
 export const LogoutIcon = (p: IconProps) => <Icon {...p} paths={['M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4', 'm16 17 5-5-5-5', 'M21 12H9']} />;
 export const PlayIcon = (p: IconProps) => <Icon {...p} paths="m6 4 14 8-14 8V4Z" />;
 export const PauseIcon = (p: IconProps) => <Icon {...p} paths={['M9 5v14', 'M15 5v14']} strokeWidth={3} />;

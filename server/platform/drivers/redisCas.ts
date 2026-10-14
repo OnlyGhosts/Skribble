@@ -1,6 +1,6 @@
 import type { Redis } from 'ioredis';
 
-export { MAX_CAS_RETRIES, retryCas } from '../cas.js';
+export { retryCas } from '../cas.js';
 
 /**
  * A compare-and-set written as a Lua script. Redis' own WATCH/MULTI/EXEC is bound to a connection:

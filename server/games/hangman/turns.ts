@@ -125,7 +125,7 @@ export function chooseTimedOut(gx: Gx): void {
 }
 
 function startGuessing(gx: Gx, word: string): void {
-  const { data, ctx } = gx;
+  const { data } = gx;
   const turn = data.turn;
   if (!turn) return;
   turn.word = word;

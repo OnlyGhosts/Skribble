@@ -22,11 +22,6 @@
   letter-spacing: -0.02em;
 }
 
-.card__text {
-  color: var(--color-text-muted);
-  font-size: 0.95rem;
-}
-
 .pill {
   display: inline-flex;
   align-items: center;
@@ -68,8 +63,7 @@
 }
 
 /* A game's glyph on its accent plate, ink on top: the small mark in a game's own header. */
-.game-mark,
-.brand__mark {
+.game-mark {
   display: inline-grid;
   place-items: center;
   flex: none;
@@ -80,36 +74,9 @@
   color: var(--game-ink);
 }
 
-.game-mark--sm,
-.brand__mark--sm {
+.game-mark--sm {
   width: 30px;
   height: 30px;
-}
-
-.topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  flex-wrap: wrap;
-  margin-bottom: var(--space-4);
-}
-
-.topbar__crumb {
-  margin-left: 6px;
-  padding: 2px 8px;
-  border-radius: var(--radius-pill);
-  background: var(--color-surface-2);
-  color: var(--color-text-muted);
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
-.topbar__actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex-wrap: wrap;
 }
 
 /* ---------- Buttons ---------- */
@@ -1368,20 +1335,6 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-}
-
-.menu-sheet__row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  min-height: 48px;
-  padding: 4px 0;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.menu-sheet__label {
-  font-weight: 600;
 }
 
 .menu-sheet__leave {

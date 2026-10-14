@@ -205,7 +205,7 @@ There is no database to set up: `PORT` is the only required setting, `REDIS_URL`
 | `npm test` | Vitest unit tests (the platform engine and both game modules, protocol helpers, guess matching, codes, the client platform and game modules, the Redis driver across two instances; the Redis tests spawn `redis-server` and are skipped when it is not installed) |
 | `npm run build` | Production build of both halves |
 | `npm run test:e2e` | Playwright end-to-end tests driving several browser contexts through the front door (the four boxes, paste, keys, errors, deep links, the name step, themes, four viewport widths), whole games of Scribble and Click Race, reloads, kicks and phone layouts, plus two server instances sharing a Redis |
-| `node scripts/brand-icons.mjs` | Regenerates the PNG app icons from the smile tile (`client/public/favicon.svg`) |
+| `node scripts/brand-icons.mjs` | Regenerates the opaque apple-touch and maskable PNG icons from the app icon (`client/public/icons/icon.svg`) |
 | `npm run check` | Typecheck, unit tests and build in one go |
 
 ## How it's built
