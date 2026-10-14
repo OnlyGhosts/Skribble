@@ -322,7 +322,7 @@ test('hand two: two folds hand the big blind the pot with no cards shown, and th
     const before = await stepOnHost();
     await acting.page.getByTestId('action-fold').click();
     await expect.poll(stepOnHost).not.toBe(before);
-    await expect(acting.page.getByTestId('my-area')).toHaveAttribute('data-status', /^(folded|waiting|acting)$/);
+    await expect(acting.page.getByTestId('my-area')).toHaveAttribute('data-status', 'folded');
     folders.push(acting);
   }
   const winner = players.find((p) => !folders.includes(p));
