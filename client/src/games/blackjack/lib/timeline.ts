@@ -7,7 +7,7 @@
  * The animation never runs far behind the truth: a backlog longer than MAX_BACKLOG_MS, a fresh
  * entry (welcome, reconnect) or reduced motion snaps the table to the snapshot at once.
  */
-import { dealOrder, dealerKey, seatCards, type TableModel } from './table';
+import { dealOrder, seatCards, type TableModel } from './table';
 
 export const DEAL_MS = 250;
 export const DEAL_GAP_MS = 150;
@@ -181,8 +181,6 @@ export function outcomesShown(timeline: Timeline, now: number): boolean {
 export function animating(timeline: Timeline, now: number): boolean {
   return now < timeline.endsAt;
 }
-
-export { dealerKey };
 
 /** The next moment the drawing changes, for the screen's clock; null once everything has landed. */
 export function nextEvent(timeline: Timeline, now: number): number | null {

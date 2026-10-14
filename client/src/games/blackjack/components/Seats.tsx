@@ -41,6 +41,7 @@ function seatLine(view: BlackjackView, id: string, hands: TableHand[], settledSh
     return order > turn ? { state: 'waiting', text: 'Waiting' } : { state: 'done', text: hands.every((h) => h.status === 'bust') ? 'Bust' : hands[0].status === 'blackjack' ? 'Blackjack' : 'Stands' };
   }
   if (betting) return { state: 'betting', text: 'Betting' };
+  if (view.phase === 'ending' || view.phase === 'gameOver') return { state: 'next', text: '' };
   return { state: 'next', text: 'Next round' };
 }
 
@@ -55,7 +56,11 @@ export function Seats({ room, view, ids, table, timeline, now, leaving, chipsOf 
 
   useEffect(() => {
     const list = strip.current;
-    if (!turnId || !list) return;
+    if (!list) return;
+    if (!turnId) {
+      list.scrollTo?.({ left: 0, behavior: 'smooth' });
+      return;
+    }
     const el = list.querySelector<HTMLElement>(`[data-player-id="${CSS.escape(turnId)}"]`);
     if (!el) return;
     const left = el.offsetLeft - (list.clientWidth - el.offsetWidth) / 2;
@@ -90,7 +95,12 @@ export function Seats({ room, view, ids, table, timeline, now, leaving, chipsOf 
               <Avatar avatar={player.avatar} size="sm" dimmed={!player.connected} />
               <span className="bj-seat__id">
                 <span className="bj-seat__name">{player.name}</span>
-                <Chips value={chipsOf(id)} size={12} className="bj-seat__chips" />
+                <span className="bj-seat__meta">
+                  <Chips value={chipsOf(id)} size={12} className="bj-seat__chips" />
+                  <span className={`bj-seat__line bj-seat__line--${line.state}`} data-testid="seat-line">
+                    {line.text}
+                  </span>
+                </span>
               </span>
             </div>
             <div className="bj-seat__hands">
@@ -98,9 +108,6 @@ export function Seats({ room, view, ids, table, timeline, now, leaving, chipsOf 
                 <Hand key={i} playerId={id} index={i} hand={hand} timeline={timeline} now={now} leaving={leaving} size="sm" active={turn && view.turn?.handIndex === i} mini testId="seat-hand" />
               ))}
             </div>
-            <span className={`bj-seat__line bj-seat__line--${line.state}`} data-testid="seat-line">
-              {line.text}
-            </span>
           </li>
         );
       })}

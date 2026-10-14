@@ -36,7 +36,7 @@ export function Dealer({ table, timeline, now, leaving, size }: Props) {
       <div className="bj-hand__top">
         {total ? (
           <span className={`bj-pill bj-pill--${tone}`} data-testid="dealer-total">
-            {totalText(total)}
+            {totalText(total, holeHidden)}
           </span>
         ) : (
           <span className="bj-dealer__label">Dealer</span>

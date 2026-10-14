@@ -61,7 +61,7 @@ export function Hand({ playerId, index, hand, timeline, now, leaving, size, acti
       <div className="bj-hand__top">
         {total && (
           <span className={`bj-pill bj-pill--${tone}`} data-testid="hand-total">
-            {totalText(total)}
+            {totalText(total, hand.outcome === null && (hand.status === 'waiting' || hand.status === 'acting'))}
           </span>
         )}
         {outcome && payout && !mini && (
@@ -79,8 +79,7 @@ export function Hand({ playerId, index, hand, timeline, now, leaving, size, acti
         <div className="bj-hand__foot">
           {outcome ? (
             <span className={`bj-hand__outcome bj-hand__outcome--${outcome}`} data-testid="hand-outcome">
-              {outcomeLabel(outcome)}
-              {payout && ` ${payout}`}
+              {payout ? `${outcomeLabel(outcome)} ${payout}` : outcomeLabel(outcome)}
             </span>
           ) : (
             <Chips value={hand.bet} size={14} className="bj-hand__bet" />

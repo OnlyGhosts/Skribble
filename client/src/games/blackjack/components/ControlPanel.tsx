@@ -59,7 +59,7 @@ export function ControlPanel({ room, view, meId, balance, status, canSend, busy,
   const range = seat && !seat.bustedOut ? betWindow(settings.minBet, settings.maxBet, seat.chips, seat.bet) : null;
   const text = betText ?? (range ? String(defaultBet(lastBet, range)) : '');
   const amount = range ? betAmount(text, range) : null;
-  const canBet = canSend && range !== null && amount !== null && view.phase === 'betting' && view.order.includes(meId) && seat !== undefined && seat.bet === 0;
+  const canBet = canSend && !busy && range !== null && amount !== null && view.phase === 'betting' && view.order.includes(meId) && seat !== undefined && seat.bet === 0;
   const fieldOn = range !== null && canSend;
   // Away from the keyboard the field shows what Bet would send (a stack that shrank clamps it).
   const shown = editing || amount === null ? text : String(amount);
@@ -87,7 +87,8 @@ export function ControlPanel({ room, view, meId, balance, status, canSend, busy,
       if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
       const { bet: doBet, moveOn: on, canBet: betOk } = latest.current;
       if (e.key === ' ') {
-        if (!betOk) return;
+        // A focused button keeps Space for itself.
+        if (!betOk || (e.target instanceof HTMLElement && e.target.closest('button, a, [role="button"]'))) return;
         e.preventDefault();
         doBet();
         return;

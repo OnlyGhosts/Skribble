@@ -113,7 +113,7 @@ export function shownTotal(cards: readonly (Card | null)[]): ShownTotal | null {
   return handTotal(up);
 }
 
-/** "17", or "7/17" while an ace still counts both ways. */
-export function totalText({ total, soft }: ShownTotal): string {
-  return soft && total < 21 ? `${total - 10}/${total}` : String(total);
+/** "17", or "7/17" while an ace still counts both ways and the hand can still draw. */
+export function totalText({ total, soft }: ShownTotal, open = true): string {
+  return open && soft && total < 21 ? `${total - 10}/${total}` : String(total);
 }

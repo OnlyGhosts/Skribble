@@ -111,9 +111,9 @@
 /* ---------- The table ---------- */
 .bj-table {
   /* Card sizes per place on the table; every card here is 2:3. */
-  --bj-dealer-w: 84px;
-  --bj-mine-w: 84px;
-  --bj-seat-w: 32px;
+  --bj-dealer-w: 92px;
+  --bj-mine-w: 100px;
+  --bj-seat-w: 44px;
   flex: 1;
   min-width: 0;
   min-height: 0;
@@ -138,7 +138,8 @@
 }
 
 .bj-card {
-  display: inline-block;
+  /* A flex box, not inline: no baseline gap under the card. */
+  display: flex;
   flex: none;
   will-change: transform;
 }
@@ -427,7 +428,7 @@
 /* The payout rises out of the hand and fades; the foot keeps it in words. */
 .bj-payout {
   position: absolute;
-  bottom: 100%;
+  bottom: calc(100% + 4px);
   left: 50%;
   font-family: var(--font-display);
   font-weight: 700;
@@ -450,7 +451,7 @@
 @keyframes bj-rise {
   0% {
     opacity: 0;
-    transform: translate(-50%, 10px);
+    transform: translate(-50%, 14px);
   }
   20% {
     opacity: 1;
@@ -461,7 +462,7 @@
   }
   100% {
     opacity: 0;
-    transform: translate(-50%, -18px);
+    transform: translate(-50%, -4px);
   }
 }
 
@@ -477,12 +478,13 @@
 
 .bj-mine__hands {
   display: flex;
-  justify-content: center;
+  justify-content: safe center;
   gap: var(--space-2);
   max-width: 100%;
   overflow-x: auto;
   scrollbar-width: none;
-  padding-top: 18px;
+  padding-top: 20px;
+  margin-top: -20px;
 }
 
 .bj-mine--n2 {
@@ -502,7 +504,7 @@
 .bj-mine__empty {
   display: flex;
   justify-content: center;
-  padding-top: 30px;
+  padding-top: 36px;
 }
 
 .bj-mine__bet {
@@ -518,6 +520,7 @@
 .bj-seats {
   --bj-w: var(--bj-seat-w);
   display: flex;
+  justify-content: safe center;
   gap: var(--space-2);
   margin: 0;
   padding: 2px;
@@ -528,13 +531,9 @@
   flex: none;
 }
 
-.bj-seats:has(> .bj-seat:only-child) {
-  justify-content: center;
-}
-
 .bj-seat {
   flex: none;
-  min-width: 116px;
+  min-width: 128px;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -579,6 +578,13 @@
   max-width: 84px;
 }
 
+.bj-seat__meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
 .bj-seat__chips {
   font-size: 0.72rem;
   color: var(--color-text-muted);
@@ -587,17 +593,23 @@
 .bj-seat__hands {
   display: flex;
   gap: 4px;
-  min-height: calc(var(--bj-w) * 1.5 + 26px);
+  min-height: calc(var(--bj-w) * 1.5 + 7px);
 }
 
 .bj-hand--mini {
+  flex-direction: row-reverse;
+  align-items: center;
   padding: 2px;
-  gap: 2px;
+  gap: 4px;
   border-width: 1.5px;
 }
 
+.bj-hand--mini .bj-hand__cards > .bj-card + .bj-card {
+  margin-left: calc(var(--bj-w) * -0.36);
+}
+
 .bj-hand--mini .bj-hand__top {
-  min-height: 18px;
+  min-height: 0;
 }
 
 .bj-hand--mini .bj-pill {
@@ -610,7 +622,7 @@
 .bj-seat__line {
   font-size: 0.72rem;
   font-weight: 700;
-  color: var(--color-text-muted);
+  color: var(--color-text-faint);
   white-space: nowrap;
 }
 
@@ -702,7 +714,6 @@
   min-width: 0;
   display: flex;
   align-items: center;
-  height: 48px;
   padding-left: 12px;
   border: 1.5px solid var(--color-border-strong);
   border-right: 0;
@@ -725,7 +736,7 @@
 .bj-amount__input {
   flex: 1;
   min-width: 0;
-  height: 100%;
+  height: 45px;
   padding: 0 4px 0 8px;
   border: 0;
   background: transparent;
@@ -816,8 +827,7 @@
 .bj-panel__hint {
   margin: 0;
   text-align: center;
-  font-family: var(--font-mono);
-  font-size: 0.7rem;
+  font-size: 0.72rem;
   color: var(--color-text-faint);
 }
 
@@ -970,8 +980,8 @@
   }
 
   .bj-table {
-    --bj-dealer-w: 60px;
-    --bj-mine-w: 64px;
+    --bj-dealer-w: 56px;
+    --bj-mine-w: 62px;
     --bj-seat-w: 28px;
     gap: 6px;
     padding: 8px;
@@ -1019,13 +1029,18 @@
   }
 }
 
-@media (max-width: 760px) and (max-height: 620px) {
+/* Short phones and phones on their side: compact cards, hands lying on their side, the ribbon gone. */
+@media (max-width: 760px) and (max-height: 620px), (min-aspect-ratio: 3/2) and (max-height: 520px) {
   .bj-table {
-    --bj-dealer-w: 44px;
-    --bj-mine-w: 46px;
+    --bj-dealer-w: 36px;
+    --bj-mine-w: 44px;
     --bj-seat-w: 24px;
-    gap: 4px;
-    padding: 6px;
+    gap: 0;
+    padding: 4px 6px;
+  }
+
+  .bj-hand {
+    padding: 3px;
   }
 
   .bj-ribbon {
@@ -1051,29 +1066,83 @@
     min-height: 44px;
   }
 
-  .bj-amount__field,
-  .bj-amount__step {
+  .bj-amount__input {
     height: 44px;
+  }
+
+  .bj-amount__step {
+    height: 47px;
   }
 
   .bj-panel__bet {
     min-height: 48px;
   }
 
+  .bj-panel__status {
+    min-height: 18px;
+    font-size: 0.85rem;
+  }
+
+  /* One or two hands lie on their side here: the total beside the cards rather than over them. */
+  .bj-dealer,
+  .bj-mine--n1 .bj-hand,
+  .bj-mine--n2 .bj-hand {
+    flex-direction: row;
+  }
+
+  .bj-mine--n3,
+  .bj-mine--n4 {
+    --bj-w: 38px;
+  }
+
+  .bj-mine--n3 .bj-hand__foot,
+  .bj-mine--n4 .bj-hand__foot {
+    display: none;
+  }
+
+  .bj-mine--n3 .bj-hand,
+  .bj-mine--n4 .bj-hand {
+    gap: 2px;
+  }
+
+  .bj-mine--n3 .bj-hand__top,
+  .bj-mine--n4 .bj-hand__top {
+    min-height: 18px;
+  }
+
+  .bj-mine--n3 .bj-pill,
+  .bj-mine--n4 .bj-pill {
+    height: 18px;
+    min-width: 26px;
+    padding: 0 5px;
+    font-size: 0.68rem;
+  }
+
   .bj-mine__hands {
     padding-top: 14px;
+    margin-top: -14px;
   }
 
   .bj-mine__empty {
-    padding-top: 22px;
+    padding-top: 0;
+  }
+
+  .bj-hand__foot {
+    min-height: 0;
   }
 
   .bj-seat {
-    padding: 4px 6px;
+    flex-direction: row;
+    align-items: center;
+    padding: 3px 6px;
   }
 
   .bj-seat--turn {
-    padding: 3px 5px;
+    padding: 2px 5px;
+  }
+
+  .bj-seat__hands {
+    min-height: 0;
   }
 }
 
@@ -1098,16 +1167,6 @@
     grid-column: 2;
     grid-row: 2;
     overflow-y: auto;
-  }
-
-  .bj-table {
-    --bj-dealer-w: 44px;
-    --bj-mine-w: 48px;
-    --bj-seat-w: 24px;
-  }
-
-  .bj-ribbon {
-    display: none;
   }
 }
 

@@ -67,7 +67,7 @@ export function payoutText(payout: number): string {
 
 export const HOTKEY_HINT = 'Space bet · H hit · S stand · D double · P split';
 
-export type PanelState = 'spectating' | 'out' | 'offline' | 'held' | 'over' | 'dealer' | 'next-round' | 'bet' | 'waiting' | 'dealing' | 'my-turn' | 'their-turn' | 'idle';
+export type PanelState = 'spectating' | 'out' | 'offline' | 'held' | 'over' | 'dealer' | 'next-round' | 'bet' | 'waiting' | 'dealing' | 'my-turn' | 'their-turn';
 
 export interface PanelStatus {
   state: PanelState;
