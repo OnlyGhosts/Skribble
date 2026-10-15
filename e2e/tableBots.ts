@@ -11,6 +11,8 @@ export interface TableBot {
   id: string | null;
   /** Keeps the turn instead of playing it; letting go plays it at once. */
   setHold(hold: boolean): void;
+  /** Errors the server sent back, for a failing spec to print. */
+  errors: string[];
   close(): void;
 }
 
@@ -18,6 +20,8 @@ type BotRoom = {
   phase: string;
   game: {
     phase: string;
+    round?: number;
+    hand?: number;
     order: string[];
     turn: { playerId: string } | string | null;
     players: Record<string, { bet: number }>;
@@ -50,6 +54,8 @@ function turnOf(game: NonNullable<BotRoom['game']>): string | null {
 export function tableBot(name: string, code: string, base: string, { game: kind, thinkMs = 400, hold = false }: BotOptions): Promise<TableBot> {
   const socket = new WebSocket(`${base.replace(/^http/, 'ws')}/ws`);
   let acted = '';
+  let readied = false;
+  let betRound = -1;
   let held = hold;
   let latest: BotRoom | null = null;
   const send = (out: object) => socket.readyState === WebSocket.OPEN && socket.send(JSON.stringify(out));
@@ -58,10 +64,23 @@ export function tableBot(name: string, code: string, base: string, { game: kind,
     const room = latest;
     const id = bot.id;
     if (!room || !id) return;
-    if (room.phase === 'lobby' && !room.players.find((p) => p.id === id)?.ready) return send({ t: 'ready', ready: true });
+    // Each message goes once: a big table sends a snapshot per move, and a bot answering every one
+    // of them with the same message would flood the room.
+    if (room.phase === 'lobby') {
+      if (!readied && !room.players.find((p) => p.id === id)?.ready) {
+        readied = true;
+        send({ t: 'ready', ready: true });
+      }
+      return;
+    }
+    readied = false;
     const g = room.game;
     if (room.phase !== 'playing' || !g) return;
-    if (kind === 'blackjack' && g.phase === 'betting' && g.order.includes(id) && g.players[id]?.bet === 0) return send({ t: 'bet', amount: 1 });
+    const round = g.round ?? 0;
+    if (kind === 'blackjack' && g.phase === 'betting' && g.order.includes(id) && g.players[id]?.bet === 0 && betRound !== round) {
+      betRound = round;
+      return send({ t: 'bet', amount: 1 });
+    }
     const turn = `${g.phase}:${turnOf(g)}:${JSON.stringify(g.players[id])}`;
     if (g.phase === 'acting' && turnOf(g) === id && acted !== turn && !held) {
       acted = turn;
@@ -73,6 +92,7 @@ export function tableBot(name: string, code: string, base: string, { game: kind,
   const bot: TableBot = {
     name,
     id: null,
+    errors: [],
     setHold(next) {
       held = next;
       if (!next) step();
@@ -81,8 +101,9 @@ export function tableBot(name: string, code: string, base: string, { game: kind,
   };
 
   socket.on('message', (raw) => {
-    const msg = JSON.parse(String(raw)) as { t: string; playerId?: string; room?: BotRoom };
+    const msg = JSON.parse(String(raw)) as { t: string; playerId?: string; room?: BotRoom; code?: string; message?: string };
     if (msg.t === 'welcome' && msg.playerId) bot.id = msg.playerId;
+    if (msg.t === 'error') bot.errors.push(`${msg.code ?? ''} ${msg.message ?? ''}`.trim());
     if (msg.room) latest = msg.room;
     step();
   });

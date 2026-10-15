@@ -195,11 +195,19 @@ a chip amount setting with presets and a numeric field is
 
 **Card tables.** A Stake-style card table is a kit in
 [`client/src/platform/table/`](../client/src/platform/table) (styles: the platform's `table.css`, `.tbl*`),
-used by Blackjack and Poker: `TableShell` (the top bar, the table, the control panel under it on a
-phone and in a left column on a desktop, the chat on the right, the players / chat / options
-sheets), the felt (`.tbl-felt`, `.tbl-felt__top` for discards, centre piece and deck), `Deck` and
-`DiscardTray` (the anchors cards fly from and to), `TableRibbon`, `SeatStrip` / `MiniSeat` (the other
-players in one sideways-scrolling strip, the seat whose turn it is lit and scrolled into view),
+used by Blackjack and Poker: `TableShell` (the top bar, one row on a phone; the table, the control
+panel under it on a phone and in a left column on a desktop, the chat on the right, the players /
+chat / options sheets), the felt laid out as a stage that never scrolls (`.tbl-felt.tbl-stage`:
+the centre piece row `.tbl-felt__top`, the ribbon, the spotlight, the players, my hand
+`.tbl-stage__mine`; `useTightStage` in `stage.ts` packs it tighter on a short phone or a big
+table), `Deck` and `DiscardTray` (the anchors cards fly from and to), `TableRibbon`, `Spotlight`
+(centre stage: the hand being played large, whose turn it is with their avatar, the turn clock and
+who is next; the game picks its subject per phase, and the viewer's own hand moves up into it on
+their turn), `PlayersGrid` / `PlayerTile` / `SeatSheet` (every other player as a tile in seat order
+in a grid that fits its space: [`grid.ts`](../client/src/platform/table/grid.ts) steps the tiles
+down from full to compact, small and dense as the table grows and fits the columns to the room
+left, a desktop sets them on a gentle arc; the seat on turn gets the lime ring and the Playing tag,
+a settled seat its outcome's colour, and tapping a tile opens its hand in a sheet),
 `PanelShell` / `PanelLabelRow` / `AmountField` / `PanelMoves` / `MoveButton` (the control panel:
 the status line, the amount with its quick amounts joined to it, the moves always in place and
 dimmed when not on offer), `TotalPill` / `PayoutFloat` / `outlineClass` (the outcome colours),

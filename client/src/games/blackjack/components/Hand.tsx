@@ -18,7 +18,7 @@ interface Props {
   size: PlayingCardSize;
   /** The hand in play right now. */
   active: boolean;
-  /** The seat strip's small hand: no bet line, the outcome only as colour. */
+  /** A tile's small hand: no bet line, the outcome only as colour. */
   mini?: boolean;
   testId: string;
 }

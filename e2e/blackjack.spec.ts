@@ -527,8 +527,6 @@ async function bigTable(browser: Browser, base: string, size: number): Promise<v
     await fitsEverySize(phone, PHONES, `${size} players, betting`);
     await desk.getByTestId('place-bet').click();
     await phone.getByTestId('place-bet').click();
-    await phone.waitForTimeout(3000);
-    console.log('DEBUG', await phone.getByTestId('turn-status').textContent(), await phone.getByTestId('spot-bets-count').textContent().catch(() => '?'), await desk.getByTestId('turn-status').textContent(), await phone.getByTestId('bj-panel').getAttribute('data-amount'), await phone.getByTestId('chat-toggle').count());
     await expect(screenOf(phone)).toHaveAttribute('data-phase', 'acting', { timeout: 20_000 });
     await expect(screenOf(phone)).toHaveAttribute('data-busy', 'false', { timeout: 20_000 });
 

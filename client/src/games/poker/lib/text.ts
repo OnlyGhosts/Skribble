@@ -183,7 +183,7 @@ const CATEGORY_LABELS: Record<HandCategory, string> = {
   straightFlush: 'Straight flush',
 };
 
-/** A shown hand in a word or two, for a seat in the strip: "Two pair", "Flush". */
+/** A shown hand in a word or two, for a seat's tile: "Two pair", "Flush". */
 export function categoryLabel(category: HandCategory): string {
   return CATEGORY_LABELS[category];
 }
