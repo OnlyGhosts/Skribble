@@ -1,4 +1,6 @@
 import type { FormEvent, ReactNode } from 'react';
+import type { Avatar as AvatarData } from '@shared/platform/avatar';
+import { Avatar } from '../components/Avatar';
 import { Chips } from '../components/Chips';
 
 /** How the panel's status line reads: lime when it is on me, lilac while someone else (or the dealer) plays, red when I am out. */
@@ -9,6 +11,8 @@ export interface PanelStatus {
   state: string;
   text: string;
   tone: StatusTone;
+  /** The avatar of the player whose turn it is, in place of the dot. */
+  who?: AvatarData;
 }
 
 type DataAttrs = Record<`data-${string}`, string | number | boolean | undefined>;
@@ -47,9 +51,16 @@ export function PanelShell({ label, status, onSubmit, testId, data, hint, childr
   };
   return (
     <form className="tbl-panel" onSubmit={submit} onClick={releaseClickedButton} noValidate aria-label={label} data-testid={testId} {...data}>
-      <p className={`tbl-panel__status tbl-panel__status--${status.tone}`} data-testid="turn-status" data-state={status.state} role="status" aria-live="polite">
-        {status.text}
-      </p>
+      <div className={`tbl-panel__status tbl-panel__status--${status.tone}${status.who ? ' tbl-panel__status--who' : ''}`}>
+        {status.who && (
+          <span className="tbl-panel__who" aria-hidden="true">
+            <Avatar avatar={status.who} size="sm" />
+          </span>
+        )}
+        <p className="tbl-panel__status-text" data-testid="turn-status" data-state={status.state} role="status" aria-live="polite">
+          {status.text}
+        </p>
+      </div>
       {children}
       {hint && (
         <p className="tbl-panel__hint" data-testid="hotkey-hint">

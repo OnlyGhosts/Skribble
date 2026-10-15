@@ -23,8 +23,6 @@ interface Props {
   status: ReactNode;
   statusTestId: string;
   statusData?: DataAttrs;
-  /** The turn clock, at the end of the players row. */
-  clock: ReactNode;
   /** The room, for the top bar's player chips and the players sheet. */
   room: RoomState;
   /** The players list, in its sheet. */
@@ -38,11 +36,12 @@ interface Props {
 }
 
 /**
- * A card table's screen: a compact top bar (what is being played, the turn clock, players, chat,
- * options), the table, and the control panel always in the same place: under the table on a
- * phone, in a left column on a desktop with the chat on the right (table.css).
+ * A card table's screen: a top bar (what is being played, players, chat, options; one row on a
+ * phone, where every player is on the table), the table (the turn clock is in its spotlight), and
+ * the control panel always in the same place: under the table on a phone, in a left column on a
+ * desktop with the chat on the right (table.css).
  */
-export function TableShell({ meta, className, testId, headerTestId, mainTestId, data, isPhone, status, statusTestId, statusData, clock, room, players, sheet, onSheet, endControl, table, panel }: Props) {
+export function TableShell({ meta, className, testId, headerTestId, mainTestId, data, isPhone, status, statusTestId, statusData, room, players, sheet, onSheet, endControl, table, panel }: Props) {
   const closeSheet = () => onSheet(null);
   const style = { '--table-accent': meta.accent } as CSSProperties;
   return (
@@ -56,8 +55,8 @@ export function TableShell({ meta, className, testId, headerTestId, mainTestId, 
         status={status}
         statusTestId={statusTestId}
         statusData={statusData}
-        clock={clock}
         players={{ open: sheet === 'players', onOpen: () => onSheet('players') }}
+        compact={isPhone}
         chat={isPhone ? { open: sheet === 'chat', onOpen: () => onSheet('chat') } : undefined}
         menu={{ open: sheet === 'menu', onOpen: () => onSheet('menu') }}
         actions={endControl('header')}

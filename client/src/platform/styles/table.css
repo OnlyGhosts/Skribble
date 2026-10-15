@@ -50,8 +50,7 @@
 
 /* ---------- The felt ---------- */
 .tbl-felt {
-  /* The mini seats' card width; a game sets its own card widths per place (every card here is 2:3). */
-  --tbl-seat-w: 44px;
+  /* A game sets its card widths per place on the table (every card here is 2:3). */
   flex: 1;
   min-width: 0;
   min-height: 0;
@@ -63,9 +62,7 @@
   border-radius: var(--radius-md);
   border: 1px solid var(--color-border);
   background: var(--color-surface);
-  overflow-x: hidden;
-  overflow-y: auto;
-  scrollbar-width: thin;
+  overflow: hidden;
 }
 
 /* Discards top left, the game's centre piece, the deck top right. */
@@ -351,113 +348,629 @@
   will-change: transform;
 }
 
-/* ---------- Other players: one strip that scrolls sideways ---------- */
-.tbl-seats {
-  --tbl-w: var(--tbl-seat-w);
-  /* The offset parent of its seats, so scrolling the turn seat into view measures from the strip. */
-  position: relative;
-  display: flex;
-  justify-content: safe center;
-  gap: var(--space-2);
-  margin: 0;
-  padding: 2px;
-  list-style: none;
-  overflow-x: auto;
-  scroll-snap-type: x proximity;
-  scrollbar-width: thin;
-  overscroll-behavior-x: contain;
-  flex: none;
+/* ---------- The stage: what is on the table, top to bottom, never scrolling ---------- */
+/* The game's centre piece (dealer, or pot and board), the ribbon, the spotlight, the players, my hand. */
+.tbl-stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  grid-template-areas: 'top' 'ribbon' 'spot' 'seats' 'mine';
+  justify-content: stretch;
+  overflow: hidden;
 }
 
-.tbl-seat {
-  flex: none;
-  min-width: 128px;
+.tbl-stage > .tbl-felt__top {
+  grid-area: top;
+}
+
+.tbl-stage > .tbl-ribbon {
+  grid-area: ribbon;
+}
+
+.tbl-stage > .tbl-spot {
+  grid-area: spot;
+}
+
+.tbl-stage > .tbl-grid {
+  grid-area: seats;
+}
+
+.tbl-stage > .tbl-stage__mine {
+  grid-area: mine;
+}
+
+/* ---------- The spotlight: the hand being played, large, with whose it is and the clock ---------- */
+.tbl-spot {
+  --tbl-w: var(--tbl-spot-w, 64px);
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 6px 8px;
-  border-radius: var(--radius-item);
-  border: 1px solid var(--color-border);
+  min-width: 0;
+  padding: 6px 10px 8px;
+  border-radius: var(--radius-md);
+  border: 2px solid var(--color-border-strong);
   background: var(--color-surface-2);
-  scroll-snap-align: center;
-  transition: border-color 150ms ease-out;
+  transition: border-color 150ms ease-out, background-color 150ms ease-out;
 }
 
-.tbl-seat--turn {
-  border: 2px solid var(--color-primary-text);
-  padding: 5px 7px;
+.tbl-spot--turn,
+.tbl-spot--mine {
+  border: 3px solid var(--color-primary-text);
+  padding: 5px 9px 7px;
   background: var(--color-primary-soft);
 }
 
-.tbl-seat--dim {
-  opacity: 0.6;
+.tbl-spot--dealer {
+  border-color: var(--color-secondary);
 }
 
-.tbl-seat__who {
+.tbl-spot--tone-win {
+  border-color: var(--color-primary-text);
+}
+
+.tbl-spot--tone-blackjack {
+  border-color: var(--color-warning);
+}
+
+.tbl-spot--tone-loss,
+.tbl-spot--tone-bust {
+  border-color: var(--color-danger);
+}
+
+.tbl-spot__head {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   min-width: 0;
 }
 
-.tbl-seat__id {
+.tbl-spot__who {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.tbl-spot__face {
+  display: flex;
+  flex: none;
+}
+
+.tbl-spot__titles {
   display: flex;
   flex-direction: column;
   min-width: 0;
   line-height: 1.15;
 }
 
-.tbl-seat__name-row {
+.tbl-spot__label {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.25rem;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tbl-spot--turn .tbl-spot__label,
+.tbl-spot--mine .tbl-spot__label,
+.tbl-spot--tone-win .tbl-spot__label {
+  color: var(--color-primary-text);
+}
+
+.tbl-spot--dealer .tbl-spot__label {
+  color: var(--color-secondary-text);
+}
+
+.tbl-spot--tone-blackjack .tbl-spot__label {
+  color: var(--color-warning-text);
+}
+
+.tbl-spot--tone-loss .tbl-spot__label,
+.tbl-spot--tone-bust .tbl-spot__label {
+  color: var(--color-danger-text);
+}
+
+.tbl-spot__sub {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.tbl-spot__next {
+  color: var(--color-text-faint);
+}
+
+.tbl-spot__clock {
+  flex: none;
+  display: flex;
+}
+
+.tbl-spot__body {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+
+.tbl-spot-in {
+  animation: tbl-spot-in 300ms var(--ease-out) both;
+}
+
+@keyframes tbl-spot-in {
+  from {
+    opacity: 0;
+    transform: translateX(32px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------- The players: a grid of tiles that never scrolls (grid.ts fits the columns) ---------- */
+.tbl-grid {
+  --grid-gap: 6px;
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 4), minmax(0, var(--tile-w, 120px)));
+  grid-template-rows: repeat(var(--rows, 1), minmax(0, var(--tile-h, 56px)));
+  justify-content: center;
+  align-content: center;
+  gap: var(--grid-gap);
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow: hidden;
+}
+
+.tbl-grid--small,
+.tbl-grid--dense {
+  --grid-gap: 4px;
+}
+
+.tbl-grid__cell {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  container: tile / size;
+}
+
+/* The desktop: each row bows into a gentle arc, the ends lifted (grid.ts arcLift). */
+.tbl-grid--arc {
+  padding-top: 20px;
+}
+
+.tbl-grid--arc .tbl-grid__cell {
+  transform: translateY(calc(var(--lift, 0) * -18px));
+}
+
+/* ---------- A tile ---------- */
+.tbl-tile {
+  --face: 28px;
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  align-items: center;
+  align-content: center;
+  column-gap: 6px;
+  row-gap: 3px;
+  padding: 5px 7px;
+  border-radius: var(--radius-item);
+  border: 1.5px solid var(--color-border);
+  background: var(--color-surface-2);
+  overflow: hidden;
+  transition: border-color 150ms ease-out, background-color 150ms ease-out;
+}
+
+/* Whose turn it is: a thick lime ring, lit. */
+.tbl-tile--turn {
+  border: 3px solid var(--color-primary-text);
+  padding: 3.5px 5.5px;
+  background: var(--color-primary-soft);
+}
+
+.tbl-tile--dim {
+  opacity: 0.55;
+}
+
+/* Settled: the outcome's colour. */
+.tbl-tile--win {
+  border: 2px solid var(--color-primary-text);
+}
+
+.tbl-tile--blackjack {
+  border: 2px solid var(--color-warning);
+}
+
+.tbl-tile--loss {
+  border: 2px solid var(--color-danger);
+}
+
+.tbl-tile--push {
+  border: 2px solid var(--color-text-faint);
+}
+
+.tbl-tile__face {
+  grid-area: face;
+  position: relative;
+  display: flex;
+}
+
+.tbl-tile__face .avatar {
+  width: var(--face);
+  height: var(--face);
+  font-size: calc(var(--face) * 0.58);
+}
+
+/* The status in the avatar's corner: an icon, or just a dot on the small tiles. */
+.tbl-tile__mark {
+  position: absolute;
+  right: -4px;
+  bottom: -3px;
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1.5px solid var(--color-surface-2);
+  background: var(--color-surface-3);
+  color: var(--color-text-muted);
+}
+
+.tbl-tile__mark--waiting,
+.tbl-tile__mark--idle {
+  display: none;
+}
+
+.tbl-tile__mark--turn,
+.tbl-tile__mark--win {
+  background: var(--color-primary);
+  color: var(--color-primary-contrast);
+}
+
+.tbl-tile__mark--bet,
+.tbl-tile__mark--blackjack,
+.tbl-tile__mark--allin {
+  background: var(--color-warning);
+  color: var(--color-bg);
+}
+
+.tbl-tile__mark--loss,
+.tbl-tile__mark--out {
+  background: var(--color-danger);
+  color: var(--color-bg);
+}
+
+.tbl-tile--turn .tbl-tile__mark {
+  border-color: var(--color-primary-soft);
+}
+
+.tbl-tile__name {
+  grid-area: name;
   display: flex;
   align-items: center;
   gap: 4px;
   min-width: 0;
+  font-weight: 700;
+  font-size: 0.8rem;
+  line-height: 1.15;
 }
 
-.tbl-seat__name {
-  font-weight: 700;
-  font-size: 0.82rem;
+.tbl-tile__name-text {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 84px;
 }
 
-.tbl-seat__meta {
+.tbl-tile__meta {
+  grid-area: meta;
   display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
   white-space: nowrap;
+  overflow: hidden;
+  font-size: 0.72rem;
 }
 
-.tbl-seat__chips {
-  font-size: 0.72rem;
+.tbl-tile__chips {
   color: var(--color-text-muted);
 }
 
-.tbl-seat__cards {
-  display: flex;
-  gap: 4px;
-  min-height: calc(var(--tbl-w) * 1.5 + 7px);
+.tbl-tile__bet {
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-text-muted);
 }
 
-.tbl-seat__line {
-  font-size: 0.72rem;
+.tbl-tile__line {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-weight: 700;
   color: var(--color-text-faint);
-  white-space: nowrap;
 }
 
-.tbl-seat__line--turn {
+.tbl-tile__line--turn {
   color: var(--color-primary-text);
 }
 
-.tbl-seat__line--strong {
+.tbl-tile__line--strong {
   color: var(--color-text);
 }
 
-.tbl-seat__line--bad {
+.tbl-tile__line--bad {
   color: var(--color-danger-text);
+}
+
+.tbl-tile__total {
+  grid-area: total;
+  display: none;
+  justify-self: end;
+}
+
+.tbl-tile__total .tbl-pill {
+  height: 20px;
+  min-width: 28px;
+  padding: 0 6px;
+  font-size: 0.72rem;
+}
+
+.tbl-tile__cards {
+  --tbl-w: var(--tbl-mini-w, 24px);
+  grid-area: cards;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.tbl-tile__tag {
+  grid-area: tag;
+  justify-self: end;
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-3);
+  border: 1px solid var(--color-border);
+  font-size: 0.66rem;
+  font-weight: 800;
+  color: var(--color-warning-text);
+  white-space: nowrap;
+}
+
+.tbl-tile__tag--turn {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-primary-contrast);
+}
+
+/* The whole tile opens the seat's sheet. */
+.tbl-tile__open {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+  background: transparent;
+}
+
+.tbl-tile__open:focus-visible {
+  outline: 2px solid var(--color-focus, var(--color-primary-text));
+  outline-offset: -2px;
+}
+
+/* Full (1 to 4 others): avatar, name and tag; chips, bet and status; the cards with their totals. */
+.tbl-tile--full {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto minmax(0, auto);
+  grid-template-areas: 'face name tag' 'face meta meta' 'cards cards cards';
+  align-content: start;
+}
+
+@container tile (max-height: 80px) {
+  .tbl-tile--full {
+    grid-template-rows: auto auto;
+    grid-template-areas: 'face name tag' 'face meta total';
+    align-content: center;
+  }
+
+  .tbl-tile--full .tbl-tile__cards {
+    display: none;
+  }
+
+  .tbl-tile--full .tbl-tile__total {
+    display: flex;
+  }
+}
+
+@container tile (max-height: 46px) {
+  .tbl-tile--full {
+    grid-template-rows: auto;
+    grid-template-areas: 'face name total';
+  }
+
+  .tbl-tile--full .tbl-tile__meta,
+  .tbl-tile--full .tbl-tile__tag {
+    display: none;
+  }
+}
+
+/* Compact (5 to 9): avatar with its status icon, name and tag; the total and the bet. */
+.tbl-tile--compact {
+  --face: 26px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas: 'face name tag' 'face total meta';
+}
+
+.tbl-tile--compact .tbl-tile__total {
+  display: flex;
+  justify-self: start;
+}
+
+.tbl-tile--compact .tbl-tile__chips,
+.tbl-tile--compact .tbl-tile__line {
+  display: none;
+}
+
+@container tile (max-height: 46px) {
+  .tbl-tile--compact {
+    grid-template-areas: 'face name total';
+  }
+
+  .tbl-tile--compact .tbl-tile__meta,
+  .tbl-tile--compact .tbl-tile__tag {
+    display: none;
+  }
+
+  .tbl-tile--compact .tbl-tile__total {
+    justify-self: end;
+  }
+}
+
+@container tile (max-width: 104px) {
+  .tbl-tile--compact .tbl-tile__tag {
+    display: none;
+  }
+}
+
+/* Small (10 to 23): avatar with a status dot and the total; the name shortened under them. */
+.tbl-tile--small {
+  --face: 24px;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas: 'face total' 'name name';
+  padding: 3px 4px;
+  column-gap: 3px;
+  row-gap: 1px;
+}
+
+.tbl-tile--small.tbl-tile--turn {
+  padding: 1.5px 2.5px;
+}
+
+.tbl-tile--small .tbl-tile__total,
+.tbl-tile--dense .tbl-tile__total {
+  display: flex;
+  justify-self: center;
+}
+
+.tbl-tile--small .tbl-tile__name {
+  justify-content: center;
+  font-size: 0.66rem;
+}
+
+.tbl-tile--small .tbl-tile__meta,
+.tbl-tile--dense .tbl-tile__meta,
+.tbl-tile--dense .tbl-tile__name,
+.tbl-tile--dense .tbl-tile__tag {
+  display: none;
+}
+
+/* On turn the name gives way to the Playing tag (the spotlight names them). */
+.tbl-tile--small .tbl-tile__tag {
+  grid-area: name;
+  justify-self: center;
+  padding: 0 5px;
+  font-size: 0.6rem;
+}
+
+.tbl-tile--small.tbl-tile--turn .tbl-tile__name {
+  display: none;
+}
+
+.tbl-tile--small .tbl-tile__mark,
+.tbl-tile--dense .tbl-tile__mark {
+  width: 10px;
+  height: 10px;
+  right: -3px;
+  bottom: -2px;
+}
+
+.tbl-tile--small .tbl-tile__mark svg,
+.tbl-tile--dense .tbl-tile__mark svg {
+  display: none;
+}
+
+.tbl-tile--small .tbl-tile__mark--waiting,
+.tbl-tile--dense .tbl-tile__mark--waiting {
+  display: block;
+  background: var(--color-surface-3);
+  border-color: var(--color-border-strong);
+}
+
+
+.tbl-tile--small .tbl-tile__total .tbl-pill,
+.tbl-tile--dense .tbl-tile__total .tbl-pill {
+  height: 18px;
+  min-width: 24px;
+  padding: 0 4px;
+  font-size: 0.68rem;
+}
+
+@container tile (max-height: 40px) {
+  .tbl-tile--small {
+    grid-template-areas: 'face total';
+  }
+
+  .tbl-tile--small .tbl-tile__name,
+  .tbl-tile--small .tbl-tile__tag {
+    display: none;
+  }
+}
+
+/* Dense (24 and up): an avatar chip, its total badge and its status dot. */
+.tbl-tile--dense {
+  --face: min(22px, 70cqh);
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas: 'face total';
+  padding: 2px 3px;
+  column-gap: 2px;
+  border-radius: 8px;
+}
+
+.tbl-tile--dense.tbl-tile--turn {
+  padding: 0.5px 1.5px;
+}
+
+.tbl-tile--dense .tbl-tile__total .tbl-pill {
+  height: 16px;
+  min-width: 20px;
+  padding: 0 3px;
+  font-size: 0.62rem;
+}
+
+@container tile (max-width: 40px) {
+  .tbl-tile--dense {
+    grid-template-columns: auto;
+    grid-template-areas: 'face';
+    justify-items: center;
+  }
+
+  .tbl-tile--dense .tbl-tile__total {
+    display: none;
+  }
+}
+
+.tbl-seat-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-bottom: var(--space-2);
 }
 
 /* ---------- Control panel ---------- */
@@ -487,6 +1000,29 @@
   height: 8px;
   border-radius: 50%;
   background: var(--color-border-strong);
+}
+
+.tbl-panel__status-text {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Someone else's turn: their avatar in place of the dot. */
+.tbl-panel__status--who::before {
+  display: none;
+}
+
+.tbl-panel__who {
+  display: flex;
+  flex: none;
+}
+
+.tbl-panel__who .avatar {
+  width: 22px;
+  height: 22px;
+  font-size: 13px;
 }
 
 .tbl-panel__status--go {
@@ -685,7 +1221,6 @@
   }
 
   .tbl-felt {
-    --tbl-seat-w: 28px;
     gap: 6px;
     padding: 8px;
     border-radius: var(--radius-item);
@@ -714,10 +1249,6 @@
   .tbl-ribbon__sub {
     font-size: 0.6rem;
   }
-
-  .tbl-seat {
-    min-width: 104px;
-  }
 }
 
 /* Short phones (an SE, a phone with the browser bars out): the ribbon's second line goes. */
@@ -730,8 +1261,7 @@
 /* Short phones and phones on their side: compact seats and panel, the ribbon gone. */
 @media (max-width: 760px) and (max-height: 620px), (min-aspect-ratio: 3/2) and (max-height: 520px) {
   .tbl-felt {
-    --tbl-seat-w: 24px;
-    gap: 0;
+    gap: 4px;
     padding: 4px 6px;
   }
 
@@ -774,20 +1304,6 @@
     min-height: 18px;
     font-size: 0.85rem;
   }
-
-  .tbl-seat {
-    flex-direction: row;
-    align-items: center;
-    padding: 3px 6px;
-  }
-
-  .tbl-seat--turn {
-    padding: 2px 5px;
-  }
-
-  .tbl-seat__cards {
-    min-height: 0;
-  }
 }
 
 /* A phone on its side: the table on the left, the panel on the right. */
@@ -823,6 +1339,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .tbl-flip,
+  .tbl-spot-in,
   .tbl-payout {
     animation: none;
   }

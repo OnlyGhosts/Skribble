@@ -5,7 +5,7 @@ import { leaveRoom } from '../net/actions';
 import { registeredGame } from '../registry';
 import { BottomSheet } from './BottomSheet';
 import { ConnectionPill } from './ConnectionPill';
-import { BackIcon, ChatIcon, LogoutIcon, MenuIcon } from './Icons';
+import { BackIcon, ChatIcon, LogoutIcon, MenuIcon, UsersIcon } from './Icons';
 import { LeaveConfirm } from './LeaveConfirm';
 import { PlayerChips } from './PlayerChips';
 import { PreferenceRows, SettingsMenu } from './Preferences';
@@ -46,6 +46,11 @@ interface Props {
   middle?: ReactNode;
   /** A last row inside the bar (Scribble's word on a phone). */
   below?: ReactNode;
+  /**
+   * One row only (a card table on a phone, whose players are all on the table): the player chips
+   * give way to a players button with the count, and the clock goes with them.
+   */
+  compact?: boolean;
 }
 
 /**
@@ -54,12 +59,12 @@ interface Props {
  * Chat and options are small icon buttons on the first row; a desktop has the gear and the host's
  * controls there instead of the options sheet.
  */
-export function GameTopBar({ meta, room, isPhone, testId, className, status, statusTestId = 'round-indicator', statusData, clock, players, chat, menu, extra, actions, middle, below }: Props) {
+export function GameTopBar({ meta, room, isPhone, testId, className, status, statusTestId = 'round-indicator', statusData, clock, players, chat, menu, extra, actions, middle, below, compact = false }: Props) {
   const game = registeredGame(room.gameId);
   const [leaving, setLeaving] = useState(false);
   return (
     <>
-      <header className={`gbar card${isPhone ? ' gbar--phone' : ''}${middle ? ' gbar--middle' : ''}${className ? ` ${className}` : ''}`} data-testid={testId} data-game={meta.id}>
+      <header className={`gbar card${isPhone ? ' gbar--phone' : ''}${compact ? ' gbar--compact' : ''}${middle ? ' gbar--middle' : ''}${className ? ` ${className}` : ''}`} data-testid={testId} data-game={meta.id}>
         <div className="gbar__row">
           <button
             type="button"
@@ -78,6 +83,20 @@ export function GameTopBar({ meta, room, isPhone, testId, className, status, sta
             {status}
           </span>
           <div className="gbar__side">
+            {compact && (
+              <button
+                type="button"
+                className="icon-btn gbar__btn gbar__count"
+                onClick={players.onOpen}
+                aria-haspopup="dialog"
+                aria-expanded={players.open}
+                aria-label={`${players.label ?? 'Players'} (${room.players.length})`}
+                data-testid="players-toggle"
+              >
+                <UsersIcon size={18} />
+                <span className="gbar__count-n">{room.players.length}</span>
+              </button>
+            )}
             {extra}
             {chat && (
               <button type="button" className="icon-btn gbar__btn" onClick={chat.onOpen} aria-haspopup="dialog" aria-expanded={chat.open} aria-label="Chat" data-testid="chat-toggle">
@@ -97,10 +116,12 @@ export function GameTopBar({ meta, room, isPhone, testId, className, status, sta
             )}
           </div>
         </div>
-        <div className="gbar__people">
-          <PlayerChips room={room} game={game} open={players.open} onOpen={players.onOpen} label={players.label ?? 'Players'} />
-          {clock && <div className="gbar__clock">{clock}</div>}
-        </div>
+        {!compact && (
+          <div className="gbar__people">
+            <PlayerChips room={room} game={game} open={players.open} onOpen={players.onOpen} label={players.label ?? 'Players'} />
+            {clock && <div className="gbar__clock">{clock}</div>}
+          </div>
+        )}
         {below}
       </header>
       <BottomSheet open={leaving} title="Leave" onClose={() => setLeaving(false)} testId="leave-sheet">

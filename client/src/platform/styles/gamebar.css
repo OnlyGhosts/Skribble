@@ -200,6 +200,42 @@
   font-size: 1.125rem;
 }
 
+/* ---------- Compact: one row (a card table on a phone), the players as a button with the count ---------- */
+.gbar__count {
+  width: auto;
+  min-width: 44px;
+  gap: 4px;
+  padding: 0 8px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-2);
+  font-weight: 700;
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.gbar--compact.gbar--phone {
+  padding: 2px 6px;
+}
+
+.gbar--compact.gbar--phone .gbar__name {
+  font-size: 1.25rem;
+}
+
+.gbar--compact.gbar--phone .gbar__status {
+  font-size: 0.8125rem;
+}
+
+@media (max-width: 360px) {
+  .gbar--compact.gbar--phone .gbar__name {
+    font-size: 1.0625rem;
+  }
+
+  .gbar--compact.gbar--phone .gbar__status {
+    font-size: 0.75rem;
+  }
+}
+
 /* ---------- Timer ring in the bar: the board's large ring ---------- */
 .gbar .timer--lg {
   width: 72px;

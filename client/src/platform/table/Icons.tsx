@@ -7,3 +7,5 @@ export const OutIcon = (p: IconProps) => <Icon {...p} paths={['M12 21a9 9 0 1 0 
 /** A round speech bubble: the chat button in a table's top bar. */
 export const BubbleIcon = (p: IconProps) => <Icon {...p} paths="M21 12a8 8 0 0 1-8 8H5l-2 2V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8Z" />;
 export const StopIcon = (p: IconProps) => <Icon {...p} paths="M6 6h12v12H6z" />;
+/** A star: a natural blackjack. */
+export const StarIcon = (p: IconProps) => <Icon {...p} paths="m12 3 2.7 5.6 6.3.9-4.5 4.3 1 6.2L12 17l-5.5 3 1-6.2L3 9.5l6.3-.9L12 3Z" />;

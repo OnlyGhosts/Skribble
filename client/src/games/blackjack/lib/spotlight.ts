@@ -1,0 +1,72 @@
+/**
+ * What Blackjack's spotlight is on, phase by phase (pure, for the screen and the tests): the hand
+ * being played and who is next; the dealer while the reveal plays; who has bet and who we wait for
+ * while the bets go down; my own outcome once the round settles (until my next bet goes down).
+ */
+import type { BlackjackView, HandOutcome } from '@shared/games/blackjack/protocol';
+import { pendingBettors } from '../hooks';
+import type { TableHand, TableModel } from './table';
+
+export type BjSubject =
+  /** `next` is who plays after this seat; null when the dealer is next. */
+  | { kind: 'turn'; playerId: string; handIndex: number; mine: boolean; next: string | null }
+  | { kind: 'dealer' }
+  | { kind: 'bets'; placed: string[]; waiting: string[]; first: boolean }
+  | { kind: 'result'; playerId: string }
+  | { kind: 'idle'; reason: 'held' | 'over' };
+
+export interface SubjectInput {
+  view: BlackjackView;
+  /** The table on screen (the settled round stays up through the next betting). */
+  table: TableModel | null;
+  /** The settled round's reveal is still playing on screen. */
+  dealerPlaying: boolean;
+  /** The settled outcomes are on screen. */
+  outcomesShown: boolean;
+  meId: string | null;
+}
+
+/** The next seat in play order with a hand still to play, after `playerId`. */
+function nextToPlay(view: BlackjackView, playerId: string): string | null {
+  const at = view.order.indexOf(playerId);
+  return view.order.slice(at + 1).find((id) => (view.players[id]?.hands ?? []).some((h) => h.status === 'waiting' || h.status === 'acting')) ?? null;
+}
+
+export function spotlightSubject({ view, table, dealerPlaying, outcomesShown, meId }: SubjectInput): BjSubject {
+  if (view.phase === 'held') return { kind: 'idle', reason: 'held' };
+  if (dealerPlaying) return { kind: 'dealer' };
+  if (view.phase === 'acting') {
+    if (!view.turn) return { kind: 'dealer' };
+    const { playerId, handIndex } = view.turn;
+    return { kind: 'turn', playerId, handIndex, mine: playerId === meId, next: nextToPlay(view, playerId) };
+  }
+  const settledMine = meId !== null && Boolean(table?.settled) && outcomesShown && (table?.hands[meId]?.length ?? 0) > 0;
+  if (view.phase === 'ending' || view.phase === 'gameOver') return settledMine && meId !== null ? { kind: 'result', playerId: meId } : { kind: 'idle', reason: 'over' };
+  // Betting: my outcome stays in the spotlight until my next stake goes down.
+  if (settledMine && meId !== null && (view.players[meId]?.bet ?? 0) === 0) return { kind: 'result', playerId: meId };
+  const waiting = pendingBettors(view);
+  return { kind: 'bets', placed: view.order.filter((id) => !waiting.includes(id)), waiting, first: view.endsAt === null };
+}
+
+/** A stable key per subject: a new key slides the spotlight over to it. */
+export function subjectKey(s: BjSubject): string {
+  switch (s.kind) {
+    case 'turn':
+      return `turn:${s.playerId}`;
+    case 'result':
+      return `result:${s.playerId}`;
+    case 'idle':
+      return `idle:${s.reason}`;
+    default:
+      return s.kind;
+  }
+}
+
+/** How a seat's round went, once settled: won more than staked, lost, or a push; a lone natural is a blackjack. */
+export function seatOutcome(hands: readonly TableHand[]): HandOutcome | null {
+  if (hands.length === 0 || hands.some((h) => h.outcome === null)) return null;
+  if (hands.length === 1) return hands[0].outcome;
+  const back = hands.reduce((sum, h) => sum + (h.payout ?? 0), 0);
+  const staked = hands.reduce((sum, h) => sum + h.bet, 0);
+  return back > staked ? 'win' : back === staked ? 'push' : 'loss';
+}

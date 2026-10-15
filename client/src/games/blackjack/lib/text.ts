@@ -137,3 +137,32 @@ export function panelStatus(s: PanelStatusInput): PanelStatus {
   if (s.myTurn) return line('my-turn', s.handCount > 1 ? `Your turn, hand ${s.handIndex + 1} of ${s.handCount}` : 'Your turn');
   return line('their-turn', `${s.turnName}'s turn`);
 }
+
+/** The spotlight's label for my settled round: "You win +200", "Blackjack +250", "Push", "You lost". */
+export function resultLabel(outcome: HandOutcome, back: number): string {
+  switch (outcome) {
+    case 'blackjack':
+      return `Blackjack ${payoutText(back)}`;
+    case 'win':
+      return `You win ${payoutText(back)}`;
+    case 'push':
+      return 'Push';
+    case 'loss':
+      return 'You lost';
+  }
+}
+
+/** The spotlight's label while the bets go down. */
+export function betsLabel(first: boolean, meWaiting: boolean, waiting: readonly string[]): string {
+  if (first) return 'Waiting for a bet';
+  if (meWaiting) return 'Place your bet';
+  if (waiting.length === 0) return 'Dealing';
+  if (waiting.length > 3) return `Waiting for ${waiting.length} players`;
+  return `Waiting for ${joinNames(waiting)}`;
+}
+
+/** The spotlight's label on a turn. */
+export function turnLabel(mine: boolean, name: string, handIndex: number, handCount: number): string {
+  if (!mine) return `${name}'s turn`;
+  return handCount > 1 ? `Your turn, hand ${handIndex + 1} of ${handCount}` : 'Your turn';
+}

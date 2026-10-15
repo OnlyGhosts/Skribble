@@ -15,6 +15,8 @@ interface BlackjackState {
   /** The stake last placed on this device. */
   lastBet: number | null;
   sheet: BlackjackSheet | null;
+  /** The player whose seat sheet is open (a tile tapped). */
+  seat: string | null;
   confirmEnd: boolean;
   /** The table as the last snapshot had it. */
   table: TableModel | null;
@@ -30,6 +32,7 @@ interface BlackjackActions {
   setBetText(text: string | null): void;
   betPlaced(amount: number): void;
   openSheet(sheet: BlackjackSheet | null): void;
+  openSeat(playerId: string | null): void;
   setConfirmEnd(confirm: boolean): void;
   /** Plans the animation from the previous table to this snapshot's; `fresh` snaps (a welcome). */
   applyView(view: BlackjackView | null, now: number, fresh: boolean, motion: boolean): Timeline;
@@ -40,13 +43,14 @@ interface BlackjackActions {
 
 export type BlackjackStore = BlackjackState & BlackjackActions;
 
-const INITIAL: BlackjackState = { betText: null, lastBet: null, sheet: null, confirmEnd: false, table: null, timeline: EMPTY_TIMELINE, soundTimeline: EMPTY_TIMELINE };
+const INITIAL: BlackjackState = { betText: null, lastBet: null, sheet: null, seat: null, confirmEnd: false, table: null, timeline: EMPTY_TIMELINE, soundTimeline: EMPTY_TIMELINE };
 
 export const useBlackjackStore = create<BlackjackStore>()((set, get) => ({
   ...INITIAL,
   setBetText: (betText) => set({ betText }),
   betPlaced: (amount) => set({ lastBet: amount, betText: String(amount) }),
   openSheet: (sheet) => set({ sheet, confirmEnd: false }),
+  openSeat: (seat) => set({ seat }),
   setConfirmEnd: (confirmEnd) => set({ confirmEnd }),
   applyView: (view, now, fresh, motion) => {
     const { table: prevTable, timeline: prev, soundTimeline: prevSound } = get();
