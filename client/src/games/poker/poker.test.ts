@@ -601,6 +601,8 @@ describe('the spotlight', () => {
     expect(block).toMatch(/grid-template-areas: 'face name' 'face total' 'meta meta';/);
     expect(block).toMatch(/\.tbl-tile--full \.tbl-tile__cards,\s*\.tbl-tile--full \.tbl-tile__bet \{\s*display: none;/);
     expect(block).toMatch(/\.tbl-tile--full\.tbl-tile--line \.tbl-tile__total \{\s*display: none;/);
+    // The Playing tag is wider than the column beside a narrow tile's avatar: it takes its own row.
+    expect(css).toMatch(/\.tbl-tile--full\.tbl-tile--turn \{\s*grid-template-columns: auto minmax\(0, 1fr\);\s*grid-template-areas: 'face name' 'tag tag' 'cards cards';/);
     const own = readFileSync(join(import.meta.dirname, 'poker.css'), 'utf8');
     expect(own).toMatch(/@container tile \(max-width: 159px\) \{\s*\.tbl-tile \.pk-dealer \{\s*width: 14px;/);
   });

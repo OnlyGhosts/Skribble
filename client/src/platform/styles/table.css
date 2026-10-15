@@ -930,11 +930,11 @@
   align-content: start;
 }
 
-/* A narrow full tile (a 320px phone): the Playing tag drops under the name, so the name keeps its room. */
+/* A narrow full tile (a 320px phone): the Playing tag drops under the avatar and name, so both keep their room. */
 @container tile (max-width: 159px) {
   .tbl-tile--full.tbl-tile--turn {
     grid-template-columns: auto minmax(0, 1fr);
-    grid-template-areas: 'face name' 'face tag' 'cards cards';
+    grid-template-areas: 'face name' 'tag tag' 'cards cards';
   }
 
   .tbl-tile--full.tbl-tile--turn .tbl-tile__tag {
