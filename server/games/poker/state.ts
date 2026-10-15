@@ -148,12 +148,29 @@ export function potTotal(data: PokerData): number {
   return data.order.reduce((sum, id) => sum + (data.seats[id]?.bet ?? 0) + (data.seats[id]?.committed ?? 0), 0);
 }
 
+/** Seats at the table (23, the game's maxPlayers): one 52-card deck deals two hole cards to each and five to the board, with no burn cards. */
+export const TABLE_SEATS = Math.floor((52 - 5) / 2);
+
+/** A seat keeps its place at the table while it has chips, or chips in the middle of a hand still in play. */
+function holdsPlace(data: PokerData, seat: SeatData | undefined): boolean {
+  if (!seat) return false;
+  return seat.chips > 0 || (data.phase.kind === 'acting' && seat.bet + seat.committed > 0);
+}
+
 /**
  * Participants with a stack to play the next hand: seated with chips, or a newcomer who takes
- * the starting stack when the next hand starts.
+ * the starting stack when the next hand starts. Newcomers fill the free seats in join order;
+ * the rest watch until a seat frees up.
  */
-export function stackedPlayers(ctx: Pick<Ctx, 'players' | 'settings'>, data: PokerData): PlatformPlayer[] {
-  return ctx.players.filter((p) => (data.seats[p.id]?.chips ?? ctx.settings.startingChips) > 0);
+export function stackedPlayers(ctx: Pick<Ctx, 'players'>, data: PokerData): PlatformPlayer[] {
+  let free = TABLE_SEATS - ctx.players.filter((p) => holdsPlace(data, data.seats[p.id])).length;
+  return ctx.players.filter((p) => {
+    const seat = data.seats[p.id];
+    if (seat) return seat.chips > 0;
+    if (free <= 0) return false;
+    free -= 1;
+    return true;
+  });
 }
 
 export function isHeld(data: PokerData): boolean {

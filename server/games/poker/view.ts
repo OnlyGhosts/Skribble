@@ -3,7 +3,7 @@ import type { PokerPlayerView, PokerPotView, PokerSeatStatus, PokerSettings, Pok
 import type { GameViewCtx } from '../../platform/game.js';
 import { actionsFor } from './betting.js';
 import { buildPots } from './pots.js';
-import { bigBlind, potTotal, turnOf, type PokerData, type SeatData } from './state.js';
+import { bigBlind, potTotal, stackedPlayers, turnOf, type PokerData, type SeatData } from './state.js';
 
 function statusOf(seat: SeatData, isTurn: boolean): PokerSeatStatus {
   switch (seat.status) {
@@ -28,6 +28,7 @@ function potsOf(data: PokerData): PokerPotView[] {
 export function viewFor(data: PokerData, viewerId: string | null, ctx: GameViewCtx<PokerSettings>): PokerView {
   const turn = turnOf(data);
   const players: Record<string, PokerPlayerView> = {};
+  const nextHand = new Set(stackedPlayers(ctx, data).map((p) => p.id));
   for (const p of ctx.players) {
     const seat = data.seats[p.id];
     players[p.id] = seat
@@ -40,8 +41,9 @@ export function viewFor(data: PokerData, viewerId: string | null, ctx: GameViewC
           isTurn: turn === p.id,
           lastAction: seat.lastAction ? { ...seat.lastAction } : null,
           busted: seat.chips === 0 && seat.bet + seat.committed === 0,
+          waitingForSeat: false,
         }
-      : { chips: 0, bet: 0, committed: 0, status: 'out', isDealer: false, isTurn: false, lastAction: null, busted: false };
+      : { chips: 0, bet: 0, committed: 0, status: 'out', isDealer: false, isTurn: false, lastAction: null, busted: false, waitingForSeat: !nextHand.has(p.id) };
   }
   const mine = viewerId === null ? undefined : data.seats[viewerId];
   return {

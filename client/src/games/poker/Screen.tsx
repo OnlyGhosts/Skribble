@@ -52,6 +52,7 @@ export function PokerScreen({ room, meId, isHost }: GameScreenProps<PokerView, P
   const status = panelStatus({
     phase: view.phase,
     seated: seat !== undefined,
+    waitingForSeat: seat?.waitingForSeat ?? false,
     busted: seat?.busted ?? false,
     connected,
     held,

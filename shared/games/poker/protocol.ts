@@ -60,14 +60,17 @@ export function normalizePokerSettings(s: PokerSettings): PokerSettings {
 // Messages
 // ---------------------------------------------------------------------------
 
+/** A stack grows with every newcomer's starting chips, so amounts are bounded only by what JSON carries exactly. */
+const chipAmount = z.number().int().min(1).max(Number.MAX_SAFE_INTEGER);
+
 export const pokerClientMessageSchema = z.discriminatedUnion('t', [
   z.object({ t: z.literal('fold') }),
   z.object({ t: z.literal('check') }),
   z.object({ t: z.literal('call') }),
   /** Opens the betting on a street with no bet yet: `amount` chips (at least the big blind, or the whole stack). */
-  z.object({ t: z.literal('bet'), amount: z.number().int().min(1).max(POKER_SETTINGS_LIMITS.startingChips.max * 24) }),
+  z.object({ t: z.literal('bet'), amount: chipAmount }),
   /** Raises the street's bet to `to` in total (at least the last raise above the current bet, or the whole stack). */
-  z.object({ t: z.literal('raise'), to: z.number().int().min(1).max(POKER_SETTINGS_LIMITS.startingChips.max * 24) }),
+  z.object({ t: z.literal('raise'), to: chipAmount }),
   z.object({ t: z.literal('allIn') }),
   /** Host only, during `results`: the next hand without waiting. */
   z.object({ t: z.literal('next') }),
@@ -118,6 +121,8 @@ export interface PokerPlayerView {
   lastAction: PokerLastAction | null;
   /** No chips left: watching until the game ends. */
   busted: boolean;
+  /** Not seated yet and every seat is taken: watching until one frees up. */
+  waitingForSeat: boolean;
 }
 
 export interface PokerPotView {

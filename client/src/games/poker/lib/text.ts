@@ -112,11 +112,12 @@ export function handHint(myCards: readonly Card[], community: readonly Card[]): 
 
 export const HOTKEY_HINT = 'F fold · C check or call · R raise · A all in';
 
-export type PanelState = 'spectating' | 'over' | 'out' | 'offline' | 'held' | 'next-hand' | 'showdown' | 'result' | 'my-turn' | 'their-turn' | 'dealing';
+export type PanelState = 'spectating' | 'over' | 'no-seat' | 'out' | 'offline' | 'held' | 'next-hand' | 'showdown' | 'result' | 'my-turn' | 'their-turn' | 'dealing';
 
 const TONES: Record<PanelState, StatusTone> = {
   spectating: 'quiet',
   over: 'quiet',
+  'no-seat': 'quiet',
   out: 'bad',
   offline: 'quiet',
   held: 'quiet',
@@ -131,6 +132,8 @@ const TONES: Record<PanelState, StatusTone> = {
 export interface PanelStatusInput {
   phase: PokerPhase;
   seated: boolean;
+  /** Every seat at the table is taken: watching until one frees up. */
+  waitingForSeat: boolean;
   busted: boolean;
   connected: boolean;
   /** The next hand waits for players. */
@@ -154,6 +157,7 @@ function line(state: PanelState, text: string): PanelStatus {
 export function panelStatus(s: PanelStatusInput): PanelStatus {
   if (!s.seated) return line('spectating', "You're watching this game");
   if (s.phase === 'gameOver') return line('over', 'Game over');
+  if (s.waitingForSeat) return line('no-seat', 'Table full. You get the next free seat');
   if (s.busted) return line('out', "You're out of chips");
   if (!s.connected) return line('offline', 'Reconnecting…');
   if (s.phase === 'results') {

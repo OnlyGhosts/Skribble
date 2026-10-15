@@ -27,6 +27,7 @@ interface Props {
 export function seatLine(view: PokerView, table: PokerTable | null, id: string, timeline: Timeline, now: number): SeatLine {
   const seat = view.players[id];
   if (seat.busted) return { state: 'out', text: 'Out', tone: 'bad' };
+  if (seat.waitingForSeat) return { state: 'no-seat', text: 'No seat yet', tone: 'quiet' };
   if (!view.order.includes(id)) return { state: 'next', text: 'Next hand', tone: 'quiet' };
   const results = table?.results;
   if (results && outcomesShown(timeline, now)) {

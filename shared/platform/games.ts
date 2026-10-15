@@ -152,7 +152,7 @@ export const GAME_LIST: readonly GameMeta[] = [
       'Run out of chips and you watch; the most chips at the end wins.',
     ],
     minPlayers: 2,
-    maxPlayers: 9,
+    maxPlayers: 23,
     glyph: 'M12 2a10 10 0 1 0 0 20a10 10 0 1 0 0-20 M12 6a6 6 0 1 0 0 12a6 6 0 1 0 0-12 M12 2v4m10 6h-4m-6 10v-4M2 12h4',
     accent: '#e7a1cb',
     contentModes: false,

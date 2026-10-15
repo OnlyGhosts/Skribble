@@ -16,7 +16,7 @@ import { gameById } from '../../../shared/platform/games.js';
 import { defineSettings, withDraft, type GameEvent, type GameResult, type GameServerModule } from '../../platform/game.js';
 import { actTimedOut, foldGone, playerMove } from './betting.js';
 import { beginHand, endGame, next, resumeIfHeld, seatPlayer, settleDue, snapshotOrResume } from './hand.js';
-import { findPlayer, removeSeat, type Ctx, type Gx, type PokerData } from './state.js';
+import { findPlayer, removeSeat, stackedPlayers, type Ctx, type Gx, type PokerData } from './state.js';
 import { viewFor } from './view.js';
 
 type Result = GameResult<PokerData, PokerServerMessage>;
@@ -46,7 +46,7 @@ function start(ctx: Ctx): Result {
   };
   return withDraft(seed, (data, effects) => {
     const gx: Gx = { ctx, data, effects, shown: { hand: 0, board: 0 } };
-    for (const p of ctx.players) seatPlayer(gx, p.id);
+    for (const p of stackedPlayers(ctx, data)) seatPlayer(gx, p.id);
     beginHand(gx);
   });
 }
@@ -61,7 +61,7 @@ function handle(ctx: Ctx, data: PokerData, event: GameEvent<PokerClientMessage>)
       case 'chat':
         return;
       case 'playerJoined':
-        // A newcomer takes a seat (and the starting stack) only when the next hand starts.
+        // A newcomer takes a seat (and the starting stack) only when the next hand starts, and only while one is free.
         return snapshotOrResume(gx);
       case 'playerLeft':
         return onPlayerLeft(gx, event.playerId);

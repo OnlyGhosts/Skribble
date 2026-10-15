@@ -42,8 +42,8 @@ export function beginHand(gx: Gx): void {
   if (stacked.filter((p) => p.connected).length < MIN_PLAYERS) return hold(gx);
   if (isHeld(data)) gx.effects.push(resumeEffect());
 
-  // Only a hand that really starts seats the newcomers (with the starting stack).
-  for (const p of ctx.players) seatPlayer(gx, p.id);
+  // Only a hand that really starts seats the newcomers (with the starting stack), while seats are free.
+  for (const p of stacked) seatPlayer(gx, p.id);
   data.hand += 1;
   data.results = null;
   data.acted = false;

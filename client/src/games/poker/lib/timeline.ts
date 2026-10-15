@@ -6,6 +6,7 @@
  * the muck, the hands turning over at a showdown and the pot sliding to the winners. Pure, so the
  * store can plan and the tests can check it without a browser.
  */
+import { dealGapMs } from '@shared/games/poker/reveal';
 import {
   CHIP_MS,
   DEAL_GAP_MS,
@@ -82,15 +83,17 @@ function progress(draft: Draft<PokerTable>, prev: PokerTable, next: PokerTable, 
   const won = winnings(next.results);
   const stackBeforePay = (id: string) => (next.seats[id]?.chips ?? 0) - (won[id] ?? 0);
 
-  // The hole cards, two rounds from the left of the button.
+  // The hole cards, two rounds from the left of the button (quicker at a big table).
   if (dealing) {
+    const order = dealingOrder(next);
+    const gap = dealGapMs(order.reduce((n, id) => n + Math.min(2, next.seats[id].cards.length), 0));
     let t = start;
     for (const round of [0, 1]) {
-      for (const id of dealingOrder(next)) {
+      for (const id of order) {
         if (next.seats[id].cards.length <= round) continue;
         tl.arrivals[holeKey(id, round)] = t;
         cursor = t + DEAL_MS;
-        t += DEAL_GAP_MS;
+        t += gap;
         added = true;
       }
     }
