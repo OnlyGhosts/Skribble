@@ -18,7 +18,7 @@
  *    `onWelcome: canvas.onWelcome`, `onLeave: canvas.onLeave`; clear it at turn boundaries with
  *    `canvas.store.getState().clear()`.
  *
- * 3. Render `<GameCanvas session={canvas} canDraw settings turnKey footer={<Toolbar ... onUndo={canvas.undo} onClear={canvas.clear} />} />`
+ * 3. Render `<GameCanvas session={canvas} canDraw settings footer={<Toolbar ... onUndo={canvas.undo} onRedo={canvas.redo} onClear={canvas.clear} />} />`
  *    in the screen; `canvas.store((s) => s.canvas.length > 0)` tells whether there is anything to undo.
  *
  * Coordinates are logical canvas pixels (CANVAS_WIDTH x CANVAS_HEIGHT); the canvas scales to fit
@@ -26,11 +26,11 @@
  */
 export { GameCanvas } from './GameCanvas';
 export { Toolbar } from './Toolbar';
-export { BucketIcon, EraserIcon, PencilIcon, TrashIcon, UndoIcon } from './Icons';
+export { BucketIcon, EraserIcon, PencilIcon, RedoIcon, TrashIcon, UndoIcon } from './Icons';
 export { createCanvasSession, type CanvasSession, type CanvasSessionOptions } from './session';
 export { createCanvasStore, type CanvasStore, type UseCanvasStore } from './store';
 export { DrawQueue, MAX_OFFLINE_OPS, type DrawLink } from './drawQueue';
 export { useDrawing, DEFAULT_DRAWING_SETTINGS, type DrawingSettings, type DrawTool } from './useDrawing';
 export { CanvasRenderer, clampDpr, drawStroke, ERASER_COLOR, FILL_TOLERANCE, type CanvasSource, type RendererOptions } from './renderer';
 export { floodFillImage, hexToRgb, paintSpans, type FillSpans, type PixelImage } from './floodFill';
-export { applyOpsToActions, maxStrokeId } from './history';
+export { applyOpsToActions, maxStrokeId, opsForAction } from './history';

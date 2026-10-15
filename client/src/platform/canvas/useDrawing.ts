@@ -1,6 +1,5 @@
 import { useEffect, useRef, type RefObject } from 'react';
 import { CANVAS_HEIGHT, CANVAS_WIDTH, type DrawOp } from '@shared/platform/canvas';
-import { maxStrokeId } from './history';
 import type { CanvasRenderer } from './renderer';
 import type { CanvasSession } from './session';
 
@@ -21,8 +20,6 @@ interface Options {
   /** Only the drawer, while drawing is open. */
   enabled: boolean;
   settings: DrawingSettings;
-  /** Changes once per turn; resets the stroke id counter. */
-  turnKey: string;
 }
 
 interface Point {
@@ -39,16 +36,11 @@ const round2 = (v: number): number => Math.round(v * 100) / 100;
  * Pointer handling for the drawer. Every op is rendered locally, folded into the session's
  * history and queued for the network — the same path remote viewers take, so both sides agree.
  */
-export function useDrawing({ session, canvasRef, rendererRef, enabled, settings, turnKey }: Options): void {
+export function useDrawing({ session, canvasRef, rendererRef, enabled, settings }: Options): void {
   const settingsRef = useRef(settings);
   useEffect(() => {
     settingsRef.current = settings;
   }, [settings]);
-
-  const strokeCounter = useRef(0);
-  useEffect(() => {
-    strokeCounter.current = 0;
-  }, [turnKey]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -81,10 +73,7 @@ export function useDrawing({ session, canvasRef, rendererRef, enabled, settings,
     const startStroke = (p: Point): void => {
       const { tool, color, size } = settingsRef.current;
       if (tool === 'fill') return;
-      // After a reload the counter restarts, but the server still holds this turn's history
-      // (restored into the store), so never reuse an id it already knows.
-      const id = Math.max(strokeCounter.current, maxStrokeId(session.store.getState().canvas) + 1);
-      strokeCounter.current = id + 1;
+      const id = session.nextStrokeId();
       strokeId = id;
       lastX = p.x;
       lastY = p.y;
@@ -109,6 +98,8 @@ export function useDrawing({ session, canvasRef, rendererRef, enabled, settings,
       }
       const p = clamp(toLogical(e));
       const { tool, color } = settingsRef.current;
+      // Something new on the canvas: what was undone can no longer come back.
+      session.store.getState().dropRedo();
       if (tool === 'fill') {
         emit([{ k: 'fill', x: p.x, y: p.y, color }]);
         return;

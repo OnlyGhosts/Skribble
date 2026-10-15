@@ -17,6 +17,8 @@ export interface GameTestFixture {
   longSettings: Record<string, unknown>;
   /** A message the game accepts from the host (the first player) right after `start`. */
   validMessage: WireMessage;
+  /** For a game that never ends on its own clock (Blackjack's rounds never run out): the host's message that ends it. */
+  hostEnd?: WireMessage;
 }
 
 /** Ten custom words so `customWordsOnly` is honoured; with rng () => 0 they are picked in this order. */
@@ -55,11 +57,13 @@ export const GAME_TEST_FIXTURES: Readonly<Record<GameId, GameTestFixture>> = {
     validMessage: { t: 'autoPlace' },
   },
   blackjack: {
-    // One deck, the shortest clocks and one round: rng () => 0 deals the shuffled single deck in a fixed order. The long game is unlimited.
-    settings: { rounds: 1, decks: 1, betSeconds: 10, actSeconds: 10, resultsSeconds: 4, startingChips: 1000, minBet: 10, maxBet: 500 },
-    longSettings: { rounds: 0, decks: 8, betSeconds: 60, actSeconds: 60, resultsSeconds: 20, startingChips: 100_000, minBet: 1, maxBet: 100_000 },
-    // The round opens with betting; the minimum stake is always allowed.
+    // One deck and the shortest clocks: rng () => 0 deals the shuffled single deck in a fixed order. The rounds never run out.
+    settings: { decks: 1, betSeconds: 10, actSeconds: 10, resultsSeconds: 4, startingChips: 1000 },
+    longSettings: { decks: 8, betSeconds: 60, actSeconds: 60, resultsSeconds: 20, startingChips: 100_000 },
+    // The round opens with betting; any stake up to the stack is allowed.
     validMessage: { t: 'bet', amount: 10 },
+    // Idle players sit every hand out and the table waits for a bet, so only the host ends it.
+    hostEnd: { t: 'endGame' },
   },
   poker: {
     // One hand with the shortest clocks: rng () => 0 gives the host the button, so they act first preflop (heads-up and three-handed alike).

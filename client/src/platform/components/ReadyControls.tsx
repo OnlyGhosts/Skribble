@@ -23,7 +23,8 @@ export function readyState(me: PlayerPublic): ReadyState {
  * The choice everyone makes between games. Not ready: one "I'm ready" plus a small "Sit this one
  * out". Ready: the same button checked ("You're ready", tap to undo) and the same small link.
  * Sitting out: only "Count me in", which comes back in and readies in one tap. The host is in by
- * pressing Start, so their button is a statement rather than a question.
+ * pressing Start, so on the podium their button is a statement rather than a question, and in the
+ * lobby (where Start is on screen) they only get the small link.
  */
 export function ReadyControls({ me, context }: Props) {
   const state = readyState(me);
@@ -48,6 +49,11 @@ export function ReadyControls({ me, context }: Props) {
             You'll watch the next game.
           </p>
         </>
+      ) : state === 'host' && context === 'lobby' ? (
+        // In the lobby the host's Start button already says they are in; only the way out is left.
+        <button type="button" className="text-btn sitout-toggle" aria-pressed={false} onClick={() => setSitOut(true)} data-testid="sitout-toggle">
+          Sit this one out
+        </button>
       ) : (
         <>
           <button

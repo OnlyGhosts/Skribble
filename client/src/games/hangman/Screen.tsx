@@ -12,13 +12,13 @@ import { PHONE_QUERY, useMediaQuery } from '../../platform/lib/media';
 import { useAppMode } from '../../platform/lib/useViewport';
 import { useActiveGame } from '../../platform/store/selectors';
 import { usePlatformStore } from '../../platform/store/usePlatformStore';
-import { clearSection, drawDone, undoStroke } from './actions';
+import { clearSection, drawDone, redoStroke, undoStroke } from './actions';
 import { hangmanCanvas, useStrokeCount } from './canvas';
 import { FigureGhost } from './components/Figure';
 import { GuessPanel } from './components/GuessPanel';
 import { ChoosingOverlay, DrawingCaption, TurnEndOverlay } from './components/Overlays';
 import { WordStrip } from './components/WordStrip';
-import { LANDSCAPE_QUERY, drawingKey, isHangman, scrollAnchor, turnKey } from './hooks';
+import { LANDSCAPE_QUERY, isHangman, scrollAnchor } from './hooks';
 import { sectionLabel } from './lib/text';
 import { useHangman } from './store';
 
@@ -70,6 +70,7 @@ export function HangmanScreen({ room, meId, isHost }: GameScreenProps<HangmanVie
   const closeSheet = () => openSheet(null);
   const sectionFloor = useHangman((s) => s.sectionFloor);
   const strokes = useStrokeCount();
+  const hasRedo = hangmanCanvas.store((s) => s.redoable.length > 0);
   const connected = usePlatformStore((s) => s.connection === 'connected');
   const [brush, setBrush] = useState<DrawingSettings>(DEFAULT_DRAWING_SETTINGS);
 
@@ -86,7 +87,7 @@ export function HangmanScreen({ room, meId, isHost }: GameScreenProps<HangmanVie
   const caption = view.phase === 'drawing' && !mine && strokes <= sectionFloor;
   const drawTools = canDraw ? (
     <>
-      <Toolbar settings={brush} onChange={setBrush} canUndo={connected && strokes > sectionFloor} onUndo={undoStroke} onClear={clearSection} />
+      <Toolbar settings={brush} onChange={setBrush} canUndo={connected && strokes > sectionFloor} onUndo={undoStroke} canRedo={connected && hasRedo} onRedo={redoStroke} onClear={clearSection} />
       <DrawBar view={view} />
     </>
   ) : null;
@@ -100,6 +101,7 @@ export function HangmanScreen({ room, meId, isHost }: GameScreenProps<HangmanVie
     <div className={`hm${isPhone ? ' hm--phone' : ''}${canDraw ? ' hm--drawer' : ''}`} style={style} data-phase={view.phase} data-testid="hangman-screen">
       <GameTopBar
         meta={meta}
+        room={room}
         isPhone={isPhone}
         testId="hangman-header"
         className="hm__top"
@@ -114,7 +116,7 @@ export function HangmanScreen({ room, meId, isHost }: GameScreenProps<HangmanVie
         }
         statusData={{ 'data-round': view.round, 'data-turn': view.turn }}
         clock={<Timer endsAt={endsAt} paused={paused} warnUnder={warnUnder} tickUnder={tickUnder} />}
-        players={{ count: room.players.length, open: sheet === 'players', onOpen: () => openSheet('players') }}
+        players={{ open: sheet === 'players', onOpen: () => openSheet('players') }}
         chat={isPhone ? { open: sheet === 'chat', onOpen: () => openSheet('chat') } : undefined}
         menu={{ open: sheet === 'menu', onOpen: () => openSheet('menu') }}
       />
@@ -132,7 +134,7 @@ export function HangmanScreen({ room, meId, isHost }: GameScreenProps<HangmanVie
           </section>
           <div className="hm__canvas" ref={canvasRef}>
             {/* Sideways, the tools go in the side column so the canvas, the tools and Done all fit the height. */}
-            <GameCanvas session={hangmanCanvas} canDraw={canDraw} settings={brush} turnKey={drawingKey(room) ?? turnKey(room)} footer={drawTools && !landscape ? drawTools : undefined}>
+            <GameCanvas session={hangmanCanvas} canDraw={canDraw} settings={brush} footer={drawTools && !landscape ? drawTools : undefined}>
               {canDraw && view.section !== null && <FigureGhost section={view.section} />}
               {caption && <DrawingCaption room={room} view={view} />}
             </GameCanvas>

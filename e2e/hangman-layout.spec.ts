@@ -128,7 +128,7 @@ test('the party starts; the small phone shows the whole round indicator', async 
   await host.page.getByTestId('start-game').click();
   for (const p of players) await expect(p.page.getByTestId('hangman-screen')).toHaveAttribute('data-phase', 'choosing');
 
-  const round = pia.page.getByTestId('round-indicator').locator('.gbar__status');
+  const round = pia.page.getByTestId('round-indicator');
   await expect(round).toContainText('Round 1/1');
   const truncated = await round.evaluate((el) => el.scrollWidth > el.clientWidth);
   expect(truncated, 'the round indicator is not cut short at 320px').toBe(false);

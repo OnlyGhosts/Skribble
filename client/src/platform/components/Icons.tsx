@@ -29,8 +29,13 @@ export function Icon({ size = 18, paths: pathData, ...svgProps }: IconProps & { 
 export const DiceIcon = (p: IconProps) => <Icon {...p} paths={['M4 4h16v16H4z', 'M8.5 8.5h.01M15.5 8.5h.01M8.5 15.5h.01M15.5 15.5h.01M12 12h.01']} />;
 export const CrownIcon = (p: IconProps) => <Icon {...p} paths="m2 8 5 4 5-8 5 8 5-4-2 12H4L2 8Z" />;
 export const CheckIcon = (p: IconProps) => <Icon {...p} paths="M4 12l5 5L20 6" />;
-export const CopyIcon = (p: IconProps) => <Icon {...p} paths={['M8 8h12v13H8z', 'M4 16V3h12']} />;
-export const ShareIcon = (p: IconProps) => <Icon {...p} paths={['M12 16V3m-4 4 4-4 4 4', 'M5 12v9h14v-9']} />;
+export const CopyIcon = (p: IconProps) => <Icon {...p} paths={['M10 8h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-8a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2Z', 'M16 4H6a2 2 0 0 0-2 2v10']} />;
+/** Three linked nodes: the share glyph on the brand board. */
+export const ShareIcon = (p: IconProps) => (
+  <Icon {...p} paths={['M18 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z', 'M6 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z', 'M18 22a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z', 'm8.6 13.5 6.8 4', 'm15.4 6.5-6.8 4']} />
+);
+export const MoonIcon = (p: IconProps) => <Icon {...p} paths="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5Z" />;
+export const BackIcon = (p: IconProps) => <Icon {...p} paths={['M20 12H4', 'm10 6-6 6 6 6']} />;
 export const ChatIcon = (p: IconProps) => <Icon {...p} paths="M3 4h18v13H9l-6 4z" />;
 export const GearIcon = (p: IconProps) => (
   <Icon

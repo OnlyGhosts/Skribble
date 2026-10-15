@@ -78,7 +78,7 @@ game in the lobby (`selectGame`; the game settings reset to the new game's defau
 settings and everyone's ready flags carry over, a system line says "Host switched the party to
 <game>"), everyone readies up (`ready`) or sits the next game out (`sitOut`, which clears ready
 and persists until the player changes it; both accepted in the lobby and on the podium), and the
-host starts. The lobby screen, the room bar at its top (code, copy code, copy link, native share),
+host starts. The lobby screen, the room code card at its top (code, Copy, Share; Copy invite link and Leave room in the gear menu),
 the profile editor, the platform settings `allowMidGameJoin` and `contentMode` (`'family' |
 'unhinged'`, [`shared/platform/settings.ts`](../shared/platform/settings.ts)), validation of
 settings patches (platform schema merged with your game's `patchSchema`), the start rule, scores
@@ -525,6 +525,12 @@ export interface GameClientModule<V = unknown, S = Record<string, unknown>> {
   playerBadge?(room: RoomState<V, S>, player: PlayerPublic): ReactNode;
   /** Extra text next to the score in the player list (Skribble: "+120" this turn). */
   playerMeta?(room: RoomState<V, S>, player: PlayerPublic): ReactNode;
+  /**
+   * The player's chip status in the top bar ({ label, icon, tone }: "Drawing", "Guessed", "Out",
+   * "Folded"); null falls back to the platform's "Ready" (and "Away" / "Watching", which the
+   * platform decides before asking you).
+   */
+  playerStatus?(room: RoomState<V, S>, player: PlayerPublic): PlayerStatus | null;
   /** Extra class for the player's row (Skribble: the green "guessed" tint). */
   playerClassName?(room: RoomState<V, S>, player: PlayerPublic): string | undefined;
   /** Replaces the chat input (Skribble's type-into-the-blanks guess bar). */
@@ -551,7 +557,10 @@ Only `meta` and `Screen` are required. The platform's shell ([`client/src/App.ts
 renders `Lobby` while `phase === 'lobby'`, your `Screen` (keyed by room code) while `'playing'`
 or `'ended'`, and the `PodiumOverlay` on top of it while `'ended'`. The player list applies your
 `playerBadge` / `playerMeta` / `playerClassName` only in game mode and while `room.game !== null`;
-the chat uses your `ChatInput` only while `room.game !== null`.
+the top bar's player chips ask `playerStatus` for every connected player taking part (one word
+and an icon at `CHIP_ICON` size from `PlayerChips.tsx`; tone `active` for "their move now",
+`done` / `ready` for finished, `out`, `muted`); the chat uses your `ChatInput` only while
+`room.game !== null`.
 
 **Hook order** ([`client/src/platform/net/socket.ts`](../client/src/platform/net/socket.ts)) per
 inbound message:
@@ -1096,8 +1105,8 @@ export const templateClient = defineGameClient<TemplateView, TemplateSettings>({
 The screen gets `{ room, meId, isHost }`. It reads the view from `room.game` and the game's
 settings from `room.settings` (typed through `GameScreenProps<TemplateView, TemplateSettings>`),
 sends `{ t: 'click' }` straight through the socket, and composes platform components: the
-`GameTopBar` every game uses (options, name and status, the clock, players; its `GameMenuSheet`
-holds the theme, sound and Leave), `Timer`, `Avatar`, `Chat`, `PlayerList` in a `BottomSheet`.
+`GameTopBar` every game uses (back arrow, name and round, chat and options, then the player
+chips and the clock; its `GameMenuSheet` holds the theme, sound and Leave), `Timer`, `Avatar`, `Chat`, `PlayerList` in a `BottomSheet`.
 The podium is not its concern. Every interactive element carries a `data-testid` for the e2e test.
 
 ```tsx
@@ -1137,14 +1146,15 @@ export function ClickRaceScreen({ room, meId, isHost }: GameScreenProps<Template
 
   return (
     <div className="race">
-      {/* Every game's top bar: options, name and status, the clock, players (the chat is on screen here). */}
+      {/* Every game's top bar: back, name and status, options; the player chips and the clock (the chat is on screen here). */}
       <GameTopBar
         meta={meta}
+        room={room}
         isPhone={isPhone}
         testId="race-header"
         status={`First to ${target} taps`}
         clock={<Timer endsAt={view.endsAt} warnUnder={5} tickUnder={3} />}
-        players={{ count: room.players.length, open: sheet === 'players', onOpen: () => setSheet('players') }}
+        players={{ open: sheet === 'players', onOpen: () => setSheet('players') }}
         menu={{ open: sheet === 'menu', onOpen: () => setSheet('menu') }}
       />
       <div className="race__grid">
@@ -1537,7 +1547,12 @@ The client half is [`client/src/platform/canvas/index.ts`](../client/src/platfor
 for the lifetime of the page, hands it the stream from its module (`onServerMessage:
 canvas.handleServerMessage`, `onWelcome: canvas.onWelcome`, `onLeave: canvas.onLeave`, and
 `canvas.store.getState().clear()` at turn boundaries), and renders `<GameCanvas session={canvas}
-canDraw settings turnKey footer={<Toolbar ... onUndo={canvas.undo} onClear={canvas.clear} />} />`.
+canDraw settings footer={<Toolbar ... onUndo={canvas.undo} onRedo={canvas.redo} onClear={canvas.clear} />} />`.
+Redo is the client's: the drawer's own undos go on the store's `redoable` stack and `redo()`
+draws the newest one again as a fresh stroke through the ordinary draw path (a new id from
+`nextStrokeId()`, so the server and late joiners take it like any other stroke); a new stroke,
+a clear or a resync forgets the stack, and a segmented canvas drops it at a new segment
+(`store.getState().dropRedo()`). Leave `onRedo` out and the toolbar has no redo button.
 The renderer, flood fill, the drawing hook, the batching `DrawQueue` with its offline parking and
 the toolbar's 44px phone styles (`canvas.css`) all live there; Scribble's whole opt-in is
 [`client/src/games/skribble/canvas.ts`](../client/src/games/skribble/canvas.ts).
@@ -1674,9 +1689,9 @@ light theme swaps the `-text` variants for darker cuts while the fills stay lime
 | Overlays | `.overlay__card`, `.overlay__card--wide`, `.overlay__kicker`, `.overlay__title`, `.overlay__hint`, `.overlay__footer` (the podium uses these; a game's own in-screen overlay can too); a round result adds `.result-card`, `.result-kicker`, `.result-reveal*`, `.result-points*`, `.result-next` from `results.css` |
 | Player list | `.player-list`, `.player`, `.player--me`, `.player--offline`, `.player--guessed`, `.player__avatar`, `.player__badge`, `.player__badge--drawer`, `.player__badge--guessed`, `.player__rank`, `.player__name`, `.player__meta`, `.player__score`, `.player__turn-points` |
 | Chat | `.chat`, `.chat__log`, `.chat__form`, `.chat__input`, `.chat__send`, `.chat-msg` with the kind modifiers `.chat-msg--system/guessed/correct/close/hint` (a plain `chat` line has no modifier rule) |
-| Timer | `.timer`, `.timer--lg`, `.timer--md`, `.timer--urgent` |
+| Timer | `.timer`, `.timer--lg`, `.timer--md`, `.timer--urgent` (the last 5 seconds), `.timer--long` (m:ss), `.timer__track`, `.timer__arc` |
 | Sheets and toasts | `.sheet*`, `.menu-sheet*` (a phone options sheet: `.menu-sheet__row`, `.menu-sheet__label`, `.menu-sheet__leave`), `.toasts`, `.toast` with `.toast--success/warning/error` (an `info` toast uses the base style) |
-| Header | `.site-header`, `.site-header__actions`, `.brand` (the wordmark link), `.wordmark` (24px tall on phones, 30px on desktop, via `--wordmark-height`), `.wordmark__accent`, `.game-mark` (a game's glyph on its accent in its header), `.conn-pill` (only while the socket is down), `.settings-menu`, `.pref-row` |
+| Header | `.site-header`, `.site-header__actions`, `.brand` (the wordmark link), `.wordmark` (24px tall on phones, 30px on desktop, via `--wordmark-height`), `.wordmark__accent`, `.conn-pill` (only while the socket is down), `.settings-menu`, `.pref-row` |
 | Misc | `.avatar--sm/md/lg/xl`, `.swatch`, `.emoji-choice`, `.code-input`, `.range`, `.toggle`, `.setting*`, `.podium*`, `.hide-mobile`, `.sr-only` |
 
 The game top bar (`.gbar*`) is the platform's `gamebar.css` and the round results (`.result-*`)
@@ -1692,15 +1707,15 @@ is the reference for a scrolling column with a canvas and a keys panel.
 
 | Component | Props | Notes |
 | --- | --- | --- |
-| [`SiteHeader`](../client/src/platform/components/SiteHeader.tsx) | `children?`, `aside?` | The wordmark links to `/` (inside a room that leaves the room: any navigation away from `/:slug/:CODE` does); the connection pill while the socket is down (nothing while connected) and the settings gear; put a Leave button in `children`, the Home mascots in `aside` |
+| [`SiteHeader`](../client/src/platform/components/SiteHeader.tsx) | `menuActions?: MenuAction[]`, `aside?`, `hero?` | The wordmark links to `/` (inside a room that leaves the room: any navigation away from `/:slug/:CODE` does); the connection pill while the socket is down (nothing while connected) and the settings gear, whose popover lists `menuActions` under the preferences (the lobby's Copy invite link and Leave room); `hero` is the front door's full-width wordmark with the mascots in `aside` perched on its right end |
 | [`Wordmark`](../client/src/platform/components/Wordmark.tsx) | `className?` | The outlined boredgames.io logo (Poppins Black + Regular paths) inline, accessible name "boredgames.io", "games" in `--color-primary-text` |
 | [`PhoneBored`](../client/src/platform/components/Mascots.tsx) / `PhoneHappy` | `className?` | The two phone characters from the brand pack, decorative (`aria-hidden`); Home and celebrations only |
-| [`GameGlyph`](../client/src/platform/components/GameGlyph.tsx) / `GameMark` | `game: GameMeta`, icon props / `size?: 'sm' \| 'md'` | The game's 24px line glyph, and the glyph on its accent plate for a game header |
-| [`GameTopBar`](../client/src/platform/components/GameTopBar.tsx) | `meta`, `isPhone`, `testId`, `className?`, `status`, `statusTestId?` ('round-indicator'), `statusData?`, `clock?`, `players: { count, label?, open, onOpen }`, `chat?: { open, onOpen }`, `menu: { open, onOpen }`, `extra?`, `actions?`, `middle?`, `below?` | Every game's compact top bar (`gamebar.css`, `.gbar*`): on a phone the options button first, then the game's name over the status line ("Round 2/3"), the timer ring, players and chat; on a desktop the game mark first and the connection pill, settings, `actions` (End game) and Leave last. Leave `chat` out where the chat is already on screen (a desktop column, Scribble's guess feed). Wrap the less important half of the status in `<span className="gbar__more">` and it gives way at 320px. `TableShell` renders it for the card tables |
+| [`GameGlyph`](../client/src/platform/components/GameGlyph.tsx) | `game: GameMeta`, icon props | The game's 24px line glyph (the lobby tiles draw it at 32px) |
+| [`GameTopBar`](../client/src/platform/components/GameTopBar.tsx) | `meta`, `room`, `isPhone`, `testId`, `className?`, `status`, `statusTestId?` ('round-indicator'), `statusData?`, `clock?`, `players: { label?, open, onOpen }`, `chat?: { open, onOpen }`, `menu: { open, onOpen }`, `extra?`, `actions?`, `middle?`, `below?` | Every game's top bar as on the brand board (`gamebar.css`, `.gbar*`): a back arrow (`game-back`, it asks before leaving: `leave-sheet`, `game-leave-yes`), the game's name large and the status on the right ("Round 2/3"), then `extra`, chat and the options button (a phone) or the connection pill, `actions` (End game) and the gear (a desktop). Below, the player chips (`PlayerChips`: avatar, name, a status badge from your `playerStatus`; the row is the `players-toggle` button and never scrolls, a "+K" chip takes what does not fit) and the timer ring at the end. Leave `chat` out where the chat is already on screen (a desktop column, Scribble's guess feed). Wrap the less important half of the status in `<span className="gbar__more">` and it shows on wider screens only. `TableShell` renders it for the card tables |
 | `GameMenuSheet` | `open`, `onClose()`, `children?` | The phone options sheet behind the bar's menu button: theme and sound, your rows (the host's End game), Leave room (`menu-sheet`) |
 | [`ResultPoints`](../client/src/platform/components/RoundResult.tsx) / `ResultNext` / `earnersOf` | `rows`, `label`, `rowTestId?`, `empty` / `noun`, `endsAt`, `paused`, `settling`, `testId` / `players`, `points` | A round or turn result (`results.css`): put them in an `.overlay__card.result-card` after a `.result-kicker` (how it ended, on the game's accent) and a `.result-reveal` (the word, the spy); the points list shows avatar, name, role tag and `+points`; the footer counts down to the next turn, paused or "starting" when the time is up |
-| [`SettingsMenu`](../client/src/platform/components/Preferences.tsx) / `PreferenceRows` | none | The gear and its popover (theme, sound effects); the rows alone go in a phone options sheet |
-| [`ReadyControls`](../client/src/platform/components/ReadyControls.tsx) | `me`, `context: 'lobby' \| 'podium'` | Not ready: "I'm ready" plus a small "Sit this one out"; ready: "You're ready" (tap to undo); sitting out: only "Count me in" (back in and ready in one tap); the host: "You start the game" |
+| [`SettingsMenu`](../client/src/platform/components/Preferences.tsx) / `PreferenceRows` | `actions?: MenuAction[]` / none | The gear and its popover (theme, sound effects, then the actions: `{ label, icon, onSelect, testId }`); the rows alone go in a phone options sheet |
+| [`ReadyControls`](../client/src/platform/components/ReadyControls.tsx) | `me`, `context: 'lobby' \| 'podium'` | Not ready: "I'm ready" plus a small "Sit this one out"; ready: "You're ready" (tap to undo); sitting out: only "Count me in" (back in and ready in one tap); the host: only "Sit this one out" in the lobby (Start says they are in), "You start the game" on the podium |
 | [`Avatar`](../client/src/platform/components/Avatar.tsx) | `avatar`, `size?: 'sm' \| 'md' \| 'lg' \| 'xl'`, `dimmed?`, `className?` | Dim disconnected players |
 | [`AvatarPicker`](../client/src/platform/components/AvatarPicker.tsx) | `value`, `onChange(next)`, `compact?` | Used by the front door's "Who's playing?" step and the lobby |
 | [`CodeInput`](../client/src/platform/components/CodeInput.tsx) | `value`, `onChange(code)`, `onSubmit()`, `onInvalidChar()`, `disabled?`, `invalid?`, `autoFocus?`, `labelledBy?`, `describedBy?`, `ref?: Ref<CodeInputHandle>` | The 4-box code field (A/B/C/D placeholders, uppercase, auto-advance, Backspace, arrows, paste of a code or an invite link, Enter submits, never auto-submits); `ref.focus(i)` moves to a box |
@@ -1716,11 +1731,11 @@ is the reference for a scrolling column with a canvas and a keys panel.
 | [`Chips`](../client/src/platform/components/Chips.tsx) | `value`, `size?`, `className?`, `testId?` | A chip count with the coin (`data-chips`); `ChipIcon` alone for inputs |
 | [`ChipsSetting`](../client/src/platform/components/ChipsSetting.tsx) | `id`, `label`, `value`, `min`, `max`, `presets`, `canEdit`, `onCommit(v)`, `hint?`, `display?` | A chip amount row: preset buttons and a numeric field committed on blur or Enter, clamped; test ids `settings-<id>`, `settings-<id>-<preset>` |
 | [`GuessTiles`](../client/src/platform/components/GuessTiles.tsx) | `mask`, `draft`, `onDraftChange(draft)`, `onSubmit(text): boolean`, `canSend`, `placeholder?`, `focusMemory?`, `inputTestId?`, `sendTestId?` | Type into the blanks of a masked word (layout in [`lib/wordMask.ts`](../client/src/platform/lib/wordMask.ts)); Scribble's guess bar and Hangman's whole-word guess |
-| [`Timer`](../client/src/platform/components/Timer.tsx) | `endsAt: number \| null \| undefined`, `warnUnder?` (10), `tickUnder?`, `size?: 'md' \| 'lg'` | Server-clock countdown; `tickUnder` plays a tick cue for the final seconds |
+| [`Timer`](../client/src/platform/components/Timer.tsx) | `endsAt: number \| null \| undefined`, `warnUnder?` (10), `tickUnder?`, `size?: 'md' \| 'lg'`, `paused?`, `settling?` | Server-clock countdown in a ring whose lime arc empties toward the deadline (the length is the time left when this client first saw the deadline; reduced motion steps it once a second); plain seconds up to 99, m:ss beyond; the danger colour in the last 5 seconds (never with `warnUnder` 0); `tickUnder` plays a tick cue for the final seconds |
 | [`BottomSheet`](../client/src/platform/components/BottomSheet.tsx) | `open`, `title`, `onClose()`, `children`, `testId` | Phone sheet with focus trap and Escape; `${testId}-close`, `${testId}-backdrop` |
 | [`PodiumOverlay`](../client/src/platform/components/PodiumOverlay.tsx) | `room`, `isHost` | Rendered by the shell on `'ended'`; you never render it. The small happy phone (96px at most), "Alice wins!" and the points, the top three on small lime / lilac / graphite blocks (`podium-step`), every player in order (`podium-entry` with `data-rank`), Ready / Sit this one out, the host's Play again / Back to lobby and a brief confetti |
 | [`Toasts`](../client/src/platform/components/Toasts.tsx), [`ConnectionPill`](../client/src/platform/components/ConnectionPill.tsx) | none | Toasts is rendered once by the shell; add toasts with `usePlatformStore.getState().addToast(kind, text)` (errors stay until dismissed); the pill renders nothing while connected |
-| [`Icons`](../client/src/platform/components/Icons.tsx) | `Icon({ paths, size?, ...svg })` (1.8px round stroke) plus `DiceIcon`, `CrownIcon`, `CheckIcon`, `CopyIcon`, `ShareIcon`, `ChatIcon`, `GearIcon`, `AlertIcon`, `LinkIcon`, `CloseIcon`, `UsersIcon`, `ChevronIcon`, `LogoutIcon`, `PlayIcon`, `KickIcon`, `SparkIcon`, `EditIcon`, `SendIcon`, `MoreIcon` | Build game icons from the `Icon` primitive (24×24 stroke paths), as Scribble's [`Icons.tsx`](../client/src/games/skribble/components/Icons.tsx) does |
+| [`Icons`](../client/src/platform/components/Icons.tsx) | `Icon({ paths, size?, ...svg })` (1.8px round stroke) plus `DiceIcon`, `CrownIcon`, `CheckIcon`, `CopyIcon`, `ShareIcon`, `ChatIcon`, `GearIcon`, `AlertIcon`, `LinkIcon`, `CloseIcon`, `UsersIcon`, `ChevronIcon`, `LogoutIcon`, `PlayIcon`, `KickIcon`, `SparkIcon`, `EditIcon`, `SendIcon`, `MoreIcon`, `MoonIcon`, `BackIcon` | Build game icons from the `Icon` primitive (24×24 stroke paths), as Scribble's [`Icons.tsx`](../client/src/games/skribble/components/Icons.tsx) does |
 
 ### 8.4 Mobile layout rules
 

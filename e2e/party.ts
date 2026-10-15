@@ -81,3 +81,15 @@ export async function joinByLink(page: Page, name: string, path: string, code: s
   await enterNameIfAsked(page, name);
   await expect(page.getByTestId('room-code')).toHaveText(code);
 }
+
+/** Leaves from the lobby: Leave room is in the gear's menu. */
+export async function leaveLobby(page: Page): Promise<void> {
+  await page.getByTestId('settings-menu').click();
+  await page.getByTestId('leave-room').click();
+}
+
+/** Leaves from a game screen: the top bar's back arrow, then Leave party in the confirmation. */
+export async function leaveGame(page: Page): Promise<void> {
+  await page.getByTestId('game-back').click();
+  await page.getByTestId('game-leave-yes').click();
+}

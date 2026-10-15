@@ -4,10 +4,11 @@ import { pointsShort } from '../lib/format';
 import { placeLine, podiumOrder, readyLine, winnerHeadline, winners } from '../lib/party';
 import { PLATFORM_SOUNDS } from '../lib/platformSounds';
 import { useModalFocus } from '../lib/useModalFocus';
-import { leaveRoom, playAgain, returnToLobby } from '../net/actions';
+import { playAgain, returnToLobby } from '../net/actions';
 import { Avatar } from './Avatar';
 import { BottomSheet } from './BottomSheet';
 import { Confetti } from './Confetti';
+import { LeaveConfirm } from './LeaveConfirm';
 import { PhoneHappy } from './Mascots';
 import { LogoutIcon, MoreIcon, PartyIcon, RefreshIcon } from './Icons';
 import { ReadyControls } from './ReadyControls';
@@ -148,17 +149,7 @@ export function PodiumOverlay({ room, meId, isHost }: { room: RoomState; meId: s
         <div className="menu-sheet">
           <PreferenceRows />
           {confirmLeave ? (
-            <div className="start-confirm" role="group" aria-label="Confirm leaving the party" data-testid="podium-leave-confirm">
-              <p className="start-confirm__text">Leave the party? You'd need the code to come back in.</p>
-              <div className="start-confirm__actions">
-                <button type="button" className="btn btn--danger" onClick={leaveRoom} data-testid="podium-leave-yes">
-                  <LogoutIcon size={16} /> Leave party
-                </button>
-                <button type="button" className="btn btn--ghost" onClick={() => setConfirmLeave(false)} data-testid="podium-leave-no">
-                  Stay
-                </button>
-              </div>
-            </div>
+            <LeaveConfirm onStay={() => setConfirmLeave(false)} testId="podium-leave" />
           ) : (
             <button type="button" className="btn btn--ghost btn--block menu-sheet__leave" onClick={() => setConfirmLeave(true)} data-testid="podium-leave">
               <LogoutIcon size={16} /> Leave party

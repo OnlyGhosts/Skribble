@@ -5,6 +5,7 @@
  */
 import type { BlackjackSettings, BlackjackView } from '@shared/games/blackjack/protocol';
 import { gameById } from '@shared/platform/games';
+import { CHIP_ICON } from '../../platform/components/PlayerChips';
 import { defineGameClient } from '../../platform/game';
 import { vibrate } from '../../platform/lib/haptics';
 import { playCue } from '../../platform/lib/sound';
@@ -56,6 +57,16 @@ export const blackjackClient = defineGameClient<BlackjackView, BlackjackSettings
         </span>
       );
     }
+    return null;
+  },
+
+  playerStatus(room, player) {
+    const view = room.game;
+    const seat = seatOf(view, player.id);
+    if (!view || !seat) return null;
+    if (seat.bustedOut) return { label: 'Out', icon: <OutIcon {...CHIP_ICON} />, tone: 'out' };
+    if (isActing(view, player.id)) return { label: 'Playing', icon: <CardsIcon {...CHIP_ICON} />, tone: 'active' };
+    if (seat.hands.some((h) => h.status === 'blackjack')) return { label: 'Blackjack', icon: <StarIcon {...CHIP_ICON} />, tone: 'done' };
     return null;
   },
 

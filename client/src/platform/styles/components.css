@@ -62,23 +62,6 @@
   min-height: 44px;
 }
 
-/* A game's glyph on its accent plate, ink on top: the small mark in a game's own header. */
-.game-mark {
-  display: inline-grid;
-  place-items: center;
-  flex: none;
-  width: 36px;
-  height: 36px;
-  border-radius: var(--radius-sm);
-  background: var(--color-surface-2);
-  color: var(--game-ink);
-}
-
-.game-mark--sm {
-  width: 30px;
-  height: 30px;
-}
-
 /* ---------- Buttons ---------- */
 .btn {
   display: inline-flex;
@@ -933,7 +916,7 @@
   }
 }
 
-/* ---------- Timer: a 3px ring, tabular digits; the last seconds turn danger without blinking ---------- */
+/* ---------- Timer: a dark track with a lime arc that empties toward the deadline; the last seconds turn danger ---------- */
 .timer {
   position: relative;
   display: inline-grid;
@@ -961,23 +944,50 @@
   inset: 0;
   width: 100%;
   height: 100%;
+  transform: rotate(-90deg);
+  fill: none;
+}
+
+.timer__track {
   fill: var(--color-surface-3);
+  stroke: var(--color-surface-2);
+  stroke-width: 3.5;
+}
+
+.timer__arc {
   stroke: var(--color-primary-text);
-  stroke-width: 3;
-  transition: stroke 150ms ease-out;
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  transition:
+    stroke-dashoffset 220ms linear,
+    stroke 150ms ease-out;
 }
 
 .timer__value {
   position: relative;
 }
 
+.timer--long .timer__value {
+  font-size: 0.72em;
+  letter-spacing: -0.02em;
+}
+
 .timer--urgent {
   color: var(--color-danger-text);
 }
 
-.timer--urgent .timer__ring {
+.timer--urgent .timer__arc {
   stroke: var(--color-danger);
+}
+
+.timer--urgent .timer__track {
   fill: var(--color-danger-soft);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .timer__arc {
+    transition: none;
+  }
 }
 
 /* ---------- Player list: 48px rows, a 36px avatar circle, explicit text badges ---------- */
@@ -1586,27 +1596,29 @@
 }
 
 /*
- * The front door: the wordmark fills the header's width on its own row; the mascots perch on top
- * of it at the left and the status pill and gear sit at the right of the row above.
+ * The front door: the status pill and gear on a small row at the top right, then the wordmark
+ * filling the column's width with the aside (the mascots) perched on its right end.
  */
 .site-header--hero {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-areas:
-    'aside actions'
-    'brand brand';
-  align-items: end;
+    'actions'
+    'brand';
   row-gap: 0;
 }
 
 .site-header--hero .site-header__brand {
-  display: contents;
+  grid-area: brand;
+  display: block;
+  position: relative;
 }
 
 .site-header--hero .brand {
-  grid-area: brand;
   display: block;
   width: 100%;
+  position: relative;
+  z-index: 1;
 }
 
 .site-header--hero .wordmark {
@@ -1616,7 +1628,7 @@
 
 .site-header--hero .site-header__actions {
   grid-area: actions;
-  align-self: start;
+  justify-self: end;
 }
 
 /* The narrowest phones: the status pill keeps its dot only, so the gear stays on screen. */
@@ -1774,8 +1786,20 @@
 }
 
 .player__status--ready {
-  color: var(--color-success-text);
+  gap: 8px;
+  color: var(--color-text);
   font-weight: 600;
+}
+
+/* The ready check: ink on a lime disc, as on the brand board. */
+.player__check {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: var(--color-primary-contrast);
 }
 
 .player__status--sittingOut,
@@ -2019,4 +2043,30 @@
   .podium-next .btn {
     min-height: 44px;
   }
+}
+
+/* ---------- The gear popover's own actions (the lobby's Copy invite link and Leave room) ---------- */
+.settings-menu__actions {
+  display: flex;
+  flex-direction: column;
+  margin: 0 calc(-1 * var(--space-2));
+  padding: 6px 0 8px;
+  border-top: 1px solid var(--color-border);
+}
+
+.settings-menu__action {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  font-weight: 600;
+  font-size: 0.9375rem;
+  text-align: left;
+}
+
+.settings-menu__action:hover {
+  background: var(--color-surface-2);
 }

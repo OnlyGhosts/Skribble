@@ -1,5 +1,5 @@
 /** Blackjack's JSON-safe game state (the module's `D`), its working context and the queries over it. */
-import { MAX_HANDS, freshShoe, handTotal, isBust, isNatural, isPair, shuffle } from '../../../shared/games/blackjack/cards.js';
+import { MAX_HANDS, freshShoe, handTotal, isBust, isNatural, isPair, shoeDecks, shuffle } from '../../../shared/games/blackjack/cards.js';
 import type { BlackjackActions, BlackjackServerMessage, BlackjackSettings, Card, HandOutcome, HandStatus } from '../../../shared/games/blackjack/protocol.js';
 import { gameById } from '../../../shared/platform/games.js';
 import type { GameCtx, GameEffect, PlatformPlayer } from '../../platform/game.js';
@@ -37,12 +37,13 @@ export interface SeatData {
   /** The stake placed this round (the first hand's original bet); 0 until bet. */
   bet: number;
   hands: HandData[];
-  /** Fewer chips than the minimum bet: out of the game, watching. */
+  /** No chips left: out of the game, watching. */
   bustedOut: boolean;
 }
 
 export type PhaseData =
-  | { kind: 'betting'; endsAt: number }
+  /** endsAt is null once the clock ran out with no bet at all: the table waits for the first one. */
+  | { kind: 'betting'; endsAt: number | null }
   | { kind: 'acting'; playerId: string; handIndex: number; endsAt: number }
   /** The next round waits for a player still in the game to reconnect; resumeAt is the settle once one is back. */
   | { kind: 'held'; resumeAt: number | null }
@@ -63,6 +64,8 @@ export interface BlackjackData {
   holeHidden: boolean;
   /** Cards still in the shoe; the next card is the last one. */
   shoe: Card[];
+  /** Cards in the shoe when it was built; absent in rooms stored before the shoe grew with the table. */
+  shoeSize?: number;
   /** The shoe was rebuilt at the start of this round. */
   reshuffled: boolean;
   lastRound: LastRoundData | null;
@@ -91,8 +94,8 @@ export function nameOf(ctx: Pick<Ctx, 'players'>, id: string): string {
 }
 
 /**
- * Participants still in the game, in join order: everyone seated with chips for at least the
- * minimum bet, plus a newcomer without a seat yet (dealt in when the next round starts).
+ * Participants still in the game, in join order: everyone seated with chips left, plus a
+ * newcomer without a seat yet (dealt in when the next round starts).
  */
 export function activePlayers(ctx: Pick<Ctx, 'players'>, data: BlackjackData): PlatformPlayer[] {
   return ctx.players.filter((p) => !data.seats[p.id]?.bustedOut);
@@ -155,20 +158,34 @@ export function cardsInPlay(data: BlackjackData): Card[] {
   return [...data.dealer, ...Object.values(data.seats).flatMap((seat) => seat.hands.flatMap((hand) => hand.cards))];
 }
 
+/** Cards in the shoe as it was built (rooms stored before shoeSize was kept had the setting's decks). */
+export function shoeSizeOf(data: BlackjackData, settings: BlackjackSettings): number {
+  return data.shoeSize ?? settings.decks * 52;
+}
+
+/** A shuffled shoe sized for `seats` seats, with its size recorded. */
+export function newShoe(gx: Gx, seats: number): void {
+  const decks = shoeDecks(gx.ctx.settings.decks, seats);
+  gx.data.shoe = shuffle(freshShoe(decks), gx.ctx.rng);
+  gx.data.shoeSize = decks * 52;
+}
+
 /**
- * A fresh shoe less the cards on the table (one copy each, so a mid-hand rebuild never deals a
- * card twice), shuffled with the injected rng and announced.
+ * A fresh shoe sized for the seats in this round, less the cards on the table (one copy each, so
+ * a mid-hand rebuild never deals a card twice), shuffled with the injected rng and announced.
  */
 export function rebuildShoe(gx: Gx, reason: string): void {
   const inPlay = new Map<string, number>();
   for (const card of cardsInPlay(gx.data)) inPlay.set(card.rank + card.suit, (inPlay.get(card.rank + card.suit) ?? 0) + 1);
-  const fresh = freshShoe(gx.ctx.settings.decks).filter((card) => {
+  const decks = shoeDecks(gx.ctx.settings.decks, Math.max(1, gx.data.order.length));
+  const fresh = freshShoe(decks).filter((card) => {
     const left = inPlay.get(card.rank + card.suit) ?? 0;
     if (left === 0) return true;
     inPlay.set(card.rank + card.suit, left - 1);
     return false;
   });
   gx.data.shoe = shuffle(fresh, gx.ctx.rng);
+  gx.data.shoeSize = decks * 52;
   gx.data.reshuffled = true;
   systemMessage(gx, `${reason}. The shoe is reshuffled.`);
 }

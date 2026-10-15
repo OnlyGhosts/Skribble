@@ -1,20 +1,23 @@
 /** Betting and the deal: stakes, the betting clock, the cards in table order and the dealer's peek. */
 import { dealerPeeks, isNatural } from '../../../shared/games/blackjack/cards.js';
 import { settleRound, nextHand } from './dealer.js';
-import { beginRound } from './round.js';
+import { awaitFirstBet, beginRound, waitingForFirstBet } from './round.js';
 import { adjustChips, draw, fail, nameOf, settledStatus, snapshot, systemMessage, type Gx, type HandData } from './state.js';
 
 export function bet(gx: Gx, playerId: string, amount: number): void {
   const { data, ctx } = gx;
   const seat = data.seats[playerId];
   if (data.phase.kind !== 'betting' || !seat || !data.order.includes(playerId)) return fail(gx, playerId, 'You cannot bet right now.');
+  // Any whole number of chips from 1 up to the whole stack (a stake already down included).
   const available = seat.chips + seat.bet;
-  const cap = Math.min(ctx.settings.maxBet, available);
-  if (amount < ctx.settings.minBet || amount > cap) return fail(gx, playerId, `Bet between ${ctx.settings.minBet} and ${cap} chips.`);
+  if (amount < 1 || amount > available) return fail(gx, playerId, `Bet between 1 and ${available} chips.`);
   // A bet may be changed until the cards are dealt: the earlier stake comes back first.
   adjustChips(gx, playerId, seat.bet - amount);
   seat.bet = amount;
-  if (!dealIfAllBet(gx)) snapshot(gx);
+  if (dealIfAllBet(gx)) return;
+  // The first bet at a table that stopped waiting on the clock starts it again for everyone else.
+  if (waitingForFirstBet(gx)) data.phase = { kind: 'betting', endsAt: ctx.now + ctx.settings.betSeconds * 1000 };
+  snapshot(gx);
 }
 
 /** Deals as soon as every seat in the round has a stake down. */
@@ -26,23 +29,16 @@ export function dealIfAllBet(gx: Gx): boolean {
 }
 
 /**
- * The betting clock ran out: every seat still to bet plays the minimum, connected or not (a
- * player who dropped mid-round keeps their place; their moves stand when the clock runs out).
+ * The betting clock ran out. Whoever has not bet sits the hand out (no cards, chips untouched)
+ * and is dealt in again once they bet in a later round; there is no minimum to bet for them.
+ * With no bet at all nothing is dealt: the table waits for the first one.
  */
 export function betTimedOut(gx: Gx): void {
   const { data, ctx } = gx;
   if (data.phase.kind !== 'betting') return;
-  const sittingOut: string[] = [];
-  for (const id of data.order) {
-    const seat = data.seats[id];
-    if (seat.bet > 0) continue;
-    if (seat.chips >= ctx.settings.minBet) {
-      adjustChips(gx, id, -ctx.settings.minBet);
-      seat.bet = ctx.settings.minBet;
-      systemMessage(gx, `${nameOf(ctx, id)} bets the minimum (${ctx.settings.minBet}).`);
-    } else sittingOut.push(id);
-  }
-  if (sittingOut.length > 0) systemMessage(gx, `${sittingOut.map((id) => nameOf(ctx, id)).join(', ')} sit${sittingOut.length === 1 ? 's' : ''} this round out.`);
+  if (data.order.length > 0 && data.order.every((id) => data.seats[id].bet === 0)) return awaitFirstBet(gx);
+  const sittingOut = data.order.filter((id) => data.seats[id].bet === 0);
+  if (sittingOut.length > 0) systemMessage(gx, `${sittingOut.map((id) => nameOf(ctx, id)).join(', ')} sit${sittingOut.length === 1 ? 's' : ''} this hand out.`);
   deal(gx);
 }
 

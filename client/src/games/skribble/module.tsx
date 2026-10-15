@@ -5,7 +5,8 @@
 import type { SkribbleRoomState, SkribbleSettings, SkribbleView } from '@shared/games/skribble/protocol';
 import { gameById } from '@shared/platform/games';
 import type { PlayerPublic } from '@shared/platform/protocol';
-import { CheckIcon } from '../../platform/components/Icons';
+import { ChatIcon, CheckIcon } from '../../platform/components/Icons';
+import { CHIP_ICON } from '../../platform/components/PlayerChips';
 import { defineGameClient } from '../../platform/game';
 import { formatPoints } from '../../platform/lib/format';
 import { vibrate } from '../../platform/lib/haptics';
@@ -53,6 +54,13 @@ export const skribbleClient = defineGameClient<SkribbleView, SkribbleSettings>({
       );
     }
     return null;
+  },
+
+  playerStatus(room, player) {
+    const kind = room.game?.phase.kind;
+    if (isDrawerOf(room, player)) return { label: kind === 'choosing' ? 'Choosing' : 'Drawing', icon: <PencilIcon {...CHIP_ICON} />, tone: 'active' };
+    if (hasGuessed(room.game, player.id)) return { label: 'Guessed', icon: <CheckIcon {...CHIP_ICON} strokeWidth={3} />, tone: 'done' };
+    return kind === 'drawing' ? { label: 'Guessing', icon: <ChatIcon {...CHIP_ICON} />, tone: 'muted' } : null;
   },
 
   playerMeta(room, player) {

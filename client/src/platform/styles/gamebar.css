@@ -1,72 +1,64 @@
-/* ---------- The game top bar (GameTopBar): options, name and round, timer ring, players, chat ---------- */
+/* ---------- The game top bar (GameTopBar): back, name, round, chat/options; then the player chips and the timer ring ---------- */
 .gbar {
   display: flex;
   flex-direction: column;
-  gap: 0;
-  padding: var(--space-2) var(--space-3);
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3) var(--space-3);
   min-width: 0;
 }
 
 .gbar__row {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-2);
   min-width: 0;
   min-height: 44px;
 }
 
-.gbar__title {
-  flex: 1 1 0;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  line-height: 1.2;
+.gbar__back {
+  margin-left: -6px;
+  color: var(--color-text);
 }
 
+/* The name gives way before the status when the row runs short (it shrinks four times as fast). */
 .gbar__name {
+  flex: 0 4 auto;
+  min-width: 0;
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: 1.05rem;
+  font-size: 1.625rem;
+  line-height: 1.15;
   letter-spacing: -0.01em;
-}
-
-.gbar__status {
-  color: var(--color-text-muted);
-  font-weight: 600;
-  font-size: 0.75rem;
-}
-
-.gbar__name,
-.gbar__status {
-  display: block;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-/* With something in the middle the name keeps its width and the middle takes the rest. */
-.gbar--middle .gbar__title {
+.gbar__status {
   flex: 0 1 auto;
+  min-width: 0;
+  margin-left: auto;
+  color: var(--color-text);
+  font-weight: 500;
+  font-size: 0.9375rem;
+  line-height: 1.25;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  /* A long status (a card table's "Hand 3 · Flop") takes two lines rather than pushing the buttons out. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
 }
+
+/* With something in the middle, the middle takes the room between the name and the status. */
 
 .gbar__middle {
   flex: 1 1 0;
   display: flex;
   justify-content: center;
   min-width: 0;
-}
-
-.gbar__clock {
-  flex: none;
-  display: grid;
-  place-items: center;
-}
-
-.gbar .timer--lg {
-  width: 44px;
-  height: 44px;
-  font-size: 0.85rem;
-  letter-spacing: -0.02em;
 }
 
 .gbar__side {
@@ -83,51 +75,172 @@
   height: 44px;
 }
 
-.gbar__players {
+/* ---------- Players row: chips that never scroll, the timer ring at the end ---------- */
+.gbar__people {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.gbar__clock {
+  flex: none;
+  display: grid;
+  place-items: center;
+  margin-left: auto;
+}
+
+.chips {
+  /* PlayerChips reads these two to count how many chips fit. */
+  --chip-w: 64px;
+  --chip-gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  gap: var(--chip-gap);
+  overflow: hidden;
+  padding: 0;
+  border-radius: 12px;
+  text-align: center;
+  color: var(--color-text);
+}
+
+.chip {
+  position: relative;
+  flex: none;
+  width: var(--chip-w);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 8px 1px 6px;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-2);
+  transition: border-color 100ms ease-out;
+}
+
+.chips:hover .chip {
+  border-color: var(--color-border-strong);
+}
+
+.chip--away {
+  opacity: 0.6;
+}
+
+.chip__name {
+  max-width: 100%;
+  padding: 0 2px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chip__status {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  min-height: 44px;
-  padding: 0 10px;
-  border-radius: var(--radius-pill);
-  background: var(--color-surface-2);
-  color: var(--color-text);
-  font-weight: 700;
-  font-size: 0.9rem;
-  font-variant-numeric: tabular-nums;
-  transition: background-color 100ms ease-out;
+  gap: 2px;
+  max-width: 100%;
+  font-size: 0.5625rem;
+  letter-spacing: -0.01em;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
 }
 
-.gbar__players:hover {
+.chip__icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
   background: var(--color-surface-3);
+  color: var(--color-text-muted);
 }
 
-/* Phones: one tight row; the name gives way first, the controls never shrink below 44px. */
+.chip__status--ready .chip__icon,
+.chip__status--done .chip__icon {
+  background: var(--color-primary);
+  color: var(--color-primary-contrast);
+}
+
+.chip__status--ready,
+.chip__status--done {
+  color: var(--color-text);
+}
+
+.chip__status--active {
+  color: var(--color-secondary-text);
+}
+
+.chip__status--active .chip__icon {
+  background: var(--color-secondary);
+  color: var(--color-secondary-contrast);
+}
+
+.chip__status--out {
+  color: var(--color-danger-text);
+}
+
+.chip__status--out .chip__icon {
+  background: var(--color-danger-soft);
+  color: var(--color-danger-text);
+}
+
+.chip--more {
+  justify-content: center;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.125rem;
+}
+
+/* ---------- Timer ring in the bar: the board's large ring ---------- */
+.gbar .timer--lg {
+  width: 72px;
+  height: 72px;
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+/* ---------- Phones: tighter padding; the name gives way first, the controls never shrink below 44px ---------- */
 .gbar--phone {
-  padding: 4px 6px;
+  padding: 4px 8px 8px;
   border-radius: var(--radius-item);
 }
 
 .gbar--phone .gbar__row {
-  gap: 6px;
+  gap: 4px;
 }
 
 .gbar--phone .gbar__name {
-  font-size: 0.95rem;
+  font-size: 1.5rem;
 }
 
 .gbar--phone .gbar__status {
-  font-size: 0.72rem;
+  font-size: 0.875rem;
+}
+
+/* The less important half of the status ("· Turn 2/3") is left to wider screens. */
+.gbar--phone .gbar__more {
+  display: none;
+}
+
+.gbar--phone .timer--lg {
+  width: 64px;
+  height: 64px;
+  font-size: 1.375rem;
 }
 
 @media (max-width: 360px) {
-  /* The less important half of the status line ("· Turn 2/3") gives way first. */
-  .gbar__more {
-    display: none;
-  }
-
-  .gbar--phone {
-    padding: 4px;
+  .gbar--phone .gbar__name {
+    font-size: 1.25rem;
   }
 
   .gbar--phone .gbar__row,
@@ -135,7 +248,126 @@
     gap: 2px;
   }
 
-  .gbar--phone .gbar__players {
-    padding: 0 8px;
+  .gbar--phone .timer--lg {
+    width: 56px;
+    height: 56px;
+    font-size: 1.125rem;
+  }
+}
+
+/*
+ * Short phones (an SE in portrait, any phone on its side) have little height: the chips shrink to
+ * the avatar with the status icon in its corner (the row's label and the players sheet say the
+ * rest) and the ring to 44px.
+ */
+@media (max-width: 760px) and (max-height: 640px), (min-aspect-ratio: 3/2) and (max-height: 520px) {
+  .gbar--phone {
+    gap: 4px;
+    padding-bottom: 6px;
+  }
+
+  .gbar--phone .chips {
+    --chip-w: 44px;
+    --chip-gap: 4px;
+  }
+
+  .gbar--phone .chip {
+    height: 44px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .gbar--phone .chip .avatar--md {
+    width: 32px;
+    height: 32px;
+    font-size: 19px;
+  }
+
+  .gbar--phone .chip__name {
+    display: none;
+  }
+
+  .gbar--phone .chip__status {
+    position: absolute;
+    right: 1px;
+    bottom: 1px;
+    font-size: 0;
+  }
+
+  .gbar--phone .chip--more {
+    font-size: 0.9375rem;
+  }
+
+  .gbar--phone .timer--lg {
+    width: 44px;
+    height: 44px;
+    font-size: 1rem;
+  }
+}
+
+/* A phone on its side: one row where the bar is wide enough; the halves wrap when it sits in a side column. */
+@media (min-aspect-ratio: 3/2) and (max-height: 520px) {
+  .gbar--phone {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+    padding: 4px 8px;
+  }
+
+  .gbar--phone .gbar__row {
+    flex: 1 1 260px;
+  }
+
+  .gbar--phone .gbar__people {
+    flex: 1 1 200px;
+    gap: var(--space-2);
+  }
+
+  .gbar--phone > :not(.gbar__row, .gbar__people) {
+    flex-basis: 100%;
+  }
+
+  .gbar--phone .gbar__name {
+    font-size: 1.125rem;
+  }
+}
+
+/*
+ * Portrait with the keyboard open (or any very short portrait screen): one row of back, chips,
+ * the ring and the buttons; the name and the round give way until the keyboard closes.
+ */
+@media (max-width: 760px) and (max-height: 440px) and (max-aspect-ratio: 3/2) {
+  .gbar--phone {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 6px;
+  }
+
+  .gbar--phone .gbar__row {
+    display: contents;
+  }
+
+  .gbar--phone .gbar__name,
+  .gbar--phone .gbar__status,
+  .gbar--phone .gbar__middle {
+    display: none;
+  }
+
+  .gbar--phone .gbar__people {
+    order: 1;
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .gbar--phone .gbar__side {
+    order: 2;
+  }
+
+  .gbar--phone > :not(.gbar__row, .gbar__people) {
+    order: 3;
+    flex-basis: 100%;
   }
 }

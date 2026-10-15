@@ -3,96 +3,159 @@
  * import this through platform/canvas (GameCanvas); a game's own stylesheet loads after it and
  * may override the layout (Skribble's phone columns do).
  */
-/* ---------- Toolbar ---------- */
+/* ---------- Toolbar: segmented groups on one row, the swatches on the next ---------- */
 .toolbar {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  flex-direction: column;
+  gap: 10px;
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
-  gap: 10px 16px;
-  padding: 10px 14px;
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  box-shadow: var(--shadow-md);
 }
 
-.toolbar__group {
+.toolbar__row {
   display: flex;
-  align-items: center;
-  gap: 6px;
   flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* A segmented group: one rounded box, its buttons separated by hairlines. */
+.seg {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.seg > .tool-btn + .tool-btn {
+  border-left: 1px solid var(--color-border);
 }
 
 .tool-btn {
   display: inline-grid;
   place-items: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  background: var(--color-surface-2);
-  border: 2px solid transparent;
-  color: var(--color-text-muted);
+  width: 48px;
+  height: 46px;
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-text);
   transition:
     background-color 0.12s ease,
     color 0.12s ease;
 }
 
-.tool-btn:hover:not(:disabled) {
-  background: var(--color-surface-3);
-  color: var(--color-text);
+.seg > .tool-btn:first-child {
+  border-radius: 11px 0 0 11px;
 }
 
-.tool-btn.is-active {
-  background: var(--color-primary-soft);
-  border-color: var(--color-primary-text);
-  color: var(--color-primary-text);
+.seg > .tool-btn:last-child {
+  border-radius: 0 11px 11px 0;
+}
+
+.seg > .tool-btn:only-child {
+  border-radius: 11px;
+}
+
+.tool-btn:hover:not(:disabled) {
+  background: var(--color-surface-2);
+}
+
+/* The tool in hand: the lilac fill with ink, as on the board. */
+.tool-btn.is-active,
+.tool-btn.is-active:hover {
+  background: var(--color-secondary);
+  color: var(--color-secondary-contrast);
 }
 
 .tool-btn:disabled {
-  opacity: 0.4;
+  color: var(--color-text-faint);
+  opacity: 0.45;
 }
 
 .tool-btn--danger:hover:not(:disabled) {
   background: var(--color-danger-soft);
-  color: var(--color-danger);
+  color: var(--color-danger-text);
+}
+
+.size-btn__dot {
+  display: block;
+  border-radius: 50%;
+  background: var(--color-text);
+}
+
+/* The five sizes open above the size button. */
+.toolbar__sizes {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-lg);
 }
 
 .size-btn {
   display: inline-grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
+  width: 44px;
+  height: 44px;
+  border-radius: 9px;
+}
+
+.size-btn:hover {
   background: var(--color-surface-2);
-  border: 2px solid transparent;
 }
 
 .size-btn.is-active {
-  border-color: var(--color-primary-text);
-  background: var(--color-primary-soft);
+  background: var(--color-secondary);
 }
 
-.size-btn__dot {
-  border-radius: 50%;
-  background: var(--color-text);
+.size-btn.is-active .size-btn__dot {
+  background: var(--color-secondary-contrast);
 }
 
+.toolbar__confirm .btn--xs {
+  min-height: 44px;
+}
+
+/* One row of swatches; it scrolls sideways rather than wrapping. */
 .toolbar__palette {
-  gap: 5px;
-  max-width: 100%;
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  padding: 3px;
+  margin: -3px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.toolbar__palette::-webkit-scrollbar {
+  display: none;
 }
 
 .toolbar__palette .swatch {
-  width: 24px;
-  height: 24px;
-  border-radius: 7px;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
 }
 
-.toolbar__actions {
-  margin-left: auto;
+.toolbar__palette .swatch:hover {
+  transform: none;
+}
+
+.toolbar__palette .swatch.is-selected {
+  outline: 3px solid var(--color-text);
+  outline-offset: 1px;
 }
 
 /* ---------- Canvas ---------- */
@@ -162,68 +225,31 @@
     width: 100%;
   }
 
-  /*
-   * Drawer toolbar: 44px-wide targets in rows of 44px. Tools and undo/clear share the first row,
-   * the brush sizes wrap onto the second one (landscape is wide enough for all of them in one row)
-   * and the palette, scrolling sideways, always takes a row of its own (the pseudo-element breaks).
-   */
+  /* Drawer toolbar: 44px targets; the groups share the row's width, the swatches grow to fill theirs. */
   .toolbar {
-    flex-wrap: wrap;
-    gap: 6px 8px;
-    padding: 6px 8px;
-    border-radius: var(--radius-item);
+    gap: 8px;
   }
 
-  .toolbar::before {
-    content: '';
-    flex-basis: 100%;
-    height: 0;
-    order: 5;
+  .toolbar__row {
+    gap: 6px;
   }
 
-  .toolbar__group {
-    gap: 4px;
-    flex-wrap: nowrap;
+  .seg {
+    flex: 1 1 auto;
   }
 
-  .toolbar__sizes {
-    order: 2;
+  .seg > .tool-btn {
+    flex: 1 1 0;
+    width: auto;
+    min-width: 44px;
+    height: 48px;
   }
 
   .toolbar__palette {
-    order: 6;
-    flex: 1 1 0;
-    min-width: 0;
-    overflow-x: auto;
-    overscroll-behavior-x: contain;
-    scrollbar-width: none;
-    padding: 2px;
     gap: 6px;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .toolbar__palette::-webkit-scrollbar {
-    display: none;
   }
 
   .toolbar__palette .swatch {
-    flex: none;
-    width: 44px;
-    height: 44px;
-    border-radius: 12px;
-  }
-
-  .toolbar__palette .swatch.is-selected {
-    outline-offset: 1px;
-  }
-
-  .toolbar__actions {
-    order: 0;
-    margin-left: auto;
-  }
-
-  .tool-btn,
-  .size-btn {
     width: 44px;
     height: 44px;
   }

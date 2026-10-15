@@ -6,6 +6,7 @@
 import type { QuipgameSettings, QuipgameView } from '@shared/games/quipgame/protocol';
 import { gameById } from '@shared/platform/games';
 import { CheckIcon } from '../../platform/components/Icons';
+import { CHIP_ICON } from '../../platform/components/PlayerChips';
 import { defineGameClient } from '../../platform/game';
 import { vibrate } from '../../platform/lib/haptics';
 import { playCue } from '../../platform/lib/sound';
@@ -54,6 +55,17 @@ export const quipgameClient = defineGameClient<QuipgameView, QuipgameSettings>({
       );
     }
     return null;
+  },
+
+  playerStatus(room, player) {
+    const view = room.game;
+    if (!view || view.spectators.includes(player.id)) return null;
+    if (WRITING_PHASES.includes(view.phase)) {
+      return view.finished.includes(player.id)
+        ? { label: 'Done', icon: <CheckIcon {...CHIP_ICON} strokeWidth={3} />, tone: 'done' }
+        : { label: 'Writing', icon: <PenIcon {...CHIP_ICON} />, tone: 'active' };
+    }
+    return view.voted.includes(player.id) ? { label: 'Voted', icon: <CheckIcon {...CHIP_ICON} strokeWidth={3} />, tone: 'done' } : null;
   },
 
   chatPlaceholder(room) {

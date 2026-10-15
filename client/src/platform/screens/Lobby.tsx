@@ -71,47 +71,43 @@ export function Lobby({ room, game }: Props) {
 
   return (
     <div className="lobby" data-testid="lobby">
-      <SiteHeader>
-        <button type="button" className="btn btn--ghost btn--sm" onClick={leaveRoom} data-testid="leave-room">
-          <LogoutIcon size={16} /> Leave
-        </button>
-      </SiteHeader>
+      <SiteHeader
+        menuActions={[
+          { label: 'Copy invite link', icon: <LinkIcon size={18} />, onSelect: () => void copy(link, 'Invite link'), testId: 'copy-link' },
+          { label: 'Leave room', icon: <LogoutIcon size={18} />, onSelect: leaveRoom, testId: 'leave-room' },
+        ]}
+      />
 
-      <section className="card room-bar" aria-label="Room code" data-testid="room-bar">
-        <div className="room-bar__code">
-          <span className="room-bar__label" aria-hidden="true">
+      <section className="card room-card" aria-label="Room code" data-testid="room-bar">
+        <div className="room-card__code">
+          <span className="room-card__label" aria-hidden="true">
             Room code
           </span>
-          <span className="room-bar__value" data-testid="room-code" aria-label={`Room code ${room.code.split('').join(' ')}`}>
+          <span className="room-card__value" data-testid="room-code" aria-label={`Room code ${room.code.split('').join(' ')}`}>
             {room.code}
           </span>
         </div>
-        <div className="room-bar__actions">
-          <button type="button" className="room-bar__btn" onClick={() => void copy(room.code, 'Code')} data-testid="copy-code">
-            <CopyIcon size={18} /> <span>Copy code</span>
-          </button>
-          <button type="button" className="room-bar__btn" onClick={() => void copy(link, 'Invite link')} aria-label="Copy invite link" data-testid="copy-link">
-            <LinkIcon size={18} /> <span>Copy link</span>
-          </button>
-          <button type="button" className="room-bar__btn" onClick={() => void share()} aria-label="Share invite" data-testid="share-invite">
-            <ShareIcon size={18} /> <span>Share</span>
-          </button>
-        </div>
+        <button type="button" className="room-card__btn" onClick={() => void copy(room.code, 'Code')} aria-label="Copy code" data-testid="copy-code">
+          <CopyIcon size={22} />
+          <span>Copy</span>
+        </button>
+        <button type="button" className="room-card__btn" onClick={() => void share()} aria-label="Share invite" data-testid="share-invite">
+          <ShareIcon size={22} />
+          <span>Share</span>
+        </button>
       </section>
 
       <div className="lobby__grid">
         <div className="lobby__col">
           <GamePicker room={room} isHost={isHost} />
 
-          <section className="card lobby__players" aria-labelledby="players-heading">
-            <div className="card__head">
-              <h2 className="card__title" id="players-heading">
-                Players
-              </h2>
-              <span className="pill" data-testid="player-count" data-ready={readyPlayers(room).length} data-players={room.players.length}>
-                {readyLine(room)}
-              </span>
-            </div>
+          <section className="lobby__players" aria-labelledby="players-heading">
+            <h2 className="sr-only" id="players-heading">
+              Players
+            </h2>
+            <span className="sr-only" data-testid="player-count" data-ready={readyPlayers(room).length} data-players={room.players.length}>
+              {readyLine(room)}
+            </span>
             <PlayerList room={room} meId={playerId} isHost={isHost} mode="lobby" game={game} />
             {room.players.length === 1 && (
               <p className="lobby__alone" data-testid="lobby-alone">
@@ -210,7 +206,7 @@ function StartControls({ room }: { room: RoomState }) {
         </div>
       ) : (
         <button type="button" className="btn btn--primary btn--lg btn--block" onClick={onStart} disabled={!startable} data-testid="start-game" data-ready={ready}>
-          <PlayIcon size={18} /> Start · {ready} ready
+          Start · {ready} ready
         </button>
       )}
       {!startable && (

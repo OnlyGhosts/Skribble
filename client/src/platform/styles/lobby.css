@@ -9,70 +9,66 @@
   gap: var(--space-3);
 }
 
-/* ---------- Room bar: the code and three compact actions, the first thing in every lobby ---------- */
-.room-bar {
+/* ---------- Room code card: the label over the big code, Copy and Share as square buttons on the right ---------- */
+.room-card {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+  gap: 10px;
+  padding: 12px 12px 12px 20px;
 }
 
-.room-bar__code {
+.room-card__code {
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   gap: 2px;
   min-width: 0;
 }
 
-.room-bar__label {
-  font-size: 0.75rem;
-  font-weight: 600;
+.room-card__label {
+  font-size: 0.9375rem;
+  font-weight: 500;
   color: var(--color-text-muted);
 }
 
-.room-bar__value {
-  font-family: var(--font-mono);
-  font-size: 1.75rem;
-  font-weight: 600;
-  line-height: 1.1;
-  letter-spacing: 0.08em;
+.room-card__value {
+  font-family: var(--font-display);
+  font-size: clamp(2.25rem, 13vw, 3.25rem);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.01em;
   color: var(--color-text);
   user-select: all;
 }
 
-.room-bar__actions {
-  display: flex;
-  gap: var(--space-2);
-}
-
-/* Icon over a short label on phones, side by side on wider screens; 44px or more either way. */
-.room-bar__btn {
+/* Icon over a short label, a square of at least 64px. */
+.room-card__btn {
+  flex: none;
   display: inline-flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
-  min-width: 64px;
-  min-height: 52px;
-  padding: 4px 8px;
-  border-radius: var(--radius-sm);
-  border: 1.5px solid var(--color-border-strong);
+  gap: 6px;
+  width: 72px;
+  height: 72px;
+  border-radius: 12px;
+  border: 1.5px solid var(--color-border);
+  background: var(--color-surface-3);
   color: var(--color-text);
-  font-size: 0.75rem;
+  font-size: 0.875rem;
   font-weight: 600;
-  white-space: nowrap;
   transition:
     background-color 100ms ease-out,
+    border-color 100ms ease-out,
     transform 70ms ease-out;
 }
 
-.room-bar__btn:hover {
+.room-card__btn:hover {
   background: var(--color-surface-2);
+  border-color: var(--color-border-strong);
 }
 
-.room-bar__btn:active {
+.room-card__btn:active {
   transform: translateY(1px);
 }
 
@@ -94,6 +90,26 @@
 .lobby__players {
   display: flex;
   flex-direction: column;
+}
+
+/* The board's player rows: a roomier list on the panel colour, the status on the right. */
+.lobby__players .player-list {
+  background: var(--color-surface);
+  border-radius: 12px;
+}
+
+.lobby__players .player {
+  min-height: 52px;
+  padding: 8px 12px 8px 14px;
+  gap: 14px;
+}
+
+.lobby__players .player__name {
+  font-size: 0.9375rem;
+}
+
+.lobby__players .player__status {
+  font-size: 0.9375rem;
 }
 
 .lobby__alone {
@@ -155,13 +171,22 @@
   margin-top: 0;
 }
 
+.lobby__footer [data-testid='start-game'],
+.lobby__footer .ready-toggle {
+  min-height: 60px;
+  border-radius: 12px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.375rem;
+}
+
 .lobby__waiting {
   color: var(--color-text-muted);
   font-size: 0.875rem;
   font-weight: 500;
 }
 
-/* ---------- Game picker: three columns of tiles with the game's glyph ---------- */
+/* ---------- Game picker: square-ish tiles, four to a row; a short last row stretches to fill it ---------- */
 .game-picker {
   display: flex;
   flex-direction: column;
@@ -169,14 +194,14 @@
 }
 
 .game-picker__list {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-2);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
-.game-picker__meta {
-  color: var(--color-text-muted);
-  font-size: 0.8125rem;
+.game-picker__list .game-tile {
+  flex: 1 1 calc(25% - 8px);
+  min-width: 70px;
 }
 
 .game-picker__current {
@@ -186,14 +211,14 @@
 }
 
 .game-picker__current .game-tile {
-  width: 104px;
+  width: 96px;
   flex: none;
 }
 
 .game-picker__note {
   color: var(--color-text-muted);
   font-weight: 500;
-  font-size: 0.875rem;
+  font-size: 0.9375rem;
 }
 
 .game-tile {
@@ -205,11 +230,11 @@
   gap: 6px;
   width: 100%;
   min-width: 0;
-  min-height: 84px;
-  padding: 10px 6px;
+  min-height: 88px;
+  padding: 10px 4px;
   border-radius: 12px;
-  border: 1px solid var(--color-border);
-  background: var(--color-surface-3);
+  border: 1.5px solid var(--color-border);
+  background: var(--color-surface);
   color: var(--color-text);
   text-align: center;
   transition:
@@ -226,7 +251,7 @@ button.game-tile:active {
   transform: translateY(1px);
 }
 
-/* Selected: lilac fill, ink icon and name, and a check (never colour alone). */
+/* Selected: the lilac fill with ink icon and name. */
 .game-tile.is-selected {
   border-color: var(--color-secondary);
   background: var(--color-secondary);
@@ -234,38 +259,16 @@ button.game-tile:active {
 }
 
 .game-tile__icon {
-  width: 36px;
-  height: 36px;
   display: grid;
   place-items: center;
-  border-radius: var(--radius-sm);
-  background: var(--tile-accent);
-  color: var(--game-ink);
-}
-
-/* On the lilac selected tile the glyph sits straight on the fill. */
-.game-tile.is-selected .game-tile__icon {
-  background: transparent;
+  height: 32px;
 }
 
 .game-tile__name {
-  font-size: 0.75rem;
+  font-size: 0.875rem;
   font-weight: 600;
-  line-height: 1.2;
+  line-height: 1.15;
   overflow-wrap: anywhere;
-}
-
-.game-tile__check {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  width: 20px;
-  height: 20px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--color-secondary-contrast);
-  color: var(--color-secondary);
 }
 
 /* ---------- Ready / sit out ---------- */
@@ -400,20 +403,8 @@ button.content-mode:not(:disabled):hover {
     padding-top: calc(var(--space-4) + env(safe-area-inset-top));
   }
 
-  .room-bar {
-    padding: var(--space-3) var(--space-4) var(--space-3) var(--space-5);
-  }
-
-  .room-bar__btn {
-    flex-direction: row;
-    gap: 8px;
-    min-height: 44px;
-    padding: 0 14px;
-    font-size: 0.875rem;
-  }
-
-  .room-bar__value {
-    font-size: 2rem;
+  .room-card {
+    padding: 14px 14px 14px 24px;
   }
 
   .lobby__grid {
@@ -424,20 +415,21 @@ button.content-mode:not(:disabled):hover {
   .lobby__col {
     gap: var(--space-4);
   }
+}
 
-  .game-picker__list {
-    gap: 10px;
+/* The narrowest phones: smaller squares so the code keeps its size. */
+@media (max-width: 359px) {
+  .room-card {
+    padding-left: 14px;
+    gap: 6px;
+  }
+
+  .room-card__btn {
+    width: 60px;
+    height: 64px;
   }
 }
 
-/* The narrowest phones: the code takes its own line above the three buttons. */
-@media (max-width: 359px) {
-  .room-bar__actions {
-    width: 100%;
-  }
-
-  .room-bar__btn {
-    flex: 1 1 0;
-    min-width: 0;
-  }
+.lobby .site-header {
+  --wordmark-height: 30px;
 }

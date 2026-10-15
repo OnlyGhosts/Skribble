@@ -18,10 +18,13 @@ export const DRAWER_DISCONNECT_GRACE_MS = 20_000;
 
 export const BRUSH_SIZES = [3, 6, 12, 20, 32] as const;
 
-/** Drawing palette (skribbl-style). Any #rrggbb colour is accepted by the server; these are the presets. */
+/**
+ * Drawing palette (skribbl-style). Any #rrggbb colour is accepted by the server; these are the
+ * presets. The first eight are the ones a phone's swatch row shows before it scrolls.
+ */
 export const PALETTE: readonly string[] = [
-  '#000000', '#ffffff', '#7f7f7f', '#c3c3c3', '#ed1c24', '#ff7f27',
-  '#fff200', '#22b14c', '#00a2e8', '#3f48cc', '#a349a4', '#b97a57',
+  '#000000', '#ed1c24', '#ff7f27', '#fff200', '#22b14c', '#3f48cc',
+  '#a349a4', '#ffffff', '#7f7f7f', '#c3c3c3', '#00a2e8', '#b97a57',
   '#880015', '#f58b8b', '#ffaec9', '#ffc90e', '#efe4b0', '#b5e61d',
   '#99d9ea', '#7092be', '#c8bfe7', '#5a2e0c', '#ff6fd8', '#00e5b4',
 ];

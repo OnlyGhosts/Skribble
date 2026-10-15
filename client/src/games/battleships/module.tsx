@@ -5,6 +5,7 @@
  */
 import type { BattleshipsSettings, BattleshipsView } from '@shared/games/battleships/protocol';
 import { gameById } from '@shared/platform/games';
+import { CHIP_ICON } from '../../platform/components/PlayerChips';
 import { defineGameClient } from '../../platform/game';
 import { vibrate } from '../../platform/lib/haptics';
 import { playCue } from '../../platform/lib/sound';
@@ -50,6 +51,18 @@ export const battleshipsClient = defineGameClient<BattleshipsView, BattleshipsSe
           <AnchorIcon size={11} />
         </span>
       );
+    }
+    return null;
+  },
+
+  playerStatus(room, player) {
+    const view = room.game;
+    if (!view) return null;
+    if (isEliminated(view, player.id)) return { label: 'Sunk', icon: <SkullIcon {...CHIP_ICON} />, tone: 'out' };
+    if (isShooter(view, player.id)) return { label: 'Firing', icon: <CrosshairIcon {...CHIP_ICON} />, tone: 'active' };
+    if (view.phase === 'placing') {
+      const side = view.sides.find((s) => s.memberIds.includes(player.id));
+      if (side && !side.ready) return { label: 'Placing', icon: <AnchorIcon {...CHIP_ICON} />, tone: 'active' };
     }
     return null;
   },

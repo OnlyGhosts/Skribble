@@ -259,10 +259,17 @@ test('the phone lobby fits the viewport, with 44px buttons and a share button', 
   await expect.poll(async () => (await pageMetrics(phone.page)).scrollY, { message: 'lobby starts at the top' }).toBe(0);
   await expectNoHorizontalOverflow(phone.page, PORTRAIT.width);
   expect((await pageMetrics(phone.page)).isApp, 'the lobby page may scroll').toBe(false);
-  for (const id of ['copy-code', 'copy-link', 'share-invite', 'leave-room', 'ready-toggle', 'sitout-toggle']) {
+  for (const id of ['copy-code', 'share-invite', 'settings-menu', 'ready-toggle', 'sitout-toggle']) {
     await expect(phone.page.getByTestId(id)).toBeVisible();
     await expectTallEnough(phone.page.getByTestId(id), id);
   }
+  // Copy invite link and Leave room are in the gear's menu.
+  await phone.page.getByTestId('settings-menu').click();
+  for (const id of ['copy-link', 'leave-room']) {
+    await expect(phone.page.getByTestId(id)).toBeVisible();
+    await expectTallEnough(phone.page.getByTestId(id), id);
+  }
+  await phone.page.keyboard.press('Escape');
   await expectTallEnough(phone.page.getByTestId('chat-send'), 'lobby chat send');
 });
 
@@ -434,7 +441,7 @@ test('the phone layout never scrolls: portrait, with the keyboard open, and in l
 test('the players button opens a sheet with both players and the backdrop closes it', async () => {
   const toggle = phone.page.getByTestId('players-toggle');
   await expectTallEnough(toggle, 'players button');
-  await expect(toggle).toContainText('2');
+  await expect(toggle.getByTestId('player-chip')).toHaveCount(2);
   await toggle.click();
   const sheet = phone.page.getByTestId('players-sheet');
   await expect(sheet).toBeVisible();

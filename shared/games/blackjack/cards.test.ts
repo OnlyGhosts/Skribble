@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_HANDS, REVEAL_CARD_MS, REVEAL_HOLE_MS, dealerPeeks, dealerShouldHit, freshShoe, handTotal, isBust, isNatural, isPair, isTenValue, naturalWinnings, needsReshuffle, revealAllowanceMs, settleHand, shuffle } from './cards.js';
+import { DEALER_RESERVE, MAX_HANDS, REVEAL_CARD_MS, REVEAL_HOLE_MS, SEAT_RESERVE, dealerPeeks, dealerShouldHit, freshShoe, handTotal, isBust, isNatural, isPair, isTenValue, naturalWinnings, needsReshuffle, revealAllowanceMs, roundReserve, settleHand, shoeDecks, shuffle } from './cards.js';
 import type { Card, CardRank } from './protocol.js';
 
 /** 'AS', '10H', 'KD' -> a card. */
@@ -77,12 +77,32 @@ describe('the shoe', () => {
     expect(shuffle(deck, () => 0.999)).toHaveLength(104);
   });
 
-  it('is due for a reshuffle once under a quarter of it remains', () => {
-    expect(needsReshuffle(13, 1)).toBe(false);
-    expect(needsReshuffle(12, 1)).toBe(true);
-    expect(needsReshuffle(78, 6)).toBe(false);
-    expect(needsReshuffle(77, 6)).toBe(true);
-    expect(needsReshuffle(0, 8)).toBe(true);
+  it('is due for a reshuffle once under a quarter of it remains, or under a round for every seat', () => {
+    expect(needsReshuffle(78, 6 * 52, 2)).toBe(false);
+    expect(needsReshuffle(77, 6 * 52, 2)).toBe(true);
+    expect(needsReshuffle(0, 8 * 52, 1)).toBe(true);
+    // A seat sets four hands of three cards aside, the dealer eight: one deck, one seat needs 20.
+    expect(roundReserve(1)).toBe(SEAT_RESERVE + DEALER_RESERVE);
+    expect(SEAT_RESERVE).toBe(MAX_HANDS * 3);
+    expect(needsReshuffle(20, 52, 1)).toBe(false);
+    expect(needsReshuffle(19, 52, 1)).toBe(true);
+    // Fifty seats: a quarter of the shoe is not enough, a round's reserve is the mark.
+    expect(needsReshuffle(roundReserve(50), 24 * 52, 50)).toBe(false);
+    expect(needsReshuffle(roundReserve(50) - 1, 24 * 52, 50)).toBe(true);
+  });
+
+  it('grows the shoe with the table: the setting is the fewest decks, a big table gets twice its seats a reserve', () => {
+    expect(shoeDecks(6, 2)).toBe(6);
+    expect(shoeDecks(1, 1)).toBe(1);
+    expect(shoeDecks(1, 2)).toBe(1);
+    expect(shoeDecks(1, 3)).toBe(2);
+    expect(shoeDecks(6, 20)).toBe(10);
+    expect(shoeDecks(8, 50)).toBe(24);
+    // A fresh shoe is never due for a reshuffle itself, however big the table.
+    for (let seats = 1; seats <= 50; seats++) {
+      const size = shoeDecks(1, seats) * 52;
+      expect(needsReshuffle(size, size, seats), `${seats} seats`).toBe(false);
+    }
   });
 });
 

@@ -45,13 +45,14 @@ export function QuipGameScreen({ room, meId, isHost }: GameScreenProps<QuipgameV
     <div className={`quip${isPhone ? ' quip--phone' : ''}${wide ? ' quip--wide' : ''}`} data-phase={view.phase} data-round={view.round} data-testid="quipgame-screen">
       <GameTopBar
         meta={meta}
+        room={room}
         isPhone={isPhone}
         testId="quipgame-header"
         className="quip__top"
         status={roundLabel(view, false)}
         statusData={{ 'data-round': view.round, 'data-total': view.totalRounds }}
         clock={<Timer endsAt={playing ? view.endsAt : null} paused={holding} warnUnder={10} tickUnder={ticking ? 5 : undefined} />}
-        players={{ count: room.players.length, label: 'Scores', open: sheet === 'players', onOpen: () => openSheet('players') }}
+        players={{ label: 'Scores', open: sheet === 'players', onOpen: () => openSheet('players') }}
         chat={wide ? undefined : { open: sheet === 'chat', onOpen: () => openSheet('chat') }}
         menu={{ open: sheet === 'menu', onOpen: () => openSheet('menu') }}
       />

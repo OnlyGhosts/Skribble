@@ -5,6 +5,7 @@
  */
 import { outcomeWinner, type SpygameSettings, type SpygameView } from '@shared/games/spygame/protocol';
 import { gameById } from '@shared/platform/games';
+import { CHIP_ICON } from '../../platform/components/PlayerChips';
 import { defineGameClient } from '../../platform/game';
 import { formatPoints } from '../../platform/lib/format';
 import { vibrate } from '../../platform/lib/haptics';
@@ -51,6 +52,16 @@ export const spygameClient = defineGameClient<SpygameView, SpygameSettings>({
         </span>
       );
     }
+    return null;
+  },
+
+  playerStatus(room, player) {
+    const view = room.game;
+    if (!view) return null;
+    if (view.reveal && view.reveal.spyId === player.id) return { label: 'Spy', icon: <SpyIcon {...CHIP_ICON} />, tone: 'active' };
+    const p = view.players[player.id];
+    if (p?.isAccused) return { label: 'Accused', icon: <AlertIcon {...CHIP_ICON} />, tone: 'out' };
+    if (p?.isSpectator) return { label: 'Watching', icon: <EyeIcon {...CHIP_ICON} />, tone: 'muted' };
     return null;
   },
 

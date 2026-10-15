@@ -99,7 +99,7 @@ test('the host creates a Click Race party, three friends join, and the lobby sho
   // The phone lobby: the room bar first, then the picker; ready controls fit the screen with 44px targets.
   await expect(pia.page.locator('.lobby > section').first()).toHaveAttribute('data-testid', 'room-bar');
   await noHorizontalOverflow(pia.page, PORTRAIT.width);
-  for (const id of ['game-tile', 'ready-toggle', 'sitout-toggle', 'copy-code', 'copy-link', 'share-invite']) {
+  for (const id of ['game-tile', 'ready-toggle', 'sitout-toggle', 'copy-code', 'share-invite', 'settings-menu']) {
     const box = await pia.page.getByTestId(id).first().boundingBox();
     expect(box?.height ?? 0, `${id} is a 44px target`).toBeGreaterThanOrEqual(MIN_TARGET);
     expect((box?.x ?? 0) + (box?.width ?? 0), `${id} fits the phone width`).toBeLessThanOrEqual(PORTRAIT.width + 0.5);

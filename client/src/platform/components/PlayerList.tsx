@@ -96,7 +96,11 @@ export function PlayerList({ room, meId, isHost, mode, game }: Props) {
             </span>
             {status && (
               <span className={`player__status player__status--${status.state}`} data-testid="player-status">
-                {status.state === 'ready' && <CheckIcon size={14} />}
+                {status.state === 'ready' && (
+                  <span className="player__check" aria-hidden="true">
+                    <CheckIcon size={15} strokeWidth={2.6} />
+                  </span>
+                )}
                 {status.label}
               </span>
             )}

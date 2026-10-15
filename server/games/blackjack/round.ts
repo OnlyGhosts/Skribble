@@ -1,8 +1,7 @@
 /** The round boundary: the next round's betting, the end of the game (with its final pause), the host's End game and the holds. */
 import { RESUME_SETTLE_MS, holdEffects, resumeEffect } from '../waiting.js';
 import { needsReshuffle } from '../../../shared/games/blackjack/cards.js';
-import { gameById } from '../../../shared/platform/games.js';
-import { MIN_PLAYERS, activePlayers, adjustChips, connectedActive, fail, rebuildShoe, snapshot, systemMessage, type Gx } from './state.js';
+import { MIN_PLAYERS, activePlayers, adjustChips, connectedActive, fail, rebuildShoe, shoeSizeOf, snapshot, systemMessage, type Gx } from './state.js';
 
 /** Seats a newcomer (or a player without a seat yet) with the starting stack. */
 export function seatPlayer(gx: Gx, playerId: string): void {
@@ -11,13 +10,11 @@ export function seatPlayer(gx: Gx, playerId: string): void {
   adjustChips(gx, playerId, gx.ctx.settings.startingChips);
 }
 
-const MAX_SEATS = gameById('blackjack').maxPlayers ?? Infinity;
-
 /**
  * Whether the game is over at this boundary, with the line that says why: the host's End game,
- * the last round played, every stack gone, or (unlimited, two or more players) one stack left.
- * A newcomer waiting for a seat keeps the game going (they are dealt in next), so the last one
- * standing is always a seated player with chips.
+ * every stack gone, or (two or more players) one stack left. The rounds never run out. A newcomer
+ * waiting for a seat keeps the game going (they are dealt in next), so the last one standing is
+ * always a seated player with chips.
  */
 function gameIsOver(gx: Gx): boolean {
   const { data, ctx } = gx;
@@ -27,8 +24,6 @@ function gameIsOver(gx: Gx): boolean {
     return true;
   }
   if (data.endRequested) return true;
-  const { rounds } = ctx.settings;
-  if (rounds > 0) return data.round >= rounds;
   const seated = active.filter((p) => data.seats[p.id]);
   if (ctx.players.length >= 2 && seated.length === 1 && active.length === 1) {
     systemMessage(gx, `${seated[0].name} is the last one standing.`);
@@ -37,16 +32,24 @@ function gameIsOver(gx: Gx): boolean {
   return false;
 }
 
-/** Deals in newcomers while the table has a free seat (busted-out players free theirs); the rest wait and watch. */
+/** Seats every newcomer: the table has no seat limit, so a big party all plays. */
 function seatNewcomers(gx: Gx): void {
   const { data, ctx } = gx;
-  const active = activePlayers(ctx, data);
-  let taken = active.filter((p) => data.seats[p.id]).length;
-  for (const p of active) {
-    if (data.seats[p.id] || taken >= MAX_SEATS) continue;
-    seatPlayer(gx, p.id);
-    taken += 1;
-  }
+  for (const p of activePlayers(ctx, data)) if (!data.seats[p.id]) seatPlayer(gx, p.id);
+}
+
+/**
+ * Seats the newcomers and puts every seat still in the game into the round about to be bet on,
+ * with a shoe that holds a round for all of them. The table is clear, so a rebuild puts the last
+ * round's cards back in the shoe.
+ */
+function fillRound(gx: Gx): void {
+  const { data, ctx } = gx;
+  seatNewcomers(gx);
+  data.order = activePlayers(ctx, data)
+    .filter((p) => data.seats[p.id])
+    .map((p) => p.id);
+  if (needsReshuffle(data.shoe.length, shoeSizeOf(data, ctx.settings), data.order.length)) rebuildShoe(gx, 'The shoe is running low');
 }
 
 /**
@@ -74,27 +77,63 @@ export function beginRound(gx: Gx, revealMs = 0): void {
     return;
   }
   if (gameIsOver(gx)) return finishGame(gx);
-  const active = activePlayers(ctx, data);
   if (connectedActive(ctx, data).length < MIN_PLAYERS) return hold(gx);
   if (data.phase.kind === 'held') gx.effects.push(resumeEffect());
 
-  // Only a round that really starts seats the newcomers (with the starting stack).
-  seatNewcomers(gx);
   data.round += 1;
   data.reshuffled = false;
-  data.order = active.filter((p) => data.seats[p.id]).map((p) => p.id);
   for (const seat of Object.values(data.seats)) {
     seat.bet = 0;
     seat.hands = [];
   }
   data.dealer = [];
   data.holeHidden = true;
-  // The table is clear, so a rebuild here puts the last round's cards back in the shoe.
-  if (needsReshuffle(data.shoe.length, ctx.settings.decks)) rebuildShoe(gx, 'Under a quarter of the shoe is left');
+  // Only a round that really starts seats the newcomers (with the starting stack).
+  fillRound(gx);
   data.phase = { kind: 'betting', endsAt: ctx.now + revealMs + ctx.settings.betSeconds * 1000 };
-  const { rounds } = ctx.settings;
-  systemMessage(gx, `Round ${data.round}${rounds > 0 ? ` of ${rounds}` : ''}: place your bets!`);
+  systemMessage(gx, `Round ${data.round}: place your bets!`);
   snapshot(gx);
+}
+
+/** Betting with its clock run out and no bet down: the table waits, unclocked, for the first one. */
+export function waitingForFirstBet(gx: Gx): boolean {
+  const { phase } = gx.data;
+  return phase.kind === 'betting' && phase.endsAt === null;
+}
+
+/**
+ * The betting clock ran out and nobody bet: no cards go out. The table waits for the first bet
+ * (newcomers are seated straight into it), or holds when nobody still in the game is connected;
+ * the round is not spent either way.
+ */
+export function awaitFirstBet(gx: Gx): void {
+  const { data, ctx } = gx;
+  if (connectedActive(ctx, data).length < MIN_PLAYERS) {
+    data.round -= 1;
+    return hold(gx);
+  }
+  data.phase = { kind: 'betting', endsAt: null };
+  fillRound(gx);
+  systemMessage(gx, 'Nobody bet. The dealer waits for the first bet.');
+  snapshot(gx);
+}
+
+/** A newcomer joining a table that waits for its first bet is seated at once; false otherwise. */
+export function seatWhileWaiting(gx: Gx): boolean {
+  if (!waitingForFirstBet(gx)) return false;
+  fillRound(gx);
+  snapshot(gx);
+  return true;
+}
+
+/** A player dropped or came back: a hold is re-evaluated, and a table waiting for a first bet holds once nobody is left to place it. */
+export function onConnectionChange(gx: Gx): void {
+  const { data, ctx } = gx;
+  if (waitingForFirstBet(gx) && connectedActive(ctx, data).length < MIN_PLAYERS) {
+    data.round -= 1;
+    return hold(gx);
+  }
+  resumeIfHeld(gx);
 }
 
 /** The host ends the game: at once between hands (stakes on the table go back), otherwise once the hand in play settles. */

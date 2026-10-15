@@ -188,6 +188,7 @@ export function BattleshipsScreen({ room, meId, isHost }: GameScreenProps<Battle
     >
       <GameTopBar
         meta={meta}
+        room={room}
         isPhone={isPhone}
         testId="battleships-header"
         className="bs__top"
@@ -195,7 +196,7 @@ export function BattleshipsScreen({ room, meId, isHost }: GameScreenProps<Battle
         statusTestId="turn-indicator"
         statusData={{ 'data-turn': view.turnNumber }}
         clock={<Timer endsAt={endsAt} paused={paused} warnUnder={view.phase === 'placing' ? 10 : 5} tickUnder={myTurn && view.phase === 'playing' ? 5 : undefined} />}
-        players={{ count: room.players.length, open: sheet === 'players', onOpen: () => openSheet('players') }}
+        players={{ open: sheet === 'players', onOpen: () => openSheet('players') }}
         chat={isPhone ? { open: sheet === 'chat', onOpen: () => openSheet('chat') } : undefined}
         menu={{ open: sheet === 'menu', onOpen: () => openSheet('menu') }}
       />

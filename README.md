@@ -69,7 +69,7 @@ Open http://localhost:5173. The Vite dev server proxies `/ws` and `/api` to the 
 
 ## Playing with friends
 
-1. One player opens the site and taps **Create room** (a first visit asks "Who's playing?" for a
+1. One player opens the site and taps **Create a room** (a first visit asks "Who's playing?" for a
    name and an avatar; both are remembered on the device). The lobby opens with **Pick a game**
    at the top, the code (for example `XK4P`) and an invite link such as
    `https://your-host/scribble/XK4P`.

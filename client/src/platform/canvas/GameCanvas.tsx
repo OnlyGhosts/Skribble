@@ -10,7 +10,6 @@ interface Props {
   session: CanvasSession;
   canDraw: boolean;
   settings: DrawingSettings;
-  turnKey: string;
   /** Overlays rendered on top of the canvas (choosing, turn end, captions). */
   children?: ReactNode;
   /** Rendered directly under the canvas and counted in the fit calculation (the toolbar). */
@@ -42,7 +41,7 @@ function sameFrame(a: Frame | null, b: Frame): boolean {
  * renderer in sync with the session: remote ops stream in through the session, structural changes
  * (undo / clear / resync / rejoin) bump `canvasEpoch` and trigger a full replay.
  */
-export function GameCanvas({ session, canDraw, settings, turnKey, children, footer }: Props) {
+export function GameCanvas({ session, canDraw, settings, children, footer }: Props) {
   const stageRef = useRef<HTMLDivElement | null>(null);
   const groupRef = useRef<HTMLDivElement | null>(null);
   const footerRef = useRef<HTMLDivElement | null>(null);
@@ -109,7 +108,7 @@ export function GameCanvas({ session, canDraw, settings, turnKey, children, foot
     };
   }, [session, footer !== undefined]);
 
-  useDrawing({ session, canvasRef, rendererRef, enabled: canDraw, settings, turnKey });
+  useDrawing({ session, canvasRef, rendererRef, enabled: canDraw, settings });
 
   return (
     <div className="canvas-stage" ref={stageRef}>

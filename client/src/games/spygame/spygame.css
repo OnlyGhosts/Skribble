@@ -83,10 +83,15 @@
 }
 
 /* The paused clock keeps the timer's face with a dashed amber ring and a tiny label. */
-.spy-clock--paused .timer__ring {
-  stroke: var(--color-warning);
+.spy-clock--paused .timer__track {
   fill: var(--color-warning-soft);
+  stroke: none;
+}
+
+.spy-clock--paused .timer__arc {
+  stroke: var(--color-warning);
   stroke-dasharray: 4 3;
+  stroke-linecap: butt;
 }
 
 .spy-clock__label {

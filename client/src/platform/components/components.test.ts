@@ -28,8 +28,9 @@ const { GamePicker } = await import('./GamePicker');
 const { Lobby } = await import('../screens/Lobby');
 const { GAME_LIST } = await import('@shared/platform/games');
 const { AVATAR_COLORS, AVATAR_EMOJIS } = await import('@shared/platform/avatar');
-const { remainingMs } = await import('../lib/useCountdown');
+const { arcFraction, remainingMs } = await import('../lib/useCountdown');
 const { GameTopBar } = await import('./GameTopBar');
+const { CHIP_GAP, CHIP_WIDTH, chipCapacity, chipLayout, chipOrder, chipStatus } = await import('./PlayerChips');
 const { ResultNext, ResultPoints, earnersOf } = await import('./RoundResult');
 
 /** The z-index of the first rule whose selector list starts with `selector`. */
@@ -88,6 +89,28 @@ describe('Timer first render', () => {
     const tag = tagWith(html, 'timer');
     expect(tag).toMatch(/data-seconds="1[45]"/);
     expect(tag).not.toContain('timer--urgent');
+  });
+
+  it('draws the whole lime arc when a deadline first appears and turns danger only in the last 5 seconds', () => {
+    usePlatformStore.setState({ clockOffset: 0 });
+    const fresh = renderToString(createElement(Timer, { endsAt: Date.now() + 8_000, warnUnder: 10 }));
+    expect(fresh).toMatch(/class="timer__arc"[^>]*stroke-dashoffset="0\.00"/);
+    expect(tagWith(fresh, 'timer')).not.toContain('timer--urgent');
+    const last = renderToString(createElement(Timer, { endsAt: Date.now() + 4_000, warnUnder: 10 }));
+    expect(tagWith(last, 'timer')).toContain('timer--urgent');
+    // A clock that is never urgent (a summary's countdown) stays lime to the end.
+    const summary = renderToString(createElement(Timer, { endsAt: Date.now() + 2_000, warnUnder: 0 }));
+    expect(tagWith(summary, 'timer')).not.toContain('timer--urgent');
+    // Plain seconds up to 99, m:ss beyond.
+    expect(fresh).toMatch(/class="timer__value">8</);
+    expect(renderToString(createElement(Timer, { endsAt: Date.now() + 150_000 }))).toContain('2:30');
+  });
+
+  it('empties the arc in proportion to the time left of the countdown as first seen', () => {
+    expect(arcFraction(5_000, 10_000)).toBe(0.5);
+    expect(arcFraction(12_000, 10_000)).toBe(1);
+    expect(arcFraction(0, 10_000)).toBe(0);
+    expect(arcFraction(3_000, 0)).toBe(0);
   });
 
   it('computes the remaining time on the server clock', () => {
@@ -248,8 +271,14 @@ describe('front door', () => {
     }
   });
 
-  it('has no tagline, sub-line or footer: the wordmark, the mascots and two panels only', () => {
+  it('has no tagline, sub-line or footer: the wordmark, the mascots, Join a room and Create a room only', () => {
     const html = renderToString(createElement(Home, { code: null, game: null }));
+    // One column as on the brand board: no panel boxes, no "Create a room" heading, no helper line.
+    expect(html).not.toContain('Pick the game once you');
+    expect(html).not.toContain('id="create-heading"');
+    expect(tagWith(html, 'join-panel')).not.toContain('card');
+    expect(html).toMatch(/data-testid="home-create"[^>]*>Create a room</);
+    expect(html.indexOf('data-testid="home-join"')).toBeLessThan(html.indexOf('data-testid="home-create"'));
     expect(html).not.toContain('Less bored');
     expect(html).not.toContain('Get your people together');
     expect(html).not.toContain('one more round');
@@ -261,21 +290,30 @@ describe('front door', () => {
     expect(html).toMatch(/data-testid="room-preview"><\/div>/);
   });
 
-  it('gives the empty status line no height and keeps Join and Create level on desktop', () => {
+  it('gives the empty status line no height and keeps the same single centred column on desktop', () => {
     const css = stylesheet('home.css');
     expect(ruleOf(css, '.code-field .code-preview:empty')).toContain('margin-top: -8px');
     expect(ruleOf(css, '.code-field')).toContain('gap: 8px');
+    expect(ruleOf(css, '.home')).toContain('width: min(calc(460px + 2 * var(--home-gutter)), 100%)');
+    expect(ruleOf(css, '.home')).toContain('margin: 0 auto');
+    // Nothing widens the column or splits it into side-by-side panels on a wide screen.
     const desktop = mediaBlock(css, '(min-width: 768px)');
-    expect(desktop).toMatch(/\.home__panels \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);[^}]*align-items: stretch;/);
-    expect(ruleOf(css, '.panel__action')).toContain('margin-top: auto');
+    expect(desktop.slice(desktop.indexOf('{'))).not.toMatch(/[^-]width:/);
+    expect(desktop).not.toContain('grid-template-columns');
   });
 
-  it('keeps the mascots small and angled: 70px on phones, 112px on desktop, -8 and +8 degrees', () => {
+  it('perches the happy lime phone, then the bored lilac one, on the right end of the wordmark, small and angled', () => {
+    const html = renderToString(createElement(Home, { code: null, game: null }));
+    const mascots = html.slice(html.indexOf('home__mascots'));
+    expect(mascots.indexOf('mascot--happy')).toBeLessThan(mascots.indexOf('mascot--bored'));
+    // Inside the wordmark's box, so they sit on it rather than beside it.
+    expect(html.indexOf('home__mascots')).toBeGreaterThan(html.indexOf('data-testid="wordmark"'));
+    expect(html.indexOf('home__mascots')).toBeLessThan(html.indexOf('site-header__actions'));
     const css = stylesheet('home.css');
-    expect(ruleOf(css, '.mascot')).toContain('height: 70px');
-    expect(mediaBlock(css, '(min-width: 1024px)')).toContain('height: 112px');
-    expect(ruleOf(css, '.mascot--happy')).toContain('rotate(-8deg)');
-    expect(ruleOf(css, '.mascot--bored')).toContain('rotate(8deg)');
+    expect(ruleOf(css, '.home__mascots')).toContain('position: absolute');
+    expect(ruleOf(css, '.home__mascots')).toContain('right: 1%');
+    expect(ruleOf(css, '.home__mascots .mascot--happy')).toContain('rotate(-9deg)');
+    expect(ruleOf(css, '.home__mascots .mascot--bored')).toContain('rotate(7deg)');
   });
 
   it('cleans a name the way the handlers want it', () => {
@@ -354,8 +392,11 @@ describe('wordmark and mascots', () => {
     expect(html).toContain('Scribble');
     expect(html).not.toContain('✏️');
     expect(tagWith(html, 'game-tile')).toContain('aria-checked="true"');
-    expect(html).toContain('game-tile__check');
-    expect(ruleOf(stylesheet('lobby.css'), '.game-picker__list')).toContain('grid-template-columns: repeat(3, minmax(0, 1fr))');
+    // Four to a row, a short last row stretching to fill; the picked tile is the lilac fill with ink.
+    const lobby = stylesheet('lobby.css');
+    expect(ruleOf(lobby, '.game-picker__list .game-tile')).toContain('flex: 1 1 calc(25% - 8px)');
+    expect(ruleOf(lobby, '.game-tile.is-selected')).toContain('background: var(--color-secondary)');
+    expect(ruleOf(lobby, '.game-tile.is-selected')).toContain('color: var(--color-secondary-contrast)');
   });
 });
 
@@ -460,11 +501,16 @@ describe('ready controls', () => {
     expect(markup).toContain('You&#x27;ll watch the next game.');
   });
 
-  it('the host is in by pressing Start: their control says so, with no em dash', () => {
-    const markup = renderToString(createElement(ReadyControls, { me: player('host', { participating: false }), context: 'lobby' }));
-    expect(tagWith(markup, 'ready-toggle')).toContain('disabled');
-    expect(markup).toContain('You start the game');
-    expect(markup).not.toContain('—');
+  it('the host is in by pressing Start: in the lobby only the way out is left, on the podium their control says so', () => {
+    const host = player('host', { participating: false });
+    const lobby = renderToString(createElement(ReadyControls, { me: host, context: 'lobby' }));
+    expect(lobby).not.toContain('data-testid="ready-toggle"');
+    expect(buttons(lobby)).toHaveLength(1);
+    expect(lobby).toContain('Sit this one out');
+    const podium = renderToString(createElement(ReadyControls, { me: host, context: 'podium' }));
+    expect(tagWith(podium, 'ready-toggle')).toContain('disabled');
+    expect(podium).toContain('You start the game');
+    expect(podium).not.toContain('—');
   });
 });
 
@@ -497,16 +543,33 @@ describe('avatar picker', () => {
 });
 
 describe('lobby', () => {
-  it('opens with the compact room bar (code, Copy code, Copy invite link, Share) above the game picker; the old invite card is gone', () => {
-    // The bar is outside every host-only branch, so host and guests get the same one.
+  it('opens with the room code card (label, code, Copy and Share squares) above the game picker; the old invite card is gone', () => {
+    // The card is outside every host-only branch, so host and guests get the same one.
     const markup = renderToString(createElement(Lobby, { room: room(), game: null }));
     const bar = markup.indexOf('data-testid="room-bar"');
     expect(bar).toBeGreaterThan(-1);
     expect(bar).toBeLessThan(markup.indexOf('data-testid="game-picker"'));
     expect(markup).toContain('aria-label="Room code A B C D">ABCD</span>');
-    for (const id of ['copy-code', 'copy-link', 'share-invite']) expect(markup).toContain(`data-testid="${id}"`);
+    expect(markup.indexOf('>Room code</span>')).toBeLessThan(markup.indexOf('>ABCD</span>'));
+    for (const id of ['copy-code', 'share-invite']) expect(tagWith(markup, id)).toContain('room-card__btn');
+    expect(markup).toContain('<span>Copy</span>');
+    expect(markup).toContain('<span>Share</span>');
     expect(markup).not.toContain('code-card');
     expect(markup).not.toContain('Invite your friends');
+    // Copying the invite link and leaving live in the gear's menu; the header shows only the wordmark and the gear.
+    expect(markup).not.toContain('data-testid="copy-link"');
+    expect(markup).not.toContain('data-testid="leave-room"');
+    expect(tagWith(markup, 'settings-menu')).toBeTruthy();
+  });
+
+  it('lists the players as rows: avatar, name, and a check with Ready on the right', () => {
+    const state = room({ players: [player('host'), player('bob', { joinOrder: 1, ready: true }), player('carol', { joinOrder: 2, sittingOut: true })] });
+    const markup = renderToString(createElement(Lobby, { room: state, game: null }));
+    const rows = tagsWith(markup, 'player-item');
+    expect(rows.map((r) => attr(r, 'data-status'))).toEqual(['ready', 'ready', 'sittingOut']);
+    expect(markup.match(/class="player__check"/g)).toHaveLength(2);
+    expect(markup).toContain('Sitting out');
+    expect(tagWith(markup, 'player-count')).toContain('sr-only');
   });
 });
 
@@ -640,43 +703,81 @@ describe('podium overlay', () => {
 
 describe('GameTopBar', () => {
   const noop = () => undefined;
+  const players = [player('host'), player('bob', { joinOrder: 1 }), player('carol', { joinOrder: 2, connected: false }), player('dan', { joinOrder: 3, participating: false })];
   const bar = (isPhone: boolean, chat: boolean) =>
     renderToString(
       createElement(GameTopBar, {
         meta: gameById('spygame'),
+        room: room({ gameId: 'spygame', phase: 'playing', players }),
         isPhone,
         testId: 'spygame-header',
         status: 'Round 2/5',
         statusData: { 'data-round': 2 },
         clock: createElement('span', { 'data-testid': 'clock' }),
-        players: { count: 4, label: 'Scores', open: false, onOpen: noop },
+        players: { label: 'Scores', open: false, onOpen: noop },
         chat: chat ? { open: false, onOpen: noop } : undefined,
         menu: { open: false, onOpen: noop },
       }),
     );
 
-  it('reads options, name and round, the timer ring, players and chat on a phone, options first', () => {
+  it('reads back, name and round, chat and options on the first row, then the player chips and the timer ring', () => {
     const html = bar(true, true);
     expect(html).toContain('The Spy Game');
     expect(attr(tagWith(html, 'round-indicator'), 'data-round')).toBe('2');
     expect(html).toContain('Round 2/5');
-    const order = ['game-menu', 'round-indicator', 'clock', 'players-toggle', 'chat-toggle'].map((id) => html.indexOf(`data-testid="${id}"`));
+    const order = ['game-back', 'round-indicator', 'chat-toggle', 'game-menu', 'players-toggle', 'clock'].map((id) => html.indexOf(`data-testid="${id}"`));
     expect(order.every((i) => i > -1)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
     expect(tagWith(html, 'players-toggle')).toContain('aria-label="Scores (4)"');
-    // Settings and Leave live in the options sheet on a phone.
+    expect(tagWith(html, 'game-back')).toContain('aria-label="Leave game"');
+    // Leaving asks first; the confirmation is a sheet that is closed until the arrow is tapped.
     expect(html).not.toContain('data-testid="leave-room"');
+    expect(html).not.toContain('data-testid="leave-sheet"');
   });
 
-  it('has the game mark, settings and Leave on a desktop, and no chat button where the chat is on screen', () => {
+  it('gives every player a chip with a status badge: the platform says Ready, Away and Watching', () => {
+    const html = bar(true, false);
+    const chips = tagsWith(html, 'player-chip');
+    expect(chips.map((c) => attr(c, 'data-label'))).toEqual(['Ready', 'Ready', 'Away', 'Watching']);
+    expect(chips.map((c) => attr(c, 'data-status'))).toEqual(['ready', 'ready', 'muted', 'muted']);
+  });
+
+  it('has the gear and no options button on a desktop, and no chat button where the chat is on screen', () => {
     const html = bar(false, false);
-    expect(html).toContain('data-testid="game-mark"');
-    expect(html).toContain('data-testid="leave-room"');
+    expect(html).toContain('data-testid="settings-menu"');
+    expect(html).toContain('data-testid="game-back"');
     expect(html).not.toContain('data-testid="game-menu"');
     expect(html).not.toContain('data-testid="chat-toggle"');
     const css = stylesheet('gamebar.css');
     expect(ruleOf(css, '.gbar__btn')).toContain('width: 44px');
-    expect(ruleOf(css, '.gbar__players')).toContain('min-height: 44px');
+    // The chips never scroll: what does not fit goes into the "+K" chip.
+    expect(ruleOf(css, '.chips')).toContain('overflow: hidden');
+  });
+});
+
+describe('player chips', () => {
+  it('fit as many chips as the row holds and fold the rest into "+K"', () => {
+    expect(chipCapacity(CHIP_WIDTH)).toBe(1);
+    expect(chipCapacity(4 * CHIP_WIDTH + 3 * CHIP_GAP)).toBe(4);
+    expect(chipCapacity(4 * CHIP_WIDTH + 3 * CHIP_GAP - 1)).toBe(3);
+    expect(chipCapacity(0)).toBe(1);
+    expect(chipLayout(4, 4)).toEqual({ shown: 4, more: 0 });
+    expect(chipLayout(5, 4)).toEqual({ shown: 3, more: 2 });
+    expect(chipLayout(50, 4)).toEqual({ shown: 3, more: 47 });
+    expect(chipLayout(3, 1)).toEqual({ shown: 0, more: 3 });
+  });
+
+  it('put the players taking part first, in join order', () => {
+    const list = [player('a', { joinOrder: 2 }), player('b', { joinOrder: 0, participating: false }), player('c', { joinOrder: 1 })];
+    expect(chipOrder(list).map((p) => p.id)).toEqual(['c', 'a', 'b']);
+  });
+
+  it("use the game's own status when it has one", () => {
+    const r = room({ phase: 'playing' });
+    const game = { meta: gameById('skribble'), Screen: () => null, playerStatus: () => ({ label: 'Drawing', icon: null, tone: 'active' as const }) };
+    expect(chipStatus(r, player('host'), game).label).toBe('Drawing');
+    expect(chipStatus(r, player('host', { connected: false }), game).label).toBe('Away');
+    expect(chipStatus(r, player('host'), null).label).toBe('Ready');
   });
 });
 

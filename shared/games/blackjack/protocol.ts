@@ -20,11 +20,7 @@ export type { Card, CardRank } from '../../platform/cards.js';
 
 export const BLACKJACK_SETTINGS_LIMITS = {
   startingChips: { min: 100, max: 100_000 },
-  minBet: { min: 1, max: 1000 },
-  /** The effective floor is minBet: normalizeBlackjackSettings lifts maxBet to it. */
-  maxBet: { min: 1, max: 100_000 },
-  /** 0 is unlimited: play until at most one stack is left (the only stack is gone, alone). */
-  rounds: { min: 0, max: 50 },
+  /** The fewest decks in the shoe; a big table gets more (see shoeDecks in cards.ts). */
   decks: { min: 1, max: 8 },
   betSeconds: { min: 10, max: 60 },
   actSeconds: { min: 10, max: 60 },
@@ -39,11 +35,7 @@ const limited = (key: keyof typeof BLACKJACK_SETTINGS_LIMITS) => z.number().int(
 export const blackjackSettingsSchema = z.object({
   /** Chips every player (late joiners included) starts with; the score is the chip count. */
   startingChips: limited('startingChips'),
-  minBet: limited('minBet'),
-  maxBet: limited('maxBet'),
-  /** Rounds to play; 0 plays on until at most one player is left with chips (see the limits). */
-  rounds: limited('rounds'),
-  /** Decks in the shoe; it is reshuffled once under a quarter of it remains. */
+  /** The fewest decks in the shoe; it is reshuffled once under a quarter of it (or a round's worth) remains. */
   decks: limited('decks'),
   betSeconds: limited('betSeconds'),
   actSeconds: limited('actSeconds'),
@@ -60,9 +52,6 @@ export type BlackjackSettings = z.infer<typeof blackjackSettingsSchema>;
 
 export const DEFAULT_BLACKJACK_SETTINGS: BlackjackSettings = {
   startingChips: 1000,
-  minBet: 10,
-  maxBet: 500,
-  rounds: 10,
   decks: 6,
   betSeconds: 15,
   actSeconds: 20,
@@ -73,22 +62,13 @@ export const DEFAULT_BLACKJACK_SETTINGS: BlackjackSettings = {
   allowSplit: true,
 };
 
-/** Rounds stored as 0: the game runs until the stacks decide it. */
-export const UNLIMITED_ROUNDS = 0;
-
-/** Fixes up the bet window after a patch: a minimum nobody could afford at the start is lowered, the maximum never sits below it. */
-export function normalizeBlackjackSettings(s: BlackjackSettings): BlackjackSettings {
-  const minBet = Math.min(s.minBet, s.startingChips);
-  return { ...s, minBet, maxBet: Math.max(s.maxBet, minBet) };
-}
-
 // ---------------------------------------------------------------------------
 // Messages
 // ---------------------------------------------------------------------------
 
 export const blackjackClientMessageSchema = z.discriminatedUnion('t', [
-  /** During `betting`: the chips wagered this round (between minBet and the lesser of maxBet and the player's chips). */
-  z.object({ t: z.literal('bet'), amount: z.number().int().min(1).max(BLACKJACK_SETTINGS_LIMITS.maxBet.max) }),
+  /** During `betting`: the chips wagered this round, any whole number from 1 up to the player's whole stack. */
+  z.object({ t: z.literal('bet'), amount: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER) }),
   /** The acting player, on the hand in play. */
   z.object({ t: z.literal('hit') }),
   z.object({ t: z.literal('stand') }),
@@ -108,7 +88,8 @@ export type BlackjackServerMessage = never;
 // ---------------------------------------------------------------------------
 
 /**
- * `betting` opens straight after the last round settled (its table stays on show in `lastRound`),
+ * `betting` opens straight after the last round settled (its table stays on show in `lastRound`;
+ * once its clock ran out with no bet at all it waits, unclocked, for the first one),
  * `acting` is one hand at a time, `held` waits for a player still in the game to reconnect,
  * `ending` keeps the final table on show before the podium.
  */
@@ -158,7 +139,7 @@ export interface BlackjackPlayerView {
   hands: HandView[];
   /** Dealt in this round. */
   inRound: boolean;
-  /** Out of the game: fewer chips than the minimum bet. */
+  /** Out of the game: no chips left. */
   bustedOut: boolean;
 }
 
@@ -186,15 +167,13 @@ export interface BlackjackActions {
 
 export interface BlackjackView {
   phase: BlackjackPhase;
-  /** 1-based current round (the round being bet on during `betting`). */
+  /** 1-based current round (the round being bet on during `betting`); the rounds never run out. */
   round: number;
-  /** 0 when the rounds are unlimited. */
-  totalRounds: number;
   /** The seats dealt this round, in join order: the play order. */
   order: string[];
   /** The hand in play during `acting`. */
   turn: { playerId: string; handIndex: number } | null;
-  /** Epoch ms (server clock) when the current phase ends on its own; null while held and at the end. */
+  /** Epoch ms (server clock) when the current phase ends on its own; null while held, at the end and while the table waits for a first bet. */
   endsAt: number | null;
   dealer: DealerView;
   /** Every participant, keyed by player id. */
@@ -206,6 +185,8 @@ export interface BlackjackView {
   endRequested: boolean;
   /** Cards left in the shoe. */
   shoeRemaining: number;
+  /** Cards in the shoe when it was last built: more decks than the setting at a big table. */
+  shoeSize: number;
   /** The shoe was reshuffled at the start of this round. */
   reshuffled: boolean;
 }

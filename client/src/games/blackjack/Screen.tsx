@@ -91,7 +91,7 @@ export function BlackjackScreen({ room, meId, isHost }: GameScreenProps<Blackjac
       statusTestId="round-indicator"
       statusData={{ 'data-round': view.round, 'data-total': view.totalRounds }}
       clock={<Timer endsAt={timed ? view.endsAt : null} paused={held} warnUnder={view.phase === 'ending' ? 0 : 5} tickUnder={tickUnder} />}
-      playerCount={room.players.length}
+      room={room}
       players={<PlayerList room={room} meId={meId} isHost={isHost} mode="game" game={game} />}
       sheet={sheet}
       onSheet={openSheet}

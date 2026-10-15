@@ -29,6 +29,12 @@ describe.each(GAME_IDS)('platform room (%s)', (gameId: GameId) => {
   const smallest = Math.max(2, meta.minPlayers);
   /** Seats filler players after `seated` names until the room holds `total`. */
   const fill = (h: Harness, seated: number, total: number): string[] => Array.from({ length: Math.max(0, total - seated) }, (_, i) => h.join(`Guest${i + 1}`));
+  /** Runs the game to its end on the clock; a game that never ends on its own is ended by the host. */
+  const runToEnd = (h: Harness, host: string, ms: number): void => {
+    vi.advanceTimersByTime(ms);
+    const end = GAME_TEST_FIXTURES[gameId].hostEnd;
+    if (end && h.room.phase === 'playing') h.room.handleMessage(host, { kind: 'game', msg: end });
+  };
 
   describe('seats', () => {
     it('makes the first joiner host and sends welcome / snapshot / system message', () => {
@@ -646,8 +652,8 @@ describe.each(GAME_IDS)('platform room (%s)', (gameId: GameId) => {
       const [alice, bob] = startGame(h, ['Alice', 'Bob']);
       h.send(alice, { t: 'returnToLobby' });
       expect(h.transport.errors(alice)).toEqual(['NOT_ALLOWED']);
-      // Run the game to its end with the clock (both games end on their own).
-      vi.advanceTimersByTime(10 * 60_000);
+      // Run the game to its end with the clock (or the host, where the clock never ends it).
+      runToEnd(h, alice, 10 * 60_000);
       expect(h.room.phase).toBe('ended');
       expect(h.room.state.podium).not.toBeNull();
       expect(h.transport.chats(alice).at(-1)?.text).toMatch(/^Game over!/);
@@ -727,7 +733,7 @@ describe.each(GAME_IDS)('platform room (%s)', (gameId: GameId) => {
       h.send(alice, { t: 'selectGame', gameId: other });
       expect(h.transport.errors(alice)).toEqual(['NOT_ALLOWED']);
       expect(h.room.gameId).toBe(gameId);
-      vi.advanceTimersByTime(60 * 60_000);
+      runToEnd(h, alice, 60 * 60_000);
       expect(h.room.phase).toBe('ended');
       h.send(alice, { t: 'selectGame', gameId: other });
       expect(h.transport.errors(alice)).toEqual(['NOT_ALLOWED', 'NOT_ALLOWED']);
@@ -762,7 +768,7 @@ describe.each(GAME_IDS)('platform room (%s)', (gameId: GameId) => {
       expect(h.transport.errors(bob)).toEqual(['NOT_ALLOWED']);
       expect(h.player(bob).sittingOut).toBe(true);
 
-      vi.advanceTimersByTime(60 * 60_000);
+      runToEnd(h, alice, 60 * 60_000);
       expect(h.room.phase).toBe('ended');
       // Still sitting out after the game, until Bob says otherwise.
       expect(h.player(bob).sittingOut).toBe(true);

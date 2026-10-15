@@ -2,7 +2,7 @@
 import { handTotal, isNatural } from '../../../shared/games/blackjack/cards.js';
 import type { BlackjackPlayerView, BlackjackSettings, BlackjackView, Card, DealerView, HandView, LastRoundView, SettledHandView } from '../../../shared/games/blackjack/protocol.js';
 import type { GameViewCtx } from '../../platform/game.js';
-import { actionsFor, type BlackjackData, type HandData, type LastRoundData, type SettledHand } from './state.js';
+import { actionsFor, shoeSizeOf, type BlackjackData, type HandData, type LastRoundData, type SettledHand } from './state.js';
 
 function handView(hand: HandData): HandView {
   const { total, soft } = handTotal(hand.cards);
@@ -44,7 +44,6 @@ export function viewFor(data: BlackjackData, viewerId: string | null, ctx: GameV
   return {
     phase: phase.kind,
     round: data.round,
-    totalRounds: ctx.settings.rounds,
     order: [...data.order],
     turn: phase.kind === 'acting' ? { playerId: phase.playerId, handIndex: phase.handIndex } : null,
     endsAt: phase.kind === 'betting' || phase.kind === 'acting' || phase.kind === 'ending' ? phase.endsAt : null,
@@ -54,6 +53,7 @@ export function viewFor(data: BlackjackData, viewerId: string | null, ctx: GameV
     lastRound: data.lastRound ? lastRoundView(data.lastRound, new Set(ctx.players.map((p) => p.id))) : null,
     endRequested: data.endRequested,
     shoeRemaining: data.shoe.length,
+    shoeSize: shoeSizeOf(data, ctx.settings),
     reshuffled: data.reshuffled,
   };
 }

@@ -1,6 +1,7 @@
 import { CANVAS_SIDE_MESSAGE_TYPES, isCanvasWelcomeExtra, type CanvasServerMessage, type DrawOp } from '@shared/platform/canvas';
 import type { WireMessage } from '@shared/platform/protocol';
 import { DrawQueue, type DrawLink } from './drawQueue';
+import { maxStrokeId, opsForAction } from './history';
 import { createCanvasStore, type UseCanvasStore } from './store';
 
 type Listener = (ops: readonly DrawOp[]) => void;
@@ -29,7 +30,12 @@ export interface CanvasSession {
   subscribe(listener: Listener): () => void;
   /** The drawer's own ops: into the history, to the mounted canvas, and onto the wire. */
   draw(ops: readonly DrawOp[]): void;
+  /** A stroke id the server has not seen on this canvas: above every id in the history and every id handed out. */
+  nextStrokeId(): number;
+  /** Removes the drawer's last action and keeps it for redo. */
   undo(): void;
+  /** Draws the last undone action again, as a new stroke. */
+  redo(): void;
   clear(): void;
   /** A server message that may belong to the canvas stream; returns true when it did. */
   handleServerMessage(msg: WireMessage): boolean;
@@ -49,6 +55,19 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
     for (const listener of listeners) listener(ops);
   };
   const isLocalDrawer = (): boolean => options.myDrawingTurn() !== null;
+  // After a reload the counter restarts, but the server still holds the canvas (restored into the
+  // store), so an id is never below the history's highest.
+  let strokeCounter = 0;
+  const nextStrokeId = (): number => {
+    const id = Math.max(strokeCounter, maxStrokeId(store.getState().canvas) + 1);
+    strokeCounter = id + 1;
+    return id;
+  };
+  const draw = (ops: readonly DrawOp[]): void => {
+    store.getState().appendOps(ops);
+    emit(ops);
+    queue.queue(ops);
+  };
 
   return {
     store,
@@ -59,14 +78,18 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
         listeners.delete(listener);
       };
     },
-    draw(ops) {
-      store.getState().appendOps(ops);
-      emit(ops);
-      queue.queue(ops);
-    },
+    draw,
+    nextStrokeId,
     undo() {
       queue.flush();
-      if (options.link.send({ t: 'undo' })) store.getState().undo();
+      if (options.link.send({ t: 'undo' })) store.getState().undo(true);
+    },
+    redo() {
+      if (!options.link.isOpen()) return;
+      const action = store.getState().takeRedo();
+      if (!action) return;
+      draw(opsForAction(action, nextStrokeId()));
+      queue.flush();
     },
     clear() {
       queue.flush();

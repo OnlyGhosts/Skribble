@@ -13,7 +13,7 @@ import { useAppMode } from '../../platform/lib/useViewport';
 import { useActiveGame } from '../../platform/store/selectors';
 import { usePlatformStore } from '../../platform/store/usePlatformStore';
 import { DEFAULT_DRAWING_SETTINGS, GameCanvas, Toolbar, type DrawingSettings } from '../../platform/canvas';
-import { clearCanvas, rateDrawing, undoStroke } from './actions';
+import { clearCanvas, rateDrawing, redoStroke, undoStroke } from './actions';
 import { skribbleCanvas } from './canvas';
 import { ThumbDownIcon, ThumbUpIcon } from './components/Icons';
 import { ChoosingOverlay, DrawingCaption, TurnEndOverlay } from './components/Overlays';
@@ -62,6 +62,7 @@ export function SkribbleScreen({ room, meId, isHost }: GameScreenProps<SkribbleV
   const game = useActiveGame();
   // Undo/clear apply locally the moment they are sent, so they are only offered while they can be sent.
   const hasStrokes = skribbleCanvas.store((s) => s.canvas.length > 0);
+  const hasRedo = skribbleCanvas.store((s) => s.redoable.length > 0);
   const connected = usePlatformStore((s) => s.connection === 'connected');
   const [tools, setTools] = useState<DrawingSettings>(DEFAULT_DRAWING_SETTINGS);
   const [playersOpen, setPlayersOpen] = useState(false);
@@ -111,8 +112,8 @@ export function SkribbleScreen({ room, meId, isHost }: GameScreenProps<SkribbleV
   const guessed = hasGuessed(view, meId);
   const canDraw = isDrawer && phase.kind === 'drawing';
   const canUndo = hasStrokes && connected;
+  const canRedo = hasRedo && connected;
   const endsAt = 'endsAt' in phase ? phase.endsAt : null;
-  const turnKey = `${view.round}-${view.turn}-${drawerId ?? ''}`;
   // On a phone an unsolved guesser types into the tiles in the guess bar, so the header word
   // area only shows a word that is actually known (drawer, solved guesser, turn summary).
   const wordKnown = holding || (phase.kind === 'drawing' && (isDrawer || guessed)) || phase.kind === 'turnEnd';
@@ -151,6 +152,7 @@ export function SkribbleScreen({ room, meId, isHost }: GameScreenProps<SkribbleV
     <div ref={rootRef} className={`game${isPhone ? ' game--phone' : ''}${canDraw ? ' game--drawer' : ''}`} data-phase={phase.kind}>
       <GameTopBar
         meta={meta}
+        room={room}
         isPhone={isPhone}
         testId="game-header"
         className="game__top"
@@ -165,7 +167,7 @@ export function SkribbleScreen({ room, meId, isHost }: GameScreenProps<SkribbleV
         }
         statusData={{ 'data-round': view.round, 'data-turn': view.turn }}
         clock={timer || undefined}
-        players={{ count: room.players.length, open: playersOpen, onOpen: () => setPlayersOpen(true) }}
+        players={{ open: playersOpen, onOpen: () => setPlayersOpen(true) }}
         menu={{ open: menuOpen, onOpen: () => setMenuOpen(true) }}
         middle={isPhone ? undefined : <div className="game__word">{wordArea}</div>}
         below={isPhone ? <div className={`game__word${wordKnown ? '' : ' game__word--phone-hidden'}`}>{wordArea}</div> : undefined}
@@ -182,8 +184,7 @@ export function SkribbleScreen({ room, meId, isHost }: GameScreenProps<SkribbleV
           session={skribbleCanvas}
           canDraw={canDraw}
           settings={tools}
-          turnKey={turnKey}
-          footer={canDraw ? <Toolbar settings={tools} onChange={setTools} canUndo={canUndo} onUndo={undoStroke} onClear={clearCanvas} /> : undefined}
+          footer={canDraw ? <Toolbar settings={tools} onChange={setTools} canUndo={canUndo} onUndo={undoStroke} canRedo={canRedo} onRedo={redoStroke} onClear={clearCanvas} /> : undefined}
         >
           {phase.kind === 'choosing' && <ChoosingOverlay phase={phase} room={room} isDrawer={isDrawer} paused={holding} />}
           {phase.kind === 'turnEnd' && <TurnEndOverlay phase={phase} room={room} paused={holding} />}

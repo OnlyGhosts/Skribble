@@ -12,7 +12,7 @@ import { AVATAR, START, chatTexts, errorsOf, sim, startGame, type Sim } from '..
 import { RESUME_SETTLE_MS } from '../waiting.js';
 import { blackjackModule, type BlackjackData } from './module.js';
 
-// The fixture: one round, one deck, bets 10-500 from 1000 chips, 10 s to bet, 10 s to act, a 4 s final pause.
+// The fixture: one deck, any bet from 1000 chips, 10 s to bet, 10 s to act, a 4 s final pause; the rounds never run out.
 const BET_MS = 10_000;
 const ACT_MS = 10_000;
 const RESULTS_MS = 4_000;
@@ -61,8 +61,8 @@ function rigExact(s: Sim, ...texts: string[]): void {
   s.data = { ...s.data, game: { ...data(s), shoe: texts.map(card).reverse() } };
 }
 
-/** Cards under the rigged ones, so a rigged shoe never triggers the between-rounds reshuffle. */
-const PAD = 30;
+/** Cards under the rigged ones, so a rigged shoe never triggers the between-rounds reshuffle (a round's reserve for three seats). */
+const PAD = 44;
 
 /** Replaces the shoe so the next cards come out in the given order, with twos underneath. */
 function rig(s: Sim, ...texts: string[]): void {
@@ -103,12 +103,11 @@ describe('Blackjack: the table', () => {
     expect(data(s).seats).toEqual({ [alice]: { chips: 1000, bet: 0, hands: [], bustedOut: false }, [bob]: { chips: 1000, bet: 0, hands: [], bustedOut: false } });
     expect([score(s, alice), score(s, bob)]).toEqual([1000, 1000]);
     expect(data(s).shoe).toEqual(shuffle(freshShoe(1), () => 0));
-    expect(chatTexts(s.effects)).toContain('Round 1 of 1: place your bets!');
+    expect(chatTexts(s.effects)).toContain('Round 1: place your bets!');
     expect(nextDeadline(s.data)).toBe(START + BET_MS);
     expect(view(s, alice)).toEqual({
       phase: 'betting',
       round: 1,
-      totalRounds: 1,
       order: [alice, bob],
       turn: null,
       endsAt: START + BET_MS,
@@ -121,24 +120,49 @@ describe('Blackjack: the table', () => {
       lastRound: null,
       endRequested: false,
       shoeRemaining: 52,
+      shoeSize: 52,
       reshuffled: false,
     });
   });
 
-  it('has the table defaults, allows unlimited rounds as 0 and normalises the bet window', () => {
+  it('has the table defaults and no rounds, minimum or maximum bet settings at all', () => {
     const { settings } = blackjackModule;
-    expect(DEFAULT_BLACKJACK_SETTINGS).toMatchObject({ betSeconds: 15, actSeconds: 20, resultsSeconds: 5, rounds: 10, allowDouble: true, allowSplit: true });
-    expect(settings.schema.safeParse({ ...settings.defaults, rounds: 0 }).success).toBe(true);
-    expect(settings.schema.safeParse({ ...settings.defaults, rounds: -1 }).success).toBe(false);
-    expect(settings.patchSchema.safeParse({ rounds: 0 }).success).toBe(true);
-    expect(settings.normalize?.({ ...settings.defaults, rounds: 0 })).toMatchObject({ rounds: 0 });
-    expect(settings.normalize?.({ ...settings.defaults, minBet: 800, maxBet: 500 })).toMatchObject({ minBet: 800, maxBet: 800 });
-    expect(settings.normalize?.({ ...settings.defaults, startingChips: 100, minBet: 1000, maxBet: 50 })).toMatchObject({ minBet: 100, maxBet: 100 });
+    expect(DEFAULT_BLACKJACK_SETTINGS).toEqual({
+      startingChips: 1000,
+      decks: 6,
+      betSeconds: 15,
+      actSeconds: 20,
+      resultsSeconds: 5,
+      dealerHitsSoft17: false,
+      blackjackPayout: '3:2',
+      allowDouble: true,
+      allowSplit: true,
+    });
+    expect(settings.normalize).toBeUndefined();
+    // The retired keys are dropped from a patch, never stored or validated.
+    const patch = settings.patchSchema.safeParse({ rounds: 0, minBet: 10, maxBet: 500, decks: 2 });
+    expect(patch.success && patch.data).toEqual({ decks: 2 });
+    expect(gameById('blackjack').maxPlayers).toBeNull();
+  });
+
+  it('plays a room stored with the old rounds, minimum and maximum bet settings, ignoring them', () => {
+    const s = sim('blackjack');
+    const [alice] = startGame(s, ['Alice']);
+    // A room saved before the settings went: the stored keys ride along and change nothing.
+    s.data = { ...s.data, settings: { ...s.data.settings, rounds: 1, minBet: 50, maxBet: 60 } };
+    rig(s, '10S', '9D', '8H', '7C');
+    act(s, alice, { t: 'bet', amount: 1 });
+    tick(s, ACT_MS);
+    // Round one is over, and round two opens rather than the game ending.
+    expect(view(s)).toMatchObject({ phase: 'betting', round: 2, lastRound: { round: 1 } });
+    act(s, alice, { t: 'bet', amount: 900 });
+    expect(view(s, alice).players[alice].hands[0].bet).toBe(900);
+    expect(s.data.phase).toBe('playing');
   });
 
   it('has no insurance anywhere and no host skip: the host may only end the game', () => {
     const s = sim('blackjack');
-    const [alice] = startGame(s, ['Alice', 'Bob'], { rounds: 0 });
+    const [alice] = startGame(s, ['Alice', 'Bob']);
     expect(JSON.stringify(blackjackModule.settings.defaults)).not.toMatch(/insur/i);
     expect(JSON.stringify(view(s, alice))).not.toMatch(/insur/i);
     expect(blackjackClientMessageSchema.safeParse({ t: 'insurance' }).success).toBe(false);

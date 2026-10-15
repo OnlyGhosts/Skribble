@@ -1,10 +1,13 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { GameMeta } from '@shared/platform/games';
+import type { RoomState } from '@shared/platform/protocol';
 import { leaveRoom } from '../net/actions';
+import { registeredGame } from '../registry';
 import { BottomSheet } from './BottomSheet';
 import { ConnectionPill } from './ConnectionPill';
-import { GameMark } from './GameGlyph';
-import { ChatIcon, LogoutIcon, MenuIcon, UsersIcon } from './Icons';
+import { BackIcon, ChatIcon, LogoutIcon, MenuIcon } from './Icons';
+import { LeaveConfirm } from './LeaveConfirm';
+import { PlayerChips } from './PlayerChips';
 import { PreferenceRows, SettingsMenu } from './Preferences';
 
 type DataAttrs = Record<`data-${string}`, string | number | boolean | undefined>;
@@ -16,88 +19,94 @@ interface Toggle {
 
 interface Props {
   meta: GameMeta;
+  /** The room, for the player chips. */
+  room: RoomState;
   isPhone: boolean;
   testId: string;
   /** The game layout's own class for the bar (its grid placement). */
   className?: string;
-  /** The line under the game's name: round, turn or hand. */
+  /** Right of the game's name: the round, turn or hand. */
   status: ReactNode;
-  /** Test id and data attributes of the name and status block ('round-indicator' by default). */
+  /** Test id and data attributes of the status ('round-indicator' by default). */
   statusTestId?: string;
   statusData?: DataAttrs;
-  /** The timer ring. */
+  /** The timer ring, at the end of the players row. */
   clock?: ReactNode;
-  players: Toggle & { count: number; label?: string };
+  /** The players sheet the chips open. */
+  players: Toggle & { label?: string };
   /** Left out where the chat is already on screen (a desktop chat column, Scribble's guess feed). */
   chat?: Toggle;
   /** The phone's options sheet (theme, sound, the game's host controls, Leave). */
   menu: Toggle;
-  /** Extra buttons before the players button (Battleships' shot log). */
+  /** Extra buttons before chat (Battleships' shot log). */
   extra?: ReactNode;
-  /** Desktop only: host controls beside Leave (End game). */
+  /** Desktop only: host controls beside the gear (End game). */
   actions?: ReactNode;
-  /** Desktop: the middle of the bar (Scribble's word). */
+  /** Desktop: between the name and the round (Scribble's word). */
   middle?: ReactNode;
-  /** A second row inside the bar (Scribble's word on a phone). */
+  /** A last row inside the bar (Scribble's word on a phone). */
   below?: ReactNode;
 }
 
 /**
- * Every game's compact top bar: options, the game's name with the round under it, the timer
- * ring, players and chat. Phones open options from the left; a desktop has its settings,
- * connection state and Leave on the right instead.
+ * Every game's top bar, as on the brand board: a back arrow (leaving asks first), the game's name
+ * large and the round on the right, then a row of player chips with the timer ring at its end.
+ * Chat and options are small icon buttons on the first row; a desktop has the gear and the host's
+ * controls there instead of the options sheet.
  */
-export function GameTopBar({ meta, isPhone, testId, className, status, statusTestId = 'round-indicator', statusData, clock, players, chat, menu, extra, actions, middle, below }: Props) {
-  const playersLabel = players.label ?? 'Players';
+export function GameTopBar({ meta, room, isPhone, testId, className, status, statusTestId = 'round-indicator', statusData, clock, players, chat, menu, extra, actions, middle, below }: Props) {
+  const game = registeredGame(room.gameId);
+  const [leaving, setLeaving] = useState(false);
   return (
-    <header className={`gbar card${isPhone ? ' gbar--phone' : ''}${middle ? ' gbar--middle' : ''}${className ? ` ${className}` : ''}`} data-testid={testId} data-game={meta.id}>
-      <div className="gbar__row">
-        {isPhone ? (
-          <button type="button" className="icon-btn gbar__btn gbar__menu" onClick={menu.onOpen} aria-haspopup="dialog" aria-expanded={menu.open} aria-label="Options" data-testid="game-menu">
-            <MenuIcon size={22} />
-          </button>
-        ) : (
-          <GameMark game={meta} size="sm" />
-        )}
-        <div className="gbar__title" data-testid={statusTestId} {...statusData}>
-          <strong className="gbar__name">{meta.name}</strong>
-          <small className="gbar__status">{status}</small>
-        </div>
-        {middle && <div className="gbar__middle">{middle}</div>}
-        {clock && <div className="gbar__clock">{clock}</div>}
-        <div className="gbar__side">
-          {extra}
+    <>
+      <header className={`gbar card${isPhone ? ' gbar--phone' : ''}${middle ? ' gbar--middle' : ''}${className ? ` ${className}` : ''}`} data-testid={testId} data-game={meta.id}>
+        <div className="gbar__row">
           <button
             type="button"
-            className="gbar__players"
-            onClick={players.onOpen}
+            className="icon-btn gbar__btn gbar__back"
+            onClick={() => setLeaving(true)}
             aria-haspopup="dialog"
-            aria-expanded={players.open}
-            aria-label={`${playersLabel} (${players.count})`}
-            data-testid="players-toggle"
+            aria-expanded={leaving}
+            aria-label="Leave game"
+            data-testid="game-back"
           >
-            <UsersIcon size={18} />
-            <span>{players.count}</span>
+            <BackIcon size={24} />
           </button>
-          {chat && (
-            <button type="button" className="icon-btn gbar__btn" onClick={chat.onOpen} aria-haspopup="dialog" aria-expanded={chat.open} aria-label="Chat" data-testid="chat-toggle">
-              <ChatIcon size={20} />
-            </button>
-          )}
-          {!isPhone && (
-            <>
-              <ConnectionPill />
-              <SettingsMenu />
-              {actions}
-              <button type="button" className="btn btn--ghost btn--sm" onClick={leaveRoom} data-testid="leave-room" aria-label="Leave room">
-                <LogoutIcon size={16} /> <span className="hide-mobile">Leave</span>
+          <strong className="gbar__name">{meta.name}</strong>
+          {middle && <div className="gbar__middle">{middle}</div>}
+          <span className="gbar__status" data-testid={statusTestId} {...statusData}>
+            {status}
+          </span>
+          <div className="gbar__side">
+            {extra}
+            {chat && (
+              <button type="button" className="icon-btn gbar__btn" onClick={chat.onOpen} aria-haspopup="dialog" aria-expanded={chat.open} aria-label="Chat" data-testid="chat-toggle">
+                <ChatIcon size={20} />
               </button>
-            </>
-          )}
+            )}
+            {isPhone ? (
+              <button type="button" className="icon-btn gbar__btn" onClick={menu.onOpen} aria-haspopup="dialog" aria-expanded={menu.open} aria-label="Options" data-testid="game-menu">
+                <MenuIcon size={20} />
+              </button>
+            ) : (
+              <>
+                <ConnectionPill />
+                {actions}
+                <SettingsMenu />
+              </>
+            )}
+          </div>
         </div>
-      </div>
-      {below}
-    </header>
+        <div className="gbar__people">
+          <PlayerChips room={room} game={game} open={players.open} onOpen={players.onOpen} label={players.label ?? 'Players'} />
+          {clock && <div className="gbar__clock">{clock}</div>}
+        </div>
+        {below}
+      </header>
+      <BottomSheet open={leaving} title="Leave" onClose={() => setLeaving(false)} testId="leave-sheet">
+        <LeaveConfirm onStay={() => setLeaving(false)} testId="game-leave" />
+      </BottomSheet>
+    </>
   );
 }
 

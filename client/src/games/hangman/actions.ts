@@ -37,6 +37,11 @@ export function undoStroke(): void {
   if (sectionStrokes() > 0) hangmanCanvas.undo();
 }
 
+/** Draws the section's last undone stroke again (the redo stack never holds an older section's). */
+export function redoStroke(): void {
+  hangmanCanvas.redo();
+}
+
 /**
  * Clears the current section only. The server answers a section clear with one undo per removed
  * stroke, which the drawer's own session ignores (as it does every echo of its own undo/clear), so

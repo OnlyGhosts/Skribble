@@ -5,6 +5,7 @@
  */
 import type { PokerSettings, PokerView } from '@shared/games/poker/protocol';
 import { gameById } from '@shared/platform/games';
+import { CHIP_ICON } from '../../platform/components/PlayerChips';
 import { defineGameClient } from '../../platform/game';
 import { formatChips } from '../../platform/lib/format';
 import { vibrate } from '../../platform/lib/haptics';
@@ -60,6 +61,17 @@ export const pokerClient = defineGameClient<PokerView, PokerSettings>({
       );
     }
     return null;
+  },
+
+  playerStatus(room, player) {
+    const view = room.game;
+    const seat = seatOf(view, player.id);
+    if (!view || !seat) return null;
+    if (seat.busted) return { label: 'Out', icon: <OutIcon {...CHIP_ICON} />, tone: 'out' };
+    if (isMyTurn(view, player.id)) return { label: 'To act', icon: <CardsIcon {...CHIP_ICON} />, tone: 'active' };
+    if (seat.status === 'folded') return { label: 'Folded', icon: <OutIcon {...CHIP_ICON} />, tone: 'muted' };
+    if (seat.status === 'allIn') return { label: 'All in', icon: <CardsIcon {...CHIP_ICON} />, tone: 'active' };
+    return { label: 'Playing', icon: <CardsIcon {...CHIP_ICON} />, tone: 'ready' };
   },
 
   playerMeta(room, player) {

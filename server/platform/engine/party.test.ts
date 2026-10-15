@@ -37,9 +37,11 @@ describe.each(GAME_IDS)('party (%s)', (gameId) => {
     s.apply({ type: 'join', name: 'Dave', avatar: AVATAR, connectionId: 'd' });
     const dave = s.playerId('Dave');
     s.apply({ type: 'platformMessage', playerId: dave, msg: { t: 'sitOut', sitOut: true } });
-    // The game ended on its own clock: bring it back to the lobby first.
+    // The game ended on its own clock (or by the host, where the clock never ends it): bring it back to the lobby first.
     s.now += 60 * 60_000;
     s.tick();
+    const end = GAME_TEST_FIXTURES[gameId].hostEnd;
+    if (end && s.data.phase === 'playing') s.game(alice, end);
     if (s.data.phase === 'ended') s.platform(alice, { t: 'returnToLobby' });
     readyUp(s, s.data.players.map((p) => p.id).filter((id) => id !== dave));
     s.platform(alice, { t: 'start' });

@@ -1,8 +1,8 @@
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
-import { createParty, enterNameIfAsked, joinByLink, readyAll } from './party';
+import { createParty, enterNameIfAsked, joinByLink, leaveLobby, readyAll } from './party';
 
 /**
- * The front door and the routing around it: two action panels and nothing else, the four code
+ * The front door and the routing around it: Join a room and Create a room and nothing else, the four code
  * boxes (typing, paste, keys, errors), create → name step → lobby with the game picker, invite
  * deep links, the old per-game pages redirecting home, the theme, phone and desktop widths, and
  * a whole Click Race (the hidden template game) between two players.
@@ -96,7 +96,7 @@ test('the front door has exactly two action paths, four visible boxes and no cat
   // The theme lives in the settings menu behind the gear, not as a header button of its own.
   await expect(header.getByTestId('settings-menu')).toBeVisible();
   await expect(host.page.getByTestId('theme-toggle')).toHaveCount(0);
-  await expect(header.locator('.home__mascots svg')).toHaveCount(2);
+  await expect(header.locator('.home__mascots .mascot')).toHaveCount(2);
 
   // No tagline, no sub-line, no footer.
   await expect(host.page.getByText('Less bored')).toHaveCount(0);
@@ -104,14 +104,16 @@ test('the front door has exactly two action paths, four visible boxes and no cat
   await expect(host.page.getByText('Made for one more round.')).toHaveCount(0);
   await expect(host.page.locator('footer')).toHaveCount(0);
 
-  // Two panels, in order: Join then Create. Nothing else to click on the page.
-  const panels = host.page.locator('.home__panels > section');
-  await expect(panels).toHaveCount(2);
-  await expect(panels.nth(0)).toHaveAttribute('data-testid', 'join-panel');
-  await expect(panels.nth(1)).toHaveAttribute('data-testid', 'create-panel');
+  // One column as on the brand board: Join a room (heading, boxes, Join), then Create a room right
+  // under it. No panel boxes, no second heading, no helper line. Nothing else to click on the page.
+  const start = host.page.locator('.home__start > *');
+  await expect(start).toHaveCount(2);
+  await expect(start.nth(0)).toHaveAttribute('data-testid', 'join-panel');
+  await expect(start.nth(1)).toHaveAttribute('data-testid', 'create-panel');
   await expect(host.page.getByRole('heading', { name: 'Join a room' })).toBeVisible();
-  await expect(host.page.getByRole('heading', { name: 'Create a room' })).toBeVisible();
-  await expect(host.page.getByText("Pick the game once you're in.")).toBeVisible();
+  await expect(host.page.getByRole('heading', { name: 'Create a room' })).toHaveCount(0);
+  await expect(host.page.getByText("Pick the game once you're in.")).toHaveCount(0);
+  await expect(host.page.locator('.home .card')).toHaveCount(0);
   await expect(host.page.locator('nav')).toHaveCount(0);
   await expect(host.page.getByTestId('game-card')).toHaveCount(0);
   await expect(host.page.getByRole('link')).toHaveCount(1); // the wordmark
@@ -130,25 +132,26 @@ test('the front door has exactly two action paths, four visible boxes and no cat
     await expect(box).toHaveAttribute('inputmode', 'text');
   }
   await expect(host.page.getByTestId('home-join')).toHaveText('Join');
-  await expect(host.page.getByTestId('home-create')).toHaveText('Create room');
-  // Join is the lime primary with ink text; Create is outlined. Nothing glows.
+  await expect(host.page.getByTestId('home-create')).toHaveText('Create a room');
+  // Join is the lime primary with ink text; Create a room is outlined on the panel colour. Nothing glows.
   const style = (id: string) =>
     host.page.getByTestId(id).evaluate((el) => {
       const s = getComputedStyle(el);
       return { bg: s.backgroundColor, color: s.color, shadow: s.boxShadow };
     });
   expect(await style('home-join')).toEqual({ bg: 'rgb(199, 233, 118)', color: 'rgb(20, 21, 20)', shadow: 'none' });
-  expect(await style('home-create')).toEqual({ bg: 'rgba(0, 0, 0, 0)', color: 'rgb(241, 240, 232)', shadow: 'none' });
-  // Space Grotesk headings, Inter text, IBM Plex Mono code boxes, all self-hosted.
+  expect(await style('home-create')).toEqual({ bg: 'rgb(32, 34, 31)', color: 'rgb(241, 240, 232)', shadow: 'none' });
+  await expect(host.page.getByTestId('home-create')).toHaveCSS('border-top-color', 'rgb(116, 125, 111)');
+  // Space Grotesk headings and code boxes, Inter text, all self-hosted.
   await expect(host.page.getByRole('heading', { name: 'Join a room' })).toHaveCSS('font-family', /^"Space Grotesk"/);
   await expect(host.page.locator('body')).toHaveCSS('font-family', /^Inter/);
-  await expect(host.page.getByTestId('code-input-0')).toHaveCSS('font-family', /^"IBM Plex Mono"/);
+  await expect(host.page.getByTestId('code-input-0')).toHaveCSS('font-family', /^"Space Grotesk"/);
   expect(await host.page.evaluate(() => document.fonts.check('700 16px "Space Grotesk"'))).toBe(true);
 
-  // The Join panel is compact: no empty band between the boxes and the button while there is no error.
+  // Join a room is compact: no empty band between the boxes and the button while there is no error.
   const lastBox = await host.page.getByTestId('code-input-3').boundingBox();
   const joinButton = await host.page.getByTestId('home-join').boundingBox();
-  expect((joinButton?.y ?? 0) - ((lastBox?.y ?? 0) + (lastBox?.height ?? 0))).toBeLessThanOrEqual(17);
+  expect((joinButton?.y ?? 0) - ((lastBox?.y ?? 0) + (lastBox?.height ?? 0))).toBeLessThanOrEqual(25);
   await expect(host.page.getByTestId('room-preview')).toHaveAttribute('aria-live', 'polite');
 });
 
@@ -247,7 +250,7 @@ test('create → "Who’s playing?" → the lobby, where picking a game comes fi
   await expect(host.page.getByTestId('site-header').getByRole('img', { name: 'boredgames.io' })).toBeVisible();
   const picker = host.page.getByTestId('game-picker');
   await expect(picker).toHaveAttribute('data-game', 'skribble');
-  await expect(host.page.getByRole('heading', { name: 'Pick a game' })).toBeVisible();
+  await expect(host.page.getByRole('heading', { name: 'Pick a game' })).toHaveCount(1);
   await expect(picker.locator('button[data-testid="game-tile"]')).toHaveCount(7);
   // The compact room bar comes first, then the picker.
   await expect(host.page.locator('.lobby > section').first()).toHaveAttribute('data-testid', 'room-bar');
@@ -259,7 +262,7 @@ test('create → "Who’s playing?" → the lobby, where picking a game comes fi
   await expect(host.page.getByTestId('start-game')).toBeDisabled();
 
   // The name is remembered: the next create skips the step.
-  await host.page.getByTestId('leave-room').click();
+  await leaveLobby(host.page);
   await expect(host.page).toHaveURL(/\/$/);
   await expect(host.page.getByTestId('home-create')).toBeVisible();
   await host.page.getByTestId('home-create').click();
@@ -300,7 +303,12 @@ test('a second browser joins the real room by code; an unknown code is refused w
   await expect(page).toHaveURL(new RegExp(`/scribble/${skribbleCode}$`));
   await expect(host.page.getByTestId('player-item')).toHaveCount(2);
   await expect(page.getByTestId('game-picker-note')).toHaveText(`${host.name} picks the game`);
+  // Copying the invite link is in the gear's menu, next to Leave room.
+  await page.getByTestId('settings-menu').click();
   await expect(page.getByTestId('copy-link')).toBeVisible();
+  await expect(page.getByTestId('leave-room')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('settings-popover')).toHaveCount(0);
 });
 
 test('Back and the wordmark link leave the room and land on the front door', async () => {
@@ -360,13 +368,13 @@ test('deep links fill the boxes and focus Join room; the old per-game pages and 
   // Enter on a filled deep link joins (the phone has no saved name yet: the step shows).
   await joinByLink(phone.page, phone.name, `/${skribbleCode}`, skribbleCode);
   await expect(host.page.getByTestId('player-item')).toHaveCount(2);
-  await phone.page.getByTestId('leave-room').click();
+  await leaveLobby(phone.page);
   await expect(phone.page).toHaveURL(/\/$/);
   await expect(host.page.getByTestId('player-item')).toHaveCount(1);
 });
 
 test('the hidden template game plays a whole Click Race between two players', async () => {
-  await host.page.getByTestId('leave-room').click();
+  await leaveLobby(host.page);
   const code = await createParty(host.page, host.name, 'template');
   await expect(host.page.getByTestId('game-picker')).toHaveAttribute('data-game', 'template');
   // The template game can be played alone, so the host may start right away; wait for the guest anyway.
@@ -393,6 +401,16 @@ test('the hidden template game plays a whole Click Race between two players', as
     await expect(p.page.getByTestId('timer')).toBeVisible();
   }
   await expect(host.page.getByTestId('chat-log')).toContainText('The game has started!');
+
+  // The top bar: a chip per player and a timer ring whose arc starts whole.
+  await expect(host.page.getByTestId('player-chip')).toHaveCount(2);
+  await expect(host.page.getByTestId('timer').locator('.timer__arc')).toHaveAttribute('stroke-dashoffset', /^[0-9.]+$/);
+  // The back arrow asks before leaving; Stay keeps the player in the game.
+  await guest.page.getByTestId('game-back').click();
+  await expect(guest.page.getByTestId('game-leave-confirm')).toBeVisible();
+  await guest.page.getByTestId('game-leave-no').click();
+  await expect(guest.page.getByTestId('leave-sheet')).toHaveCount(0);
+  await expect(guest.page.getByTestId('click-button')).toBeVisible();
 
   // A few guest taps, then the host races to the target and wins.
   for (let i = 0; i < 3; i++) await guest.page.getByTestId('click-button').click();
@@ -429,7 +447,7 @@ test('the hidden template game plays a whole Click Race between two players', as
     expect(await scoreOf(p.page, guest.name)).toBe(0);
   }
   await expect(host.page.getByTestId('start-game')).toBeEnabled();
-  for (const p of [host, guest]) await p.page.getByTestId('leave-room').click();
+  for (const p of [host, guest]) await leaveLobby(p.page);
 });
 
 test('the settings menu switches to the light theme and the choice survives a reload; dark is the default', async ({ browser }) => {
@@ -438,7 +456,7 @@ test('the settings menu switches to the light theme and the choice survives a re
   await page.goto('/');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   const pageColor = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
-  const panelColor = () => page.getByTestId('join-panel').evaluate((el) => getComputedStyle(el).backgroundColor);
+  const panelColor = () => page.getByTestId('home-create').evaluate((el) => getComputedStyle(el).backgroundColor);
   const games = page.getByTestId('site-header').locator('.wordmark__accent');
   expect(await pageColor()).toBe('rgb(20, 21, 20)');
   expect(await panelColor()).toBe('rgb(32, 34, 31)');
@@ -451,7 +469,7 @@ test('the settings menu switches to the light theme and the choice survives a re
   await page.getByTestId('theme-light').click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
   expect(await pageColor()).toBe('rgb(245, 246, 239)');
-  expect(await panelColor()).toBe('rgb(255, 255, 255)');
+  await expect.poll(panelColor).toBe('rgb(255, 255, 255)');
   await expect(page.getByTestId('home-join')).toHaveCSS('background-color', 'rgb(199, 233, 118)');
   await expect(games).toHaveCSS('color', 'rgb(64, 93, 23)');
   // Escape closes the menu and gives the focus back to the gear.
@@ -471,7 +489,7 @@ test('the settings menu switches to the light theme and the choice survives a re
 });
 
 for (const width of [320, 390, 700, 768, 1440]) {
-  test(`at ${width}px nothing overflows, the buttons are 48px and the boxes 56–64px tall`, async ({ browser }) => {
+  test(`at ${width}px nothing overflows, the buttons are 48px and the boxes 64 to 112px tall, in one centred column`, async ({ browser }) => {
     const height = width >= 1024 ? 900 : width >= 768 ? 1024 : 844;
     const context = await browser.newContext({ viewport: { width, height }, isMobile: width < 768, hasTouch: width < 768 });
     const page = await context.newPage();
@@ -487,8 +505,8 @@ for (const width of [320, 390, 700, 768, 1440]) {
     let right = 0;
     for (let i = 0; i < 4; i++) {
       const box = await page.getByTestId(`code-input-${i}`).boundingBox();
-      expect(box?.height ?? 0, `box ${i} height`).toBeGreaterThanOrEqual(56);
-      expect(box?.height ?? 0, `box ${i} height`).toBeLessThanOrEqual(64);
+      expect(box?.height ?? 0, `box ${i} height`).toBeGreaterThanOrEqual(64);
+      expect(box?.height ?? 0, `box ${i} height`).toBeLessThanOrEqual(112);
       expect(box?.y ?? -1, 'the four boxes share one row').toBe((await page.getByTestId('code-input-0').boundingBox())?.y ?? -2);
       right = Math.max(right, (box?.x ?? 0) + (box?.width ?? 0));
     }
@@ -496,28 +514,30 @@ for (const width of [320, 390, 700, 768, 1440]) {
     const headerButton = await page.locator('.site-header__actions button').last().boundingBox();
     expect((headerButton?.x ?? 0) + (headerButton?.width ?? 0)).toBeLessThanOrEqual(width + 0.5);
 
-    // Desktop: the two panels side by side with their buttons on one baseline; phones: Join above Create.
+    // Every width: one centred column at most 460px wide, Join and then Create a room right under it, full width.
     const join = await page.getByTestId('join-panel').boundingBox();
-    const create = await page.getByTestId('create-panel').boundingBox();
     const joinBtn = await page.getByTestId('home-join').boundingBox();
     const createBtn = await page.getByTestId('home-create').boundingBox();
-    if (width >= 768) {
-      expect(join?.y).toBe(create?.y);
-      expect(Math.abs((joinBtn?.y ?? 0) + (joinBtn?.height ?? 0) - ((createBtn?.y ?? 0) + (createBtn?.height ?? 0)))).toBeLessThanOrEqual(1);
-      expect(Math.abs((join?.width ?? 0) - (create?.width ?? 0))).toBeLessThanOrEqual(1);
-    } else {
-      expect(join?.x).toBe(create?.x);
-      expect((join?.y ?? 0) + (join?.height ?? 0)).toBeLessThanOrEqual(create?.y ?? 0);
-    }
-    // The mascots sit beside the wordmark at every width, small: 70px tall at most on phones, 112px on desktop.
-    for (const mascot of await page.locator('.home__mascots svg').all()) {
-      const m = await mascot.evaluate((el) => el.getBoundingClientRect().height / Math.cos((8 * Math.PI) / 180));
-      expect(m).toBeLessThanOrEqual(width >= 1024 ? 112 * 1.2 : width >= 768 ? 96 * 1.2 : 70 * 1.2);
-    }
-    const mascotsBottom = await page.locator('.home__mascots').evaluate((el) => el.getBoundingClientRect().bottom);
-    expect(mascotsBottom, 'the mascots stay above the panels').toBeLessThanOrEqual(join?.y ?? 0);
+    expect(joinBtn?.width ?? 0).toBeLessThanOrEqual(460.5);
+    expect(Math.abs((joinBtn?.x ?? 0) + (joinBtn?.width ?? 0) / 2 - width / 2), 'the column is centred').toBeLessThanOrEqual(1);
+    expect(createBtn?.x).toBe(joinBtn?.x);
+    expect(createBtn?.width).toBe(joinBtn?.width);
+    const gap = (createBtn?.y ?? 0) - ((joinBtn?.y ?? 0) + (joinBtn?.height ?? 0));
+    expect(gap, 'Create a room sits right under Join').toBeGreaterThanOrEqual(0);
+    expect(gap).toBeLessThanOrEqual(16);
+    // The wordmark fills the column; the mascots perch on its right end, small, overlapping its top a little.
+    const mark = await page.getByTestId('site-header').getByTestId('wordmark').boundingBox();
+    expect(Math.abs((mark?.width ?? 0) - (joinBtn?.width ?? 0))).toBeLessThanOrEqual(1);
+    const mascots = await page.locator('.home__mascots').boundingBox();
+    expect(mascots?.x ?? 0, 'the mascots stand on the right half of the wordmark').toBeGreaterThanOrEqual((mark?.x ?? 0) + (mark?.width ?? 0) / 2);
+    expect((mascots?.x ?? 0) + (mascots?.width ?? 0)).toBeLessThanOrEqual((mark?.x ?? 0) + (mark?.width ?? 0) + 1);
+    const mascotsBottom = (mascots?.y ?? 0) + (mascots?.height ?? 0);
+    expect(mascotsBottom, 'their feet reach the top of the letters').toBeGreaterThan(mark?.y ?? 0);
+    expect(mascotsBottom, 'and never cover them').toBeLessThanOrEqual((mark?.y ?? 0) + (mark?.height ?? 0) * 0.45);
+    expect(mascots?.height ?? 0, 'small').toBeLessThanOrEqual(120);
+    expect(mascotsBottom, 'the mascots stay above Join a room').toBeLessThanOrEqual(join?.y ?? 0);
     if (width < 768) {
-      expect((createBtn?.y ?? 0) + (createBtn?.height ?? 0), 'Create room sits inside the first screen').toBeLessThanOrEqual(height);
+      expect((createBtn?.y ?? 0) + (createBtn?.height ?? 0), 'Create a room sits inside the first screen').toBeLessThanOrEqual(height);
     }
 
     // The name step fits too.

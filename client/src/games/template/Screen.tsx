@@ -37,11 +37,12 @@ export function ClickRaceScreen({ room, meId, isHost }: GameScreenProps<Template
       {/* Every game's top bar: options, name and status, the clock, players (the chat is on screen here). */}
       <GameTopBar
         meta={meta}
+        room={room}
         isPhone={isPhone}
         testId="race-header"
         status={`First to ${target} taps`}
         clock={<Timer endsAt={view.endsAt} warnUnder={5} tickUnder={3} />}
-        players={{ count: room.players.length, open: sheet === 'players', onOpen: () => setSheet('players') }}
+        players={{ open: sheet === 'players', onOpen: () => setSheet('players') }}
         menu={{ open: sheet === 'menu', onOpen: () => setSheet('menu') }}
       />
       <div className="race__grid">

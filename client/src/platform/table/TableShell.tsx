@@ -1,5 +1,6 @@
 import type { CSSProperties, ReactNode } from 'react';
 import type { GameMeta } from '@shared/platform/games';
+import type { RoomState } from '@shared/platform/protocol';
 import { BottomSheet } from '../components/BottomSheet';
 import { Chat } from '../components/Chat';
 import { GameMenuSheet, GameTopBar } from '../components/GameTopBar';
@@ -22,9 +23,10 @@ interface Props {
   status: ReactNode;
   statusTestId: string;
   statusData?: DataAttrs;
-  /** The turn clock in the middle of the bar. */
+  /** The turn clock, at the end of the players row. */
   clock: ReactNode;
-  playerCount: number;
+  /** The room, for the top bar's player chips and the players sheet. */
+  room: RoomState;
   /** The players list, in its sheet. */
   players: ReactNode;
   sheet: TableSheet | null;
@@ -40,13 +42,14 @@ interface Props {
  * options), the table, and the control panel always in the same place: under the table on a
  * phone, in a left column on a desktop with the chat on the right (table.css).
  */
-export function TableShell({ meta, className, testId, headerTestId, mainTestId, data, isPhone, status, statusTestId, statusData, clock, playerCount, players, sheet, onSheet, endControl, table, panel }: Props) {
+export function TableShell({ meta, className, testId, headerTestId, mainTestId, data, isPhone, status, statusTestId, statusData, clock, room, players, sheet, onSheet, endControl, table, panel }: Props) {
   const closeSheet = () => onSheet(null);
   const style = { '--table-accent': meta.accent } as CSSProperties;
   return (
     <div className={`tbl ${className}${isPhone ? ' tbl--phone' : ''}`} style={style} data-testid={testId} {...data}>
       <GameTopBar
         meta={meta}
+        room={room}
         isPhone={isPhone}
         testId={headerTestId}
         className="tbl__top"
@@ -54,7 +57,7 @@ export function TableShell({ meta, className, testId, headerTestId, mainTestId, 
         statusTestId={statusTestId}
         statusData={statusData}
         clock={clock}
-        players={{ count: playerCount, open: sheet === 'players', onOpen: () => onSheet('players') }}
+        players={{ open: sheet === 'players', onOpen: () => onSheet('players') }}
         chat={isPhone ? { open: sheet === 'chat', onOpen: () => onSheet('chat') } : undefined}
         menu={{ open: sheet === 'menu', onOpen: () => onSheet('menu') }}
         actions={endControl('header')}
@@ -74,7 +77,7 @@ export function TableShell({ meta, className, testId, headerTestId, mainTestId, 
         </aside>
       )}
 
-      <BottomSheet open={sheet === 'players'} title={`Players (${playerCount})`} onClose={closeSheet} testId="players-sheet">
+      <BottomSheet open={sheet === 'players'} title={`Players (${room.players.length})`} onClose={closeSheet} testId="players-sheet">
         {players}
       </BottomSheet>
       {isPhone && (

@@ -45,3 +45,12 @@ export function PhoneHappy({ className }: Props) {
     </Phone>
   );
 }
+
+/** Three short lime strokes beside the happy phone, as on the brand board: it is the excited one. */
+export function MotionLines({ className }: Props) {
+  return (
+    <svg className={`mascot-lines${className ? ` ${className}` : ''}`} viewBox="0 0 40 60" aria-hidden="true" focusable="false">
+      <path d="M30 6l4 10M8 26h12M10 48l12-8" fill="none" stroke="#C7E976" strokeWidth="5" strokeLinecap="round" />
+    </svg>
+  );
+}

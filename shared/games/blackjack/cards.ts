@@ -13,6 +13,9 @@ export const DEALER_STANDS_AT = 17;
 export const RESHUFFLE_BELOW = 0.25;
 /** Splitting and re-splitting stops at this many hands a seat. */
 export const MAX_HANDS = 4;
+/** Cards a round sets aside for each seat (four hands of three cards) and for the dealer's draws. */
+export const SEAT_RESERVE = MAX_HANDS * 3;
+export const DEALER_RESERVE = 8;
 /** Time the client gets to turn the hole card over once the dealer plays, and then to draw each further card. */
 export const REVEAL_HOLE_MS = 1200;
 export const REVEAL_CARD_MS = 500;
@@ -82,9 +85,22 @@ export function freshShoe(decks: number): Card[] {
   return freshDeck(decks);
 }
 
-/** A shoe with fewer cards than the reshuffle share of a fresh one is due for a reshuffle. */
-export function needsReshuffle(remaining: number, decks: number): boolean {
-  return remaining < Math.ceil(decks * 52 * RESHUFFLE_BELOW);
+/** The cards a round with `seats` seats dealt may take: a round never starts with fewer in the shoe. */
+export function roundReserve(seats: number): number {
+  return seats * SEAT_RESERVE + DEALER_RESERVE;
+}
+
+/**
+ * Decks in a fresh shoe: the table's setting, or more at a big table, so the shoe holds every
+ * seat's reserve twice over and a reshuffle comes every few rounds rather than every round.
+ */
+export function shoeDecks(minDecks: number, seats: number): number {
+  return Math.max(minDecks, Math.ceil((2 * seats * SEAT_RESERVE) / 52));
+}
+
+/** A shoe is due for a reshuffle under a quarter of its size, or under one round's reserve for this many seats. */
+export function needsReshuffle(remaining: number, shoeSize: number, seats: number): boolean {
+  return remaining < Math.max(Math.ceil(shoeSize * RESHUFFLE_BELOW), roundReserve(seats));
 }
 
 /** The whole-chip winnings on a natural: 3:2 or 6:5 of the stake, rounded down. */

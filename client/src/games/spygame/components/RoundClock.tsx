@@ -13,11 +13,19 @@ export function RoundClock({ clock, holding = false }: { clock: SpygameClock; ho
   const label = holding ? 'Paused' : clock.pausedReason === 'vote' ? 'Vote' : clock.pausedReason === 'spyAway' ? 'Waiting' : 'Round over';
   const reason = holding ? 'players' : clock.pausedReason;
   return (
-    <div className="timer timer--lg spy-clock--paused" role="timer" aria-label={`Clock paused at ${seconds} seconds`} data-testid="timer" data-seconds={seconds} data-paused={reason}>
+    <div
+      className={`timer timer--lg${seconds >= 100 ? ' timer--long' : ''} spy-clock--paused`}
+      role="timer"
+      aria-label={`Clock paused at ${seconds} seconds`}
+      data-testid="timer"
+      data-seconds={seconds}
+      data-paused={reason}
+    >
       <svg className="timer__ring" viewBox="0 0 36 36" aria-hidden="true">
-        <circle cx="18" cy="18" r="15.5" />
+        <circle className="timer__track" cx="18" cy="18" r="15.5" />
+        <circle className="timer__arc" cx="18" cy="18" r="15.5" />
       </svg>
-      <span className="timer__value">{formatSeconds(seconds)}</span>
+      <span className="timer__value">{seconds >= 100 ? formatSeconds(seconds) : seconds}</span>
       <span className="spy-clock__label" aria-hidden="true">
         <PauseIcon size={10} /> {label}
       </span>

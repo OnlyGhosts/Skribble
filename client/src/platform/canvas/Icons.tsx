@@ -7,5 +7,6 @@ export const EraserIcon = (p: IconProps) => (
 export const BucketIcon = (p: IconProps) => (
   <Icon {...p} paths={['m19 11-8-8-8.6 8.6a2 2 0 0 0 0 2.8l5.2 5.2c.8.8 2 .8 2.8 0L19 11Z', 'm5 2 5 5', 'M2 13h15', 'M22 20a2 2 0 1 1-4 0c0-1.6 1.7-2.4 2-4 .3 1.6 2 2.4 2 4Z']} />
 );
-export const UndoIcon = (p: IconProps) => <Icon {...p} paths={['M3 7v6h6', 'M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13']} />;
+export const UndoIcon = (p: IconProps) => <Icon {...p} paths={['M9 14 4 9l5-5', 'M4 9h10.5a5.5 5.5 0 0 1 0 11H11']} />;
+export const RedoIcon = (p: IconProps) => <Icon {...p} paths={['m15 14 5-5-5-5', 'M20 9H9.5a5.5 5.5 0 0 0 0 11H13']} />;
 export const TrashIcon = (p: IconProps) => <Icon {...p} paths={['M3 6h18', 'M8 6V4h8v2', 'M19 6l-1 14H6L5 6', 'M10 11v6M14 11v6']} />;

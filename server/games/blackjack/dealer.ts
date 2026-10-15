@@ -44,7 +44,7 @@ function dealerPlays(gx: Gx): void {
 const STATUS_OF: Record<HandOutcome, HandStatus> = { win: 'won', blackjack: 'blackjack', push: 'push', loss: 'lost' };
 
 /**
- * Pays every hand against the dealer's cards, puts out whoever is under the minimum bet, moves the
+ * Pays every hand against the dealer's cards, puts out whoever has no chips left, moves the
  * table to `lastRound` (cleared from the seats) and goes on to the next round or the end.
  */
 export function settleRound(gx: Gx, peeked: boolean): void {
@@ -63,7 +63,7 @@ export function settleRound(gx: Gx, peeked: boolean): void {
     const back = settled[id].reduce((sum, h) => sum + h.payout, 0);
     const name = nameOf(ctx, id);
     lines.push(back > staked ? `${name} wins ${back - staked}` : back === staked ? `${name} pushes` : `${name} loses ${staked - back}`);
-    if (seat.chips < ctx.settings.minBet) {
+    if (seat.chips === 0) {
       seat.bustedOut = true;
       out.push(id);
     }

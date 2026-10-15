@@ -7,20 +7,18 @@ import {
   DEFAULT_BLACKJACK_SETTINGS,
   blackjackClientMessageSchema,
   blackjackSettingsSchema,
-  normalizeBlackjackSettings,
   type BlackjackClientMessage,
   type BlackjackServerMessage,
   type BlackjackSettings,
   type BlackjackView,
 } from '../../../shared/games/blackjack/protocol.js';
-import { freshShoe, shuffle } from '../../../shared/games/blackjack/cards.js';
 import { gameById } from '../../../shared/platform/games.js';
 import { defineSettings, withDraft, type GameEvent, type GameResult, type GameServerModule } from '../../platform/game.js';
 import { bet, betTimedOut, dealIfAllBet } from './betting.js';
 import { nextHand } from './dealer.js';
 import { actTimedOut, double, hit, split, stand } from './play.js';
-import { beginRound, endGame, finishGame, resumeIfHeld, seatPlayer, settleDue, snapshotOrResume } from './round.js';
-import { findPlayer, type BlackjackData, type Ctx, type Gx } from './state.js';
+import { beginRound, endGame, finishGame, onConnectionChange, seatPlayer, seatWhileWaiting, settleDue, snapshotOrResume, waitingForFirstBet } from './round.js';
+import { findPlayer, newShoe, type BlackjackData, type Ctx, type Gx } from './state.js';
 import { viewFor } from './view.js';
 
 type Result = GameResult<BlackjackData, BlackjackServerMessage>;
@@ -41,7 +39,7 @@ function start(ctx: Ctx): Result {
   };
   return withDraft(seed, (data, effects) => {
     const gx: Gx = { ctx, data, effects };
-    data.shoe = shuffle(freshShoe(ctx.settings.decks), ctx.rng);
+    newShoe(gx, ctx.players.length);
     for (const p of ctx.players) seatPlayer(gx, p.id);
     beginRound(gx);
   });
@@ -58,14 +56,16 @@ function handle(ctx: Ctx, data: BlackjackData, event: GameEvent<BlackjackClientM
         return;
       case 'playerJoined':
         // A newcomer takes a seat (and the starting stack) only when the next round starts, so a
-        // game ending first never ranks someone who did not play.
+        // game ending first never ranks someone who did not play; a table waiting for its first
+        // bet seats them at once, as nothing has been dealt.
+        if (seatWhileWaiting(gx)) return;
         return snapshotOrResume(gx);
       case 'playerLeft':
         return onPlayerLeft(gx, event.playerId);
       case 'playerDisconnected':
       case 'playerReconnected':
         // Mid-round nothing changes: a bet or a move waits for its clock. Between rounds the hold is re-evaluated.
-        if (findPlayer(ctx, event.playerId)) resumeIfHeld(gx);
+        if (findPlayer(ctx, event.playerId)) onConnectionChange(gx);
         return;
       case 'tick':
         return onTick(gx);
@@ -98,8 +98,13 @@ function onPlayerLeft(gx: Gx, playerId: string): void {
   data.order = data.order.filter((id) => id !== playerId);
   switch (data.phase.kind) {
     case 'betting':
-      if (!(inRound && dealIfAllBet(gx))) snapshotOrResume(gx);
-      return;
+      if (inRound && dealIfAllBet(gx)) return;
+      // A table waiting for a first bet that nobody is left to place starts the round over (or ends).
+      if (waitingForFirstBet(gx) && data.order.length === 0) {
+        data.round -= 1;
+        return beginRound(gx);
+      }
+      return snapshotOrResume(gx);
     case 'acting':
       if (data.phase.playerId === playerId) return nextHand(gx);
       return snapshotOrResume(gx);
@@ -144,7 +149,7 @@ function nextDeadline(data: BlackjackData): number | null {
 
 export const blackjackModule: GameServerModule<BlackjackSettings, BlackjackData, BlackjackView, BlackjackClientMessage, BlackjackServerMessage> = {
   meta: gameById('blackjack'),
-  settings: defineSettings(blackjackSettingsSchema, DEFAULT_BLACKJACK_SETTINGS, normalizeBlackjackSettings),
+  settings: defineSettings(blackjackSettingsSchema, DEFAULT_BLACKJACK_SETTINGS),
   clientMessageSchema: blackjackClientMessageSchema,
   start,
   handle,

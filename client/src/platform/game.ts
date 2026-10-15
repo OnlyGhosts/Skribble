@@ -36,6 +36,18 @@ export interface ChatInputProps {
   defaultInput: ReactNode;
 }
 
+/**
+ * A player's state in one word and an icon, for the chip under their avatar in the game's top
+ * bar ("Drawing", "Guessed", "Out", "Folded"). The tone picks the badge colour: `ready` and
+ * `done` read as finished (check green), `active` as their move now (lime), `out` as knocked out,
+ * `muted` as not taking part.
+ */
+export interface PlayerStatus {
+  label: string;
+  icon: ReactNode;
+  tone: 'ready' | 'done' | 'active' | 'out' | 'muted';
+}
+
 export interface GameClientModule<V = unknown, S = Record<string, unknown>> {
   meta: GameMeta;
   /** Rendered while the room is 'playing' or 'ended' (the platform adds the podium overlay for 'ended'). */
@@ -48,6 +60,11 @@ export interface GameClientModule<V = unknown, S = Record<string, unknown>> {
   playerBadge?(room: RoomState<V, S>, player: PlayerPublic): ReactNode;
   /** Extra text next to the score in the player list (Skribble: "+120" this turn). */
   playerMeta?(room: RoomState<V, S>, player: PlayerPublic): ReactNode;
+  /**
+   * The player's chip status in the top bar; null falls back to the platform's ("Ready", or
+   * "Watching" / "Away" for players sitting the game out or offline, which the platform decides).
+   */
+  playerStatus?(room: RoomState<V, S>, player: PlayerPublic): PlayerStatus | null;
   /** Extra class for the player's row (Skribble: the green "guessed" tint). */
   playerClassName?(room: RoomState<V, S>, player: PlayerPublic): string | undefined;
   /** Replaces the chat input (Skribble's type-into-the-blanks guess bar). */

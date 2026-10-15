@@ -84,7 +84,7 @@ export function PokerScreen({ room, meId, isHost }: GameScreenProps<PokerView, P
       statusTestId="hand-indicator"
       statusData={{ 'data-hand': view.hand, 'data-total': view.totalHands }}
       clock={<Timer endsAt={playing && !held ? view.endsAt : null} paused={held} warnUnder={view.phase === 'results' ? 0 : 5} tickUnder={myTurn ? 5 : undefined} />}
-      playerCount={room.players.length}
+      room={room}
       players={<PlayerList room={room} meId={meId} isHost={isHost} mode="game" game={game} />}
       sheet={sheet}
       onSheet={openSheet}

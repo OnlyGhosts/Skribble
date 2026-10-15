@@ -4,6 +4,7 @@
  */
 import { isHangmanWelcomeExtra, type HangmanSettings, type HangmanView } from '@shared/games/hangman/protocol';
 import { gameById } from '@shared/platform/games';
+import { CHIP_ICON } from '../../platform/components/PlayerChips';
 import { defineGameClient } from '../../platform/game';
 import { formatPoints } from '../../platform/lib/format';
 import { vibrate } from '../../platform/lib/haptics';
@@ -51,6 +52,14 @@ export const hangmanClient = defineGameClient<HangmanView, HangmanSettings>({
         </span>
       );
     }
+    return null;
+  },
+
+  playerStatus(room, player) {
+    const view = room.game;
+    if (isHangman(view, player.id)) return { label: 'Hangman', icon: <RopeIcon {...CHIP_ICON} />, tone: 'active' };
+    if (isOut(view, player.id)) return { label: 'Out', icon: <SkullIcon {...CHIP_ICON} />, tone: 'out' };
+    if (isGuesser(view, player.id)) return { label: 'Guessing', icon: <KeyboardIcon {...CHIP_ICON} />, tone: 'active' };
     return null;
   },
 
@@ -105,6 +114,7 @@ export const hangmanClient = defineGameClient<HangmanView, HangmanSettings>({
     if (prev && isNewSection(prev, room)) {
       // The section's strokes begin here: undo and clear stop at this count.
       store.setSectionFloor(hangmanCanvas.store.getState().canvas.length);
+      hangmanCanvas.store.getState().dropRedo();
       if (isHangman(view, me)) playCue('yourTurn');
     }
     if (isGuesser(view, me) && !isGuesser(before, me)) {

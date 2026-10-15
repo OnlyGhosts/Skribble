@@ -51,12 +51,13 @@ export function SpyGameScreen({ room, meId, isHost }: GameScreenProps<SpygameVie
     <div className={`spy${isPhone ? ' spy--phone' : ''}`} data-phase={view.phase} data-role={view.role} data-testid="spygame-screen">
       <GameTopBar
         meta={meta}
+        room={room}
         isPhone={isPhone}
         testId="spygame-header"
         className="spy__top"
         status={`Round ${view.round}/${view.totalRounds}`}
         clock={<RoundClock clock={view.clock} holding={holding} />}
-        players={{ count: room.players.length, label: 'Scores', open: playersOpen, onOpen: () => openSheet('players') }}
+        players={{ label: 'Scores', open: playersOpen, onOpen: () => openSheet('players') }}
         chat={isPhone ? { open: chatOpen, onOpen: () => openSheet('chat') } : undefined}
         menu={{ open: menuOpen, onOpen: () => openSheet('menu') }}
       />

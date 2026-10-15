@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type BrowserContext, type Locator, type Page } from '@playwright/test';
-import { createParty, enterNameIfAsked, joinByLink, readyAll } from './party';
+import { createParty, enterNameIfAsked, joinByLink, leaveLobby, readyAll } from './party';
 
 /**
  * One browser, three contexts = three players sharing a room on the real production server.
@@ -236,10 +236,24 @@ test('a full first turn: choosing, mask, live drawing, undo, guesses and scoring
   await expect.poll(() => nonWhitePixels(g1.page), { timeout: 2_000 }).toBeGreaterThan(0);
   await expect.poll(() => nonWhitePixels(g2.page), { timeout: 2_000 }).toBeGreaterThan(0);
 
-  // Undo blanks every canvas again.
+  // Undo blanks every canvas again; redo brings the stroke back for everyone, then has nothing left.
+  await expect(drawer.page.getByTestId('tool-redo')).toBeDisabled();
   await drawer.page.getByTestId('tool-undo').click();
   await expect.poll(() => nonWhitePixels(g1.page), { timeout: 2_000 }).toBe(0);
   await expect.poll(() => nonWhitePixels(drawer.page), { timeout: 2_000 }).toBe(0);
+  await drawer.page.getByTestId('tool-redo').click();
+  await expect.poll(() => nonWhitePixels(g1.page), { timeout: 2_000 }).toBeGreaterThan(0);
+  await expect.poll(() => nonWhitePixels(drawer.page), { timeout: 2_000 }).toBeGreaterThan(0);
+  await expect(drawer.page.getByTestId('tool-redo')).toBeDisabled();
+  await drawer.page.getByTestId('tool-undo').click();
+  await expect.poll(() => nonWhitePixels(g2.page), { timeout: 2_000 }).toBe(0);
+
+  // The top bar: a chip per player; the drawer's says Drawing, everyone else's Guessing.
+  for (const p of players) {
+    await expect(p.page.getByTestId('player-chip')).toHaveCount(players.length);
+    await expect(p.page.getByTestId('player-chip').filter({ hasText: drawer.name })).toHaveAttribute('data-label', 'Drawing');
+    await expect(p.page.getByTestId('player-chip').filter({ hasText: g1.name })).toHaveAttribute('data-label', 'Guessing');
+  }
 
   // A wrong guess is public chat.
   await sendChat(g1.page, 'definitely not it');
@@ -340,7 +354,7 @@ test('back to lobby resets the scores for everyone and keeps the party together'
 });
 
 test('leaving removes the player and tells the others', async () => {
-  await carol.page.getByTestId('leave-room').click();
+  await leaveLobby(carol.page);
   await expect(carol.page.getByTestId('home-create')).toBeVisible();
   await expect(carol.page).toHaveURL(/\/$/);
   await expect(carol.page.getByTestId('code-input-0')).toHaveValue('');

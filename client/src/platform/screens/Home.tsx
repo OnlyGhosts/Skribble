@@ -7,7 +7,7 @@ import { SITE_NAME } from '@shared/platform/site';
 import { AvatarPicker } from '../components/AvatarPicker';
 import { CodeInput, type CodeInputHandle } from '../components/CodeInput';
 import { AlertIcon, LinkIcon } from '../components/Icons';
-import { PhoneBored, PhoneHappy } from '../components/Mascots';
+import { MotionLines, PhoneBored, PhoneHappy } from '../components/Mascots';
 import { SiteHeader } from '../components/SiteHeader';
 import { enteredLength, padCode } from '../lib/codeInput';
 import type { JoinErrorCode } from '../lib/format';
@@ -68,8 +68,8 @@ interface Props {
 }
 
 /**
- * The front door: two paths and nothing else (no tagline, no footer). Join a room with the four
- * boxes, or create one.
+ * The front door: one column and two paths, nothing else (no tagline, no footer). Join a room
+ * with the four boxes, or create one.
  * Both need a name and an avatar for the real create/join handlers; a saved name skips the
  * "Who's playing?" step, a first visit sees it after the tap. Create starts the party on the
  * first live game; the host picks the game in the lobby.
@@ -210,6 +210,7 @@ export function Home({ code: linkedCode, game: linkedGame }: Props) {
         hero
         aside={
           <span className="home__mascots" aria-hidden="true">
+            <MotionLines />
             <PhoneHappy className="mascot--happy" />
             <PhoneBored className="mascot--bored" />
           </span>
@@ -231,13 +232,13 @@ export function Home({ code: linkedCode, game: linkedGame }: Props) {
         )}
 
         {view !== 'rejoining' && step === 'home' && (
-          <div className="home__panels">
-            <section className="card panel panel--join" aria-labelledby="join-heading" data-testid="join-panel">
-              <h2 className="panel__title" id="join-heading">
+          <div className="home__start">
+            <section className="home__join" aria-labelledby="join-heading" data-testid="join-panel">
+              <h2 className="home__title" id="join-heading">
                 Join a room
               </h2>
               <form
-                className="panel__form"
+                className="home__form"
                 noValidate
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -245,9 +246,6 @@ export function Home({ code: linkedCode, game: linkedGame }: Props) {
                 }}
               >
                 <div className="field code-field">
-                  <span className="field__label" id="code-label">
-                    Room code
-                  </span>
                   <CodeInput
                     ref={codeRef}
                     value={code}
@@ -256,7 +254,6 @@ export function Home({ code: linkedCode, game: linkedGame }: Props) {
                     onInvalidChar={() => setCodeHint(roomCodeHint())}
                     disabled={joinPending}
                     invalid={Boolean(joinErrorText)}
-                    labelledBy="code-label"
                     describedBy="code-status"
                   />
                   <div className="code-preview" id="code-status" aria-live="polite" data-testid="room-preview">
@@ -270,7 +267,7 @@ export function Home({ code: linkedCode, game: linkedGame }: Props) {
                     ) : null}
                   </div>
                 </div>
-                <button ref={joinRef} type="submit" className="btn btn--primary btn--block panel__action" data-testid="home-join" disabled={joinPending} aria-busy={busy('join')}>
+                <button ref={joinRef} type="submit" className="btn btn--primary btn--block home__btn" data-testid="home-join" disabled={joinPending} aria-busy={busy('join')}>
                   {busy('join') ? (
                     <>
                       <span className="spinner" aria-hidden="true" /> {pendingLabel('Joining…')}
@@ -282,18 +279,14 @@ export function Home({ code: linkedCode, game: linkedGame }: Props) {
               </form>
             </section>
 
-            <section className="card panel panel--create" aria-labelledby="create-heading" data-testid="create-panel">
-              <h2 className="panel__title" id="create-heading">
-                Create a room
-              </h2>
-              <p className="panel__text">Pick the game once you're in.</p>
-              <button type="button" className="btn btn--secondary btn--block panel__action" data-testid="home-create" onClick={onCreate} disabled={joinPending} aria-busy={busy('create')}>
+            <div className="home__create" data-testid="create-panel">
+              <button type="button" className="btn btn--secondary btn--block home__btn" data-testid="home-create" onClick={onCreate} disabled={joinPending} aria-busy={busy('create')}>
                 {busy('create') ? (
                   <>
                     <span className="spinner" aria-hidden="true" /> {pendingLabel('Creating…')}
                   </>
                 ) : (
-                  'Create room'
+                  'Create a room'
                 )}
               </button>
               {errorFor('create') && (
@@ -302,7 +295,7 @@ export function Home({ code: linkedCode, game: linkedGame }: Props) {
                   {errorFor('create')}
                 </p>
               )}
-            </section>
+            </div>
           </div>
         )}
 

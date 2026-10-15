@@ -23,7 +23,7 @@ export function upgradeContentMode(mode: unknown): ContentMode {
 }
 
 /** Hard cap on seats in any room; games with a smaller table sit the extra players out. */
-export const ROOM_HARD_CAP = 24;
+export const ROOM_HARD_CAP = 50;
 
 export const platformSettingsSchema = z.object({
   /** Let people join with the code while a game is running. */

@@ -1,12 +1,12 @@
 import type { ReactNode } from 'react';
 import { navigate } from '../router';
 import { ConnectionPill } from './ConnectionPill';
-import { SettingsMenu } from './Preferences';
+import { SettingsMenu, type MenuAction } from './Preferences';
 import { Wordmark } from './Wordmark';
 
 interface Props {
-  /** Extra controls before the settings gear (a Leave button, say). */
-  children?: ReactNode;
+  /** Rows under the preferences in the gear's popover (the lobby's Leave room). */
+  menuActions?: MenuAction[];
   /** Something beside the wordmark (the Home mascots). */
   aside?: ReactNode;
   /** The front door's header: the wordmark fills the header's width, the aside perches above it. */
@@ -18,7 +18,7 @@ interface Props {
  * connected, and the settings gear. Inside a room the wordmark link leaves it: routeSync leaves
  * whenever the address bar stops naming the room.
  */
-export function SiteHeader({ children, aside, hero = false }: Props) {
+export function SiteHeader({ menuActions, aside, hero = false }: Props) {
   return (
     <header className={`site-header${hero ? ' site-header--hero' : ''}`} data-testid="site-header">
       <div className="site-header__brand">
@@ -37,8 +37,7 @@ export function SiteHeader({ children, aside, hero = false }: Props) {
       </div>
       <div className="site-header__actions">
         <ConnectionPill />
-        {children}
-        <SettingsMenu />
+        <SettingsMenu actions={menuActions} />
       </div>
     </header>
   );
