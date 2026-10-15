@@ -448,6 +448,17 @@
     gap: 6px;
   }
 
+  /* The pot over the blinds, beside the board. */
+  .pk-centre__row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1px;
+  }
+
+  .pk-blinds {
+    font-size: 0.62rem;
+  }
+
   .pk-pot__pill {
     height: 24px;
     padding: 0 8px;
