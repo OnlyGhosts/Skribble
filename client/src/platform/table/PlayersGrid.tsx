@@ -39,6 +39,9 @@ function useBox(): [RefObject<HTMLUListElement | null>, { width: number; height:
   return [ref, box];
 }
 
+/** How far the ends of a desktop row lift: a gentle arc for a few big tiles, barely a curve for many small ones (it costs height). */
+const ARC_LIFT: Record<TileTier, number> = { full: 16, compact: 16, small: 8, dense: 4 };
+
 /**
  * Every other seated player as a tile, in seat order (left to right, top to bottom, the order of
  * play). The grid never scrolls: it takes the space it is given, and the tiles step down in size
@@ -49,7 +52,7 @@ export function PlayersGrid({ count, label, wide = false, children }: GridProps)
   const tier = tileTier(count);
   const shape = (wide ? WIDE_TIER_SHAPES : TIER_SHAPES)[tier];
   const { cols, rows } = fitGrid(count, box, { wide, gap: box?.gap });
-  const style = { '--cols': cols, '--rows': rows, '--tile-w': `${shape.width}px`, '--tile-h': `${shape.height}px` } as CSSProperties;
+  const style = { '--cols': cols, '--rows': rows, '--tile-w': `${shape.width}px`, '--tile-h': `${shape.height}px`, '--arc': `${ARC_LIFT[tier]}px` } as CSSProperties;
   return (
     <ul ref={ref} className={`tbl-grid tbl-grid--${tier}${wide ? ' tbl-grid--arc' : ''}`} style={style} aria-label={label} data-testid="seats" data-tier={tier} data-cols={cols} data-count={count}>
       {Children.toArray(children).map((child, i) => (

@@ -52,7 +52,8 @@ export function Table({ room, view, meId, frame, live, now, isPhone, subject, cl
   const mineInSpot = (subject.kind === 'turn' || subject.kind === 'result') && subject.mine;
   const showMine = view.players[meId] !== undefined && !mineInSpot;
   const crowd = others.length === 0 ? 'none' : tileTier(others.length);
-  const tight = useTightStage(isPhone, others.length);
+  // A desktop always lays the spotlight in one row: my hand under it and the players need the height.
+  const tight = useTightStage(isPhone, others.length) || !isPhone;
   return (
     <section
       className={`tbl-felt tbl-stage pk-table tbl-crowd--${crowd}${tight ? ' tbl-stage--tight' : ''}${showMine ? '' : ' tbl-stage--no-mine'}`}

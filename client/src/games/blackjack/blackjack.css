@@ -319,6 +319,13 @@
   text-align: center;
 }
 
+/* A tight table: the hands hug their cards. */
+.tbl-stage--tight .tbl-spot--stack .bj-spot__hands--n2 .bj-hand,
+.tbl-stage--tight .tbl-spot--stack .bj-mine--spot.bj-mine--n2 .bj-hand {
+  padding: 2px 4px;
+  row-gap: 0;
+}
+
 .tbl-spot--stack .bj-spot__hands--n3 .bj-hand,
 .tbl-spot--stack .bj-spot__hands--n4 .bj-hand,
 .tbl-spot--stack .bj-mine--spot.bj-mine--n3 .bj-hand,
@@ -693,10 +700,10 @@
 
 /*
  * My cards fit my half of the row however many there are: my face takes 24px, each hand's total
- * and padding 44px, every card after the first 0.45 of a card (fanStyle sets --hands and --fan).
+ * and padding 58px, every card after the first 0.45 of a card (fanStyle sets --hands and --fan).
  */
 .bj-table.tbl-stage--tight .bj-mine--bottom .bj-mine__hands {
-  --fit-w: calc(((100cqw - 24px - (var(--hands, 1) - 1) * var(--space-2)) / var(--hands, 1) - 44px) / (1 + 0.45 * (var(--fan, 2) - 1)));
+  --fit-w: calc(((100cqw - 24px - (var(--hands, 1) - 1) * var(--space-2)) / var(--hands, 1) - 58px) / (1 + 0.45 * (var(--fan, 2) - 1)));
   --tbl-w: min(var(--bj-mine-w), var(--fit-w));
 }
 

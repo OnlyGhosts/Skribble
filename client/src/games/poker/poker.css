@@ -297,6 +297,30 @@
   color: var(--color-warning-text);
 }
 
+/* My hand at the bottom lies on its side (cards, then what they make and my bet), so the players keep the height. */
+.pk-mine--bottom {
+  flex-direction: row;
+  gap: 10px;
+  padding: 4px 10px;
+}
+
+.pk-mine--bottom .pk-mine__top {
+  order: 2;
+  min-height: 0;
+}
+
+.pk-mine--bottom .pk-mine__foot {
+  order: 3;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 0;
+}
+
+/* A tight table has the blinds in the top bar (a phone: by the pot); the ribbon goes. */
+.pk-table.tbl-stage--tight .tbl-ribbon {
+  display: none;
+}
+
 /* ---------- End game (host) ---------- */
 .pk-end {
   white-space: nowrap;
@@ -371,6 +395,20 @@
     --pk-board-w: 56px;
     --pk-spot-w: 62px;
     --pk-mine-w: 62px;
+  }
+}
+
+/* A desktop: my cards at the bottom a size down from the spotlight's. */
+@media (min-width: 761px) and (min-height: 521px) {
+  .pk-table .pk-mine--bottom {
+    --pk-mine-w: 56px;
+  }
+
+  /* Ten or more others: the board and the spotlight a size down, so the tiles keep their names. */
+  .pk-table.tbl-crowd--small,
+  .pk-table.tbl-crowd--dense {
+    --pk-board-w: 52px;
+    --pk-spot-w: 56px;
   }
 }
 
@@ -510,6 +548,39 @@
 
   .pk-table .tbl-spot__label {
     font-size: 1.05rem;
+  }
+}
+
+/*
+ * The narrowest phones: the board a size down so the pot and the blinds beside it never run into
+ * the first card, my hand's name tag a little shorter so its state stays on screen, and the
+ * spotlight's bet chip unseen (its line says "Call 20"; the chips still fly to it) so "Ada's turn"
+ * keeps its room beside the cards.
+ */
+@media (max-width: 340px) {
+  .pk-table {
+    --pk-board-w: 26px;
+  }
+
+  .pk-board {
+    gap: 2px;
+  }
+
+  .pk-table .tbl-felt__top {
+    gap: 4px;
+  }
+
+  .pk-mine {
+    gap: 6px;
+  }
+
+  .pk-mine__top .tbl-pill {
+    max-width: 104px;
+  }
+
+  .tbl-stage--tight .pk-bet--spot {
+    position: absolute;
+    opacity: 0;
   }
 }
 

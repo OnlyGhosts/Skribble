@@ -685,13 +685,13 @@
  */
 .tbl-grid--arc {
   grid-template-columns: repeat(calc(var(--cols, 4) * 2), minmax(0, calc(var(--tile-w, 120px) * 0.65)));
-  row-gap: calc(var(--grid-gap) + 16px);
-  padding-top: 18px;
+  row-gap: calc(var(--grid-gap) + var(--arc, 16px));
+  padding-top: calc(var(--arc, 16px) + 2px);
 }
 
 .tbl-grid--arc .tbl-grid__cell {
   grid-column-end: span 2;
-  transform: translateY(calc(var(--lift, 0) * -16px));
+  transform: translateY(calc(var(--lift, 0) * var(--arc, 16px) * -1));
 }
 
 /* ---------- A tile ---------- */
@@ -926,6 +926,33 @@
   align-content: start;
 }
 
+/* A narrow full tile (a 320px phone): the Playing tag drops under the name, so the name keeps its room. */
+@container tile (max-width: 159px) {
+  .tbl-tile--full.tbl-tile--turn {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas: 'face name' 'face tag' 'cards cards';
+  }
+
+  .tbl-tile--full.tbl-tile--turn .tbl-tile__tag {
+    justify-self: start;
+  }
+
+  /* The spotlight has the stack and the stake of the seat on turn. */
+  .tbl-tile--full.tbl-tile--turn .tbl-tile__meta {
+    display: none;
+  }
+
+  /* The stake and the last move wrap under the stack rather than run off the edge. */
+  .tbl-tile--full .tbl-tile__meta {
+    flex-wrap: wrap;
+    row-gap: 0;
+  }
+
+  .tbl-tile--full .tbl-tile__line {
+    flex-basis: 100%;
+  }
+}
+
 @container tile (max-height: 80px) {
   .tbl-tile--full {
     grid-template-rows: auto auto;
@@ -1040,9 +1067,24 @@
   }
 }
 
+/* A narrow compact tile: the name and the total keep the room; the stake is on the seat's sheet. */
+@container tile (max-width: 99px) {
+  .tbl-tile--compact:not(.tbl-tile--line) .tbl-tile__meta {
+    display: none;
+  }
+}
+
+/* A compact tile both narrow and short (a split in the spotlight on a small phone): the name keeps the room, the total goes. */
+@container tile (max-height: 46px) and (max-width: 79px) {
+  .tbl-tile--compact .tbl-tile__total {
+    display: none;
+  }
+}
+
 /* Small (10 to 23): avatar with a status dot and the total; the name shortened under them. */
 .tbl-tile--small {
-  --face: 24px;
+  /* The avatar gives up height before the name does (the name goes under 34px). */
+  --face: min(24px, max(16px, calc(100cqh - 19px)));
   grid-template-columns: auto minmax(0, 1fr);
   grid-template-areas: 'face total' 'name name';
   padding: 3px 4px;
@@ -1114,29 +1156,51 @@
   font-size: 0.68rem;
 }
 
-/* A narrow small tile: the total tucks in against the avatar like a badge. */
+/*
+ * A narrow small tile (a 320px phone, 22 or more others): no room for the total beside the
+ * avatar, so it sits on the tile's corner as a badge over the avatar's edge, never cut off. The
+ * avatar shrinks with a short tile rather than overflow it.
+ */
 @container tile (max-width: 56px) {
   .tbl-tile--small {
-    --face: 22px;
-    padding-left: 3px;
-    padding-right: 3px;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: 'face' 'name';
+    justify-items: start;
+    padding: 3px;
+  }
+
+  .tbl-tile--small .tbl-tile__name,
+  .tbl-tile--small .tbl-tile__tag {
+    justify-self: stretch;
+    min-width: 0;
+  }
+
+  .tbl-tile--small .tbl-tile__tag {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: center;
+    padding: 0 2px;
   }
 
   .tbl-tile--small .tbl-tile__total {
-    justify-self: start;
-    margin-left: -7px;
+    position: absolute;
+    top: 1px;
+    right: 1px;
     z-index: 1;
   }
 
   .tbl-tile--small .tbl-tile__total .tbl-pill {
-    min-width: 20px;
-    padding: 0 3px;
-    font-size: 0.62rem;
+    height: 13px;
+    min-width: 14px;
+    padding: 0 2px;
+    font-size: 0.56rem;
+    letter-spacing: -0.02em;
   }
 }
 
-@container tile (max-height: 40px) {
+@container tile (max-height: 33px) {
   .tbl-tile--small {
+    --face: min(22px, calc(100cqh - 6px));
     grid-template-areas: 'face total';
   }
 
