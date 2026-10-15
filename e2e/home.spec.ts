@@ -541,15 +541,18 @@ for (const width of [320, 390, 700, 768, 1440]) {
     expect((icon?.x ?? 0) + (icon?.width ?? 0), 'and stays left of the text').toBeLessThanOrEqual((mark?.x ?? 0) + (mark?.width ?? 0) * 0.2);
     expect(icon?.height ?? 0, 'about as tall as the letters').toBeGreaterThanOrEqual((mark?.height ?? 0) * 0.8);
     expect((mark?.y ?? 0) + (mark?.height ?? 0), 'the logo stays above Join a room').toBeLessThanOrEqual(join?.y ?? 0);
+    // The column sits in the middle of the page, top to bottom, on every screen.
+    const top = (await page.getByTestId('site-header').boundingBox())?.y ?? 0;
+    const below = height - ((createBtn?.y ?? 0) + (createBtn?.height ?? 0));
+    expect(top, 'the column is pushed down from the top').toBeGreaterThanOrEqual(100);
     if (width >= 768) {
-      // On wide screens the column sits in the middle of the page, top to bottom.
-      const top = (await page.getByTestId('site-header').boundingBox())?.y ?? 0;
-      const below = height - ((createBtn?.y ?? 0) + (createBtn?.height ?? 0));
-      expect(top, 'the column is pushed down from the top').toBeGreaterThanOrEqual(100);
       expect(Math.abs(top - below), 'as much room above the column as below it').toBeLessThanOrEqual(24);
     }
     if (width < 768) {
       expect((createBtn?.y ?? 0) + (createBtn?.height ?? 0), 'Create a room sits inside the first screen').toBeLessThanOrEqual(height);
+      // A phone keeps it a little above the middle, so the boxes and buttons read as centred.
+      expect(below - top, 'a little more room below the column than above it').toBeGreaterThanOrEqual(0);
+      expect(below - top).toBeLessThanOrEqual(height * 0.12);
     }
 
     // The name step fits too.

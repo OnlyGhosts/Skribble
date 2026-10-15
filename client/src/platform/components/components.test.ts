@@ -302,8 +302,8 @@ describe('front door', () => {
     const desktop = mediaBlock(css, '(min-width: 768px)');
     expect(desktop.slice(desktop.indexOf('{'))).not.toMatch(/[^-]width:/);
     expect(desktop).not.toContain('grid-template-columns');
-    // On a wide screen the column sits in the middle of the page, top to bottom.
-    expect(desktop).toMatch(/\.home \{[^}]*justify-content: center/);
+    // On every screen, phones included, the column sits in the middle of the page, top to bottom.
+    expect(ruleOf(css, '.home')).toContain('justify-content: center');
   });
 
   it('shows the phones only as the logo icon, not as a separate decoration beside it', () => {

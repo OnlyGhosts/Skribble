@@ -6,13 +6,17 @@
   --home-box-gap: 8px;
   /* One code box: a quarter of the column less the gaps (the column only narrows on screens under 360px). */
   --home-box: calc((min(var(--home-column), 100vw - 2 * var(--home-gutter)) - 3 * var(--home-box-gap)) / 4);
+  /* On a phone the column sits a little above the middle: the boxes and buttons carry its weight, so this reads as centred. */
+  --home-lift: 6vh;
   min-height: 100dvh;
   width: min(calc(var(--home-column) + 2 * var(--home-gutter)), 100%);
   margin: 0 auto;
-  padding: calc(var(--space-2) + env(safe-area-inset-top)) max(var(--home-gutter), env(safe-area-inset-right)) calc(var(--space-5) + env(safe-area-inset-bottom))
-    max(var(--home-gutter), env(safe-area-inset-left));
+  padding: calc(var(--space-2) + env(safe-area-inset-top)) max(var(--home-gutter), env(safe-area-inset-right))
+    calc(var(--space-5) + var(--home-lift) + env(safe-area-inset-bottom)) max(var(--home-gutter), env(safe-area-inset-left));
   display: flex;
   flex-direction: column;
+  /* The logo and Join a room sit together in the middle of the screen, top to bottom, phones included. */
+  justify-content: center;
   gap: clamp(28px, 7vh, 64px);
 }
 
@@ -178,10 +182,10 @@
 
 /* ---------- Breakpoints: the column stays the same, only the air around it grows ---------- */
 @media (min-width: 768px) {
-  /* On larger screens the whole column sits in the middle of the page, top to bottom as well. */
+  /* On larger screens the air above the column matches the air below it. */
   .home {
+    --home-lift: 0px;
     padding-top: calc(var(--space-5) + env(safe-area-inset-top));
-    justify-content: center;
   }
 
   .panel--who {
