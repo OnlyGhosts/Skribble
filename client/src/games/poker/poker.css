@@ -236,6 +236,15 @@
   line-height: 1;
 }
 
+/* A narrow tile: a smaller button, so a short name beside it ("Pia") stays whole. */
+@container tile (max-width: 159px) {
+  .tbl-tile .pk-dealer {
+    width: 14px;
+    height: 14px;
+    font-size: 0.5rem;
+  }
+}
+
 /* ---------- My hand ---------- */
 .pk-mine {
   --tbl-w: var(--pk-mine-w);

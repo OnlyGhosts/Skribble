@@ -991,6 +991,41 @@
   }
 }
 
+/*
+ * Narrow and not tall enough for the cards too (a 320 or 360 phone with two or three others): the
+ * cards give way to the stack and the last move, under the name across the whole tile. The bet
+ * goes too: the last move names it ("SB 5", "Call 10"), and the seat's sheet has it.
+ */
+@container tile (max-width: 159px) and (min-height: 81px) and (max-height: 110px) {
+  .tbl-tile--full:not(.tbl-tile--turn) {
+    --face: 24px;
+    column-gap: 4px;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: auto auto auto;
+    grid-template-areas: 'face name' 'face total' 'meta meta';
+    align-content: center;
+  }
+
+  .tbl-tile--full .tbl-tile__cards,
+  .tbl-tile--full .tbl-tile__bet {
+    display: none;
+  }
+
+  .tbl-tile--full:not(.tbl-tile--turn) .tbl-tile__total {
+    display: flex;
+    justify-self: start;
+  }
+
+  /* Poker's total is the stack, already in the line under the name. */
+  .tbl-tile--full.tbl-tile--line .tbl-tile__total {
+    display: none;
+  }
+
+  .tbl-tile--full:not(.tbl-tile--turn) .tbl-tile__tag {
+    display: none;
+  }
+}
+
 @container tile (max-height: 46px) {
   .tbl-tile--full {
     grid-template-rows: auto;

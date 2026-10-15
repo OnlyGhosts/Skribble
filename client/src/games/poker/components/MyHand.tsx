@@ -27,15 +27,15 @@ interface Props {
   avatar?: AvatarData;
 }
 
-/** The line under my cards: what I did last, or where I stand in the hand. */
-function myState(view: PokerView, meId: string, myTurn: boolean): string {
+/** The line under my cards: what I did last, or where I stand in the hand (in the spotlight its label already says it is my turn). */
+export function myState(view: PokerView, meId: string, myTurn: boolean, inSpot: boolean): string {
   const seat = view.players[meId];
   if (!seat) return '';
   if (seat.busted) return 'Out of chips';
   if (!view.order.includes(meId)) return 'Next hand';
   if (seat.status === 'folded') return 'Folded';
   if (seat.status === 'allIn') return 'All in';
-  if (myTurn) return 'Your turn';
+  if (myTurn && !inSpot) return 'Your turn';
   return lastActionLabel(seat.lastAction);
 }
 
@@ -58,7 +58,7 @@ export function MyHand({ view, meId, table, timeline, live, now, leaving, size, 
   const tone: Tone = place === 'spot' ? 'neutral' : won > 0 ? 'win' : lost ? 'loss' : myTurn ? 'active' : 'neutral';
   const best = winningCards(table, timeline, now);
   const bet = valueAt(live, betValue(meId), seat?.bet ?? 0, now);
-  const state = myState(view, meId, myTurn);
+  const state = myState(view, meId, myTurn, place === 'spot');
   return (
     <section
       className={`pk-mine pk-mine--${place} ${outlineClass(tone)}${folded ? ' pk-mine--folded' : ''}${place === 'bottom' ? ' tbl-stage__mine' : ''}`}

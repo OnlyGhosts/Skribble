@@ -589,6 +589,22 @@ describe('the screen', () => {
 });
 
 describe('the spotlight', () => {
+  it('says my turn once: the label does, so the line under my cards there does not', async () => {
+    const { myState } = await import('./components/MyHand');
+    expect(myState(view(), 'host', true, true)).toBe('');
+    expect(myState(view(), 'host', true, false)).toBe('Your turn');
+  });
+
+  it('gives a narrow tile without room for its cards the stack and last move instead (320 and 360 phones)', () => {
+    const css = readFileSync(join(import.meta.dirname, '../../platform/styles/table.css'), 'utf8');
+    const block = css.match(/@container tile \(max-width: 159px\) and \(min-height: 81px\) and \(max-height: 110px\) \{[\s\S]*?\n\}/)?.[0] ?? '';
+    expect(block).toMatch(/grid-template-areas: 'face name' 'face total' 'meta meta';/);
+    expect(block).toMatch(/\.tbl-tile--full \.tbl-tile__cards,\s*\.tbl-tile--full \.tbl-tile__bet \{\s*display: none;/);
+    expect(block).toMatch(/\.tbl-tile--full\.tbl-tile--line \.tbl-tile__total \{\s*display: none;/);
+    const own = readFileSync(join(import.meta.dirname, 'poker.css'), 'utf8');
+    expect(own).toMatch(/@container tile \(max-width: 159px\) \{\s*\.tbl-tile \.pk-dealer \{\s*width: 14px;/);
+  });
+
   it('is on the player to act with who is next round the table, on my own hand on my turn, then on the winner', async () => {
     const { spotlightSubject } = await import('./lib/spotlight');
     const at = (v: PokerView, meId: string | null, shown = true, held = false) => spotlightSubject({ view: v, table: tableOf(v, meId), outcomesShown: shown, held, meId });
