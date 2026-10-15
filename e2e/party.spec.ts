@@ -152,8 +152,10 @@ test('the race is played to the podium: the winner is celebrated, Enter changes 
   // The phone podium fits the screen.
   await noHorizontalOverflow(pia.page, PORTRAIT.width);
   await expectInsideViewport(pia.page, 'podium-card', PORTRAIT);
-  const readyBox = await pia.page.getByTestId('overlay-game-end').getByTestId('ready-toggle').boundingBox();
-  expect(readyBox?.height ?? 0).toBeGreaterThanOrEqual(MIN_TARGET);
+  // The podium card pops in from 98% scale over 160ms: read Ready's height once it has landed.
+  await expect
+    .poll(async () => (await pia.page.getByTestId('overlay-game-end').getByTestId('ready-toggle').boundingBox())?.height ?? 0, { message: 'Ready is a 44px target' })
+    .toBeGreaterThanOrEqual(MIN_TARGET);
 
   // On a small phone the standings scroll inside the card while Ready and the host's buttons stay on screen, untouched.
   await host.page.setViewportSize(SMALL);

@@ -303,9 +303,10 @@ test('Pia is the hangman on a phone: picks a word, draws a section after a wrong
   for (const p of [host, quinn]) await expect(p.page.getByTestId('word-choice')).toHaveCount(0);
   const choices = pia.page.getByTestId('word-choice');
   await expect(choices).toHaveCount(3);
+  // The card pops in from 98% scale over 160ms and a box read mid-pop comes out a hair under 44px
+  // (43.6 to 43.99 on CI): read each one until the card has landed.
   for (let i = 0; i < 3; i++) {
-    const box = await boxOf(choices.nth(i));
-    expect(box.height, 'a word choice is a 44px target').toBeGreaterThanOrEqual(MIN_TARGET);
+    await expect.poll(async () => (await boxOf(choices.nth(i))).height, { message: 'a word choice is a 44px target' }).toBeGreaterThanOrEqual(MIN_TARGET);
   }
   const chosen = ((await choices.first().textContent()) ?? '').trim();
   expect(CUSTOM_WORDS).toContain(chosen.toLowerCase());

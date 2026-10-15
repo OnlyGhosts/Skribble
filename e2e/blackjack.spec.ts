@@ -65,9 +65,16 @@ async function boxOf(locator: Locator): Promise<{ x: number; y: number; width: n
 /** The phone layout holds: no sideways scroll, the whole panel on screen, every control a 44px target. */
 async function phoneLayoutHolds(p: Player, size: { width: number; height: number }): Promise<void> {
   await expect.poll(() => p.page.evaluate(() => document.documentElement.scrollWidth), { message: `${p.name}: document.scrollWidth` }).toBeLessThanOrEqual(size.width);
+  // The table's height follows --app-height, which a resize listener sets a frame or so after a
+  // viewport change (the width is CSS alone): until then the panel still ends where the old height put it.
+  await expect
+    .poll(async () => {
+      const box = await boxOf(p.page.getByTestId('bj-panel'));
+      return box.y + box.height;
+    }, { message: `${p.name}: the panel ends on screen` })
+    .toBeLessThanOrEqual(size.height + 0.5);
   const panel = await boxOf(p.page.getByTestId('bj-panel'));
   expect(panel.y, `${p.name}: the panel starts on screen`).toBeGreaterThanOrEqual(0);
-  expect(panel.y + panel.height, `${p.name}: the panel ends on screen`).toBeLessThanOrEqual(size.height + 0.5);
   expect(panel.x + panel.width).toBeLessThanOrEqual(size.width + 0.5);
   for (const id of ['bet-input', 'bet-half', 'bet-double', 'bet-max', 'action-hit', 'action-stand', 'action-split', 'action-double', 'place-bet', 'players-toggle', 'chat-toggle', 'game-menu']) {
     const box = await boxOf(p.page.getByTestId(id));
@@ -233,7 +240,11 @@ async function checkSettlement(round: number, before: Record<string, number>, st
     await expect(p.page.getByTestId('bj-table')).toHaveAttribute('data-settled', 'true');
     await expect(p.page.getByTestId('dealer-hand')).toHaveAttribute('data-hole-hidden', 'false');
     await expect(p.page.locator('[data-testid="dealer-card"][data-face="down"]')).toHaveCount(0);
-    expect(Number(await p.page.getByTestId('dealer-hand').getAttribute('data-cards'))).toBeGreaterThanOrEqual(2);
+    // data-cards counts the dealer's cards that have landed on screen: after a dealer blackjack the
+    // round settles at the deal, before any card has landed, so wait for them.
+    await expect
+      .poll(async () => Number(await p.page.getByTestId('dealer-hand').getAttribute('data-cards')), { message: `${p.name}: the dealer's cards on the table` })
+      .toBeGreaterThanOrEqual(2);
     const hands = await settledHands(p);
     let staked = 0;
     let back = 0;
@@ -437,6 +448,13 @@ test('round two: the amount is remembered, Space bets on the desktop, and the ho
   });
   turnsInSeatOrder(turns);
   await checkSettlement(2, before, stakes);
+  if (turns.length === 0) {
+    // A dealer blackjack (about one deal in 21) settled the round at the deal, before any hand was
+    // played, so there was no hand to end the game after: the host ends it between hands instead.
+    await host.page.getByTestId('end-game').click();
+    await expect(host.page.getByTestId('end-game-confirm')).toContainText('End now?');
+    await host.page.getByTestId('end-game-yes').click();
+  }
 
   const chips: Record<string, number> = {};
   for (const p of players) chips[p.name] = await chipsOf(p);
