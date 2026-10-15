@@ -3,7 +3,7 @@ import type { BlackjackRoomState, BlackjackView } from '@shared/games/blackjack/
 import { tileTier } from '../../../platform/table/grid';
 import { Deck, DiscardTray } from '../../../platform/table/Deck';
 import { TableRibbon } from '../../../platform/table/Ribbon';
-import { seatOrder } from '../hooks';
+import { playerOf, seatOrder } from '../hooks';
 import type { BjSubject } from '../lib/spotlight';
 import { discardedCount, type TableModel } from '../lib/table';
 import type { Frame } from '../lib/timeline';
@@ -66,7 +66,7 @@ export function Table({ room, view, meId, truth, frame, now, isPhone, subject, c
       <TableRibbon main={ribbonText(settings.blackjackPayout)} sub={dealerRuleText(settings.dealerHitsSoft17)} />
       <BjSpotlight room={room} view={view} meId={meId} subject={subject} frame={frame} now={now} size={isPhone ? 'lg' : 'xl'} clock={clock} />
       <Seats room={room} view={view} ids={others} table={table} timeline={timeline} now={now} leaving={leaving} wide={!isPhone} chipsOf={chipsOf} />
-      {showMine && <MyHands view={view} meId={meId} frame={frame} now={now} size={isPhone ? 'md' : 'lg'} place="bottom" />}
+      {showMine && <MyHands view={view} meId={meId} frame={frame} now={now} size={isPhone ? 'md' : 'lg'} place="bottom" avatar={playerOf(room, meId)?.avatar} />}
     </section>
   );
 }

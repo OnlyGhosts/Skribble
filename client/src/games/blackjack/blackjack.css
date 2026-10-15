@@ -517,7 +517,7 @@
 @media (max-width: 760px) and (max-height: 680px), (min-aspect-ratio: 3/2) and (max-height: 520px) {
   .bj-table {
     --bj-dealer-w: 30px;
-    --bj-spot-w: 42px;
+    --bj-spot-w: 38px;
     --bj-mine-w: 30px;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     grid-template-rows: auto auto minmax(0, 1fr);
@@ -533,11 +533,43 @@
   .bj-table.tbl-crowd--dense {
     --bj-dealer-w: 26px;
     --bj-mine-w: 26px;
-    --bj-spot-w: 36px;
+    --bj-spot-w: 34px;
   }
 
   .bj-table .tbl-felt__top {
+    grid-template-columns: minmax(0, 1fr) auto;
     gap: 4px;
+  }
+
+  /* The tray stays the cards' way out, tucked into the corner. */
+  .bj-table .tbl-discard {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .bj-table .bj-dealer {
+    grid-column: 1;
+    justify-self: center;
+  }
+
+  .bj-table .tbl-deck {
+    grid-column: 2;
+  }
+
+  .bj-table .bj-mine__bet {
+    font-size: 0.75rem;
+  }
+
+  /* No room for the stake beside my cards here (the spotlight shows it on my turn). */
+  .bj-mine--bottom .bj-hand__bet {
+    display: none;
+  }
+
+  .bj-mine--bottom .bj-hand__foot {
+    font-size: 0.72rem;
   }
 
   .bj-table .tbl-deck__stack,

@@ -1,4 +1,6 @@
 import type { BlackjackView } from '@shared/games/blackjack/protocol';
+import type { Avatar as AvatarData } from '@shared/platform/avatar';
+import { Avatar } from '../../../platform/components/Avatar';
 import { Chips } from '../../../platform/components/Chips';
 import { PlayingCard, type PlayingCardSize } from '../../../platform/components/PlayingCard';
 import type { Frame } from '../lib/timeline';
@@ -12,10 +14,12 @@ interface Props {
   size: PlayingCardSize;
   /** In the spotlight (my turn, my result) or at the bottom of the table. */
   place: 'spot' | 'bottom';
+  /** At the bottom: my face beside my hands, so they read as mine. */
+  avatar?: AvatarData;
 }
 
 /** My hands: split hands side by side, the one in play lit; two empty slots before my first deal. */
-export function MyHands({ view, meId, frame, now, size, place }: Props) {
+export function MyHands({ view, meId, frame, now, size, place, avatar }: Props) {
   const { table, timeline, leaving } = frame;
   const hands = table?.hands[meId] ?? [];
   const seat = view.players[meId];
@@ -25,6 +29,12 @@ export function MyHands({ view, meId, frame, now, size, place }: Props) {
   const shown: PlayingCardSize = hands.length > 2 ? 'md' : size;
   return (
     <section className={`bj-mine bj-mine--${place} bj-mine--n${Math.max(1, hands.length)}${place === 'bottom' ? ' tbl-stage__mine' : ''}`} aria-label="Your hands" data-testid="my-hands" data-count={hands.length}>
+      {place === 'bottom' && avatar && (
+        <span className="tbl-me" aria-hidden="true">
+          <Avatar avatar={avatar} size="sm" />
+          <span className="tbl-me__label">You</span>
+        </span>
+      )}
       {hands.length > 0 ? (
         <div className="bj-mine__hands">
           {hands.map((hand, i) => (

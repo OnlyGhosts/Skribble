@@ -228,13 +228,15 @@
   font-size: 0.8125rem;
 }
 
+/* The narrowest phones: the round and the buttons keep the row; the game's name gives way. */
 @media (max-width: 360px) {
   .gbar--compact.gbar--phone .gbar__name {
-    font-size: 1.0625rem;
+    display: none;
   }
 
   .gbar--compact.gbar--phone .gbar__status {
-    font-size: 0.75rem;
+    margin-left: 0;
+    text-align: left;
   }
 }
 

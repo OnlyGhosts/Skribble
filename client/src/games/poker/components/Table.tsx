@@ -4,7 +4,7 @@ import { ChipFlights } from '../../../platform/table/ChipFlights';
 import { Deck, DiscardTray } from '../../../platform/table/Deck';
 import { tileTier } from '../../../platform/table/grid';
 import { TableRibbon } from '../../../platform/table/Ribbon';
-import { seatRing } from '../hooks';
+import { playerOf, seatRing } from '../hooks';
 import type { PkSubject } from '../lib/spotlight';
 import type { PokerTable } from '../lib/table';
 import { POT_VALUE, flightsAt, valueAt, type Frame, type Timeline } from '../lib/timeline';
@@ -72,7 +72,7 @@ export function Table({ room, view, meId, frame, live, now, isPhone, subject, cl
       <TableRibbon main={RIBBON_TEXT} sub={`Blinds ${blindsLabel(view)}`} />
       <PkSpotlight room={room} view={view} meId={meId} subject={subject} table={table} timeline={timeline} live={live} now={now} leaving={leaving} size={isPhone ? 'lg' : 'xl'} clock={clock} />
       <Seats room={room} view={view} ids={others} meId={meId} table={table} timeline={timeline} live={live} now={now} leaving={leaving} wide={!isPhone} />
-      {showMine && <MyHand view={view} meId={meId} table={table} timeline={timeline} live={live} now={now} leaving={leaving} size={isPhone ? 'lg' : 'xl'} place="bottom" />}
+      {showMine && <MyHand view={view} meId={meId} table={table} timeline={timeline} live={live} now={now} leaving={leaving} size={isPhone ? 'lg' : 'xl'} place="bottom" avatar={playerOf(room, meId)?.avatar} />}
       <ChipFlights flights={flightsAt(live, now)} />
     </section>
   );

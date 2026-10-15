@@ -1,4 +1,6 @@
 import type { PokerView } from '@shared/games/poker/protocol';
+import type { Avatar as AvatarData } from '@shared/platform/avatar';
+import { Avatar } from '../../../platform/components/Avatar';
 import { Chips } from '../../../platform/components/Chips';
 import { PlayingCard, type PlayingCardSize } from '../../../platform/components/PlayingCard';
 import { PayoutFloat, TotalPill, outlineClass, type Tone } from '../../../platform/table/Outcome';
@@ -21,6 +23,8 @@ interface Props {
   size: PlayingCardSize;
   /** In the spotlight (my turn, my win), or at the bottom of the table. */
   place: 'spot' | 'bottom';
+  /** At the bottom: my face beside my cards, so they read as mine. */
+  avatar?: AvatarData;
 }
 
 /** The line under my cards: what I did last, or where I stand in the hand. */
@@ -40,7 +44,7 @@ function myState(view: PokerView, meId: string, myTurn: boolean): string {
  * pill over them, the bet in front of me, the dealer button and my last move. Lit on my turn,
  * outlined in lime when I win, the payout rising out of it.
  */
-export function MyHand({ view, meId, table, timeline, live, now, leaving, size, place }: Props) {
+export function MyHand({ view, meId, table, timeline, live, now, leaving, size, place, avatar }: Props) {
   const seat = view.players[meId];
   const cards = holeOnScreen(table, timeline, meId, meId, now);
   const myTurn = view.phase === 'acting' && view.turn === meId;
@@ -69,6 +73,12 @@ export function MyHand({ view, meId, table, timeline, live, now, leaving, size, 
       data-outcome={won > 0 ? 'win' : lost ? 'loss' : undefined}
       data-payout={won > 0 ? won : undefined}
     >
+      {place === 'bottom' && avatar && (
+        <span className="tbl-me" aria-hidden="true">
+          <Avatar avatar={avatar} size="sm" />
+          <span className="tbl-me__label">You</span>
+        </span>
+      )}
       <div className="pk-mine__top">
         {hint && (
           <TotalPill tone={won > 0 ? 'win' : folded ? 'push' : 'neutral'} testId="hand-hint">
