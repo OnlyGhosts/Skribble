@@ -39,7 +39,7 @@ describe('ready-up', () => {
     expect(playerCountLabel(gameById('poker'))).toBe('2 to 23 players');
     // No seat cap for the big-party games: everyone in the room plays.
     expect(playerCountLabel(gameById('blackjack'))).toBe('1+ players');
-    expect(playerCountLabel(gameById('battleships'))).toBe('2+ players');
+    expect(playerCountLabel(gameById('quipgame'))).toBe('3+ players');
     expect(playerCountLabel({ ...gameById('skribble'), minPlayers: 4, maxPlayers: 4 })).toBe('4 players');
     expect(listNames(['Alice', 'Bob', 'Carol'])).toBe('Alice, Bob and Carol');
     expect(listNames(['Alice'])).toBe('Alice');

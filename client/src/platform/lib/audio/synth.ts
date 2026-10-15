@@ -1,6 +1,6 @@
 /**
  * Sounds made in code, rendered once into samples: the short note cues (your turn, the tick) and
- * the few effects no recording fits (a splash, a whoosh, a drumroll, applause). Pure functions of
+ * the few effects no recording fits (a whoosh, a drumroll, applause). Pure functions of
  * the sample rate and a noise source, so they can be tested without a browser.
  */
 import type { Render } from './types';
@@ -145,23 +145,6 @@ function drop(out: Float32Array, sampleRate: number, at: number, opts: { from: n
     out[start + i] += Math.sin(TAU * phase) * Math.exp(-t / opts.decay) * opts.amp;
   }
 }
-
-/** Water taking a shot: a plop, a hiss that darkens as it settles, a few drops. */
-export const splash: Render = (sampleRate, random) => {
-  const out = new Float32Array(Math.ceil(0.75 * sampleRate));
-  const lp = new Biquad('lowpass', sampleRate, 0.9);
-  for (let i = 0; i < out.length; i++) {
-    const t = i / sampleRate;
-    if (i % 32 === 0) lp.tune(380 + 3600 * Math.exp(-t / 0.12));
-    const env = t < 0.008 ? t / 0.008 : Math.exp(-(t - 0.008) / 0.17);
-    out[i] = lp.run(noise(random)) * env;
-  }
-  drop(out, sampleRate, 0, { from: 280, to: 80, sweep: 0.03, decay: 0.05, amp: 0.7 });
-  for (let k = 0; k < 5; k++) {
-    drop(out, sampleRate, 0.1 + random() * 0.35, { from: 900 + random() * 900, to: 2400, sweep: 0.02, decay: 0.012, amp: 0.12 });
-  }
-  return normalize(out);
-};
 
 /** Air moving past: band-passed noise that swells and sweeps up and back down. */
 export const whoosh: Render = (sampleRate, random) => {

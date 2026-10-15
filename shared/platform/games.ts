@@ -2,7 +2,7 @@
  * The game registry: every game the site offers, in library order. Adding a game means adding a
  * GameId, a GameMeta entry here, a server module (server/games) and a client module (client/src/games).
  */
-export type GameId = 'skribble' | 'spygame' | 'quipgame' | 'hangman' | 'battleships' | 'blackjack' | 'poker' | 'template';
+export type GameId = 'skribble' | 'spygame' | 'quipgame' | 'blackjack' | 'poker' | 'template';
 
 export type GameStatus = 'live' | 'soon' | 'hidden';
 
@@ -83,42 +83,6 @@ export const GAME_LIST: readonly GameMeta[] = [
     glyph: 'M4 5h16v11H9l-5 4z M8 10h.1M12 10h.1M16 10h.1',
     accent: '#f1c777',
     contentModes: true,
-    status: 'live',
-  },
-  {
-    id: 'hangman',
-    slug: 'hangman',
-    name: 'Hangman',
-    howToPlay: [
-      'The hangman picks a word from three choices or types their own.',
-      'Guessers take turns: name a letter, or risk the whole word.',
-      'A right letter scores for the guesser; a wrong one scores for the hangman, who then draws the next piece.',
-      'Guess the word for a big bonus; a wrong word guess puts you out for that word.',
-      'Ten wrong guesses complete the figure and the hangman wins the word.',
-    ],
-    minPlayers: 2,
-    maxPlayers: null,
-    glyph: 'M3 21h12M7 21V3h12v4 M16 9a2 2 0 1 0 4 0a2 2 0 1 0-4 0 M18 11v5m-3-3h6m-3 3-3 4m3-4 3 4',
-    accent: '#f2a08b',
-    contentModes: true,
-    status: 'live',
-  },
-  {
-    id: 'battleships',
-    slug: 'battleships',
-    name: 'Battleships',
-    howToPlay: [
-      'Place your ships on your grid before the clock runs out, or let the game place them for you.',
-      'Each turn you roll the die, then fire or move.',
-      'Fire: pick an opponent and a square. Miss, hit or sunk, everyone hears about it.',
-      'Move: shift one of your ships up to the roll in a straight line, or turn it. Nobody sees where it went.',
-      'You can\'t move two turns in a row. A fleet with every ship sunk is out, and the last one floating wins.',
-    ],
-    minPlayers: 2,
-    maxPlayers: null,
-    glyph: 'M3 15h18l-4 5H7z M8 15V8h8v7 M11 8V4h3',
-    accent: '#88c7ea',
-    contentModes: false,
     status: 'live',
   },
   {

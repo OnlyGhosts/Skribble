@@ -93,8 +93,6 @@ export type CanvasServerMessage =
 /** What a game with a canvas puts in `welcome.extra`. */
 export interface CanvasWelcomeExtra {
   canvas: CanvasAction[];
-  /** Segmented canvases only: actions drawn before the current segment began, which undo and clear leave alone. */
-  floor?: number;
 }
 
 export function isCanvasWelcomeExtra(x: unknown): x is CanvasWelcomeExtra {

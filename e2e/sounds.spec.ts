@@ -11,7 +11,7 @@ import { createParty, expectReadyCount, joinByCode, readyAll } from './party';
 
 test('every sound file in the registry is served, and the set stays within budget', async ({ request }) => {
   const urls = allSoundUrls();
-  expect(urls.length).toBeGreaterThan(30);
+  expect(urls.length).toBeGreaterThanOrEqual(30);
   let total = 0;
   for (const url of urls) {
     const res = await request.get(url);

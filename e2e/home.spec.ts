@@ -259,12 +259,12 @@ test('create → "Who’s playing?" → the lobby, where picking a game comes fi
   const picker = host.page.getByTestId('game-picker');
   await expect(picker).toHaveAttribute('data-game', 'skribble');
   await expect(host.page.getByRole('heading', { name: 'Pick a game' })).toHaveCount(1);
-  await expect(picker.locator('button[data-testid="game-tile"]')).toHaveCount(7);
+  await expect(picker.locator('button[data-testid="game-tile"]')).toHaveCount(5);
   // The compact room bar comes first, then the picker.
   await expect(host.page.locator('.lobby > section').first()).toHaveAttribute('data-testid', 'room-bar');
   await expect(host.page.getByTestId('room-bar').getByTestId('room-code')).toHaveText(skribbleCode);
   await expect(picker.locator('[data-testid="game-tile"][data-game="skribble"]')).toContainText('Scribble');
-  await expect(picker.locator('[data-testid="game-tile"] svg[data-glyph]')).toHaveCount(7);
+  await expect(picker.locator('[data-testid="game-tile"] svg[data-glyph]')).toHaveCount(5);
   expect(await (await host.page.request.get(`/api/rooms/${skribbleCode}`)).json()).toMatchObject({ exists: true, players: 1, gameId: 'skribble' });
   await expect(host.page.locator(`[data-testid="player-item"][data-name="${host.name}"]`)).toBeVisible();
   await expect(host.page.getByTestId('start-game')).toBeDisabled();
@@ -372,6 +372,13 @@ test('deep links fill the boxes and focus Join room; the old per-game pages and 
   await expect(phone.page.getByTestId('toast')).toContainText(/does not exist/i);
   await expect(phone.page).toHaveURL(/\/$/);
   await expect(phone.page.getByTestId('join-panel')).toBeVisible();
+  // So do the pages of games the site no longer has, with or without a room code (never read as the code 'HANG').
+  for (const path of ['/hangman', `/battleships/${skribbleCode}`]) {
+    await phone.page.goto(path);
+    await expect(phone.page.getByTestId('toast')).toContainText(/does not exist/i);
+    await expect(phone.page).toHaveURL(/\/$/);
+    expect(await boxes(phone.page)).toEqual(['', '', '', '']);
+  }
 
   // Enter on a filled deep link joins (the phone has no saved name yet: the step shows).
   await joinByLink(phone.page, phone.name, `/${skribbleCode}`, skribbleCode);

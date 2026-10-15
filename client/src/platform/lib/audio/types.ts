@@ -15,7 +15,7 @@ export interface SampleSound extends SoundBase {
   file: string | readonly string[];
 }
 
-/** A sound made in code, for the few moments no recording fits (a splash, a drumroll). */
+/** A sound made in code, for the few moments no recording fits (a whoosh, a drumroll). */
 export interface RenderedSound extends SoundBase {
   render: Render;
 }

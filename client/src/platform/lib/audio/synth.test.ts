@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applause, drumroll, normalize, renderNotes, splash, whoosh } from './synth';
+import { applause, drumroll, normalize, renderNotes, whoosh } from './synth';
 
 /** A repeatable noise source, so the renders are the same every run. */
 function seeded(seed = 1): () => number {
@@ -14,7 +14,6 @@ const RATE = 22050;
 
 describe('sounds made in code', () => {
   it.each([
-    ['splash', splash, 0.75],
     ['whoosh', whoosh, 0.42],
     ['drumroll', drumroll, 1.3],
     ['applause', applause, 1.9],

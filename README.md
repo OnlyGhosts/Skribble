@@ -41,7 +41,7 @@ called Scribble), the owner's decisions win. The short version:
   device. Tokens, including a `--game-<id>` accent per game: `client/src/platform/styles/tokens.css`.
 - **Type.** Space Grotesk for headings, Inter for text, IBM Plex Mono for room codes, self-hosted
   latin subsets under the SIL Open Font License (`client/public/fonts/`, with the licences).
-- **Sound.** Short effects for every game (cards, chips, dice, splashes, stings), from Kenney's
+- **Sound.** Short effects for every game (cards, chips, chimes, stings), from Kenney's
   CC0 packs, mono MP3 under 800 KB in all (`client/public/sounds/`, with `CREDITS.md` listing each
   file's pack and original and what plays when). A game's sounds load when its screen mounts;
   the switch in the settings menu mutes everything.
@@ -84,7 +84,7 @@ Open http://localhost:5173. The Vite dev server proxies `/ws` and `/api` to the 
    out, or let the host switch the party to another game from the lobby. The code and the invite
    link stay the same whatever game is on.
 
-For the games with words, prompts or places (Scribble, The Spy Game, Quip Game and Hangman) the
+For the games with words, prompts or places (Scribble, The Spy Game and Quip Game) the
 host also picks a **content mode** for the whole party: *Family* keeps it clean, *Unhinged (18+)*
 is adults only and plays the cheeky packs plus the explicit ones (sex, drink and drugs, bodily
 fluids, death and family shame; never slurs, never jokes aimed at a group, nothing sexual

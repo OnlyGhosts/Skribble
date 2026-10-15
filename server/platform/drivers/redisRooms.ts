@@ -1,5 +1,5 @@
 import type { Redis } from 'ioredis';
-import type { GameId } from '../../../shared/platform/games.js';
+import { isGameId, type GameId } from '../../../shared/platform/games.js';
 import type { Action, ActionResult, Ctx } from '../engine/actions.js';
 import type { Effect } from '../engine/effects.js';
 import { findPlayer } from '../engine/players.js';
@@ -12,6 +12,16 @@ import type { AsyncLock } from './serial.js';
 
 /** SCAN iterations the health endpoint is willing to spend. */
 const MAX_SCAN_ITERATIONS = 50;
+
+/**
+ * The room a key holds, or null when it is missing or holds a game the site no longer runs: such a
+ * room reads as gone everywhere (preview, join, rejoin, ticks) until its TTL clears the key.
+ */
+function parseRoom(raw: string | null): PlatformRoomData | null {
+  if (raw === null) return null;
+  const data = JSON.parse(raw) as PlatformRoomData;
+  return isGameId(data.gameId) ? data : null;
+}
 
 /**
  * Writes a room only if it still reads as it did when the action was applied (a missing key reads
@@ -77,12 +87,11 @@ export class RedisRooms {
   }
 
   async read(code: string): Promise<PlatformRoomData | null> {
-    const raw = await this.redis.get(roomKey(code));
-    return raw === null ? null : (JSON.parse(raw) as PlatformRoomData);
+    return parseRoom(await this.redis.get(roomKey(code)));
   }
 
   async exists(code: string): Promise<boolean> {
-    return (await this.redis.exists(roomKey(code))) === 1;
+    return (await this.read(code)) !== null;
   }
 
   dispatch(code: string, action: Action, options: DispatchOptions = {}): Promise<Dispatched> {
@@ -128,22 +137,26 @@ export class RedisRooms {
   private async attempt(code: string, action: Action, options: DispatchOptions): Promise<Dispatched | 'conflict'> {
     const key = roomKey(code);
     const raw = await this.redis.get(key);
+    const stored = parseRoom(raw);
     const ctx = this.ctx();
     let before: PlatformRoomData;
-    if (raw === null) {
+    if (stored === null) {
       if (!options.createIfMissing) return { ok: false, code: 'ROOM_NOT_FOUND', message: `No room with code ${code} exists.` };
       before = createRoomData(code, options.createIfMissing, ctx.now);
     } else {
-      before = JSON.parse(raw) as PlatformRoomData;
+      before = stored;
     }
     const { data, effects, result } = applyAction(before, action, ctx);
     const destroyed = effects.some((e) => e.type === 'destroy');
-    // The last reset wins: the side store ends up stamped for the state being written.
-    const reset = effects.filter((e): e is Extract<Effect, { type: 'side' }> => e.type === 'side').at(-1);
+    // The last reset wins: the side store ends up stamped for the state being written. A room created
+    // over a removed game's key (the write compares against that key's value) starts it empty too.
+    const reset =
+      effects.filter((e): e is Extract<Effect, { type: 'side' }> => e.type === 'side').at(-1) ??
+      (raw !== null && stored === null ? ({ type: 'side', name: 'reset', stamp: '' } as const) : undefined);
     const isSeat = action.type === 'create' || action.type === 'join' || action.type === 'rejoin';
     const seated = isSeat && result.ok && result.playerId !== null ? { playerId: result.playerId, connectionId: action.connectionId } : null;
     const removed = before.players.filter((p) => !findPlayer(data, p.id)).map((p) => p.id);
-    const changed = data !== before || raw === null;
+    const changed = data !== before || stored === null;
     const message: RoomChannelMessage = { kind: 'effects', version: data.version, data, effects };
 
     if (changed || destroyed || reset || seated !== null || removed.length > 0) {

@@ -420,9 +420,9 @@ describe('wordmark and mascots', () => {
     expect(html).toContain('Scribble');
     expect(html).not.toContain('✏️');
     expect(tagWith(html, 'game-tile')).toContain('aria-checked="true"');
-    // Four to a row, a short last row stretching to fill; the picked tile is the lilac fill with ink.
+    // Three to a row, a short last row stretching to fill; the picked tile is the lilac fill with ink.
     const lobby = stylesheet('lobby.css');
-    expect(ruleOf(lobby, '.game-picker__list .game-tile')).toContain('flex: 1 1 calc(25% - 6px)');
+    expect(ruleOf(lobby, '.game-picker__list .game-tile')).toContain('flex: 1 1 calc(33.33% - 6px)');
     expect(ruleOf(lobby, '.game-tile.is-selected')).toContain('background: var(--color-secondary)');
     expect(ruleOf(lobby, '.game-tile.is-selected')).toContain('color: var(--color-secondary-contrast)');
   });
@@ -597,14 +597,20 @@ describe('lobby', () => {
     expect(ruleOf(stylesheet('lobby.css'), '.room-card__value')).toContain('display: flex');
   });
 
-  it('keeps four game tiles to a row on a 320px phone, so the last row never leaves one tile alone as a banner', () => {
+  it('keeps a full row of game tiles on a 320px phone, and the last row never leaves one tile alone as a banner', () => {
     const css = stylesheet('lobby.css');
     const tile = ruleOf(css, '.game-picker__list .game-tile');
     const gap = Number(ruleOf(css, '.game-picker__list').match(/gap: (\d+)px/)?.[1]);
     const min = Number(tile.match(/min-width: (\d+)px/)?.[1]);
-    // A 320px screen leaves the list 304px: four tiles at their minimum and three gaps fit it.
-    expect(4 * min + 3 * gap).toBeLessThanOrEqual(304);
-    expect(tile).toContain(`flex: 1 1 calc(25% - ${(3 * gap) / 4}px)`);
+    const [, percent, less] = tile.match(/flex: 1 1 calc\(([\d.]+)% - (\d+)px\)/) ?? [];
+    const perRow = Math.floor(100 / Number(percent));
+    // A row of tiles at their basis and the gaps between them fit the list, so none wraps early.
+    expect(perRow * Number(less)).toBeGreaterThanOrEqual((perRow - 1) * gap);
+    // A 320px screen leaves the list 304px: a row of tiles at their minimum and the gaps fit it.
+    expect(perRow * min + (perRow - 1) * gap).toBeLessThanOrEqual(304);
+    // The live games, alone or with a hidden one picked through '?game=', fill the last row with two or more.
+    const live = GAME_LIST.filter((g) => g.status === 'live').length;
+    for (const count of [live, live + 1]) expect(count % perRow, `${count} tiles`).not.toBe(1);
   });
 
   it('lists the players as rows: avatar, name, and a check with Ready on the right', () => {

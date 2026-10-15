@@ -1,6 +1,6 @@
 /**
- * The type-into-the-blanks word layout shared by the games that guess a masked word (Skribble,
- * Hangman); GuessTiles renders it.
+ * The type-into-the-blanks word layout shared by the games that guess a masked word (Skribble);
+ * GuessTiles renders it.
  *
  * Lays a guess draft over the word mask so typed letters land in the word-length tiles.
  *

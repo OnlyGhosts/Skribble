@@ -1,8 +1,6 @@
 /** When each game's sounds play: the decisions, with the banks' play spied on (nothing reaches an AudioContext). */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { BattleshipsView, ShotEvent } from '@shared/games/battleships/protocol';
 import type { BlackjackPlayerView, BlackjackView } from '@shared/games/blackjack/protocol';
-import type { HangmanView } from '@shared/games/hangman/protocol';
 import type { PokerView } from '@shared/games/poker/protocol';
 import type { QuipgameMatchupResultView, QuipgameView } from '@shared/games/quipgame/protocol';
 import type { RoomState } from '@shared/platform/protocol';
@@ -15,10 +13,6 @@ const { PLATFORM_SOUNDS, platformRoomSounds } = await import('../platform/lib/pl
 const PK = await import('./poker/lib/timeline');
 const BJ = await import('./blackjack/lib/timeline');
 const { player, room } = await import('../test/fixtures');
-const bs = await import('./battleships/sfx');
-const { battleshipsSounds } = await import('./battleships/sounds');
-const { playHangmanSounds } = await import('./hangman/sfx');
-const { hangmanSounds } = await import('./hangman/sounds');
 const { bigWin } = await import('./quipgame/sfx');
 const { playPokerSounds } = await import('./poker/sfx');
 const { pokerSounds } = await import('./poker/sounds');
@@ -58,84 +52,6 @@ describe('platform sounds', () => {
     platformRoomSounds(lobby(['bob', 'me']), lobby(['bob']), 'me');
     platformRoomSounds({ ...lobby(['me', 'bob']), code: 'ZZZZ' }, lobby(['me']), 'me');
     platformRoomSounds(lobby(['me']), null, 'me');
-    expect(play).not.toHaveBeenCalled();
-  });
-});
-
-describe('Battleships', () => {
-  const sides = [
-    { id: 'red', memberIds: ['me', 'ally'] },
-    { id: 'blue', memberIds: ['foe'] },
-  ] as BattleshipsView['sides'];
-  const base = partial<BattleshipsView>({ phase: 'playing', sides, mySideId: 'red', turnNumber: 4, turn: { sideId: 'red', shooterId: 'me', roll: null, canMove: false }, lastAction: null });
-  const shot = (s: Partial<ShotEvent>): ShotEvent => ({ shooterId: 'me', targetId: 'blue', x: 0, y: 0, result: 'miss', length: null, dice: null, auto: false, ...s });
-  const after = (action: BattleshipsView['lastAction'], extra: Partial<BattleshipsView> = {}) => ({ ...base, turnNumber: 5, lastAction: action, ...extra });
-
-  it('rolls the die at the start of a turn, louder for the shooter', () => {
-    const play = spy(battleshipsSounds);
-    bs.playBattleshipsSounds({ ...base, turn: { sideId: 'blue', shooterId: 'foe', roll: 3, canMove: true } }, base, 'me');
-    expect(calls(play)).toEqual([['dice', ONLOOKER_VOLUME]]);
-  });
-
-  it('fires, then lands the shot a beat later: a splash, an explosion, a sinking with the sting for the shooting side', () => {
-    const play = spy(battleshipsSounds);
-    bs.playBattleshipsSounds(after({ kind: 'fire', shot: shot({ result: 'miss' }) }), base, 'me');
-    expect(calls(play)).toEqual([['fire', 1]]);
-    vi.advanceTimersByTime(bs.SHOT_FLIGHT_MS);
-    expect(calls(play)).toEqual([
-      ['fire', 1],
-      ['miss', 1],
-    ]);
-    play.mockClear();
-    bs.playBattleshipsSounds(after({ kind: 'fire', shot: shot({ shooterId: 'ally', result: 'sunk', length: 3 }) }), base, 'me');
-    vi.advanceTimersByTime(2000);
-    expect(calls(play)).toEqual([
-      ['fire', ONLOOKER_VOLUME],
-      ['sink', ONLOOKER_VOLUME],
-      ['sinkSting', 1],
-    ]);
-  });
-
-  it('lands a hit on my fleet as a thud, and gives the enemy no sting for sinking mine', () => {
-    const play = spy(battleshipsSounds);
-    bs.playBattleshipsSounds(after({ kind: 'fire', shot: shot({ shooterId: 'foe', targetId: 'red', result: 'hit' }) }), base, 'me');
-    bs.playBattleshipsSounds(after({ kind: 'fire', shot: shot({ shooterId: 'foe', targetId: 'red', result: 'sunk', length: 2 }) }, { turnNumber: 6 }), after(null), 'me');
-    vi.advanceTimersByTime(2000);
-    expect(calls(play).map(([n]) => n)).toEqual(['fire', 'fire', 'struck', 'sink', 'struck']);
-  });
-
-  it('whooshes a move only on the side that moved', () => {
-    const play = spy(battleshipsSounds);
-    bs.playBattleshipsSounds(after({ kind: 'move', playerId: 'ally', sideId: 'red', dice: 2 }), base, 'me');
-    bs.playBattleshipsSounds(after({ kind: 'move', playerId: 'foe', sideId: 'blue', dice: 2 }), base, 'me');
-    expect(calls(play)).toEqual([['moved', 1]]);
-  });
-});
-
-describe('Hangman', () => {
-  const base = partial<HangmanView>({ phase: 'guessing', round: 1, turn: 2, guesserId: 'me', wrong: 1, usedLetters: ['A'], outcome: null });
-
-  it('chimes a right letter and buzzes a wrong one, quieter for everyone but the guesser', () => {
-    const play = spy(hangmanSounds);
-    playHangmanSounds({ ...base, usedLetters: ['A', 'E'] }, base, 'me');
-    playHangmanSounds({ ...base, usedLetters: ['A', 'Z'], wrong: 2 }, base, 'bob');
-    expect(calls(play)).toEqual([
-      ['right', 1],
-      ['wrong', ONLOOKER_VOLUME],
-    ]);
-  });
-
-  it('scratches as a section goes up and stings the ending', () => {
-    const play = spy(hangmanSounds);
-    playHangmanSounds(base, { ...base, phase: 'drawing' }, 'me');
-    playHangmanSounds({ ...base, phase: 'turnEnd', outcome: { kind: 'solved', solverId: 'me' } }, base, 'me');
-    playHangmanSounds({ ...base, phase: 'turnEnd', outcome: { kind: 'hangmanWins' } }, { ...base, phase: 'drawing' }, 'me');
-    expect(calls(play).map(([n]) => n)).toEqual(['section', 'solved', 'section', 'hanged']);
-  });
-
-  it('plays nothing across a change of word', () => {
-    const play = spy(hangmanSounds);
-    playHangmanSounds({ ...base, turn: 3, wrong: 0, usedLetters: [] }, { ...base, wrong: 5 }, 'me');
     expect(play).not.toHaveBeenCalled();
   });
 });

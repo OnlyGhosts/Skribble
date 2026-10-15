@@ -20,14 +20,20 @@ describe('parseRoute', () => {
     expect(hidden.kind === 'game' && hidden.game.id).toBe('template');
   });
 
-  it('opens the front door with the code of an invite link, normalising its case', () => {
+  it('opens the front door with the code of an invite link, normalising its case and URL noise', () => {
     expect(parseRoute('/scribble/ab2k')).toEqual({ kind: 'home', code: 'AB2K', game: null });
     expect(parseRoute('/spygame/AB2K')).toEqual({ kind: 'home', code: 'AB2K', game: null });
+    // A link pasted from a chat with a stray character, or a code typed with a dash.
+    for (const path of ['/scribble/AB2K.', '/scribble/AB2K)', '/scribble/ab-2k', '/scribble/AB2KX']) {
+      expect(parseRoute(path), path).toEqual({ kind: 'home', code: 'AB2K', game: null });
+    }
   });
 
   it('treats a legacy bare code (path or ?room=) the same way', () => {
     expect(parseRoute('/AB2K')).toEqual({ kind: 'home', code: 'AB2K', game: null });
     expect(parseRoute('/ab2k')).toEqual({ kind: 'home', code: 'AB2K', game: null });
+    expect(parseRoute('/ab2k.')).toEqual({ kind: 'home', code: 'AB2K', game: null });
+    expect(parseRoute('/ab-2k')).toEqual({ kind: 'home', code: 'AB2K', game: null });
     expect(parseRoute('/', '?room=ab2k')).toEqual({ kind: 'home', code: 'AB2K', game: null });
     expect(parseRoute('/', '?room=ABIL')).toEqual({ kind: 'home', code: null, game: null });
   });
@@ -43,6 +49,14 @@ describe('parseRoute', () => {
     expect(parseRoute('/nope').kind).toBe('unknown');
     expect(parseRoute('/scribble/nope').kind).toBe('unknown');
     expect(parseRoute('/scribble/AB2K/extra').kind).toBe('unknown');
+  });
+
+  it('never reads a longer word as the code made of its first four letters (old links to a removed game)', () => {
+    for (const path of ['/hangman', '/battleships', '/hangman/AB2K', '/battleships/AB2K', '/whatever', '/AB2KX', '/hang-man.']) {
+      expect(parseRoute(path).kind, path).toBe('unknown');
+    }
+    expect(parseRoute('/ab2k')).toEqual({ kind: 'home', code: 'AB2K', game: null });
+    expect(parseRoute('/scribble/ab2k')).toEqual({ kind: 'home', code: 'AB2K', game: null });
   });
 
   it('builds the in-room path, which is also the invite link', () => {

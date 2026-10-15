@@ -542,6 +542,56 @@ describe.skipIf(!hasRedisServer)('RedisDriver across two instances', () => {
     expect(b.holds(guest.seat, guest.connectionId)).toBe(false);
   });
 
+  it('treats a stored room of a game the site no longer runs as gone, and lets a new room take its code', async () => {
+    const a = instance({ rng: () => 0 });
+    const host = await create(a, 'Alice');
+    const code = host.seat.code;
+    // What an older deploy left behind: a room of a game since removed, with a canvas in its side store.
+    await admin.set(roomKey(code), JSON.stringify({ ...(await stored(code)), gameId: 'hangman' }), 'PX', 60_000);
+    await admin.rpush(sideListKey(code), JSON.stringify([stroke(1)]));
+    await admin.hset(sideHashKey(code), 'stamp', 'old-canvas');
+
+    const b = instance({ rng: () => 0 });
+    expect(await b.preview(code)).toEqual({ exists: false, code, reason: 'ROOM_NOT_FOUND' });
+    expect(await b.lookup(code)).toMatchObject({ ok: false, code: 'ROOM_NOT_FOUND' });
+    expect(await b.join(code, 'Bob', AVATAR, 'conn-bob')).toMatchObject({ ok: false, code: 'ROOM_NOT_FOUND' });
+    expect(await b.rejoin(code, host.token, 'conn-alice-again')).toMatchObject({ ok: false, code: 'REJOIN_FAILED' });
+    // A seat still bound to it hears the room is gone at its next message, as when the key expires.
+    await a.handle(host.seat, msg({ t: 'chat', text: 'anyone?' }));
+    expect(host.ws.errors()).toEqual(['REJOIN_FAILED']);
+    expect(a.holds(host.seat, host.connectionId)).toBe(false);
+
+    // A new room that draws the same code replaces it, side store and all.
+    const carol = await create(b, 'Carol');
+    expect(carol.seat.code).toBe(code);
+    expect(carol.ws.last('welcome').room.gameId).toBe('skribble');
+    expect(carol.ws.last('welcome').room.players.map((p) => p.name)).toEqual(['Carol']);
+    expect(await admin.llen(sideListKey(code))).toBe(0);
+    expect(await admin.hget(sideHashKey(code), 'stamp')).toBe('');
+    expect(await a.preview(code)).toMatchObject({ exists: true, gameId: 'skribble', players: 1 });
+    expect(logs).toEqual([]);
+  });
+
+  it('treats a published snapshot of a game the site no longer runs (an older deploy mid-switch) as a room that is gone', async () => {
+    const a = instance();
+    const b = instance();
+    const { host, guest, code } = await pair(a, b);
+    const roomsBefore = host.ws.ofType('room').length;
+    // What an instance of the older deploy publishes when its host picks a game since removed.
+    const before = await stored(code);
+    const data = { ...before, gameId: 'hangman', version: before.version + 1 } as unknown as PlatformRoomData;
+    const removed = { kind: 'effects', version: data.version, data, effects: [{ type: 'send', to: 'all', msg: { t: 'room', room: { gameId: 'hangman' } } }] } as unknown as RoomChannelMessage;
+    await admin.publish(roomChannel(code), JSON.stringify(removed));
+
+    await vi.waitFor(() => expect(host.ws.errors()).toEqual(['REJOIN_FAILED']), WAIT);
+    await vi.waitFor(() => expect(guest.ws.errors()).toEqual(['REJOIN_FAILED']), WAIT);
+    // Nobody here is handed the removed game's view, and no instance trips over it.
+    expect(host.ws.ofType('room')).toHaveLength(roomsBefore);
+    expect(a.holds(host.seat, host.connectionId)).toBe(false);
+    expect(b.holds(guest.seat, guest.connectionId)).toBe(false);
+    expect(logs).toEqual([]);
+  });
+
   it('refuses a game switch while a game runs and keeps every instance on the running game', async () => {
     const a = instance();
     const b = instance();

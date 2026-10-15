@@ -5,7 +5,7 @@ import { skribbleCanvasPolicy } from '../../games/skribble/canvas.js';
 import type { SkribbleData } from '../../games/skribble/state.js';
 import type { SideRoom } from '../game.js';
 import { MemoryStorage, type GameStorage } from '../storage.js';
-import { CanvasHistory, CanvasStore, admitOp, createCanvasStore, emptyCounts, replayOps, type CanvasPolicy } from './canvas.js';
+import { CanvasHistory, CanvasStore, admitOp, createCanvasStore, emptyCounts, replayOps } from './canvas.js';
 
 const newStore = (storage: GameStorage): CanvasStore<SkribbleData, CanvasClientMessage> => new CanvasStore(storage, skribbleCanvasPolicy);
 
@@ -128,92 +128,5 @@ describe('CanvasStore over MemoryStorage', () => {
     expect(out).toMatchObject({ ok: true, seq: 2 });
     expect(attempts).toBe(3);
     expect(inner.length('ABCD')).toBe(1);
-  });
-});
-
-describe('CanvasStore segments', () => {
-  /** A game whose canvas is drawn in numbered segments (Hangman's figure sections). */
-  interface Segmented {
-    canvasId: string;
-    segment: number;
-  }
-  const policy: CanvasPolicy<Segmented> = { stamp: (game) => game?.canvasId ?? '', check: () => 'ok', forbiddenMessage: 'no', segment: (game) => (game ? `s${game.segment}` : '') };
-  const segRoom = (segment: number): SideRoom<Segmented> => ({ code: 'ABCD', phase: 'playing', game: { canvasId: 'c1', segment }, players: [] });
-
-  it('undo and clear stop at the start of the current segment; the first segment clears like a plain canvas', () => {
-    const storage = new MemoryStorage();
-    const store = new CanvasStore<Segmented, CanvasClientMessage>(storage, policy);
-    const reference = new CanvasHistory();
-    storage.reset('ABCD', null, 'c1');
-
-    // Segment 1: two strokes, then clear empties the canvas (it began on an empty one).
-    for (const batch of [[start(1)], [move(1, 4)], [start(2)]]) {
-      reference.append(batch);
-      expect(sync(store.handleMessage(segRoom(1), 'alice', { t: 'draw', ops: batch }, 0)).ok).toBe(true);
-    }
-    expect(storage.state('ABCD').hash).toMatchObject({ segment: 's1', floor: '0', actions: '2' });
-    expect(sync(store.handleMessage(segRoom(1), 'alice', { t: 'clear' }, 0))).toMatchObject({ ok: true, sends: [{ to: 'all', msg: { t: 'clear' } }] });
-    expect(sync(store.load('ABCD')).actions).toEqual([]);
-    reference.clear();
-
-    // Segment 1 again: one stroke and a fill stay for good once segment 2 begins.
-    for (const batch of [[start(3)], [move(3, 6)], [{ k: 'fill', x: 1, y: 1, color: '#00ff00' } as DrawOp]]) {
-      reference.append(batch);
-      sync(store.handleMessage(segRoom(1), 'alice', { t: 'draw', ops: batch }, 0));
-    }
-    const kept = reference.all();
-
-    // Segment 2 before any drawing: nothing to undo or clear, and nobody hears about it.
-    expect(sync(store.handleMessage(segRoom(2), 'alice', { t: 'undo' }, 0))).toEqual({ ok: true, seq: 0, sends: [] });
-    expect(sync(store.handleMessage(segRoom(2), 'alice', { t: 'clear' }, 0))).toEqual({ ok: true, seq: 0, sends: [] });
-    expect(sync(store.load('ABCD')).actions).toEqual(kept);
-
-    // Segment 2: three strokes fed in small batches (the walk back crosses a chunk boundary), then one undo and a clear.
-    const ops: DrawOp[][] = [[start(4)]];
-    for (let i = 0; i < 9; i++) ops.push([move(4, 2)]);
-    ops.push([start(5)], [move(5, 2)], [start(6)]);
-    for (const batch of ops) {
-      reference.append(batch);
-      sync(store.handleMessage(segRoom(2), 'alice', { t: 'draw', ops: batch }, 0));
-    }
-    expect(storage.state('ABCD').hash).toMatchObject({ segment: 's2', floor: '2', actions: '5' });
-    expect(sync(store.handleMessage(segRoom(2), 'alice', { t: 'undo' }, 0))).toMatchObject({ ok: true, sends: [{ to: 'all', msg: { t: 'undo' } }] });
-    reference.undo();
-    expect(sync(store.load('ABCD')).actions).toEqual(reference.all());
-    // Clearing the segment removes its remaining two actions as two undos on the wire.
-    const cleared = sync(store.handleMessage(segRoom(2), 'alice', { t: 'clear' }, 0));
-    expect(cleared).toMatchObject({
-      ok: true,
-      sends: [
-        { to: 'all', msg: { t: 'undo' } },
-        { to: 'all', msg: { t: 'undo' } },
-      ],
-    });
-    expect(sync(store.load('ABCD')).actions).toEqual(kept);
-    expect(storage.state('ABCD').hash).toEqual({ stamp: 'c1', segment: 's2', floor: '2', actions: '2', points: '8', 's:3': '8' });
-    // The segment is empty again: a further undo would reach into segment 1 and is refused.
-    expect(sync(store.handleMessage(segRoom(2), 'alice', { t: 'undo' }, 0))).toEqual({ ok: true, seq: 0, sends: [] });
-
-    // Segment 3 starts on top of the kept actions; its clear leaves them alone too.
-    sync(store.handleMessage(segRoom(3), 'alice', { t: 'draw', ops: [start(7)] }, 0));
-    // A rejoining drawer learns where the segment began from the welcome, so their own clear stops there as well.
-    expect(sync(store.welcomeExtra(segRoom(3))).extra).toEqual({
-      canvas: [
-        ...kept,
-        {
-          kind: 'stroke',
-          id: 7,
-          tool: 'brush',
-          color: '#ff0000',
-          size: 6,
-          points: [10, 20],
-        },
-      ],
-      floor: 2,
-    });
-    expect(sync(store.handleMessage(segRoom(3), 'alice', { t: 'clear' }, 0))).toMatchObject({ ok: true, sends: [{ to: 'all', msg: { t: 'undo' } }] });
-    expect(sync(store.load('ABCD')).actions).toEqual(kept);
-    // An untouched segment's floor is the whole canvas; a plain canvas (no segments) carries no floor.
-    expect(sync(store.welcomeExtra(segRoom(4))).extra).toEqual({ canvas: kept, floor: 2 });
   });
 });

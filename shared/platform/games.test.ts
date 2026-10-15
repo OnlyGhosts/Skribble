@@ -57,6 +57,6 @@ describe('game registry', () => {
 
   it('offers content modes only for the games that read settings.contentMode', () => {
     const withModes = GAME_LIST.filter((g) => g.contentModes).map((g) => g.id);
-    expect(withModes.sort()).toEqual(['hangman', 'quipgame', 'skribble', 'spygame']);
+    expect(withModes.sort()).toEqual(['quipgame', 'skribble', 'spygame']);
   });
 });

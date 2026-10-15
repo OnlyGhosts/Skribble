@@ -1,9 +1,7 @@
 /** Every game the server can run, keyed by GameId. The platform engine resolves modules from here. */
 import type { GameId } from '../../shared/platform/games.js';
 import type { AnyGameServerModule } from '../platform/game.js';
-import { battleshipsModule } from './battleships/module.js';
 import { blackjackModule } from './blackjack/module.js';
-import { hangmanModule } from './hangman/module.js';
 import { pokerModule } from './poker/module.js';
 import { quipgameModule } from './quipgame/module.js';
 import { skribbleModule } from './skribble/module.js';
@@ -14,8 +12,6 @@ export const GAMES: Readonly<Record<GameId, AnyGameServerModule>> = {
   skribble: skribbleModule,
   spygame: spygameModule,
   quipgame: quipgameModule,
-  hangman: hangmanModule,
-  battleships: battleshipsModule,
   blackjack: blackjackModule,
   poker: pokerModule,
   template: templateModule,

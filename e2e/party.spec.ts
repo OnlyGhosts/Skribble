@@ -87,7 +87,7 @@ test('the host creates a Click Race party, three friends join, and the lobby sho
   await expect(picker).toHaveAttribute('data-game', 'template');
   await expect(picker.locator('[data-testid="game-tile"][data-game="template"]')).toHaveAttribute('aria-checked', 'true');
   await expect(picker.locator('[data-testid="game-tile"][data-game="spygame"]')).toHaveAttribute('aria-checked', 'false');
-  await expect(picker.getByTestId('game-tile')).toHaveCount(8);
+  await expect(picker.getByTestId('game-tile')).toHaveCount(6);
   // Everyone else sees the current game and who decides.
   await expect(pia.page.getByTestId('game-picker-note')).toHaveText(`${host.name} picks the game`);
   await expect(pia.page.getByTestId('game-picker').getByTestId('game-tile')).toHaveCount(1);
@@ -288,7 +288,7 @@ test('one player sits out, the host sets Unhinged, three play a one-round Spy Ga
   await host.page.getByTestId('game-picker').locator('[data-testid="game-tile"][data-game="poker"]').click();
   for (const p of players) await expect(p.page.getByTestId('game-picker')).toHaveAttribute('data-game', 'poker');
   await expect(host.page.getByTestId('settings-contentMode')).toHaveCount(0);
-  await host.page.getByTestId('game-picker').locator('[data-testid="game-tile"][data-game="hangman"]').click();
+  await host.page.getByTestId('game-picker').locator('[data-testid="game-tile"][data-game="quipgame"]').click();
   for (const p of players) await expect(p.page.getByTestId('settings-contentMode')).toHaveAttribute('data-value', 'unhinged');
 });
 

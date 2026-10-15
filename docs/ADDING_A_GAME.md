@@ -111,12 +111,10 @@ explicit "unhinged" ones together; there is no middle mode, and a room stored wi
 sex, drink and drugs, bodily fluids, death and family shame, British wording. The hard lines hold
 for every tier: no slurs, no jokes aimed at a group (race, ethnicity, nationality, religion,
 disability, sexuality, gender identity), nothing sexual involving anyone under 18, no real private
-people. Scribble's word tiers feed Hangman too, so every word stays Hangman-playable (letters,
-spaces, hyphens, apostrophes; 3 to 24 letters). A game that reads it sets `contentModes: true` in its
-`GameMeta`, which is what makes the lobby offer the choice (Scribble, The Spy Game, Quip Game and
-Hangman do; for the others the setting is hidden but kept). Such a game reads it from
-`ctx.settings.contentMode` and picks its content with a shared pure helper: Quip Game's prompt
-tiers (`promptsForContentMode` in
+people. A game that reads it sets `contentModes: true` in its `GameMeta`, which is what makes the
+lobby offer the choice (Scribble, The Spy Game and Quip Game do; for the others the setting is
+hidden but kept). Such a game reads it from `ctx.settings.contentMode` and picks its content with
+a shared pure helper: Quip Game's prompt tiers (`promptsForContentMode` in
 [`shared/games/quipgame/prompts.ts`](../shared/games/quipgame/prompts.ts): family = clean,
 unhinged = cheeky + unhinged), Scribble's words (`wordPoolForMode` /
 `buildWordPool(lang, custom, customOnly, mode)` in
@@ -1582,10 +1580,10 @@ canDraw settings footer={<Toolbar ... onUndo={canvas.undo} onRedo={canvas.redo} 
 Redo is the client's: the drawer's own undos go on the store's `redoable` stack and `redo()`
 draws the newest one again as a fresh stroke through the ordinary draw path (a new id from
 `nextStrokeId()`, so the server and late joiners take it like any other stroke); a new stroke,
-a clear or a resync forgets the stack, and a segmented canvas drops it at a new segment
-(`store.getState().dropRedo()`). Leave `onRedo` out and the toolbar has no redo button. The
-colours are one row that always fits (`Palette`): the board's seven and a More colours swatch that
-opens the rest of the palette (white among them) and the custom picker above the row.
+a clear or a resync forgets the stack (`store.getState().dropRedo()`). Leave `onRedo` out and
+the toolbar has no redo button. The colours are one row that always fits (`Palette`): the
+board's seven and a More colours swatch that opens the rest of the palette (white among them)
+and the custom picker above the row.
 The renderer, flood fill, the drawing hook, the batching `DrawQueue` with its offline parking and
 the toolbar's 44px phone styles (`canvas.css`) all live there; Scribble's whole opt-in is
 [`client/src/games/skribble/canvas.ts`](../client/src/games/skribble/canvas.ts).
@@ -1733,8 +1731,7 @@ by `GuessTiles`; playing cards, chip counts and the chip setting (`.playing-card
 `.chips-setting*`) are `cards.css`; the card-table kit (`.tbl*`) is `table.css`; the canvas and its toolbar (`.canvas-*`, `.toolbar*`) are the platform canvas's
 `canvas.css`. Game-specific classes live in the game's stylesheet; Scribble's `skribble.css` owns
 `.word*`, `.tile*`, `.rating*`, `.overlay` (its in-canvas overlay position), and the whole `.game`
-layout, which is a good reference for a non-scrolling phone game; Hangman's `hangman.css` (`.hm*`)
-is the reference for a scrolling column with a canvas and a keys panel.
+layout, which is a good reference for a non-scrolling phone game.
 
 ### 8.3 Components and their props
 
@@ -1744,7 +1741,7 @@ is the reference for a scrolling column with a canvas and a keys panel.
 | [`Wordmark`](../client/src/platform/components/Wordmark.tsx) | `className?` | The outlined boredgames.io logo (Poppins Black + Regular paths) inline, accessible name "boredgames.io", "games" in `--color-primary-text` |
 | [`PhoneBored`](../client/src/platform/components/Mascots.tsx) / `PhoneHappy` | `className?` | The two phone characters from the brand pack, decorative (`aria-hidden`); Home and celebrations only |
 | [`GameGlyph`](../client/src/platform/components/GameGlyph.tsx) | `game: GameMeta`, icon props | The game's 24px line glyph (the lobby tiles draw it at 32px) |
-| [`GameTopBar`](../client/src/platform/components/GameTopBar.tsx) | `meta`, `room`, `isPhone`, `testId`, `className?`, `status`, `statusTestId?` ('round-indicator'), `statusData?`, `clock?`, `players: { label?, open, onOpen }`, `chat?: { open, onOpen }`, `menu: { open, onOpen }`, `extra?`, `actions?`, `middle?`, `below?` | Every game's top bar as on the brand board (`gamebar.css`, `.gbar*`): a back arrow (`game-back`, it asks before leaving: `leave-sheet`, `game-leave-yes`), the game's name large and the status on the right ("Round 2/3"), then `extra`, chat and the options button (a phone) or the connection pill, `actions` (End game) and the gear (a desktop). Below, the player chips (`PlayerChips`: avatar, name, a status badge from your `playerStatus`; the row is the `players-toggle` button and never scrolls, a "+K" chip takes what does not fit) and the timer ring at the end. Leave `chat` out where the chat is already on screen (a desktop column, Scribble's guess feed). Wrap the less important half of the status in `<span className="gbar__more">` and it shows on wider screens only; on a phone the status stays on one line beside the whole name, and the part wrapped in `Wide` (`RoundStatus` renders "Round 1/5" that way) gives way on the narrowest ("1/5"). `TableShell` renders it for the card tables |
+| [`GameTopBar`](../client/src/platform/components/GameTopBar.tsx) | `meta`, `room`, `isPhone`, `testId`, `className?`, `status`, `statusTestId?` ('round-indicator'), `statusData?`, `clock?`, `players: { label?, open, onOpen }`, `chat?: { open, onOpen }`, `menu: { open, onOpen }`, `actions?`, `middle?`, `below?` | Every game's top bar as on the brand board (`gamebar.css`, `.gbar*`): a back arrow (`game-back`, it asks before leaving: `leave-sheet`, `game-leave-yes`), the game's name large and the status on the right ("Round 2/3"), then chat and the options button (a phone) or the connection pill, `actions` (End game) and the gear (a desktop). Below, the player chips (`PlayerChips`: avatar, name, a status badge from your `playerStatus`; the row is the `players-toggle` button and never scrolls, a "+K" chip takes what does not fit) and the timer ring at the end. Leave `chat` out where the chat is already on screen (a desktop column, Scribble's guess feed). Wrap the less important half of the status in `<span className="gbar__more">` and it shows on wider screens only; on a phone the status stays on one line beside the whole name, and the part wrapped in `Wide` (`RoundStatus` renders "Round 1/5" that way) gives way on the narrowest ("1/5"). `TableShell` renders it for the card tables |
 | `GameMenuSheet` | `open`, `onClose()`, `children?` | The phone options sheet behind the bar's menu button: theme and sound, your rows (the host's End game), Leave room (`menu-sheet`) |
 | [`ResultPoints`](../client/src/platform/components/RoundResult.tsx) / `ResultNext` / `earnersOf` | `rows`, `label`, `rowTestId?`, `empty` / `noun`, `endsAt`, `paused`, `settling`, `testId` / `players`, `points` | A round or turn result (`results.css`): put them in an `.overlay__card.result-card` after a `.result-kicker` (how it ended, on the game's accent) and a `.result-reveal` (the word, the spy); the points list shows avatar, name, role tag and `+points`; the footer counts down to the next turn, paused or "starting" when the time is up |
 | [`SettingsMenu`](../client/src/platform/components/Preferences.tsx) / `PreferenceRows` | `actions?: MenuAction[]` / none | The gear and its popover (theme, sound effects, then the actions: `{ label, icon, onSelect, testId }`); the rows alone go in a phone options sheet |
@@ -1759,11 +1756,11 @@ is the reference for a scrolling column with a canvas and a keys panel.
 | `RangeControl` | `id`, `value`, `min`, `max`, `step?`, `onCommit(v)`, `label`, `revision` | Debounced 150 ms; test id `settings-<id>` |
 | `RangeSetting` | `RangeControl` props + `canEdit`, `display?`, `hint?`, `rowLabel?` | A row with the slider for editors and the value for everyone |
 | `ToggleSetting` | `id`, `checked`, `onChange(checked)`, `label`, `disabled?`, `hint?` | Test ids `settings-row-<id>`, `settings-<id>` |
-| `WordListSetting` | `id`, `label`, `words`, `canEdit`, `parse(text)`, `onCommit(words)`, `placeholder?`, `maxLength?` | A custom word list: a debounced textarea for editors, the list for everyone (Scribble's and Hangman's custom words); test ids `settings-row-<id>`, `settings-<id>-count`, `settings-<id>` |
+| `WordListSetting` | `id`, `label`, `words`, `canEdit`, `parse(text)`, `onCommit(words)`, `placeholder?`, `maxLength?` | A custom word list: a debounced textarea for editors, the list for everyone (Scribble's custom words); test ids `settings-row-<id>`, `settings-<id>-count`, `settings-<id>` |
 | [`PlayingCard`](../client/src/platform/components/PlayingCard.tsx) | `card: Card \| null`, `size?: 'sm' \| 'md' \| 'lg' \| 'xl'`, `testId?` ('card'), `slot?`, `highlight?`, `className?` | A white CSS card in both themes; a face-down card's markup carries no rank or suit (`data-face`, `data-rank`, `data-suit` on face-up cards); `cardName(card)` is its accessible name. Blackjack and Poker |
 | [`Chips`](../client/src/platform/components/Chips.tsx) | `value`, `size?`, `className?`, `testId?` | A chip count with the coin (`data-chips`); `ChipIcon` alone for inputs |
 | [`ChipsSetting`](../client/src/platform/components/ChipsSetting.tsx) | `id`, `label`, `value`, `min`, `max`, `presets`, `canEdit`, `onCommit(v)`, `hint?`, `display?` | A chip amount row: preset buttons and a numeric field committed on blur or Enter, clamped; test ids `settings-<id>`, `settings-<id>-<preset>` |
-| [`GuessTiles`](../client/src/platform/components/GuessTiles.tsx) | `mask`, `draft`, `onDraftChange(draft)`, `onSubmit(text): boolean`, `canSend`, `placeholder?`, `focusMemory?`, `inputTestId?`, `sendTestId?` | Type into the blanks of a masked word (layout in [`lib/wordMask.ts`](../client/src/platform/lib/wordMask.ts)); Scribble's guess bar and Hangman's whole-word guess |
+| [`GuessTiles`](../client/src/platform/components/GuessTiles.tsx) | `mask`, `draft`, `onDraftChange(draft)`, `onSubmit(text): boolean`, `canSend`, `focusMemory?` | Type into the blanks of a masked word (layout in [`lib/wordMask.ts`](../client/src/platform/lib/wordMask.ts)); Scribble's guess bar |
 | [`Timer`](../client/src/platform/components/Timer.tsx) | `endsAt: number \| null \| undefined`, `warnUnder?` (10), `tickUnder?`, `size?: 'md' \| 'lg'`, `paused?`, `settling?` | Server-clock countdown in a ring whose lime arc empties toward the deadline (the length is the time left when this client first saw the deadline; reduced motion steps it once a second); plain seconds up to 99, m:ss beyond; the danger colour in the last 5 seconds (never with `warnUnder` 0); `tickUnder` plays a tick cue for the final seconds |
 | [`BottomSheet`](../client/src/platform/components/BottomSheet.tsx) | `open`, `title`, `onClose()`, `children`, `testId` | Phone sheet with focus trap and Escape; `${testId}-close`, `${testId}-backdrop` |
 | [`PodiumOverlay`](../client/src/platform/components/PodiumOverlay.tsx) | `room`, `isHost` | Rendered by the shell on `'ended'`; you never render it. The small happy phone (96px at most), "Alice wins!" and the points, the top three on small lime / lilac / graphite blocks (`podium-step`), every player in order (`podium-entry` with `data-rank`), Ready / Sit this one out, the host's Play again / Back to lobby and a brief confetti |
@@ -1806,7 +1803,7 @@ React, no CSS: the unit tests and the e2e suite import it), sets the bank as the
 files when the game screen mounts (its own sounds load after the first tap). Each sound is a
 recorded file under [`client/public/sounds/`](../client/public/sounds/) (named without
 `/sounds/` or `.mp3`; an array picks one at random each time) or a sound made in code
-(`render`: the shared `splash`, `whoosh`, `drumroll` and `applause`, or your own pure function of
+(`render`: the shared `whoosh`, `drumroll` and `applause`, or your own pure function of
 the sample rate). `volume` is its level before the 0.6 master (cards and clicks about 0.3 to
 0.5, wins about 0.7); `cooldownMs` drops repeats that come too fast (60 ms by default); every
 play wanders up to 4% off pitch unless `steady` is set (musical stings).
@@ -1928,8 +1925,8 @@ Run from the repository root; everything is green at HEAD.
   `INVALID_MESSAGE` ("Invalid settings at <path>: <message>"); unknown keys are stripped (so a
   room stored with a retired key such as `maxPlayers` or Quip Game's old `cheeky` still loads);
   your `normalize` runs on the merged settings and may rewrite dependent fields. A field you add
-  later is filled in from your defaults when an older stored room loads (Battleships' `moveOrFire`
-  reads `true` in a room saved with the old `boardSize` and `diceMoves`, which stay, unread).
+  later is filled in from your defaults when an older stored room loads; retired keys stay,
+  unread.
 - **`ctx.players` is the participants, not the room.** Players who sat the game out are in
   `ctx.spectators` and in `room.players` with `participating: false`; they still receive every
   snapshot and chat line, so views must not assume every `room.players` entry has a game entry.
@@ -1938,11 +1935,10 @@ Run from the repository root; everything is green at HEAD.
 - **`meta.maxPlayers` is a seat limit, not a room cap.** `null` seats everyone (up to
   `ROOM_HARD_CAP` = 50); a number benches the extra ready players for that game. Prefer `null`:
   the owner wants big parties to all play (Blackjack seats everyone and grows its shoe with the
-  table, see `shoeDecks` in `shared/games/blackjack/cards.ts`; Battleships gives each of up to 50
-  players a fleet, and a team board stops growing at 14x14 with three extra ships). Only a hard
-  limit of the game itself justifies a number: Poker's 23 is what one deck can deal. Test a start
-  with a full room (`server/games/bigParty.test.ts` does it for every live game) and keep long
-  lists scrolling inside their own panel.
+  table, see `shoeDecks` in `shared/games/blackjack/cards.ts`). Only a hard limit of the game
+  itself justifies a number: Poker's 23 is what one deck can deal. Test a start with a full room
+  (`server/games/bigParty.test.ts` does it for every live game) and keep long lists scrolling
+  inside their own panel.
 - **Chat history** is capped at 60 lines and replayed in `welcome.chat`; private lines (explicit
   recipient lists) are never stored, so a late joiner does not see them.
 - **`playerJoined` arrives mid-game only** (joins in the lobby are not game events) and only when

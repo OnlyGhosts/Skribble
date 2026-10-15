@@ -1,7 +1,6 @@
 # out | pack | source file(s) relative to the pack's Audio/ (each further "+[pack::]file@seconds" is mixed in at that offset) | max seconds | kbps
 ui/pop|interface-sounds|drop_002.ogg|0|64
 ui/click|ui-audio|click2.ogg|0|64
-ui/key|interface-sounds|select_002.ogg|0|64
 ui/chime|interface-sounds|glass_001.ogg|0|64
 ui/blip|interface-sounds|pluck_002.ogg|0|64
 ui/buzz|interface-sounds|error_002.ogg|0|64
@@ -11,10 +10,7 @@ stings/fanfare|music-jingles|Steel jingles/jingles_STEEL02.ogg|0|80
 stings/game-over|music-jingles|Pizzicato jingles/jingles_PIZZI13.ogg|0|80
 stings/turn-end|music-jingles|Pizzicato jingles/jingles_PIZZI06.ogg|0|80
 stings/win|music-jingles|Steel jingles/jingles_STEEL10.ogg|0|80
-stings/solved|music-jingles|Pizzicato jingles/jingles_PIZZI02.ogg|0|80
-stings/lose|music-jingles|Pizzicato jingles/jingles_PIZZI04.ogg|0|80
 stings/sly|music-jingles|Sax jingles/jingles_SAX12.ogg|0|80
-stings/sink|music-jingles|8-Bit jingles/jingles_NES12.ogg|0|80
 table/deal-1|casino-audio|card-slide-1.ogg|0|64
 table/deal-2|casino-audio|card-slide-3.ogg|0|64
 table/deal-3|casino-audio|card-slide-5.ogg|0|64
@@ -32,10 +28,4 @@ table/push-all|casino-audio|chips-handle-5.ogg|0|64
 table/knock|impact-sounds|impactWood_light_002.ogg+impactWood_light_000.ogg@0.14|0|64
 table/thud|impact-sounds|impactSoft_heavy_000.ogg|0|64
 stings/blackjack|music-jingles|Steel jingles/jingles_STEEL16.ogg+casino-audio::chips-handle-1.ogg@0.38+casino-audio::chips-collide-1.ogg@0.8+casino-audio::chips-stack-3.ogg@1.0|1.5|80
-battleships/dice|casino-audio|dice-throw-1.ogg|0|64
-battleships/cannon|sci-fi-sounds|lowFrequency_explosion_001.ogg|0.8|64
-battleships/hit|sci-fi-sounds|explosionCrunch_000.ogg|0|64
-battleships/sink|sci-fi-sounds|explosionCrunch_004.ogg|1.6|64
-battleships/thud|impact-sounds|impactPunch_heavy_002.ogg|0|64
-hangman/scratch|interface-sounds|scratch_005.ogg|0|64
 spygame/gavel|impact-sounds|impactWood_heavy_002.ogg+impactWood_heavy_000.ogg@0.2|0|64

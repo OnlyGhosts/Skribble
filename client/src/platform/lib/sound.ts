@@ -9,7 +9,7 @@ import { renderNotes } from './audio/synth';
 
 export { defineSounds, soundBanks, soundEngine, type AnySoundBank, type SoundBank } from './audio/bank';
 export { createSoundSchedule, type SoundSchedule } from './audio/schedule';
-export { applause, drumroll, splash, whoosh } from './audio/synth';
+export { applause, drumroll, whoosh } from './audio/synth';
 export type { PlayOptions, SoundDef } from './audio/types';
 
 export type Cue = 'correct' | 'yourTurn' | 'tick' | 'turnEnd' | 'fanfare';

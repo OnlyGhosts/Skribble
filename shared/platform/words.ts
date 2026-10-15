@@ -1,6 +1,6 @@
 /**
- * Word helpers any word game shares: the mask guessers see (Skribble's hints, Hangman's blanks)
- * and the parser for a host-typed word list. Content packs stay with the games that own them.
+ * Word helpers any word game shares: the mask guessers see (Skribble's hints) and the parser for a
+ * host-typed word list. Content packs stay with the games that own them.
  */
 
 /** Indices of characters in `word` that are letters/digits and can therefore be hidden or revealed. */

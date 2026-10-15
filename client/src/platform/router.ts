@@ -4,12 +4,14 @@
  * or '/?room=CODE', opens the front door with the code filled in; '/:slug' alone (the old per-game
  * landing pages) redirects to '/', since a game is picked inside the room. '/?game=slug' makes
  * Create start the party on that game (hidden games included: development and tests). Slugs are
- * never four characters long, so a single segment is always one or the other. A game's former
- * slug (from before a rename, '/skribble/CODE') is rewritten in place to the current one.
+ * never four characters long and a lone segment is a code only when it has exactly four letters and
+ * digits, so a single segment is always one or the other, and a longer unknown word (a removed
+ * game's old page) never reads as the code made of its first letters. A game's former slug (from
+ * before a rename, '/skribble/CODE') is rewritten in place to the current one.
  */
 import { create } from 'zustand';
 import { gameByFormerSlug, gameById, gameBySlug, type GameId, type GameMeta } from '@shared/platform/games';
-import { isValidRoomCode, normalizeRoomCode } from '@shared/platform/roomCode';
+import { ROOM_CODE_LENGTH, isValidRoomCode, normalizeRoomCode } from '@shared/platform/roomCode';
 
 export type Route =
   /** The front door, with a room code from the link when there is one, and the game Create starts on when '?game=' names one. */
@@ -21,6 +23,14 @@ export type Route =
 function asCode(segment: string): string | null {
   const code = normalizeRoomCode(segment);
   return isValidRoomCode(code) ? code : null;
+}
+
+/**
+ * A lone path segment as a room code: only one with exactly a code's letters and digits, since
+ * normalising cuts longer ones down (punctuation around the code is URL noise and still fine).
+ */
+function bareCode(segment: string): string | null {
+  return segment.replace(/[^a-z0-9]/gi, '').length === ROOM_CODE_LENGTH ? asCode(segment) : null;
 }
 
 /** The path with a former game slug in its first segment replaced by the current slug; unchanged otherwise. */
@@ -47,7 +57,7 @@ export function parseRoute(rawPathname: string, search = ''): Route {
     const code = asCode(segments[1]);
     return code && segments.length === 2 ? { kind: 'home', code, game: null } : { kind: 'unknown', path: pathname };
   }
-  const code = segments.length === 1 ? asCode(segments[0]) : null;
+  const code = segments.length === 1 ? bareCode(segments[0]) : null;
   return code ? { kind: 'home', code, game: null } : { kind: 'unknown', path: pathname };
 }
 

@@ -272,7 +272,7 @@
   display: none;
 }
 
-/* The full bar's status is short ("Round 1/5", "Placing fleets") and stays on one line beside the whole name. */
+/* The full bar's status is short ("Round 1/5") and stays on one line beside the whole name. */
 .gbar--phone:not(.gbar--compact) .gbar__status {
   flex: none;
   display: block;
@@ -295,7 +295,7 @@
     font-size: 1.25rem;
   }
 
-  /* "Round 1/5" reads "1/5", "Placing fleets" reads "Placing". */
+  /* "Round 1/5" reads "1/5". */
   .gbar--phone .gbar__wide {
     display: none;
   }

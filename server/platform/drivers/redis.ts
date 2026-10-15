@@ -1,6 +1,6 @@
 import { Redis, type RedisOptions } from 'ioredis';
 import type { Avatar } from '../../../shared/platform/avatar.js';
-import type { GameId } from '../../../shared/platform/games.js';
+import { isGameId, type GameId } from '../../../shared/platform/games.js';
 import { CLOSE_REPLACED, isWireMessage, type RoomPreview, type WireMessage } from '../../../shared/platform/protocol.js';
 import { generateRoomCode, isValidRoomCode, normalizeRoomCode, roomCodeHint } from '../../../shared/platform/roomCode.js';
 import type { Action } from '../engine/actions.js';
@@ -384,6 +384,9 @@ export class RedisDriver implements GameDriver {
 
   private async apply(local: LocalRoom, msg: RoomChannelMessage): Promise<void> {
     if (this.locals.get(local.code) !== local) return;
+    // A snapshot of a game the site no longer runs (an instance of an older deploy still serving the
+    // room) reads as gone, like such a stored room: its view would only break the clients here.
+    if (msg.kind === 'effects' && !isGameId(msg.data.gameId)) return this.roomGone(local.code);
     if (msg.kind === 'effects') return this.applyEffects(local, msg);
     if (!local.data) return;
     const connected = new Set(this.localConnected(local));

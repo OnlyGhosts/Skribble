@@ -201,7 +201,7 @@
   font-weight: 500;
 }
 
-/* ---------- Game picker: square-ish tiles, four to a row; a short last row stretches to fill it ---------- */
+/* ---------- Game picker: square-ish tiles, three to a row; a short last row stretches to fill it ---------- */
 .game-picker {
   display: flex;
   flex-direction: column;
@@ -214,9 +214,13 @@
   gap: 8px;
 }
 
-/* Four to a row down to the narrowest phone (4 x 64px and the gaps fit a 320px screen's 304px list). */
+/*
+ * Three to a row down to the narrowest phone (3 x 64px and the gaps fit a 320px screen's 304px list),
+ * so the five live games, or six with a hidden one picked through '?game=', never leave one tile alone
+ * on the last row.
+ */
 .game-picker__list .game-tile {
-  flex: 1 1 calc(25% - 6px);
+  flex: 1 1 calc(33.33% - 6px);
   min-width: 64px;
 }
 

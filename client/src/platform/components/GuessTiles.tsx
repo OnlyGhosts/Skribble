@@ -6,6 +6,7 @@ import { SendIcon } from './Icons';
 
 /** Overflow letters shown as tiles before collapsing the rest into a "+N" chip. */
 const OVERFLOW_VISIBLE = 8;
+const PLACEHOLDER = 'Type your guess...';
 
 export interface GuessTilesProps {
   /** The server's mask of the word: "_" per hidden letter, revealed letters as themselves, separators kept. */
@@ -16,15 +17,11 @@ export interface GuessTilesProps {
   onSubmit(text: string): boolean;
   /** False while the socket is down: the tiles stay typeable, the Send button waits. */
   canSend: boolean;
-  placeholder?: string;
   /**
    * Shared with another input that takes turns in the same slot: set when this input unmounts
    * while focused so its replacement takes the focus (and keeps the phone keyboard open).
    */
   focusMemory?: RefObject<boolean>;
-  /** Test ids of the real field and the Send button (Skribble keeps the chat's). */
-  inputTestId?: string;
-  sendTestId?: string;
 }
 
 type LetterSlot = Extract<GuessSlot, { kind: 'letter' }>;
@@ -72,7 +69,7 @@ function tileClass(slot: LetterSlot): string {
  * IME composition and autofill all keep working. The draft is the caller's (its game store), so
  * it survives a remount and can be dropped at turn boundaries.
  */
-export function GuessTiles({ mask, draft, onDraftChange, onSubmit, canSend, placeholder = 'Type your guess...', focusMemory, inputTestId = 'chat-input', sendTestId = 'chat-send' }: GuessTilesProps) {
+export function GuessTiles({ mask, draft, onDraftChange, onSubmit, canSend, focusMemory }: GuessTilesProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const rowRef = useRef<HTMLSpanElement | null>(null);
   const [focused, setFocused] = useState(false);
@@ -93,7 +90,7 @@ export function GuessTiles({ mask, draft, onDraftChange, onSubmit, canSend, plac
   const { groups, overflow } = layoutGuess(mask, draft);
   useLayoutEffect(() => revealActiveTile(rowRef.current), [mask, draft]);
   const sendable = canSend && draft.trim().length > 0;
-  const descriptionId = `${inputTestId}-description`;
+  const descriptionId = 'chat-input-description';
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -139,12 +136,12 @@ export function GuessTiles({ mask, draft, onDraftChange, onSubmit, canSend, plac
         <input
           ref={inputRef}
           className="guess-tiles__input"
-          data-testid={inputTestId}
+          data-testid="chat-input"
           type="text"
           value={draft}
           maxLength={CHAT_MAX_LENGTH}
-          placeholder={placeholder}
-          aria-label={placeholder}
+          placeholder={PLACEHOLDER}
+          aria-label={PLACEHOLDER}
           autoCapitalize="off"
           autoCorrect="off"
           autoComplete="off"
@@ -161,7 +158,7 @@ export function GuessTiles({ mask, draft, onDraftChange, onSubmit, canSend, plac
       <span id={descriptionId} className="sr-only" aria-live="polite" data-testid="guess-description">
         {describeMask(mask)}
       </span>
-      <button type="submit" className="btn btn--primary guess-form__send" disabled={!sendable} aria-label="Send guess" data-testid={sendTestId}>
+      <button type="submit" className="btn btn--primary guess-form__send" disabled={!sendable} aria-label="Send guess" data-testid="chat-send">
         <SendIcon size={18} />
       </button>
     </form>

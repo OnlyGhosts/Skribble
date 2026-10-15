@@ -1,8 +1,7 @@
 /**
  * Unhinged tier: explicit 18+ words and short phrases (sex, drink and drugs, bodily fluids, death,
  * family shame) that can be drawn in one turn. Never slurs, never aimed at a group, nothing sexual
- * involving anyone under 18. Hangman draws from the same pool, so every entry is letters, spaces,
- * hyphens and apostrophes with 3 to 24 letters. Merged (and deduplicated) by ./index.ts.
+ * involving anyone under 18. Merged (and deduplicated) by ./index.ts.
  */
 export const UNHINGED_WORDS: string[] = [
   'dildo', 'butt plug', 'strap-on', 'anal beads', 'vibrator', 'cock ring', 'nipple clamps', 'gimp mask',

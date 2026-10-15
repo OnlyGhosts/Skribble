@@ -38,8 +38,6 @@ interface Props {
   chat?: Toggle;
   /** The phone's options sheet (theme, sound, the game's host controls, Leave). */
   menu: Toggle;
-  /** Extra buttons before chat (Battleships' shot log). */
-  extra?: ReactNode;
   /** Desktop only: host controls beside the gear (End game). */
   actions?: ReactNode;
   /** Desktop: between the name and the round (Scribble's word). */
@@ -59,7 +57,7 @@ interface Props {
  * Chat and options are small icon buttons on the first row; a desktop has the gear and the host's
  * controls there instead of the options sheet.
  */
-export function GameTopBar({ meta, room, isPhone, testId, className, status, statusTestId = 'round-indicator', statusData, clock, players, chat, menu, extra, actions, middle, below, compact = false }: Props) {
+export function GameTopBar({ meta, room, isPhone, testId, className, status, statusTestId = 'round-indicator', statusData, clock, players, chat, menu, actions, middle, below, compact = false }: Props) {
   const game = registeredGame(room.gameId);
   const [leaving, setLeaving] = useState(false);
   return (
@@ -97,7 +95,6 @@ export function GameTopBar({ meta, room, isPhone, testId, className, status, sta
                 <span className="gbar__count-n">{room.players.length}</span>
               </button>
             )}
-            {extra}
             {chat && (
               <button type="button" className="icon-btn gbar__btn" onClick={chat.onOpen} aria-haspopup="dialog" aria-expanded={chat.open} aria-label="Chat" data-testid="chat-toggle">
                 <ChatIcon size={20} />

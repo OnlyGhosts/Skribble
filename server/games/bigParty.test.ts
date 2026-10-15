@@ -8,9 +8,7 @@ import { GAME_LIST, type GameId } from '../../shared/platform/games.js';
 import { ROOM_HARD_CAP, seatLimit } from '../../shared/platform/settings.js';
 import { sim, startGame, type Sim } from '../platform/engine/testHarness.js';
 import { viewFor } from '../platform/engine/view.js';
-import type { BattleshipsData } from './battleships/module.js';
 import type { BlackjackData } from './blackjack/module.js';
-import type { HangmanData } from './hangman/module.js';
 import type { PokerView } from '../../shared/games/poker/protocol.js';
 import { moduleFor } from '../platform/engine/module.js';
 import type { PokerData } from './poker/module.js';
@@ -25,8 +23,6 @@ const DEALT_IN: Record<LiveGameId, (game: unknown) => string[]> = {
   skribble: (g) => (g as SkribbleData).turnQueue,
   spygame: (g) => (g as SpygameData).current.playerIds,
   quipgame: (g) => (g as QuipgameData).roundPlayers,
-  hangman: (g) => (g as HangmanData).roundPlayerIds,
-  battleships: (g) => (g as BattleshipsData).sides.flatMap((side) => side.memberIds),
   blackjack: (g) => Object.keys((g as BlackjackData).seats),
   poker: (g) => (g as PokerData).order,
 };

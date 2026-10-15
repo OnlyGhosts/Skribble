@@ -161,6 +161,25 @@ describe.each(GAME_IDS)('rooms stored while Cheeky was a content mode (%s)', (ga
   });
 });
 
+describe.each(GAME_IDS)('rooms stored before one of the game settings existed (%s)', (gameId) => {
+  it('load with that setting at its default and the rest as stored, and the game plays on', () => {
+    const s = sim(gameId);
+    const [alice] = startGame(s, ['Alice', 'Bob', 'Carol']);
+    expect(upgradeRoomData(s.data)).toBe(s.data);
+    const defaults = GAMES[gameId].settings.defaults as Record<string, unknown>;
+    for (const key of Object.keys(defaults)) {
+      const settings: Record<string, unknown> = { ...s.data.settings };
+      delete settings[key];
+      const legacy: PlatformRoomData = { ...structuredClone(s.data), settings: settings as RoomSettingsData };
+      const restored = { ...s.data.settings, [key]: defaults[key] };
+      expect(viewFor(legacy, alice, s.now).settings, key).toEqual(restored);
+      const played = applyAction(legacy, { type: 'tick' }, ctxAt(s.now + 60 * 60_000, new Ids()));
+      expect(played.data.settings, key).toEqual(restored);
+      expect(['playing', 'ended'], key).toContain(played.data.phase);
+    }
+  });
+});
+
 describe('a host who sits the game out', () => {
   it('still ends a Spy Game from the reveal, while their other moves stay refused', () => {
     const s = sim('spygame');

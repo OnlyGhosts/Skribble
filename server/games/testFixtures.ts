@@ -42,20 +42,6 @@ export const GAME_TEST_FIXTURES: Readonly<Record<GameId, GameTestFixture>> = {
     // With rng () => 0 the shuffled writing order ends with the host, who therefore writes prompt r1-p0.
     validMessage: { t: 'answer', promptId: 'r1-p0', text: 'banana' },
   },
-  hangman: {
-    // The shortest clocks: an unplayed word (ten idle laps, each a drawing step) still ends within the cross-game suites' windows.
-    settings: { customWords: TEST_WORDS, customWordsOnly: true, rounds: 1, guessSeconds: 10, drawSeconds: 10 },
-    longSettings: { rounds: 5, guessSeconds: 60, drawSeconds: 60 },
-    // With rng () => 0 the host is the first hangman and 'APPLE' their first choice.
-    validMessage: { t: 'chooseWord', index: 0 },
-  },
-  battleships: {
-    // Solo with the small fleet and move or fire off (one shot a turn), so rng () => 0 packs every fleet into the top rows and auto shots scan from A1.
-    settings: { mode: 'solo', fleet: 'small', placeSeconds: 30, turnSeconds: 10, moveOrFire: false },
-    longSettings: { fleet: 'classic', placeSeconds: 120, turnSeconds: 60 },
-    // Any captain may ask for a random layout while the fleets are being placed.
-    validMessage: { t: 'autoPlace' },
-  },
   blackjack: {
     // One deck and the shortest clocks: rng () => 0 deals the shuffled single deck in a fixed order. The rounds never run out.
     settings: { decks: 1, betSeconds: 10, actSeconds: 10, resultsSeconds: 4, startingChips: 1000 },

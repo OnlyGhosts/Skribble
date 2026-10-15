@@ -20,7 +20,7 @@ export interface CanvasActions {
   undo(keep?: boolean): void;
   /** Takes the newest undone action off the redo stack, for the session to draw again. */
   takeRedo(): CanvasAction | null;
-  /** Forgets the redo stack (a new stroke, a new section). */
+  /** Forgets the redo stack (a new stroke). */
   dropRedo(): void;
   clear(): void;
   reset(): void;
