@@ -949,13 +949,18 @@
   opacity: 0;
 }
 
-/* On turn the bet gives way to the Playing tag. */
+.tbl-tile--compact.tbl-tile--line .tbl-tile__meta {
+  gap: 4px;
+  font-size: 0.68rem;
+}
+
+/* On turn the bet and the total give way to the Playing tag (the spotlight has them). */
 .tbl-tile--compact.tbl-tile--turn {
-  grid-template-areas: 'face name name name' 'face tag total total';
+  grid-template-areas: 'face name name name' 'face tag tag tag';
 }
 
 .tbl-tile--compact.tbl-tile--turn .tbl-tile__total {
-  overflow: hidden;
+  display: none;
 }
 
 .tbl-tile--compact.tbl-tile--turn .tbl-tile__meta {
@@ -996,7 +1001,9 @@
     display: none;
   }
 
-  .tbl-tile--compact .tbl-tile__total {
+  .tbl-tile--compact .tbl-tile__total,
+  .tbl-tile--compact.tbl-tile--turn .tbl-tile__total {
+    display: flex;
     justify-self: end;
   }
 }

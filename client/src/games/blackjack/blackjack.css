@@ -2,10 +2,10 @@
 
 /* ---------- The table: card sizes per place (every card here is 2:3) ---------- */
 .bj-table {
-  --bj-dealer-w: 56px;
-  --bj-spot-w: 76px;
-  --bj-mine-w: 60px;
-  --tbl-mini-w: 28px;
+  --bj-dealer-w: 48px;
+  --bj-spot-w: 64px;
+  --bj-mine-w: 52px;
+  --tbl-mini-w: 26px;
 }
 
 .bj-hand__cards > .playing-card,
@@ -422,9 +422,9 @@
 
 @media (max-width: 1100px) {
   .bj-table {
-    --bj-dealer-w: 50px;
-    --bj-spot-w: 66px;
-    --bj-mine-w: 54px;
+    --bj-dealer-w: 44px;
+    --bj-spot-w: 58px;
+    --bj-mine-w: 48px;
   }
 }
 
