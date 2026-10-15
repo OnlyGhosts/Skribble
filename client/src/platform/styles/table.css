@@ -561,8 +561,12 @@
   min-width: 0;
 }
 
+/* "'s turn" keeps its room; only on the very narrowest does its end give way, never the short name before it. */
 .tbl-spot__rest {
-  flex: none;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .tbl-spot--turn .tbl-spot__label,
@@ -969,6 +973,24 @@
   }
 }
 
+/* A full tile both short and narrow: the name over the total; the stack and stake are on the seat's sheet. */
+@container tile (max-height: 80px) and (max-width: 159px) {
+  .tbl-tile--full,
+  .tbl-tile--full.tbl-tile--turn {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas: 'face name' 'face total';
+  }
+
+  .tbl-tile--full .tbl-tile__meta,
+  .tbl-tile--full .tbl-tile__tag {
+    display: none;
+  }
+
+  .tbl-tile--full .tbl-tile__total {
+    justify-self: start;
+  }
+}
+
 @container tile (max-height: 46px) {
   .tbl-tile--full {
     grid-template-rows: auto;
@@ -1206,6 +1228,14 @@
 
   .tbl-tile--small .tbl-tile__name,
   .tbl-tile--small .tbl-tile__tag {
+    display: none;
+  }
+}
+
+/* A sliver of a tile (a 320px phone with a big table and split hands in the spotlight): the face and its dot only, no number cut in half. */
+@container tile (max-height: 15px) {
+  .tbl-tile--small .tbl-tile__total,
+  .tbl-tile--dense .tbl-tile__total {
     display: none;
   }
 }

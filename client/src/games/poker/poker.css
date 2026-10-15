@@ -551,11 +551,20 @@
   }
 }
 
+/* Narrow phones: my hand's name tag a little shorter so my state beside it stays on screen. */
+@media (max-width: 400px) {
+  .pk-mine {
+    gap: 6px;
+  }
+
+  .pk-mine__top .tbl-pill {
+    max-width: 118px;
+  }
+}
+
 /*
  * The narrowest phones: the board a size down so the pot and the blinds beside it never run into
- * the first card, my hand's name tag a little shorter so its state stays on screen, and the
- * spotlight's bet chip unseen (its line says "Call 20"; the chips still fly to it) so "Ada's turn"
- * keeps its room beside the cards.
+ * the first card, and my hand's name tag shorter still.
  */
 @media (max-width: 340px) {
   .pk-table {
@@ -570,18 +579,15 @@
     gap: 4px;
   }
 
-  .pk-mine {
-    gap: 6px;
-  }
-
   .pk-mine__top .tbl-pill {
     max-width: 104px;
   }
+}
 
-  .tbl-stage--tight .pk-bet--spot {
-    position: absolute;
-    opacity: 0;
-  }
+/* A tight spotlight: its line says the stake ("Call 20"), so the chip beside the cards goes unseen (the chips still fly to it) and the label keeps the room. */
+.tbl-stage--tight .pk-bet--spot {
+  position: absolute;
+  opacity: 0;
 }
 
 /* A phone on its side keeps the platform's two columns: the table, then the panel. */
