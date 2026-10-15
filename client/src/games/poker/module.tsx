@@ -68,6 +68,7 @@ export const pokerClient = defineGameClient<PokerView, PokerSettings>({
     const seat = seatOf(view, player.id);
     if (!view || !seat) return null;
     if (seat.busted) return { label: 'Out', icon: <OutIcon {...CHIP_ICON} />, tone: 'out' };
+    if (seat.waitingForSeat) return { label: 'No seat yet', icon: <CardsIcon {...CHIP_ICON} />, tone: 'muted' };
     if (isMyTurn(view, player.id)) return { label: 'To act', icon: <CardsIcon {...CHIP_ICON} />, tone: 'active' };
     if (seat.status === 'folded') return { label: 'Folded', icon: <OutIcon {...CHIP_ICON} />, tone: 'muted' };
     if (seat.status === 'allIn') return { label: 'All in', icon: <CardsIcon {...CHIP_ICON} />, tone: 'active' };

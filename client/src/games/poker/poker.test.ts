@@ -35,7 +35,7 @@ const c = (rank: Card['rank'], suit: Card['suit'] = 'S'): Card => ({ rank, suit 
 const NO_ACTIONS: PokerActions = { canFold: false, canCheck: false, canCall: false, callAmount: 0, canBet: false, minBet: 0, maxBet: 0, canRaise: false, minRaiseTo: 0, maxRaiseTo: 0, canAllIn: false };
 
 function seat(overrides: Partial<PokerPlayerView> = {}): PokerPlayerView {
-  return { chips: 1000, bet: 0, committed: 0, status: 'waiting', isDealer: false, isTurn: false, lastAction: null, busted: false, ...overrides };
+  return { chips: 1000, bet: 0, committed: 0, status: 'waiting', isDealer: false, isTurn: false, lastAction: null, busted: false, waitingForSeat: false, ...overrides };
 }
 
 /**
@@ -457,7 +457,7 @@ describe('copy', () => {
     expect(css.match(/@keyframes pk-seat-rise \{[\s\S]*?\n\}/)?.[0]).not.toContain('-50%');
     expect(resultText(SHOWDOWN, (id) => (id === 'host' ? 'You' : 'Quinn'))).toBe('You win 25 with three of a kind, kings');
     expect(resultText(SHOWDOWN, () => 'Hana')).toBe('Hana wins 25 with three of a kind, kings');
-    const base = { phase: 'acting' as const, seated: true, busted: false, connected: true, held: false, inHand: true, myTurn: false, turnName: 'Pia', result: null, won: false };
+    const base = { phase: 'acting' as const, seated: true, waitingForSeat: false, busted: false, connected: true, held: false, inHand: true, myTurn: false, turnName: 'Pia', result: null, won: false };
     expect(panelStatus(base)).toEqual({ state: 'their-turn', text: "Pia's turn", tone: 'other' });
     expect(panelStatus({ ...base, myTurn: true })).toEqual({ state: 'my-turn', text: 'Your turn', tone: 'go' });
     expect(panelStatus({ ...base, phase: 'results', turnName: null })).toMatchObject({ state: 'showdown' });
@@ -465,6 +465,7 @@ describe('copy', () => {
     expect(panelStatus({ ...base, seated: false }).state).toBe('spectating');
     expect(panelStatus({ ...base, busted: true }).state).toBe('out');
     expect(panelStatus({ ...base, inHand: false, turnName: null }).text).toBe("You're in from the next hand");
+    expect(panelStatus({ ...base, inHand: false, waitingForSeat: true })).toEqual({ state: 'no-seat', text: 'Table full. You get the next free seat', tone: 'quiet' });
   });
 
   it('never shows an em dash anywhere in the module', () => {
@@ -575,6 +576,24 @@ describe('seats and hooks', () => {
     state.players.push(player('eve', { joinOrder: 4 }));
     expect(seatRing(state, state.game as PokerView, 'bob')).toEqual(['carol', 'eve', 'host']);
     expect(seatRing(state, state.game as PokerView, 'dave')).toEqual(['host', 'bob', 'carol', 'eve']);
+  });
+
+  it('fits a 23-seat table in the sideways strip on a phone: every other seat, the turn lit, a newcomer with no seat yet last', () => {
+    const ids = ['host', ...Array.from({ length: 22 }, (_, i) => `p${i}`)];
+    const players = Object.fromEntries(ids.map((id) => [id, seat({ isTurn: id === 'p14', status: id === 'p14' ? 'acting' : 'waiting' })]));
+    const state = pkRoom(view({ order: ids, turn: 'p14', players: { ...players, late: seat({ chips: 0, status: 'out', waitingForSeat: true }) } }));
+    state.players = [...ids, 'late'].map((id, i) => player(id, { joinOrder: i }));
+    const html = render(state, 'host');
+    const seats = tagsWith(html, 'seat');
+    expect(seats).toHaveLength(23);
+    expect(seats.filter((t) => attr(t, 'data-turn') === 'true').map((t) => attr(t, 'data-player-id'))).toEqual(['p14']);
+    expect(attr(seats[22], 'data-player-id')).toBe('late');
+    expect(attr(seats[22], 'data-state')).toBe('no-seat');
+    expect(html).toContain('No seat yet');
+    expect(tagsWith(html, 'seat-card')).toHaveLength(44);
+    const late = render(state, 'late', false);
+    expect(textOf(late, 'turn-status')).toBe('Table full. You get the next free seat');
+    expect(pokerClient.playerStatus?.(state, player('late'))).toMatchObject({ label: 'No seat yet', tone: 'muted' });
   });
 
   it('keeps the move that closed the last street on its seat until somebody moves again', () => {

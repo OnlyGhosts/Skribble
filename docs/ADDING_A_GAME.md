@@ -182,7 +182,9 @@ helpers. Section 8 lists them.
 fixtures. Blackjack's shoe and Poker's deck both come from it (Blackjack's shoe never has fewer
 decks than its setting, more at a big table: `shoeDecks(minDecks, seats)` keeps two rounds'
 reserve of four hands of three cards a seat, and `needsReshuffle` rebuilds it between rounds
-before it drops under one round's reserve, so a 50-seat table never runs dry mid-round). On the client the cards are drawn by
+before it drops under one round's reserve, so a 50-seat table never runs dry mid-round; Poker deals
+from one deck with no burn cards, so its table seats 23, two hole cards each and five on the board,
+and a newcomer beyond that watches, `waitingForSeat` in their view, until a seat frees up). On the client the cards are drawn by
 [`PlayingCard`](../client/src/platform/components/PlayingCard.tsx) (`sm` / `md` / `lg` / `xl`, face down
 for `null`, `slot` for an empty place, `highlight` for the five that play) and chip counts by
 [`Chips`](../client/src/platform/components/Chips.tsx) (`ChipIcon`, `formatChips` in `lib/format.ts`);
@@ -1799,8 +1801,10 @@ Play a sound where the moment happens: in `onRoom` (comparing `prev` with the ne
 an action (a tap the player just made), or timed to an animation with `createSoundSchedule()`
 (the card games use `scheduleTimelineSounds` in
 [`platform/table/sounds.ts`](../client/src/platform/table/sounds.ts) so a card's sound lands with
-the card; Blackjack's [`sfx.ts`](../client/src/games/blackjack/sfx.ts) gives every card movement
-its sound, the discard sweep included, and its tests check each against the planned timeline).
+the card; Blackjack's [`sfx.ts`](../client/src/games/blackjack/sfx.ts) and Poker's
+[`sfx.ts`](../client/src/games/poker/sfx.ts) give every card movement its sound, the discard sweep
+included, and their tests check each against the planned timeline; cards or chips that move at
+the same moment, such as the flop turning over or a showdown, play one sound).
 Someone else's moment plays at `ONLOOKER_VOLUME`; give a sound that a burst of events could
 repeat a `cooldownMs` so it never stacks into noise. A new file gets a row in
 [`CREDITS.md`](../client/public/sounds/CREDITS.md) (pack, original file, licence; only CC0 or

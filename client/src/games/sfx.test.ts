@@ -158,13 +158,14 @@ describe('Poker', () => {
   const base = partial<PokerView>({ lastMove: move('call', 'bob', 1), results: null });
   const empty = PK.EMPTY_TIMELINE;
 
-  it('knocks for a check and tosses for a fold, at the mover’s level', () => {
+  it('knocks for a check and tosses my own fold at once; another seat’s fold waits for its cards to leave', () => {
     const play = spy(pokerSounds);
     playPokerSounds({ view: { ...base, lastMove: move('check', 'me', 2) }, prevView: base, before: empty, timeline: empty, me: 'me' });
-    playPokerSounds({ view: { ...base, lastMove: move('fold', 'bob', 3) }, prevView: base, before: empty, timeline: empty, me: 'me' });
+    playPokerSounds({ view: { ...base, lastMove: move('fold', 'me', 3) }, prevView: base, before: empty, timeline: empty, me: 'me' });
+    playPokerSounds({ view: { ...base, lastMove: move('fold', 'bob', 4) }, prevView: base, before: empty, timeline: empty, me: 'me' });
     expect(calls(play)).toEqual([
       ['check', 1],
-      ['fold', ONLOOKER_VOLUME],
+      ['fold', 1],
     ]);
   });
 

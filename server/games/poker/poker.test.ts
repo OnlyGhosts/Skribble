@@ -117,9 +117,9 @@ describe('Poker: the table', () => {
       endsAt: START + ACT_MS,
       paused: false,
       players: {
-        [alice]: { chips: 1000, bet: 0, committed: 0, status: 'acting', isDealer: true, isTurn: true, lastAction: null, busted: false },
-        [bob]: { chips: 995, bet: 5, committed: 5, status: 'waiting', isDealer: false, isTurn: false, lastAction: { kind: 'smallBlind', amount: 5 }, busted: false },
-        [carol]: { chips: 990, bet: 10, committed: 10, status: 'waiting', isDealer: false, isTurn: false, lastAction: { kind: 'bigBlind', amount: 10 }, busted: false },
+        [alice]: { chips: 1000, bet: 0, committed: 0, status: 'acting', isDealer: true, isTurn: true, lastAction: null, busted: false, waitingForSeat: false },
+        [bob]: { chips: 995, bet: 5, committed: 5, status: 'waiting', isDealer: false, isTurn: false, lastAction: { kind: 'smallBlind', amount: 5 }, busted: false, waitingForSeat: false },
+        [carol]: { chips: 990, bet: 10, committed: 10, status: 'waiting', isDealer: false, isTurn: false, lastAction: { kind: 'bigBlind', amount: 10 }, busted: false, waitingForSeat: false },
       },
       myCards: data(s).seats[alice].cards,
       actions: { canFold: true, canCheck: false, canCall: true, callAmount: 10, canBet: false, minBet: 10, maxBet: 1000, canRaise: true, minRaiseTo: 20, maxRaiseTo: 1000, canAllIn: true },
@@ -757,7 +757,7 @@ describe('Poker: seats coming and going', () => {
     const [alice, bob] = startGame(s, ['Alice', 'Bob'], { hands: 0 });
     s.apply({ type: 'join', name: 'Carol', avatar: AVATAR, connectionId: 'c' });
     const carol = s.playerId('Carol');
-    expect(view(s).players[carol]).toEqual({ chips: 0, bet: 0, committed: 0, status: 'out', isDealer: false, isTurn: false, lastAction: null, busted: false });
+    expect(view(s).players[carol]).toEqual({ chips: 0, bet: 0, committed: 0, status: 'out', isDealer: false, isTurn: false, lastAction: null, busted: false, waitingForSeat: false });
     expect(errorsOf(act(s, carol, { t: 'call' }))).toEqual(['It is not your turn.']);
     act(s, alice, { t: 'fold' });
     tickResults(s);
