@@ -615,11 +615,16 @@ describe('the spotlight', () => {
   it("the dealer's play: the dealer's hand moves up into the spotlight while the reveal plays", () => {
     const me = 'host';
     usePlatformStore.getState().handleServerMessage(welcome(me, bjRoom(acting())));
+    // The server is already on the next bets, a minute on their clock.
+    const betting = nextBetting({ endsAt: NOW + 62_000 });
     blackjackClient.onRoom?.(bjRoom(acting()), null);
-    blackjackClient.onRoom?.(bjRoom(nextBetting()), bjRoom(acting()));
-    const html = render(bjRoom(nextBetting()), me);
+    blackjackClient.onRoom?.(bjRoom(betting), bjRoom(acting()));
+    const html = render(bjRoom(betting), me);
     expect(attr(tagWith(html, 'spotlight'), 'data-kind')).toBe('dealer');
     expect(html).toContain('>Dealer&#x27;s turn<');
+    // The dealer's turn shows no countdown: that clock is the next bets', not the dealer's.
+    const spot = html.slice(html.indexOf('data-testid="spotlight"'));
+    expect(spot.slice(0, spot.indexOf('</section>'))).toMatch(/data-testid="timer"[\s\S]*>–</);
     expect(tagsWith(html, 'dealer-hand')).toHaveLength(1);
     expect(html.indexOf('data-testid="dealer-hand"')).toBeGreaterThan(html.indexOf('data-testid="spotlight"'));
   });

@@ -126,26 +126,22 @@
   min-height: 44px;
 }
 
-/* One row of swatches; it scrolls sideways rather than wrapping. */
+/* One row of swatches that always fits its width: the quick colours and More colours. */
 .toolbar__palette {
-  display: flex;
+  position: relative;
+}
+
+.toolbar__swatches {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 40px));
   gap: 8px;
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
-  scrollbar-width: none;
-  padding: 3px;
-  margin: -3px;
-  -webkit-overflow-scrolling: touch;
 }
 
-.toolbar__palette::-webkit-scrollbar {
-  display: none;
-}
-
-.toolbar__palette .swatch {
-  flex: none;
-  width: 40px;
-  height: 40px;
+.toolbar__swatches .swatch,
+.toolbar__more .swatch {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
   border-radius: 10px;
 }
 
@@ -153,9 +149,36 @@
   transform: none;
 }
 
+/* Picked: a ring inside the swatch (it shows on any colour and never overlaps a neighbour). */
 .toolbar__palette .swatch.is-selected {
-  outline: 3px solid var(--color-text);
-  outline-offset: 1px;
+  outline: none;
+  box-shadow:
+    inset 0 0 0 3px var(--color-text),
+    inset 0 0 0 5px var(--color-surface);
+}
+
+.swatch--more {
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface-2);
+  color: var(--color-text);
+}
+
+/* The rest of the palette and the custom picker open above the row. */
+.toolbar__more {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 44px));
+  gap: 6px;
+  width: max-content;
+  max-width: 100%;
+  padding: 6px;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-lg);
 }
 
 /* ---------- Canvas ---------- */
@@ -245,16 +268,39 @@
     height: 48px;
   }
 
-  .toolbar__palette {
-    gap: 6px;
+  /* The eight share the width: 44px or more from a 390px phone up. */
+  .toolbar__swatches {
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+    gap: 3px;
   }
 
-  .toolbar__palette .swatch {
-    width: 44px;
-    height: 44px;
+  .toolbar__swatches .swatch {
+    max-height: 48px;
+    justify-self: center;
+    max-width: 48px;
+  }
+
+  .toolbar__more {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    width: min(100%, 320px);
   }
 
   .toolbar .btn--xs {
     min-height: 44px;
+  }
+}
+
+/* The narrowest phones: the four groups keep one row (smaller buttons) so the canvas keeps its height. */
+@media (max-width: 340px) {
+  .toolbar__row {
+    gap: 4px;
+  }
+
+  .seg > .tool-btn {
+    min-width: 38px;
+  }
+
+  .toolbar__row > .seg:last-child {
+    flex: none;
   }
 }

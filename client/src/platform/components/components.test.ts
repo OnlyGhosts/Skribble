@@ -30,7 +30,7 @@ const { Lobby } = await import('../screens/Lobby');
 const { GAME_LIST } = await import('@shared/platform/games');
 const { AVATAR_COLORS, AVATAR_EMOJIS } = await import('@shared/platform/avatar');
 const { arcFraction, remainingMs } = await import('../lib/useCountdown');
-const { GameTopBar } = await import('./GameTopBar');
+const { GameTopBar, RoundStatus } = await import('./GameTopBar');
 const { CHIP_GAP, CHIP_WIDTH, chipCapacity, chipLayout, chipOrder, chipStatus } = await import('./PlayerChips');
 const { ResultNext, ResultPoints, earnersOf } = await import('./RoundResult');
 
@@ -415,7 +415,7 @@ describe('wordmark and mascots', () => {
     expect(tagWith(html, 'game-tile')).toContain('aria-checked="true"');
     // Four to a row, a short last row stretching to fill; the picked tile is the lilac fill with ink.
     const lobby = stylesheet('lobby.css');
-    expect(ruleOf(lobby, '.game-picker__list .game-tile')).toContain('flex: 1 1 calc(25% - 8px)');
+    expect(ruleOf(lobby, '.game-picker__list .game-tile')).toContain('flex: 1 1 calc(25% - 6px)');
     expect(ruleOf(lobby, '.game-tile.is-selected')).toContain('background: var(--color-secondary)');
     expect(ruleOf(lobby, '.game-tile.is-selected')).toContain('color: var(--color-secondary-contrast)');
   });
@@ -590,6 +590,16 @@ describe('lobby', () => {
     expect(ruleOf(stylesheet('lobby.css'), '.room-card__value')).toContain('display: flex');
   });
 
+  it('keeps four game tiles to a row on a 320px phone, so the last row never leaves one tile alone as a banner', () => {
+    const css = stylesheet('lobby.css');
+    const tile = ruleOf(css, '.game-picker__list .game-tile');
+    const gap = Number(ruleOf(css, '.game-picker__list').match(/gap: (\d+)px/)?.[1]);
+    const min = Number(tile.match(/min-width: (\d+)px/)?.[1]);
+    // A 320px screen leaves the list 304px: four tiles at their minimum and three gaps fit it.
+    expect(4 * min + 3 * gap).toBeLessThanOrEqual(304);
+    expect(tile).toContain(`flex: 1 1 calc(25% - ${(3 * gap) / 4}px)`);
+  });
+
   it('lists the players as rows: avatar, name, and a check with Ready on the right', () => {
     const state = room({ players: [player('host'), player('bob', { joinOrder: 1, ready: true }), player('carol', { joinOrder: 2, sittingOut: true })] });
     const markup = renderToString(createElement(Lobby, { room: state, game: null }));
@@ -761,6 +771,18 @@ describe('GameTopBar', () => {
     // Leaving asks first; the confirmation is a sheet that is closed until the arrow is tapped.
     expect(html).not.toContain('data-testid="leave-room"');
     expect(html).not.toContain('data-testid="leave-sheet"');
+  });
+
+  it('keeps the game name whole on a phone: the status is short and on one line, "Round" giving way first on the narrowest', () => {
+    const html = renderToString(createElement(RoundStatus, { round: 1, total: 5 }));
+    expect(html).toBe('<span class="gbar__wide">Round </span>1<!-- -->/<!-- -->5');
+    const css = stylesheet('gamebar.css');
+    // The name never shrinks faster than the status (it used to give way four times as fast and read "The Spy Ga...").
+    expect(ruleOf(css, '.gbar__name')).toContain('flex: 0 1 auto');
+    const status = ruleOf(css, '.gbar--phone:not(.gbar--compact) .gbar__status');
+    expect(status).toContain('flex: none');
+    expect(status).toContain('white-space: nowrap');
+    expect(css).toMatch(/@media \(max-width: 360px\) \{[^@]*\.gbar--phone \.gbar__wide \{\s*display: none;/);
   });
 
   it('gives every player a chip with a status badge: the platform says Ready, Away and Watching', () => {

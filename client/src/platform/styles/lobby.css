@@ -214,9 +214,10 @@
   gap: 8px;
 }
 
+/* Four to a row down to the narrowest phone (4 x 64px and the gaps fit a 320px screen's 304px list). */
 .game-picker__list .game-tile {
-  flex: 1 1 calc(25% - 8px);
-  min-width: 70px;
+  flex: 1 1 calc(25% - 6px);
+  min-width: 64px;
 }
 
 .game-picker__current {

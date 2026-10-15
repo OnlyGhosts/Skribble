@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type BrowserContext, type Locator, type Page } from '@playwright/test';
-import { createParty, joinByCode, readyAll } from './party';
+import { createParty, gameNameWhole, joinByCode, readyAll } from './party';
 
 /**
  * A whole solo Battleships on the classic 10x10 board between a desktop host and two phones
@@ -234,6 +234,8 @@ test('the host creates a Battleships party, two phones join by code and the host
     await expect(p.page.getByTestId('timer')).toBeVisible();
   }
   await expect(host.page.getByTestId('chat-log')).toContainText('Place your ships! You have 120 seconds.');
+  // "Battleships" stays whole in a phone's top bar ("Placing fleets" reads "Placing" on the narrowest).
+  await gameNameWhole(pia.page);
 });
 
 test('the host places ships by hand: tray, a tap per ship, rotate, a rejected spot in red; the phones auto-place', async () => {

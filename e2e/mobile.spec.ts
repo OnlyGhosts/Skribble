@@ -169,6 +169,34 @@ async function pickFirstWord(drawer: Player): Promise<string> {
   return readWord(drawer.page);
 }
 
+/**
+ * On a 320px phone the four tool groups keep one row (the trash never drops to a row of its own
+ * and squeezes the canvas) and the eight colour swatches fit the width; More colours opens the
+ * rest, white among them. Back to the portrait size after.
+ */
+async function toolbarFitsNarrowPhone(page: Page): Promise<void> {
+  await page.setViewportSize(SMALL_PORTRAIT);
+  const read = () =>
+    page.evaluate(() => {
+      const bar = document.querySelector('[data-testid="toolbar"]')?.getBoundingClientRect();
+      const tops = Array.from(document.querySelectorAll('.toolbar__row > *')).map((el) => Math.round(el.getBoundingClientRect().top));
+      const swatches = Array.from(document.querySelectorAll('.toolbar__swatches > *')).map((el) => el.getBoundingClientRect());
+      return {
+        rows: new Set(tops).size,
+        swatches: swatches.length,
+        outside: bar ? swatches.filter((r) => r.left < bar.left - 1 || r.right > bar.right + 1).length : -1,
+        rowsOfSwatches: new Set(swatches.map((r) => Math.round(r.top))).size,
+      };
+    });
+  await expect.poll(read, { message: 'the toolbar fits a 320px phone' }).toEqual({ rows: 1, swatches: 8, outside: 0, rowsOfSwatches: 1 });
+  await page.getByTestId('tool-more-colors').click();
+  await page.getByTestId('tool-color-ffffff').click();
+  await expect(page.getByTestId('tool-colors-more')).toHaveCount(0);
+  await expect(page.getByTestId('tool-more-colors')).toHaveClass(/is-selected/);
+  await page.getByTestId('tool-color-000000').click();
+  await page.setViewportSize(PORTRAIT);
+}
+
 /** The phone draws: a 44px toolbar, pointer strokes that reach the host, and the host ends the turn by guessing. */
 async function phoneDrawsOneTurn(): Promise<void> {
   const word = await pickFirstWord(phone);
@@ -189,6 +217,7 @@ async function phoneDrawsOneTurn(): Promise<void> {
   expect(buttonHeights.length).toBeGreaterThan(10);
   expect(buttonHeights.filter((b) => b.height < MIN_TARGET), 'toolbar buttons shorter than 44px').toEqual([]);
   expect(buttonHeights.filter((b) => b.width < MIN_TARGET), 'toolbar buttons narrower than 44px').toEqual([]);
+  await toolbarFitsNarrowPhone(phone.page);
   await expectInsideViewport(phone.page.getByTestId('canvas'), PORTRAIT, 'drawer canvas');
   await expectNoHorizontalOverflow(phone.page, PORTRAIT.width);
   await expect(phone.page.getByTestId('word-plain')).toContainText(word);

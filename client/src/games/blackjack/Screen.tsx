@@ -74,10 +74,11 @@ export function BlackjackScreen({ room, meId, isHost }: GameScreenProps<Blackjac
     dealerPlaying,
     awaitingFirstBet: view.phase === 'betting' && view.endsAt === null,
   });
-  const timed = playing && !held && (view.phase === 'betting' || view.phase === 'acting' || view.phase === 'ending');
+  const subject = spotlightSubject({ view, table: frame.table, dealerPlaying, outcomesShown: outcomesShown(frame.timeline, now), meId });
+  // The dealer's turn has no clock of its own: the next bets' countdown waits until the spotlight moves on to them.
+  const timed = playing && !held && subject.kind !== 'dealer' && (view.phase === 'betting' || view.phase === 'acting' || view.phase === 'ending');
   const tickUnder = myTurn || (view.phase === 'betting' && view.order.includes(meId) && (seat?.bet ?? 0) === 0) ? 5 : undefined;
   const clock = <Timer endsAt={timed ? view.endsAt : null} paused={held} warnUnder={view.phase === 'ending' ? 0 : 5} tickUnder={tickUnder} size="md" />;
-  const subject = spotlightSubject({ view, table: frame.table, dealerPlaying, outcomesShown: outcomesShown(frame.timeline, now), meId });
   // Someone else's turn: their face beside "Pia's turn" in the panel.
   const turnPlayer = status.state === 'their-turn' ? playerOf(room, view.turn?.playerId) : undefined;
   const panel = turnPlayer ? { ...status, who: turnPlayer.avatar } : status;

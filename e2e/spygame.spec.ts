@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type BrowserContext, type Locator, type Page } from '@playwright/test';
-import { createParty, enterNameIfAsked, readyAll } from './party';
+import { createParty, enterNameIfAsked, gameNameWhole, readyAll } from './party';
 
 /**
  * A whole two-round Spy Game between a desktop host and two phones (390x844, touch): roles,
@@ -148,6 +148,8 @@ test('the host creates a Spy Game room, two phones join by code and the host tun
     await expect(clock(p)).toBeVisible();
   }
   await expect(host.page.getByTestId('chat-log')).toContainText('Round 1 of 2: look at your phone');
+  // "The Spy Game" stays whole in a phone's top bar, the round beside it on one line.
+  await gameNameWhole(pia.page);
 });
 
 test('exactly one spy; the agents share the location, the spy sees none and gets 24 tiles in two columns of twelve', async () => {

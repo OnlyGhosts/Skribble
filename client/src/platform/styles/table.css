@@ -343,11 +343,6 @@
   font-size: 1.15rem;
 }
 
-/* A short name never gives way: only a long one does. */
-.tbl-spot__name {
-  min-width: min(4ch, 100%);
-}
-
 .tbl-stage--tight .tbl-spot .timer--md {
   width: 40px;
   height: 40px;
@@ -541,8 +536,9 @@
   text-overflow: ellipsis;
 }
 
+/* A long name gives way before "'s turn"; a short one ("Ada") never does. */
 .tbl-spot__name {
-  min-width: 0;
+  min-width: min(4ch, 100%);
   overflow: hidden;
   text-overflow: ellipsis;
 }

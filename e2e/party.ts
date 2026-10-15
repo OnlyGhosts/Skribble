@@ -93,3 +93,26 @@ export async function leaveGame(page: Page): Promise<void> {
   await page.getByTestId('game-back').click();
   await page.getByTestId('game-leave-yes').click();
 }
+
+/**
+ * The game's name in the top bar is never cut short on a phone (390, 360 and 320 wide): the
+ * status takes its short form instead ("1/5", "Placing"). Back to the page's own size after.
+ */
+export async function gameNameWhole(page: Page): Promise<void> {
+  const own = page.viewportSize();
+  for (const size of [{ width: 390, height: 844 }, { width: 360, height: 740 }, { width: 320, height: 568 }]) {
+    await page.setViewportSize(size);
+    const cut = () =>
+      page.evaluate(() => {
+        const name = document.querySelector('.gbar__name');
+        const status = document.querySelector('.gbar__status');
+        return {
+          name: name ? name.scrollWidth > name.clientWidth : true,
+          // One line: no taller than the status's own line height allows.
+          status: status ? status.getBoundingClientRect().height > parseFloat(getComputedStyle(status).lineHeight) * 1.5 : true,
+        };
+      });
+    await expect.poll(cut, { message: `the game's name and status fit at ${size.width}px` }).toEqual({ name: false, status: false });
+  }
+  if (own) await page.setViewportSize(own);
+}
