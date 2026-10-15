@@ -19,9 +19,25 @@
 
 /* Two small phones beside the wordmark, angled apart; decorative, never above or between controls. */
 .home__mascots {
+  grid-area: aside;
   display: flex;
   align-items: flex-end;
-  flex: none;
+  width: 100%;
+  /* Perched: the phones' feet rest on the top of the letters, the bored one on "bored", the happy one on "games". */
+  margin-bottom: calc(-1 * clamp(10px, 2.2vw, 22px));
+  position: relative;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.home__mascots .mascot--bored {
+  order: 0;
+  margin-left: 5%;
+}
+
+.home__mascots .mascot--happy {
+  order: 1;
+  margin-left: 22%;
 }
 
 .mascot {
@@ -127,9 +143,9 @@
     height: 96px;
   }
 
-  /* A little air between the header and the panels on a tall screen. */
+  /* A little air between the full-width wordmark and the panels. */
   .home__main {
-    padding-top: min(6vh, 56px);
+    padding-top: min(3vh, 24px);
   }
 
   /* Side by side, equal widths; each as tall as the Join content, buttons on one line at the bottom. */
@@ -169,7 +185,4 @@
     height: 52px;
   }
 
-  .mascot--bored {
-    margin-left: -8px;
-  }
 }

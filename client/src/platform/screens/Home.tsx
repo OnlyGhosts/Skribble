@@ -207,6 +207,7 @@ export function Home({ code: linkedCode, game: linkedGame }: Props) {
   return (
     <div className="home">
       <SiteHeader
+        hero
         aside={
           <span className="home__mascots" aria-hidden="true">
             <PhoneHappy className="mascot--happy" />

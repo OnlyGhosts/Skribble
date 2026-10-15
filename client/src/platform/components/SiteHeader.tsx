@@ -9,6 +9,8 @@ interface Props {
   children?: ReactNode;
   /** Something beside the wordmark (the Home mascots). */
   aside?: ReactNode;
+  /** The front door's header: the wordmark fills the header's width, the aside perches above it. */
+  hero?: boolean;
 }
 
 /**
@@ -16,9 +18,9 @@ interface Props {
  * connected, and the settings gear. Inside a room the wordmark link leaves it: routeSync leaves
  * whenever the address bar stops naming the room.
  */
-export function SiteHeader({ children, aside }: Props) {
+export function SiteHeader({ children, aside, hero = false }: Props) {
   return (
-    <header className="site-header" data-testid="site-header">
+    <header className={`site-header${hero ? ' site-header--hero' : ''}`} data-testid="site-header">
       <div className="site-header__brand">
         <a
           className="brand"

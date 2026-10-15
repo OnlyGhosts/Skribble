@@ -1585,6 +1585,40 @@
   }
 }
 
+/*
+ * The front door: the wordmark fills the header's width on its own row; the mascots perch on top
+ * of it at the left and the status pill and gear sit at the right of the row above.
+ */
+.site-header--hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'aside actions'
+    'brand brand';
+  align-items: end;
+  row-gap: 0;
+}
+
+.site-header--hero .site-header__brand {
+  display: contents;
+}
+
+.site-header--hero .brand {
+  grid-area: brand;
+  display: block;
+  width: 100%;
+}
+
+.site-header--hero .wordmark {
+  width: 100%;
+  height: auto;
+}
+
+.site-header--hero .site-header__actions {
+  grid-area: actions;
+  align-self: start;
+}
+
 /* The narrowest phones: the status pill keeps its dot only, so the gear stays on screen. */
 @media (max-width: 360px) {
   .site-header .conn-pill__label {
