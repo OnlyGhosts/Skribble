@@ -81,7 +81,8 @@ export function seatMark(line: SeatLine, hands: readonly TableHand[], settledSho
 function tileTotal(id: string, hands: TableHand[], timeline: Timeline, now: number, turn: boolean, handIndex: number): { text: string; tone: Tone } | null {
   const shown = hands.map((h, i) => ({ hand: h, i, ...handOnScreen(id, i, h, timeline, now) })).filter((s) => s.total !== null);
   if (shown.length === 0) return null;
-  const text = shown.map((s) => totalText(s.total ?? { total: 0, soft: false }, s.outcome === null && (s.hand.status === 'waiting' || s.hand.status === 'acting'))).join('/');
+  // A tile is small: the best total only, never "4/14".
+  const text = shown.map((s) => totalText(s.total ?? { total: 0, soft: false }, false)).join('/');
   const outcome = shown.every((s) => s.outcome !== null) ? seatOutcome(hands) : null;
   if (outcome) return { text, tone: outcome };
   if (shown.every((s) => (s.total?.total ?? 0) > 21)) return { text, tone: 'bust' };

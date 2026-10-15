@@ -133,11 +133,16 @@
   --tbl-w: calc(var(--bj-spot-w) * 0.55);
 }
 
-/* One hand in the spotlight: the spotlight's own outline says it is in play. */
+/* One hand in the spotlight: its outline says it is in play, and its stake is beside it. */
 .bj-spot__hands--n1 > .bj-hand,
 .bj-mine--spot.bj-mine--n1 .bj-hand {
   border-color: transparent;
   background: none;
+}
+
+.bj-spot__hands--n1 .bj-hand__bet,
+.bj-mine--spot.bj-mine--n1 .bj-hand__bet {
+  display: none;
 }
 
 .bj-spot__stake {
@@ -422,6 +427,11 @@
     --bj-dealer-w: 32px;
     --bj-mine-w: 40px;
     --bj-spot-w: 54px;
+  }
+
+  .bj-table.tbl-crowd--small .tbl-ribbon,
+  .bj-table.tbl-crowd--dense .tbl-ribbon {
+    display: none;
   }
 
   .bj-dealer,

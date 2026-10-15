@@ -74,6 +74,7 @@ export function BjSpotlight({ room, view, meId, subject, frame, now, size, clock
           meta={stake > 0 ? <Chips value={stake} size={12} className="bj-spot__stake" /> : undefined}
           next={next}
           clock={clock}
+          layout={hands.length > 1 ? 'stack' : 'row'}
           data={{ 'data-hand': subject.handIndex }}
         >
           {subject.mine ? (
@@ -90,7 +91,7 @@ export function BjSpotlight({ room, view, meId, subject, frame, now, size, clock
     }
     case 'dealer':
       return (
-        <Spotlight subject={key} kind="dealer" tone="neutral" label="Dealer's turn" clock={clock}>
+        <Spotlight subject={key} kind="dealer" tone="neutral" label="Dealer's turn" clock={clock} layout="row">
           <Dealer table={table} timeline={timeline} now={now} leaving={leaving} size={size} />
         </Spotlight>
       );
@@ -100,7 +101,7 @@ export function BjSpotlight({ room, view, meId, subject, frame, now, size, clock
       const back = hands.reduce((sum, h) => sum + (h.payout ?? 0), 0);
       const who = me ? { id: me.id, name: me.name, avatar: me.avatar, connected: me.connected } : null;
       return (
-        <Spotlight subject={key} kind="result" tone={outcome} who={who} label={resultLabel(outcome, back)} clock={clock} data={{ 'data-outcome': outcome }}>
+        <Spotlight subject={key} kind="result" tone={outcome} who={who} label={resultLabel(outcome, back)} clock={clock} layout={hands.length > 1 ? 'stack' : 'row'} data={{ 'data-outcome': outcome }}>
           <MyHands view={view} meId={meId} frame={frame} now={now} size={size} place="spot" />
         </Spotlight>
       );

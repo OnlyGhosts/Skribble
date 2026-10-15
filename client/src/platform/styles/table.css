@@ -380,18 +380,28 @@
 }
 
 /* ---------- The spotlight: the hand being played, large, with whose it is and the clock ---------- */
+/* Stacked: whose turn and the clock on top, the stake and who is next under it, then the hand. */
 .tbl-spot {
   --tbl-w: var(--tbl-spot-w, 64px);
   position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: 'who clock' 'sub clock' 'body body';
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 2px;
   min-width: 0;
   padding: 6px 10px 8px;
   border-radius: var(--radius-md);
   border: 2px solid var(--color-border-strong);
   background: var(--color-surface-2);
   transition: border-color 150ms ease-out, background-color 150ms ease-out;
+}
+
+/* One hand: the label across the top, the stake and who is next beside the cards, the clock at the end. */
+.tbl-spot--row {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas: 'who who clock' 'sub body clock';
 }
 
 .tbl-spot--turn,
@@ -418,15 +428,8 @@
   border-color: var(--color-danger);
 }
 
-.tbl-spot__head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
 .tbl-spot__who {
-  flex: 1 1 auto;
+  grid-area: who;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -438,17 +441,18 @@
   flex: none;
 }
 
-.tbl-spot__titles {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  line-height: 1.15;
+.tbl-spot__face .avatar {
+  width: 30px;
+  height: 30px;
+  font-size: 18px;
 }
 
 .tbl-spot__label {
+  min-width: 0;
   font-family: var(--font-display);
   font-weight: 700;
   font-size: 1.25rem;
+  line-height: 1.15;
   letter-spacing: -0.01em;
   white-space: nowrap;
   overflow: hidden;
@@ -475,6 +479,7 @@
 }
 
 .tbl-spot__sub {
+  grid-area: sub;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -486,16 +491,28 @@
   overflow: hidden;
 }
 
+.tbl-spot--row .tbl-spot__sub {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  max-width: 104px;
+}
+
 .tbl-spot__next {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: var(--color-text-faint);
 }
 
 .tbl-spot__clock {
-  flex: none;
+  grid-area: clock;
   display: flex;
 }
 
 .tbl-spot__body {
+  grid-area: body;
   display: flex;
   justify-content: center;
   align-items: flex-end;
@@ -814,8 +831,8 @@
 /* Compact (5 to 9): avatar with its status icon, name and tag; the total and the bet. */
 .tbl-tile--compact {
   --face: 26px;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  grid-template-areas: 'face name tag' 'face total meta';
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  grid-template-areas: 'face name name tag' 'face total meta meta';
 }
 
 .tbl-tile--compact .tbl-tile__total {
@@ -823,12 +840,14 @@
   justify-self: start;
 }
 
-.tbl-tile--compact .tbl-tile__chips {
+.tbl-tile--compact .tbl-tile__chips,
+.tbl-tile--compact .tbl-tile__line {
   display: none;
 }
 
 @container tile (max-height: 46px) {
   .tbl-tile--compact {
+    grid-template-columns: auto minmax(0, 1fr) auto;
     grid-template-areas: 'face name total';
   }
 
@@ -947,13 +966,13 @@
 }
 
 .tbl-tile--dense .tbl-tile__total .tbl-pill {
-  height: 16px;
-  min-width: 20px;
-  padding: 0 3px;
-  font-size: 0.62rem;
+  height: 15px;
+  min-width: 18px;
+  padding: 0 2px;
+  font-size: 0.6rem;
 }
 
-@container tile (max-width: 40px) {
+@container tile (max-width: 34px) {
   .tbl-tile--dense {
     grid-template-columns: auto;
     grid-template-areas: 'face';

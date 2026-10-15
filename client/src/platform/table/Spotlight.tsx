@@ -5,7 +5,7 @@ import type { Tone } from './Outcome';
 
 /**
  * What the spotlight is on: a player's turn (`turn`, or `mine` on my own), the dealer playing,
- * the bets going down, how my round ended, or nothing to follow (a hold, the end).
+ * the bets going down, how a hand ended, or nothing to follow (a hold, the end).
  */
 export type SpotlightKind = 'turn' | 'mine' | 'dealer' | 'bets' | 'result' | 'idle';
 
@@ -28,6 +28,8 @@ interface Props {
   clock: ReactNode;
   /** The hand being played, large. */
   children?: ReactNode;
+  /** `row`: one hand, beside the stake and who is next (saves height); `stack`: under them (split hands, the bets). */
+  layout?: 'row' | 'stack';
   data?: DataAttrs;
 }
 
@@ -35,36 +37,32 @@ interface Props {
  * Centre stage: the hand being played right now, large, with its owner, the turn clock and who is
  * next. Its outline and label say whose turn it is before anything else on the screen does.
  */
-export function Spotlight({ subject, kind, tone, who, label, meta, next, clock, children, data }: Props) {
+export function Spotlight({ subject, kind, tone, who, label, meta, next, clock, children, layout = 'stack', data }: Props) {
   return (
-    <section className={`tbl-spot tbl-spot--${kind} tbl-spot--tone-${tone}`} aria-label="Spotlight" data-testid="spotlight" data-subject={subject} data-kind={kind} data-player-id={who?.id} {...data}>
-      <div className="tbl-spot__head">
-        <div key={subject} className="tbl-spot__who tbl-spot-in">
-          {who && (
-            <span className="tbl-spot__face" data-table-anchor={`seat:${who.id}`}>
-              <Avatar avatar={who.avatar} size="md" dimmed={!who.connected} />
+    <section className={`tbl-spot tbl-spot--${kind} tbl-spot--tone-${tone} tbl-spot--${layout}`} aria-label="Spotlight" data-testid="spotlight" data-subject={subject} data-kind={kind} data-player-id={who?.id} {...data}>
+      <div key={`who:${subject}`} className="tbl-spot__who tbl-spot-in">
+        {who && (
+          <span className="tbl-spot__face" data-table-anchor={`seat:${who.id}`}>
+            <Avatar avatar={who.avatar} size="md" dimmed={!who.connected} />
+          </span>
+        )}
+        <strong className="tbl-spot__label" data-testid="spot-label">
+          {label}
+        </strong>
+      </div>
+      {(meta || next) && (
+        <div key={`sub:${subject}`} className="tbl-spot__sub tbl-spot-in">
+          {meta}
+          {next && (
+            <span className="tbl-spot__next" data-testid="spot-next">
+              Next: {next}
             </span>
           )}
-          <span className="tbl-spot__titles">
-            <strong className="tbl-spot__label" data-testid="spot-label">
-              {label}
-            </strong>
-            {(meta || next) && (
-              <span className="tbl-spot__sub">
-                {meta}
-                {next && (
-                  <span className="tbl-spot__next" data-testid="spot-next">
-                    Next: {next}
-                  </span>
-                )}
-              </span>
-            )}
-          </span>
         </div>
-        <div className="tbl-spot__clock">{clock}</div>
-      </div>
+      )}
+      <div className="tbl-spot__clock">{clock}</div>
       {children && (
-        <div key={subject} className="tbl-spot__body tbl-spot-in">
+        <div key={`body:${subject}`} className="tbl-spot__body tbl-spot-in">
           {children}
         </div>
       )}

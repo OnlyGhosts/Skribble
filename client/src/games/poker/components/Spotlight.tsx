@@ -55,7 +55,7 @@ export function PkSpotlight({ room, view, meId, subject, table, timeline, live, 
     const best = winningCards(table, timeline, now);
     const label = subject.mine ? `You win ${formatChips(won)}` : `${player?.name ?? 'Someone'} wins ${formatChips(won)}`;
     return (
-      <Spotlight subject={key} kind="result" tone="win" who={who} label={label} meta={shown ? <span>{categoryLabel(shown.category)}</span> : undefined} clock={clock}>
+      <Spotlight subject={key} kind="result" tone="win" who={who} label={label} meta={shown ? <span>{categoryLabel(shown.category)}</span> : undefined} clock={clock} layout={subject.mine ? 'stack' : 'row'}>
         {subject.mine ? (
           myHand
         ) : shown ? (
@@ -80,7 +80,7 @@ export function PkSpotlight({ room, view, meId, subject, table, timeline, live, 
     </>
   );
   return (
-    <Spotlight subject={key} kind={subject.mine ? 'mine' : 'turn'} tone="active" who={who} label={subject.mine ? 'Your turn' : `${player?.name ?? 'Someone'}'s turn`} meta={meta} next={next} clock={clock}>
+    <Spotlight subject={key} kind={subject.mine ? 'mine' : 'turn'} tone="active" who={who} label={subject.mine ? 'Your turn' : `${player?.name ?? 'Someone'}'s turn`} meta={meta} next={next} clock={clock} layout={subject.mine ? 'stack' : 'row'}>
       {subject.mine ? (
         myHand
       ) : (
