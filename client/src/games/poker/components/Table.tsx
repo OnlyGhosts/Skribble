@@ -3,6 +3,7 @@ import type { PokerRoomState, PokerView } from '@shared/games/poker/protocol';
 import { ChipFlights } from '../../../platform/table/ChipFlights';
 import { Deck, DiscardTray } from '../../../platform/table/Deck';
 import { tileTier } from '../../../platform/table/grid';
+import { useTightStage } from '../../../platform/table/stage';
 import { TableRibbon } from '../../../platform/table/Ribbon';
 import { playerOf, seatRing } from '../hooks';
 import type { PkSubject } from '../lib/spotlight';
@@ -51,9 +52,10 @@ export function Table({ room, view, meId, frame, live, now, isPhone, subject, cl
   const mineInSpot = (subject.kind === 'turn' || subject.kind === 'result') && subject.mine;
   const showMine = view.players[meId] !== undefined && !mineInSpot;
   const crowd = others.length === 0 ? 'none' : tileTier(others.length);
+  const tight = useTightStage(isPhone, others.length);
   return (
     <section
-      className={`tbl-felt tbl-stage pk-table tbl-crowd--${crowd}${showMine ? '' : ' tbl-stage--no-mine'}`}
+      className={`tbl-felt tbl-stage pk-table tbl-crowd--${crowd}${tight ? ' tbl-stage--tight' : ''}${showMine ? '' : ' tbl-stage--no-mine'}`}
       aria-label="Table"
       data-testid="pk-table"
       data-hand={table?.hand ?? 0}

@@ -53,12 +53,25 @@ export function PlayersGrid({ count, label, wide = false, children }: GridProps)
   return (
     <ul ref={ref} className={`tbl-grid tbl-grid--${tier}${wide ? ' tbl-grid--arc' : ''}`} style={style} aria-label={label} data-testid="seats" data-tier={tier} data-cols={cols} data-count={count}>
       {Children.toArray(children).map((child, i) => (
-        <li key={i} className="tbl-grid__cell" style={wide ? ({ '--lift': arcLift(i % cols, Math.min(cols, count - Math.floor(i / cols) * cols)) } as CSSProperties) : undefined}>
+        <li key={i} className="tbl-grid__cell" style={wide ? arcCell(i, cols, count) : undefined}>
           {child}
         </li>
       ))}
     </ul>
   );
+}
+
+/**
+ * A desktop tile's place on the arc: its lift, and on a short last row the half-column it starts
+ * at, so that row sits centred under the others (the arc grid has two tracks a column).
+ */
+function arcCell(i: number, cols: number, count: number): CSSProperties {
+  const row = Math.floor(i / cols);
+  const inRow = Math.min(cols, count - row * cols);
+  const col = i % cols;
+  const style: Record<string, string | number> = { '--lift': arcLift(col, inRow) };
+  if (col === 0 && inRow < cols) style.gridColumnStart = cols - inRow + 1;
+  return style as CSSProperties;
 }
 
 /** How a seat's status line reads: the turn in the accent, a settled result strong, out in red, the rest quiet. */

@@ -324,6 +324,48 @@
   }
 }
 
+/* ---------- A tight table (a short phone, or ten or more others): the spotlight in one row ---------- */
+.tbl-stage--tight .tbl-spot--row {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-areas: 'who body clock' 'sub body clock';
+  column-gap: 6px;
+}
+
+.tbl-stage--tight .tbl-spot--row .tbl-spot__sub {
+  flex-direction: row;
+  align-items: center;
+  justify-self: start;
+  gap: 8px;
+  text-align: left;
+}
+
+.tbl-stage--tight .tbl-spot .timer--md {
+  width: 40px;
+  height: 40px;
+  font-size: 0.8rem;
+}
+
+.tbl-stage--tight .tbl-spot__face .avatar {
+  width: 26px;
+  height: 26px;
+  font-size: 15px;
+}
+
+.tbl-stage--tight .tbl-me__label {
+  display: none;
+}
+
+.tbl-stage--tight .tbl-me .avatar {
+  width: 20px;
+  height: 20px;
+  font-size: 12px;
+}
+
+.tbl-stage--tight .tbl-stage__mine {
+  min-width: 0;
+  overflow: hidden;
+}
+
 /* ---------- Chips in the air (ChipFlights) ---------- */
 .tbl-flights {
   position: fixed;
@@ -447,16 +489,22 @@
 }
 
 .tbl-spot__face .avatar {
-  width: 30px;
-  height: 30px;
-  font-size: 18px;
+  width: 40px;
+  height: 40px;
+  font-size: 24px;
+}
+
+.tbl-spot .timer--md {
+  width: 56px;
+  height: 56px;
+  font-size: 1.05rem;
 }
 
 .tbl-spot__label {
   min-width: 0;
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: 1.25rem;
+  font-size: 1.6rem;
   line-height: 1.15;
   letter-spacing: -0.01em;
   white-space: nowrap;
@@ -573,13 +621,19 @@
   container: tile / size;
 }
 
-/* The desktop: each row bows into a gentle arc, the ends lifted (grid.ts arcLift). */
+/*
+ * The desktop: each row bows into a gentle arc, the ends lifted (grid.ts arcLift), a short last
+ * row centred under the others (two tracks a column, PlayersGrid places its first tile).
+ */
 .tbl-grid--arc {
-  padding-top: 20px;
+  grid-template-columns: repeat(calc(var(--cols, 4) * 2), minmax(0, calc(var(--tile-w, 120px) * 0.65)));
+  row-gap: calc(var(--grid-gap) + 16px);
+  padding-top: 18px;
 }
 
 .tbl-grid--arc .tbl-grid__cell {
-  transform: translateY(calc(var(--lift, 0) * -18px));
+  grid-column-end: span 2;
+  transform: translateY(calc(var(--lift, 0) * -16px));
 }
 
 /* ---------- A tile ---------- */
@@ -1311,6 +1365,22 @@
     width: 26px;
     height: 39px;
   }
+
+  .tbl-spot__label {
+    font-size: 1.25rem;
+  }
+
+  .tbl-spot__face .avatar {
+    width: 30px;
+    height: 30px;
+    font-size: 18px;
+  }
+
+  .tbl-spot .timer--md {
+    width: 44px;
+    height: 44px;
+    font-size: 0.875rem;
+  }
 }
 
 /* Short phones (an SE, a phone with the browser bars out): the ribbon's second line goes. */
@@ -1365,53 +1435,6 @@
   .tbl-panel__status {
     min-height: 18px;
     font-size: 0.85rem;
-  }
-}
-
-/* Short phones and phones on their side: the spotlight in one row (whose turn, the cards, the clock). */
-@media (max-width: 760px) and (max-height: 680px), (min-aspect-ratio: 3/2) and (max-height: 520px) {
-  .tbl-spot--row {
-    grid-template-columns: minmax(0, 1fr) auto auto;
-    grid-template-areas: 'who body clock' 'sub body clock';
-  }
-
-  .tbl-spot--row .tbl-spot__sub {
-    flex-direction: row;
-    align-items: center;
-    justify-self: start;
-    gap: 8px;
-    text-align: left;
-  }
-
-  .tbl-spot .timer--md {
-    width: 38px;
-    height: 38px;
-    font-size: 0.8rem;
-  }
-
-  .tbl-spot__face .avatar {
-    width: 24px;
-    height: 24px;
-    font-size: 14px;
-  }
-
-  .tbl-spot--row {
-    column-gap: 6px;
-  }
-
-  .tbl-me__label {
-    display: none;
-  }
-
-  .tbl-me .avatar {
-    width: 20px;
-    height: 20px;
-    font-size: 12px;
-  }
-
-  .tbl-stage__mine {
-    min-width: 0;
-    overflow: hidden;
   }
 }
 

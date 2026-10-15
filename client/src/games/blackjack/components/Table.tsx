@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import type { BlackjackRoomState, BlackjackView } from '@shared/games/blackjack/protocol';
 import { tileTier } from '../../../platform/table/grid';
+import { useTightStage } from '../../../platform/table/stage';
 import { Deck, DiscardTray } from '../../../platform/table/Deck';
 import { TableRibbon } from '../../../platform/table/Ribbon';
 import { playerOf, seatOrder } from '../hooks';
@@ -43,9 +44,10 @@ export function Table({ room, view, meId, truth, frame, now, isPhone, subject, c
   const mineInSpot = (subject.kind === 'turn' && subject.mine) || subject.kind === 'result';
   const showMine = seated && !mineInSpot;
   const crowd = others.length === 0 ? 'none' : tileTier(others.length);
+  const tight = useTightStage(isPhone, others.length);
   return (
     <section
-      className={`tbl-felt tbl-stage bj-table tbl-crowd--${crowd}${showMine ? '' : ' tbl-stage--no-mine'}${leaving ? ' bj-table--leaving' : ''}`}
+      className={`tbl-felt tbl-stage bj-table tbl-crowd--${crowd}${tight ? ' tbl-stage--tight' : ''}${showMine ? '' : ' tbl-stage--no-mine'}${leaving ? ' bj-table--leaving' : ''}`}
       aria-label="Table"
       data-testid="bj-table"
       data-round={table?.round ?? 0}
