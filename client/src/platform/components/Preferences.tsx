@@ -63,7 +63,17 @@ export interface MenuAction {
  * The gear in a header: a small popover with the preferences and the screen's own actions. Escape
  * or a tap outside closes it and gives the focus back to the gear; picking an action closes it.
  */
-export function SettingsMenu({ actions = [] }: { actions?: MenuAction[] }) {
+interface SettingsMenuProps {
+  actions?: MenuAction[];
+  /**
+   * Where the trigger lives. 'icon' (default) is a gear button of its own. 'logo' is a clear
+   * button laid over the logo's gear "o" (the logo draws the gear; its box, the positioned
+   * parent, says where the gear is in --gear-x and --gear-y).
+   */
+  variant?: 'icon' | 'logo';
+}
+
+export function SettingsMenu({ actions = [], variant = 'icon' }: SettingsMenuProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
@@ -88,11 +98,11 @@ export function SettingsMenu({ actions = [] }: { actions?: MenuAction[] }) {
   }, [open]);
 
   return (
-    <div className="settings-menu" ref={rootRef}>
+    <div className={`settings-menu${variant === 'logo' ? ' settings-menu--logo' : ''}`} ref={rootRef}>
       <button
         ref={buttonRef}
         type="button"
-        className="icon-btn"
+        className={variant === 'logo' ? 'settings-menu__logo-gear' : 'icon-btn'}
         aria-label="Settings"
         aria-haspopup="dialog"
         aria-expanded={open}
@@ -100,7 +110,7 @@ export function SettingsMenu({ actions = [] }: { actions?: MenuAction[] }) {
         onClick={() => setOpen((v) => !v)}
         data-testid="settings-menu"
       >
-        <GearIcon size={20} />
+        {variant === 'icon' && <GearIcon size={20} />}
       </button>
       {open && (
         <div className="settings-menu__panel" id={panelId} role="dialog" aria-label="Settings" data-testid="settings-popover">

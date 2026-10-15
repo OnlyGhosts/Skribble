@@ -18,6 +18,7 @@ const { ReconnectingBanner, reconnectLabel } = await import('./ReconnectingBanne
 const { gameById } = await import('@shared/platform/games');
 const { Home, cleanName, firstInvalidBox, focusAfterRefusal, homeView, initialGame } = await import('../screens/Home');
 const { Wordmark } = await import('./Wordmark');
+const { WORDMARK_BOX, WORDMARK_GEAR_CENTRE, WORDMARK_GEAR_POSITION } = await import('../brand/wordmark');
 const { PlayerList } = await import('./PlayerList');
 const { PhoneBored, PhoneHappy } = await import('./Mascots');
 const { SiteHeader } = await import('./SiteHeader');
@@ -329,9 +330,10 @@ describe('wordmark and mascots', () => {
     expect(html).toContain('<title');
     expect(html).toContain('boredgames.io</title>');
     expect(html).toContain('role="img"');
-    // Two text paths ("bored" + ".io", then "games") after the icon.
-    expect(html.match(/<path [^>]*fill="currentColor"/g)?.length).toBe(2);
+    // Three text paths after the icon: "bored" + ".i", "games", and the gear that is the "o" of ".io".
+    expect(html.match(/<path [^>]*fill="currentColor"/g)?.length).toBe(3);
     expect(html).toContain('class="wordmark__accent"');
+    expect(html).toContain('class="wordmark__gear"');
     expect(html).not.toContain('<text');
     expect(html).not.toMatch(/font-family/);
     // "games" follows the theme: lime on dark, the deep olive cut on light.
@@ -350,9 +352,26 @@ describe('wordmark and mascots', () => {
     expect(renderToString(createElement(PhoneHappy))).toContain('#C7E976');
   });
 
-  it('puts the wordmark (no controller icon, no live site name) and the settings gear in the site header', () => {
+  it('places the settings button on the gear "o": its centre matches the gear inside the logo box', () => {
+    expect(WORDMARK_GEAR_POSITION.left).toBe(`${(((WORDMARK_GEAR_CENTRE.x - WORDMARK_BOX.x) / WORDMARK_BOX.width) * 100).toFixed(2)}%`);
+    // The "o" was the last glyph: the gear sits near the right end, about mid-height.
+    expect(parseFloat(WORDMARK_GEAR_POSITION.left)).toBeGreaterThan(94);
+    expect(parseFloat(WORDMARK_GEAR_POSITION.top)).toBeGreaterThan(40);
+    expect(parseFloat(WORDMARK_GEAR_POSITION.top)).toBeLessThan(55);
+    const html = renderToString(createElement(SiteHeader));
+    expect(html).toContain(`--gear-x:${WORDMARK_GEAR_POSITION.left}`);
+    expect(tagWith(html, 'settings-menu')).toContain('class="settings-menu__logo-gear"');
+    const css = stylesheet('components.css');
+    expect(ruleOf(css, '.settings-menu__logo-gear')).toContain('left: var(--gear-x)');
+    expect(ruleOf(css, '.settings-menu__logo-gear')).toContain('width: 44px');
+  });
+
+  it('puts the logo (no controller icon, no live site name) in the site header, its gear "o" being the settings button', () => {
     const html = renderToString(createElement(SiteHeader));
     expect(html).toContain('data-testid="wordmark"');
+    // No second gear: the header's only settings control is the one on the logo.
+    expect(html.match(/aria-label="Settings"/g)?.length).toBe(1);
+    expect(html).not.toContain('class="icon-btn"');
     expect(html).not.toContain('brand__mark');
     // The only "boredgames.io" in the markup is the SVG's accessible title, never a live-text span.
     expect(html.replace(/<title[^>]*>boredgames\.io<\/title>/, '')).not.toContain('boredgames.io');
@@ -551,8 +570,8 @@ describe('lobby', () => {
     const bar = markup.indexOf('data-testid="room-bar"');
     expect(bar).toBeGreaterThan(-1);
     expect(bar).toBeLessThan(markup.indexOf('data-testid="game-picker"'));
-    expect(markup).toContain('aria-label="Room code A B C D">ABCD</span>');
-    expect(markup.indexOf('>Room code</span>')).toBeLessThan(markup.indexOf('>ABCD</span>'));
+    expect(markup).toContain('aria-label="Room code A B C D"><span class="room-card__char">A</span><span class="room-card__char">B</span>');
+    expect(markup.indexOf('>Room code</span>')).toBeLessThan(markup.indexOf('aria-label="Room code A B C D"'));
     for (const id of ['copy-code', 'share-invite']) expect(tagWith(markup, id)).toContain('room-card__btn');
     expect(markup).toContain('<span>Copy</span>');
     expect(markup).toContain('<span>Share</span>');
@@ -564,11 +583,11 @@ describe('lobby', () => {
     expect(tagWith(markup, 'settings-menu')).toBeTruthy();
   });
 
-  it('shows the room code on a lime block with ink letters, so it stands out to read aloud', () => {
-    const value = ruleOf(stylesheet('lobby.css'), '.room-card__value');
-    expect(value).toContain('background: var(--color-primary)');
-    expect(value).toContain('color: var(--color-primary-contrast)');
-    expect(value).toContain('align-self: flex-start');
+  it('shows each character of the room code on its own lime block with an ink letter, so it stands out to read aloud', () => {
+    const char = ruleOf(stylesheet('lobby.css'), '.room-card__char');
+    expect(char).toContain('background: var(--color-primary)');
+    expect(char).toContain('color: var(--color-primary-contrast)');
+    expect(ruleOf(stylesheet('lobby.css'), '.room-card__value')).toContain('display: flex');
   });
 
   it('lists the players as rows: avatar, name, and a check with Ready on the right', () => {

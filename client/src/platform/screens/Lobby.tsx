@@ -84,7 +84,11 @@ export function Lobby({ room, game }: Props) {
             Room code
           </span>
           <span className="room-card__value" data-testid="room-code" aria-label={`Room code ${room.code.split('').join(' ')}`}>
-            {room.code}
+            {room.code.split('').map((ch, i) => (
+              <span key={i} className="room-card__char">
+                {ch}
+              </span>
+            ))}
           </span>
         </div>
         <button type="button" className="room-card__btn" onClick={() => void copy(room.code, 'Code')} aria-label="Copy code" data-testid="copy-code">

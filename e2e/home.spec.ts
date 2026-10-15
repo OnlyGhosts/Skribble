@@ -90,11 +90,17 @@ test('the front door has exactly two action paths, four visible boxes and no cat
   // The wordmark is outlined vector art with an accessible name, never live text or a controller icon.
   const header = host.page.getByTestId('site-header');
   await expect(header.getByRole('img', { name: 'boredgames.io' })).toBeVisible();
-  await expect(header.locator('svg[data-testid="wordmark"] > path')).toHaveCount(2);
+  // "bored" + ".i", "games", and the gear that stands in for the "o".
+  await expect(header.locator('svg[data-testid="wordmark"] > path')).toHaveCount(3);
   await expect(header.locator('svg[data-testid="wordmark"] text')).toHaveCount(0);
   await expect(header.locator('.brand__mark')).toHaveCount(0);
-  // The theme lives in the settings menu behind the gear, not as a header button of its own.
+  // The theme lives in the settings menu behind the gear, not as a header button of its own; the gear is the "o" of ".io".
   await expect(header.getByTestId('settings-menu')).toBeVisible();
+  await expect(header.getByRole('button', { name: 'Settings' })).toHaveCount(1);
+  const gear = await header.locator('.wordmark__gear').boundingBox();
+  const gearButton = await header.getByTestId('settings-menu').boundingBox();
+  expect(Math.abs((gear?.x ?? 0) + (gear?.width ?? 0) / 2 - ((gearButton?.x ?? 0) + (gearButton?.width ?? 0) / 2)), 'the button is centred on the gear').toBeLessThanOrEqual(1.5);
+  expect(Math.abs((gear?.y ?? 0) + (gear?.height ?? 0) / 2 - ((gearButton?.y ?? 0) + (gearButton?.height ?? 0) / 2))).toBeLessThanOrEqual(1.5);
   await expect(host.page.getByTestId('theme-toggle')).toHaveCount(0);
   // The two phones are the logo's icon, inside the same SVG, left of the text.
   await expect(header.locator('svg[data-testid="wordmark"] .wordmark__icon')).toHaveCount(1);
@@ -513,7 +519,7 @@ for (const width of [320, 390, 700, 768, 1440]) {
       right = Math.max(right, (box?.x ?? 0) + (box?.width ?? 0));
     }
     expect(right).toBeLessThanOrEqual(width + 0.5);
-    const headerButton = await page.locator('.site-header__actions button').last().boundingBox();
+    const headerButton = await page.getByTestId('settings-menu').boundingBox();
     expect((headerButton?.x ?? 0) + (headerButton?.width ?? 0)).toBeLessThanOrEqual(width + 0.5);
 
     // Every width: one centred column at most 460px wide, Join and then Create a room right under it, full width.

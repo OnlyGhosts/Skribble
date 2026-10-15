@@ -1625,6 +1625,86 @@
   height: auto;
 }
 
+/*
+ * The logo's box is exactly the logo (the link's extra tap height is cancelled by its margins), so
+ * the settings button can sit over the gear "o" by percentage at any size: --gear-x and --gear-y
+ * come from the gear's centre in brand/wordmark.ts.
+ */
+.logo {
+  position: relative;
+  flex: none;
+  min-width: 0;
+  line-height: 0;
+}
+
+.logo .brand {
+  display: block;
+  min-height: 0;
+  padding: 10px 0;
+  margin: -10px 0;
+}
+
+.settings-menu--logo {
+  display: contents;
+}
+
+/* A clear 44px target centred on the gear; the logo draws the gear itself. */
+.settings-menu__logo-gear {
+  position: absolute;
+  left: var(--gear-x);
+  top: var(--gear-y);
+  z-index: 2;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+}
+
+.settings-menu__logo-gear:focus-visible {
+  outline: 2px solid var(--color-primary-text);
+  outline-offset: -6px;
+}
+
+.wordmark__gear {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition:
+    transform 320ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    color 150ms ease-out;
+}
+
+.logo:has(.settings-menu__logo-gear:hover) .wordmark__gear,
+.logo:has(.settings-menu__logo-gear:focus-visible) .wordmark__gear {
+  color: var(--color-primary-text);
+}
+
+/* Open: the gear turns lime and a quarter turn. */
+.logo:has(.settings-menu__logo-gear[aria-expanded='true']) .wordmark__gear {
+  color: var(--color-primary-text);
+  transform: rotate(90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wordmark__gear {
+    transition: none;
+  }
+}
+
+/* The popover opens under the logo, its right edge at the gear, never past either end of the logo. */
+.settings-menu--logo .settings-menu__panel {
+  top: calc(100% + 12px);
+  right: auto;
+  left: max(0px, calc(min(var(--gear-x) + 22px, 100%) - min(300px, calc(100vw - 2 * var(--gutter)))));
+}
+
+.site-header--hero .logo {
+  width: 100%;
+}
+
 .site-header--hero .site-header__actions {
   grid-area: actions;
   justify-self: end;

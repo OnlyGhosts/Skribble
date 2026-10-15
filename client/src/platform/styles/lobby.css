@@ -31,19 +31,25 @@
   color: var(--color-text-muted);
 }
 
-/* The code itself on a lime block, so it is the first thing anyone sees and easy to read out. */
+/* The code itself, each character on its own lime block, so it is the first thing anyone sees and easy to read out. */
 .room-card__value {
-  align-self: flex-start;
-  padding: 5px 12px 7px;
-  border-radius: 12px;
-  background: var(--color-primary);
-  color: var(--color-primary-contrast);
+  display: flex;
+  gap: clamp(4px, 1.2vw, 8px);
   font-family: var(--font-display);
-  font-size: clamp(2rem, 11vw, 3rem);
+  font-size: clamp(1.5rem, 7.6vw, 2.5rem);
   font-weight: 700;
   line-height: 1;
-  letter-spacing: 0.06em;
   user-select: all;
+}
+
+.room-card__char {
+  display: grid;
+  place-items: center;
+  width: 1.2em;
+  height: 1.4em;
+  border-radius: 10px;
+  background: var(--color-primary);
+  color: var(--color-primary-contrast);
 }
 
 /* Icon over a short label, a square of at least 64px. */

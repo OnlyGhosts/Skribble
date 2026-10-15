@@ -238,7 +238,7 @@ test('the phone front door fits the viewport and its primary buttons are 44px ta
   // The narrowest phones: the header bar must not push the settings gear off screen.
   await phone.page.setViewportSize(SMALL_PORTRAIT);
   await expectNoHorizontalOverflow(phone.page, SMALL_PORTRAIT.width);
-  await expectInsideViewport(phone.page.locator('.site-header__actions button').last(), SMALL_PORTRAIT, 'settings gear at 320px');
+  await expectInsideViewport(phone.page.getByTestId('settings-menu'), SMALL_PORTRAIT, 'settings gear at 320px');
   await phone.page.setViewportSize(PORTRAIT);
 });
 
