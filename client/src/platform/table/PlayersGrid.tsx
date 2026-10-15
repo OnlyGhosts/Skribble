@@ -1,4 +1,4 @@
-import { Children, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react';
+import { Children, isValidElement, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react';
 import type { Avatar as AvatarData } from '@shared/platform/avatar';
 import { Avatar } from '../components/Avatar';
 import { BottomSheet } from '../components/BottomSheet';
@@ -53,7 +53,7 @@ export function PlayersGrid({ count, label, wide = false, children }: GridProps)
   return (
     <ul ref={ref} className={`tbl-grid tbl-grid--${tier}${wide ? ' tbl-grid--arc' : ''}`} style={style} aria-label={label} data-testid="seats" data-tier={tier} data-cols={cols} data-count={count}>
       {Children.toArray(children).map((child, i) => (
-        <li key={i} className="tbl-grid__cell" style={wide ? arcCell(i, cols, count) : undefined}>
+        <li key={isValidElement(child) && child.key !== null ? child.key : i} className="tbl-grid__cell" style={wide ? arcCell(i, cols, count) : undefined}>
           {child}
         </li>
       ))}

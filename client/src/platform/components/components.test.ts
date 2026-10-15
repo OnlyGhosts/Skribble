@@ -770,6 +770,30 @@ describe('GameTopBar', () => {
     expect(chips.map((c) => attr(c, 'data-status'))).toEqual(['ready', 'ready', 'muted', 'muted']);
   });
 
+  it('packs into one row when compact (a card table on a phone): a players button with the count, no chips and no clock', () => {
+    const html = renderToString(
+      createElement(GameTopBar, {
+        meta: gameById('blackjack'),
+        room: room({ gameId: 'blackjack', phase: 'playing', players }),
+        isPhone: true,
+        testId: 'blackjack-header',
+        status: 'Round 2',
+        clock: createElement('span', { 'data-testid': 'clock' }),
+        players: { open: false, onOpen: noop },
+        chat: { open: false, onOpen: noop },
+        menu: { open: false, onOpen: noop },
+        compact: true,
+      }),
+    );
+    expect(tagWith(html, 'blackjack-header')).toContain('gbar--compact');
+    expect(tagWith(html, 'players-toggle')).toContain('aria-label="Players (4)"');
+    expect(html).toContain('gbar__count-n">4<');
+    expect(tagsWith(html, 'player-chip')).toHaveLength(0);
+    expect(html).not.toContain('data-testid="clock"');
+    const order = ['game-back', 'round-indicator', 'players-toggle', 'chat-toggle', 'game-menu'].map((id) => html.indexOf(`data-testid="${id}"`));
+    expect([...order].sort((x, y) => x - y)).toEqual(order);
+  });
+
   it('has the gear and no options button on a desktop, and no chat button where the chat is on screen', () => {
     const html = bar(false, false);
     expect(html).toContain('data-testid="settings-menu"');

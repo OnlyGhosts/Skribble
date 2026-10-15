@@ -152,6 +152,15 @@ describe('the players grid', () => {
     }
   });
 
+  it('packs a phone table tight on a short screen or with ten or more others, never a desktop', async () => {
+    const { isTight } = await import('./stage');
+    expect(isTight(true, true, 1)).toBe(true);
+    expect(isTight(true, false, 9)).toBe(false);
+    expect(isTight(true, false, 10)).toBe(true);
+    expect(isTight(true, false, 49)).toBe(true);
+    expect(isTight(false, true, 49)).toBe(false);
+  });
+
   it('bows the desktop rows into a gentle arc: the middle lowest, the ends lifted', () => {
     expect([0, 1, 2, 3, 4].map((c) => G.arcLift(c, 5))).toEqual([1, 0.25, 0, 0.25, 1]);
     expect(G.arcLift(0, 1)).toBe(0);
