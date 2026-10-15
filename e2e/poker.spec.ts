@@ -80,6 +80,15 @@ async function phoneLayoutHolds(p: Player, size: { width: number; height: number
   // My cards and the board are on screen too.
   expect((await boxOf(p.page.getByTestId('my-area'))).y).toBeGreaterThan(0);
   expect((await boxOf(p.page.getByTestId('board'))).y).toBeGreaterThan(0);
+  // Nothing scrolls, either way: the document, the table, the players.
+  const scrolls = () =>
+    p.page.evaluate(() =>
+      ['html', '[data-testid="poker-main"]', '[data-testid="pk-table"]', '[data-testid="seats"]'].filter((sel) => {
+        const el = document.querySelector(sel);
+        return el !== null && (el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight);
+      }),
+    );
+  await expect.poll(scrolls, { message: `${p.name}: nothing scrolls` }).toEqual([]);
 }
 
 async function chipsOf(p: Player): Promise<number> {
@@ -249,7 +258,8 @@ test('the host sets the stacks, the blinds and two hands, two phones join and th
     await expect(p.page.getByTestId('hand-indicator')).toHaveAttribute('data-hand', '1');
     await expect(p.page.getByTestId('hand-indicator')).toContainText('Hand 1 of 2');
     await expect(p.page.getByTestId('blinds')).toHaveAttribute('data-big', String(SMALL_BLIND * 2));
-    await expect(p.page.getByTestId('poker-header').getByTestId('timer')).toBeVisible();
+    // The turn clock is in the spotlight, on the player to act.
+    await expect(p.page.getByTestId('spotlight').getByTestId('timer')).toBeVisible();
     await expect(p.page.getByTestId('board')).toHaveAttribute('data-street', 'preflop');
     await expect(p.page.getByTestId('community-slot')).toHaveCount(5);
     await expect(p.page.getByTestId('seat')).toHaveCount(2);

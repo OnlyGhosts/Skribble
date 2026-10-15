@@ -1,6 +1,6 @@
 import { expect, test, type Browser, type BrowserContext, type Locator, type Page } from '@playwright/test';
-import WebSocket from 'ws';
 import { createParty, expectReadyCount, joinByCode, readyAll } from './party';
+import { tableBots, type TableBot } from './tableBots';
 
 /**
  * Blackjack the Stake way, between a desktop host and two phones (390x844, touch): no rounds and
@@ -9,9 +9,10 @@ import { createParty, expectReadyCount, joinByCode, readyAll } from './party';
  * moves lit, the hole card hidden on every page until the dealer plays, the settled table staying
  * up through the next betting with each outcome paid by the rules, the chips always equal to the
  * platform score, and the host's End game taking the table to the podium. The phone layout is
- * checked at 390x844 and 320x568, and again with twenty more players at the table (bots on their
- * own sockets): the seat strip scrolls sideways and keeps the seat in play in view. The shoe is really shuffled, so the checks hold whatever is
- * dealt; re-splits are covered by the unit tests. Serial: the tests build on each other.
+ * checked at 390x844 and 320x568. Then tables of 2, 6, 12, 24 and 50 players (bots on their own
+ * sockets): nothing scrolls at any phone size or on a desktop, the tiles step down with the table,
+ * and the seat in play is marked on every page. The shoe is really shuffled, so the checks hold
+ * whatever is dealt; re-splits are covered by the unit tests. Serial: the tests build on each other.
  */
 test.describe.configure({ mode: 'serial' });
 
@@ -21,7 +22,6 @@ const MIN_TARGET = 44;
 const STARTING_CHIPS = 500;
 /** What the bet field offers before a first bet: a hundredth of the starting stack. */
 const SUGGESTED_BET = 5;
-const BOTS = 20;
 const PIA_BET = 2;
 const QUINN_BET = STARTING_CHIPS / 2;
 const SEATS = ['Hana', 'Pia', 'Quinn'];
@@ -74,6 +74,7 @@ async function phoneLayoutHolds(p: Player, size: { width: number; height: number
     expect(box.y + box.height, `${p.name}: ${id} is on screen`).toBeLessThanOrEqual(size.height + 0.5);
   }
   expect(await p.page.getByTestId('bet-input').evaluate((el) => parseFloat(getComputedStyle(el).fontSize)), 'the bet field is 16px so iOS does not zoom').toBeGreaterThanOrEqual(16);
+  await nothingScrolls(p.page, p.name);
 }
 
 /** My chips, the truth behind the balance. */
@@ -444,106 +445,134 @@ test('round two: the amount is remembered, Space bets on the desktop, and the ho
   for (const p of players) await expect(p.page.getByTestId('room-code')).toHaveText(roomCode);
 });
 
-interface Bot {
-  name: string;
-  socket: WebSocket;
-  id: string | null;
+/** The document, the table and the players grid fit their boxes both ways: nothing scrolls. */
+async function nothingScrolls(page: Page, label: string): Promise<void> {
+  const read = () =>
+    page.evaluate(() => {
+      const over = (el: Element | null) => (el ? el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight : true);
+      const doc = document.documentElement;
+      return {
+        document: over(doc),
+        main: over(document.querySelector('[data-testid="blackjack-main"]')),
+        table: over(document.querySelector('[data-testid="bj-table"]')),
+        seats: document.querySelector('[data-testid="seats"]') ? over(document.querySelector('[data-testid="seats"]')) : false,
+      };
+    });
+  await expect.poll(read, { message: `${label}: nothing scrolls` }).toEqual({ document: false, main: false, table: false, seats: false });
 }
 
-type BotRoom = {
-  phase: string;
-  game: { phase: string; order: string[]; turn: { playerId: string } | null; players: Record<string, { bet: number }> } | null;
-  players: { id: string; ready: boolean }[];
-};
+/** At every phone size and both desktops: nothing scrolls. The page ends at its own size. */
+async function fitsEverySize(page: Page, sizes: { width: number; height: number }[], label: string): Promise<void> {
+  const own = page.viewportSize();
+  for (const size of sizes) {
+    await page.setViewportSize(size);
+    await nothingScrolls(page, `${label} at ${size.width}x${size.height}`);
+  }
+  if (own) await page.setViewportSize(own);
+}
+
+const PHONES = [PORTRAIT, { width: 360, height: 740 }, SMALL];
+const DESKTOPS = [
+  { width: 1280, height: 800 },
+  { width: 1440, height: 900 },
+];
 
 /**
- * A player on a bare socket: readies up in the lobby, bets a chip when the bets open and stands a
- * moment after its turn comes, so the phones can watch the turn travel down a long seat strip.
+ * On every page the seat whose turn it is is lit, and only that one: its tile ringed with the
+ * Playing tag on the others' pages, the spotlight on it everywhere (the acting page's own hand).
  */
-function bot(name: string, code: string, base: string): Promise<Bot> {
-  const url = `${base.replace(/^http/, 'ws')}/ws`;
-  const me: Bot = { name, socket: new WebSocket(url), id: null };
-  let acted = '';
-  me.socket.on('message', (raw) => {
-    const msg = JSON.parse(String(raw)) as { t: string; playerId?: string; room?: BotRoom };
-    if (msg.t === 'welcome' && msg.playerId) me.id = msg.playerId;
-    const room = msg.room;
-    if (!room || !me.id) return;
-    const id = me.id;
-    const send = (out: object) => me.socket.readyState === WebSocket.OPEN && me.socket.send(JSON.stringify(out));
-    if (room.phase === 'lobby' && !room.players.find((p) => p.id === id)?.ready) return send({ t: 'ready', ready: true });
-    const game = room.game;
-    if (room.phase !== 'playing' || !game) return;
-    if (game.phase === 'betting' && game.order.includes(id) && game.players[id]?.bet === 0) return send({ t: 'bet', amount: 1 });
-    const turn = `${game.phase}:${game.turn?.playerId}`;
-    if (game.phase === 'acting' && game.turn?.playerId === id && acted !== turn) {
-      acted = turn;
-      setTimeout(() => send({ t: 'stand' }), 600);
+async function turnMarked(pages: { page: Page; acting: boolean }[], turnId: string): Promise<void> {
+  for (const { page, acting } of pages) {
+    await expect(page.getByTestId('spotlight')).toHaveAttribute('data-player-id', turnId);
+    await expect(page.getByTestId('spotlight')).toHaveAttribute('data-kind', acting ? 'mine' : 'turn');
+    const lit = page.locator('[data-testid="seat"][data-turn="true"]');
+    if (acting) {
+      await expect(lit).toHaveCount(0);
+      await expect(page.getByTestId('my-hands')).toHaveCount(1);
+    } else {
+      await expect(lit).toHaveCount(1);
+      await expect(lit).toHaveAttribute('data-player-id', turnId);
+      await expect(lit).toHaveAttribute('aria-current', 'true');
     }
-  });
-  return new Promise((resolve, reject) => {
-    me.socket.on('open', () => {
-      me.socket.send(JSON.stringify({ t: 'join', code, name, avatar: { color: 0, emoji: 0 } }));
-      resolve(me);
-    });
-    me.socket.on('error', reject);
-  });
+  }
 }
 
-test('a big table on a phone: twenty more players, the seat strip scrolls and keeps the seat in play in view', async ({ baseURL }) => {
-  const bots: Bot[] = [];
+/**
+ * A table of `size` players on a fresh party: a desktop host, a phone (Pia) and bots on their own
+ * sockets that hold their turns. Nothing scrolls at any phone size while the bets go down, on the
+ * host's turn, on Pia's own turn and on a bot's turn; the seat in play is marked on every page.
+ */
+async function bigTable(browser: Browser, base: string, size: number): Promise<void> {
+  const hostCtx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const phoneCtx = await browser.newContext({ viewport: PORTRAIT, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
+  const desk = await hostCtx.newPage();
+  const phone = await phoneCtx.newPage();
+  const errors: string[] = [];
+  for (const p of [desk, phone]) p.on('pageerror', (err) => errors.push(err.message));
+  let bots: TableBot[] = [];
   try {
-    for (let i = 1; i <= BOTS; i++) bots.push(await bot(`Bot ${i}`, roomCode, baseURL ?? 'http://localhost:4173'));
-    await expect(host.page.getByTestId('player-item')).toHaveCount(3 + BOTS);
-    await readyAll([pia.page, quinn.page]);
-    await expectReadyCount(host.page, 3 + BOTS);
-    await host.page.getByTestId('start-game').click();
-    for (const p of players) await expect(screen(p)).toHaveAttribute('data-phase', 'betting');
-    // Nobody waits for a seat: everyone is dealt in.
-    await expect(pia.page.getByTestId('seat')).toHaveCount(2 + BOTS);
-    for (const p of players) await p.page.getByTestId('place-bet').click();
+    const code = await createParty(desk, 'Hana', 'blackjack');
+    await joinByCode(phone, 'Pia', code);
+    bots = await tableBots(size - 2, code, base, { game: 'blackjack', hold: true, thinkMs: 50 });
+    await readyAll([phone]);
+    await expectReadyCount(desk, size);
+    await desk.getByTestId('start-game').click();
+    const screenOf = (p: Page) => p.getByTestId('blackjack-screen');
+    await expect(screenOf(phone)).toHaveAttribute('data-phase', 'betting');
+    await expect(phone.getByTestId('seat')).toHaveCount(size - 1);
+    await expect(phone.getByTestId('spotlight')).toHaveAttribute('data-kind', 'bets');
+    await fitsEverySize(phone, PHONES, `${size} players, betting`);
+    await desk.getByTestId('place-bet').click();
+    await phone.getByTestId('place-bet').click();
+    await expect(screenOf(phone)).toHaveAttribute('data-phase', 'acting', { timeout: 20_000 });
+    await expect(screenOf(phone)).toHaveAttribute('data-busy', 'false', { timeout: 20_000 });
 
-    // The three of us stand when our turns come; then the bots play one by one.
     const botIds = new Set(bots.map((b) => b.id));
-    await expect
-      .poll(
-        async () => {
-          for (const p of players) if (await p.page.getByTestId('action-stand').isEnabled()) await p.page.getByTestId('action-stand').click();
-          return botIds.has(await screen(host).getAttribute('data-turn-player'));
-        },
-        { timeout: 60_000, message: 'the turn reaches the bots' },
-      )
-      .toBe(true);
-
-    // On the phone the strip is wider than the screen and scrolls sideways, never the page.
-    await phoneLayoutHolds(pia, PORTRAIT);
-    const strip = pia.page.getByTestId('seats');
-    expect(await strip.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
-    // Far down the table, the seat in play is scrolled into view.
-    await expect
-      .poll(
-        () =>
-          strip.evaluate((el) => {
-            const seats = [...el.querySelectorAll<HTMLElement>('[data-testid="seat"]')];
-            const turn = seats.findIndex((s) => s.dataset.turn === 'true');
-            if (turn < 10) return false;
-            const box = el.getBoundingClientRect();
-            const seat = seats[turn].getBoundingClientRect();
-            return el.scrollLeft > 0 && seat.left >= box.left - 1 && seat.right <= box.right + 1;
-          }),
-        { timeout: 30_000, message: 'a seat far down the strip, in play and in view' },
-      )
-      .toBe(true);
-
-    // The round settles into the next betting; the host ends the game there.
-    for (const p of players) await expect(screen(p)).toHaveAttribute('data-phase', 'betting', { timeout: 60_000 });
-    await host.page.getByTestId('end-game').click();
-    await host.page.getByTestId('end-game-yes').click();
-    for (const p of players) await expect(p.page.getByTestId('overlay-game-end')).toBeVisible({ timeout: 20_000 });
+    // The humans stand when their turns come; each turn is marked everywhere and nothing scrolls.
+    for (let step = 0; step < 4; step++) {
+      const turn = (await screenOf(desk).getAttribute('data-turn-player')) ?? '';
+      if (botIds.has(turn)) break;
+      const acting = (await desk.getByTestId('action-stand').isEnabled()) ? desk : (await phone.getByTestId('action-stand').isEnabled()) ? phone : null;
+      if (acting) {
+        await turnMarked(
+          [desk, phone].map((page) => ({ page, acting: page === acting })),
+          turn,
+        );
+        await fitsEverySize(phone, PHONES, `${size} players, ${acting === phone ? "Pia's own" : "Hana's"} turn`);
+        if (acting === desk) await fitsEverySize(desk, DESKTOPS, `${size} players, Hana's own turn`);
+        await acting.getByTestId('action-stand').click();
+      }
+      await expect.poll(async () => (await screenOf(desk).getAttribute('data-turn-player')) !== turn, { timeout: 10_000 }).toBe(true);
+    }
+    // A bot holds its turn: its tile is lit on both pages, the spotlight on it.
+    const turn = (await screenOf(desk).getAttribute('data-turn-player')) ?? '';
+    expect(botIds.has(turn), `${size} players: the turn reaches a bot`).toBe(true);
+    for (const p of [desk, phone]) {
+      const lit = p.locator('[data-testid="seat"][data-turn="true"]');
+      await expect(lit).toHaveCount(1);
+      await expect(lit).toHaveAttribute('data-player-id', turn);
+      await expect(p.getByTestId('spotlight')).toHaveAttribute('data-player-id', turn);
+    }
+    await expect(phone.getByTestId('turn-status')).toHaveText(/'s turn$/);
+    await fitsEverySize(phone, PHONES, `${size} players, a bot's turn`);
+    await fitsEverySize(desk, DESKTOPS, `${size} players, a bot's turn`);
+    // The tiles step down with the table.
+    const tier = size - 1 <= 4 ? 'full' : size - 1 <= 9 ? 'compact' : size - 1 <= 23 ? 'small' : 'dense';
+    await expect(phone.getByTestId('seats')).toHaveAttribute('data-tier', tier);
+    expect(errors).toEqual([]);
   } finally {
-    for (const b of bots) b.socket.close();
+    for (const b of bots) b.close();
+    await hostCtx.close();
+    await phoneCtx.close();
   }
-});
+}
+
+for (const size of [2, 6, 12, 24, 50]) {
+  test(`${size} players: the table never scrolls on a phone or a desktop, and the seat in play is marked on every page`, async ({ browser, baseURL }) => {
+    test.setTimeout(120_000);
+    await bigTable(browser, baseURL ?? 'http://localhost:4173', size);
+  });
+}
 
 test('no page errors, and no em dash on any page', async () => {
   for (const p of players) expect(await p.page.evaluate(() => document.body.innerText.includes('\u2014'))).toBe(false);

@@ -430,19 +430,10 @@ describe('copy', () => {
     expect(seatLine(next, 'bob', settle('push', bet), true, false)).toMatchObject({ state: 'settled', text: 'Push' });
   });
 
-  it('says a seat with chips that did not bet is sitting the hand out, and a big table still renders every seat in the strip', async () => {
+  it('says a seat with chips that did not bet is sitting the hand out', async () => {
     const { seatLine } = await import('./components/Seats');
     const satOut = acting({ order: ['host'], players: { ...acting().players, bob: { chips: 300, bet: 0, hands: [], inRound: false, bustedOut: false } } });
     expect(seatLine(satOut, 'bob', [], false)).toMatchObject({ state: 'sitting-out', text: 'Sitting out' });
-    // Twenty-four seats: one strip that scrolls, the seat in play marked for the scroll to find.
-    const ids = Array.from({ length: 24 }, (_, i) => `p${i}`);
-    const players = Object.fromEntries(ids.map((id) => [id, { chips: 1000, bet: 10, hands: [hand([c('9'), c('7')], { total: 16 })], inRound: true, bustedOut: false }]));
-    const big = acting({ order: ids, turn: { playerId: 'p17', handIndex: 0 }, players });
-    const state = { ...bjRoom(big), players: ids.map((id, i) => player(id, { name: `Seat ${i}`, joinOrder: i })) };
-    const html = render(state, 'p0');
-    expect(tagsWith(html, 'seat')).toHaveLength(23);
-    expect(tagWith(html, 'seats')).toContain('tbl-seats');
-    expect(attr(html.match(/<li[^>]*data-player-id="p17"[^>]*>/)?.[0] ?? '', 'aria-current')).toBe('true');
   });
 
   it('never shows an em dash or mentions insurance anywhere in the module', () => {
@@ -563,6 +554,144 @@ describe('the screen', () => {
     expect(tagWith(render(bjRoom(acting()), 'host'), 'end-game')).toBeTruthy();
     expect(tagsWith(render(bjRoom(acting()), 'bob', false), 'end-game')).toHaveLength(0);
     expect(tagWith(render(bjRoom(acting({ endRequested: true })), 'host'), 'end-game-requested')).toBeTruthy();
+  });
+});
+
+describe('the spotlight', () => {
+  const at = async (v: BlackjackView, meId: string | null, opts: { dealerPlaying?: boolean; shown?: boolean } = {}) => {
+    const { spotlightSubject } = await import('./lib/spotlight');
+    return spotlightSubject({ view: v, table: tableOf(v), dealerPlaying: opts.dealerPlaying ?? false, outcomesShown: opts.shown ?? true, meId });
+  };
+
+  it('is on the hand being played, with who plays next (the dealer after the last seat)', async () => {
+    expect(await at(acting(), 'bob')).toEqual({ kind: 'turn', playerId: 'host', handIndex: 0, mine: false, next: 'bob' });
+    expect(await at(acting(), 'host')).toMatchObject({ kind: 'turn', mine: true, next: 'bob' });
+    const last = acting({ turn: { playerId: 'bob', handIndex: 0 } });
+    expect(await at(last, 'host')).toEqual({ kind: 'turn', playerId: 'bob', handIndex: 0, mine: false, next: null });
+  });
+
+  it('is on the dealer while the reveal plays, then on my outcome until my next bet goes down', async () => {
+    expect(await at(nextBetting(), 'host', { dealerPlaying: true, shown: false })).toEqual({ kind: 'dealer' });
+    expect(await at(nextBetting(), 'host')).toEqual({ kind: 'result', playerId: 'host' });
+    const placed = nextBetting({ players: { ...nextBetting().players, host: { chips: 1000, bet: 50, hands: [], inRound: true, bustedOut: false } } });
+    expect(await at(placed, 'host')).toEqual({ kind: 'bets', placed: ['host'], waiting: ['bob'], first: false });
+    // A watcher has no outcome of their own: the bets.
+    expect(await at(nextBetting(), 'carol')).toMatchObject({ kind: 'bets' });
+  });
+
+  it('shows who has bet and who we wait for, a hold, and the end', async () => {
+    expect(await at(view(), 'bob')).toEqual({ kind: 'bets', placed: [], waiting: ['host', 'bob'], first: false });
+    expect(await at(view({ endsAt: null }), 'bob')).toMatchObject({ kind: 'bets', first: true });
+    expect(await at(view({ phase: 'held' }), 'bob')).toEqual({ kind: 'idle', reason: 'held' });
+    expect(await at(nextBetting({ phase: 'ending' }), 'host')).toEqual({ kind: 'result', playerId: 'host' });
+    expect(await at(nextBetting({ phase: 'ending' }), 'carol')).toEqual({ kind: 'idle', reason: 'over' });
+  });
+
+  it("someone else's turn: their hand large in the spotlight with the lime outline, the label and the next player; mine at the bottom", () => {
+    const html = render(bjRoom(acting({ actions: NO_ACTIONS })), 'bob');
+    const spot = tagWith(html, 'spotlight');
+    expect(attr(spot, 'data-kind')).toBe('turn');
+    expect(attr(spot, 'data-player-id')).toBe('host');
+    expect(spot).toContain('tbl-spot--tone-active');
+    expect(html).toContain('tbl-spot__name">Hana</span><span class="tbl-spot__rest">&#x27;s turn<');
+    expect(html).toContain('data-testid="spot-next">Next: <!-- -->You<');
+    expect(tagsWith(html, 'spot-hand')).toHaveLength(1);
+    expect(tagsWith(html, 'my-hands')).toHaveLength(1);
+    expect(tagWith(html, 'timer')).toBeTruthy();
+    // The panel names them with their face.
+    expect(html).toContain('tbl-panel__status--who');
+  });
+
+  it('my turn: the spotlight is my hand, never shown twice', () => {
+    const html = render(bjRoom(acting()), 'host');
+    expect(attr(tagWith(html, 'spotlight'), 'data-kind')).toBe('mine');
+    expect(html).toContain('>Your turn<');
+    expect(tagsWith(html, 'my-hands')).toHaveLength(1);
+    expect(tagsWith(html, 'my-hand')).toHaveLength(1);
+    expect(html.indexOf('data-testid="spotlight"')).toBeLessThan(html.indexOf('data-testid="my-hands"'));
+    expect(html.indexOf('data-testid="my-hands"')).toBeLessThan(html.indexOf('data-testid="seats"'));
+  });
+
+  it("the dealer's play: the dealer's hand moves up into the spotlight while the reveal plays", () => {
+    const me = 'host';
+    usePlatformStore.getState().handleServerMessage(welcome(me, bjRoom(acting())));
+    blackjackClient.onRoom?.(bjRoom(acting()), null);
+    blackjackClient.onRoom?.(bjRoom(nextBetting()), bjRoom(acting()));
+    const html = render(bjRoom(nextBetting()), me);
+    expect(attr(tagWith(html, 'spotlight'), 'data-kind')).toBe('dealer');
+    expect(html).toContain('>Dealer&#x27;s turn<');
+    expect(tagsWith(html, 'dealer-hand')).toHaveLength(1);
+    expect(html.indexOf('data-testid="dealer-hand"')).toBeGreaterThan(html.indexOf('data-testid="spotlight"'));
+  });
+
+  it('after the settle: my outcome in the spotlight in its colour', () => {
+    const html = render(bjRoom(nextBetting()), 'host');
+    const spot = tagWith(html, 'spotlight');
+    expect(attr(spot, 'data-kind')).toBe('result');
+    expect(attr(spot, 'data-outcome')).toBe('win');
+    expect(html).toContain('>You win +100<');
+    expect(tagsWith(html, 'my-hands')).toHaveLength(1);
+  });
+});
+
+describe('the players grid', () => {
+  /** A table of `n` seats, seat p<k> on turn; rendered for p0. */
+  function bigTable(n: number, turn: number) {
+    const ids = Array.from({ length: n }, (_, i) => `p${i}`);
+    const players = Object.fromEntries(ids.map((id) => [id, { chips: 1000, bet: 10, hands: [hand([c('9'), c('7')], { total: 16, bet: 10 })], inRound: true, bustedOut: false }]));
+    const big = acting({ order: ids, turn: { playerId: `p${turn}`, handIndex: 0 }, players, actions: NO_ACTIONS });
+    return { ...bjRoom(big), players: ids.map((id, i) => player(id, { name: `Seat ${i}`, joinOrder: i })) };
+  }
+
+  it('steps the tiles down as the table grows, every other seat in seat order, the seat on turn ringed', () => {
+    const cases: [number, string, boolean][] = [
+      [2, 'full', true],
+      [6, 'compact', false],
+      [12, 'small', false],
+      [24, 'small', false],
+      [25, 'dense', false],
+      [50, 'dense', false],
+    ];
+    for (const [n, tier, cards] of cases) {
+      const html = render(bigTable(n, n - 1), 'p0');
+      const grid = tagWith(html, 'seats');
+      expect(attr(grid, 'data-tier'), `${n} seats`).toBe(tier);
+      const tiles = tagsWith(html, 'seat');
+      expect(tiles, `${n} seats`).toHaveLength(n - 1);
+      expect(tiles.map((t) => attr(t, 'data-player-id'))).toEqual(Array.from({ length: n - 1 }, (_, i) => `p${i + 1}`));
+      const turn = tiles.filter((t) => attr(t, 'data-turn') === 'true');
+      expect(turn.map((t) => attr(t, 'data-player-id')), `${n} seats`).toEqual([`p${n - 1}`]);
+      expect(attr(turn[0], 'aria-current')).toBe('true');
+      expect(turn[0]).toContain('tbl-tile--turn');
+      expect(tagsWith(html, 'seat-hand').length > 0, `${n} seats: cards on the tiles`).toBe(cards);
+      // Every tile shows the total; the seat on turn is the spotlight's too.
+      expect(tagsWith(html, 'seat-total')).toHaveLength(n - 1);
+      expect(attr(tagWith(html, 'spotlight'), 'data-player-id')).toBe(`p${n - 1}`);
+    }
+  });
+
+  it('marks each seat: on turn, still to act, done, bust, a natural, and the outcome once settled', async () => {
+    const { seatLine, seatMark } = await import('./components/Seats');
+    const v = acting({ order: ['host', 'bob'], turn: { playerId: 'bob', handIndex: 0 } });
+    const hostHands = tableOf(v)?.hands.host ?? [];
+    expect(seatMark(seatLine(v, 'bob', tableOf(v)?.hands.bob ?? [], false), [], false)).toBe('turn');
+    expect(seatMark(seatLine(v, 'host', hostHands, false), hostHands, false)).toBe('done');
+    const bust = hostHands.map((h) => ({ ...h, status: 'bust' as const }));
+    expect(seatMark({ state: 'done', text: 'Bust', tone: 'quiet' }, bust, false)).toBe('loss');
+    const settled = tableOf(nextBetting())?.hands.bob ?? [];
+    expect(seatMark(seatLine(nextBetting(), 'bob', settled, true), settled, true)).toBe('loss');
+    expect(seatMark(seatLine(view(), 'bob', [], false), [], false)).toBe('waiting');
+  });
+
+  it('a settled seat takes its outcome colour; tapping a tile opens its hands in a sheet', () => {
+    const html = render(bjRoom(nextBetting()), 'host');
+    const bob = tagWith(html, 'seat');
+    expect(attr(bob, 'data-result')).toBe('loss');
+    expect(bob).toContain('tbl-tile--loss');
+    useBlackjackStore.getState().openSeat('bob');
+    const open = render(bjRoom(nextBetting()), 'host');
+    expect(attr(tagWith(open, 'seat-sheet'), 'aria-label')).toBe('Pia');
+    expect(tagsWith(open, 'detail-hand')).toHaveLength(1);
   });
 });
 

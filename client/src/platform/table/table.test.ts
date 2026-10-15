@@ -287,8 +287,9 @@ describe('the components', () => {
         children: createElement('i', null, 'hand'),
       }),
     );
-    expect(out).toMatch(/class="tbl-spot tbl-spot--turn tbl-spot--tone-active" aria-label="Spotlight" data-testid="spotlight" data-subject="turn:p1" data-kind="turn" data-player-id="p1"/);
-    expect(out).toContain('Pia&#x27;s turn');
+    expect(out).toMatch(/class="tbl-spot tbl-spot--turn tbl-spot--tone-active tbl-spot--stack" aria-label="Spotlight" data-testid="spotlight" data-subject="turn:p1" data-kind="turn" data-player-id="p1"/);
+    // A long name gives way before "'s turn" does.
+    expect(out).toContain('<span class="tbl-spot__name">Pia</span><span class="tbl-spot__rest">&#x27;s turn</span>');
     expect(out).toContain('data-testid="spot-next">Next: <!-- -->Quinn');
     expect(out).toContain('data-table-anchor="seat:p1"');
     expect(out).toContain('data-testid="timer"');
