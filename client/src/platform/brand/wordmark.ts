@@ -3,16 +3,14 @@
  * in Poppins Regular (400), both SIL OFL, from branding/logo/boredgames-wordmark-*.svg. Every letter
  * is a path, so the logo depends on no font.
  */
-export const WORDMARK_BOX = { x: -152, y: -82.1, width: 890.8, height: 115.8 } as const;
+export const WORDMARK_BOX = { x: -146.3, y: -82.1, width: 885.1, height: 115.8 } as const;
 export const WORDMARK_VIEWBOX = `${WORDMARK_BOX.x} ${WORDMARK_BOX.y} ${WORDMARK_BOX.width} ${WORDMARK_BOX.height}`;
 /**
- * The icon to the left of the text: the two phones (190 x 270 artboards, see Mascots.tsx), the
- * lilac one tucked behind the lime one, scaled so the pair spans the text from the top of the "b"
- * to the bottom of the "g".
+ * The icon to the left of the text: the two phones as drawn together in Mascots.tsx (their
+ * artboard's units), scaled so the pair, outlines and shadows included, spans the text from just
+ * under the top of the "b" to just above the bottom of the "g", 34.75 units before the "b".
  */
-export const WORDMARK_ICON_TRANSFORM = 'translate(-150.93 -76.1) scale(0.3941) translate(4.65 0.36)';
-export const WORDMARK_ICON_BORED_TRANSFORM = 'translate(122 2) rotate(9 95 135)';
-export const WORDMARK_ICON_HAPPY_TRANSFORM = 'rotate(-7 95 135)';
+export const WORDMARK_ICON_TRANSFORM = 'translate(-146.68 -75.74) scale(0.4376)';
 /** "bored" and ".i": the "o" of ".io" is the settings gear below. */
 export const WORDMARK_BASE_PATH =
   'M42.7 -57.1Q49.3 -57.1 54.6 -53.7Q59.9 -50.2 63 -43.7Q66 -37.1 66 -28.2Q66 -19.3 63 -12.8Q59.9 -6.2 54.6 -2.8Q49.3 0.7 42.7 0.7Q37.2 0.7 33.2 -1.6Q29.3 -3.8 27.2 -7.7V0H5V-74H27.2V-48.7Q29.3 -52.6 33.2 -54.9Q37.2 -57.1 42.7 -57.1ZM35.3 -37.7Q31.7 -37.7 29.4 -35.2Q27.1 -32.7 27.1 -28.2Q27.1 -23.7 29.4 -21.2Q31.7 -18.7 35.3 -18.7Q38.9 -18.7 41.2 -21.2Q43.5 -23.7 43.5 -28.2Q43.5 -32.7 41.2 -35.2Q38.9 -37.7 35.3 -37.7Z M65.5 -28.2Q65.5 -37 69.3 -43.5Q73.2 -50.1 80 -53.6Q86.8 -57.1 95.3 -57.1Q103.8 -57.1 110.6 -53.6Q117.4 -50.1 121.2 -43.5Q125.1 -37 125.1 -28.2Q125.1 -19.4 121.2 -12.9Q117.4 -6.3 110.6 -2.8Q103.8 0.7 95.3 0.7Q86.8 0.7 80 -2.8Q73.2 -6.3 69.3 -12.9Q65.5 -19.4 65.5 -28.2ZM102.6 -28.2Q102.6 -33 100.5 -35.5Q98.4 -37.9 95.3 -37.9Q92.2 -37.9 90.1 -35.5Q88 -33 88 -28.2Q88 -23.4 90 -21Q92.1 -18.5 95.3 -18.5Q98.4 -18.5 100.5 -21Q102.6 -23.4 102.6 -28.2Z M168.3 -56.8V-33.1H162Q155.7 -33.1 152.8 -30.9Q149.8 -28.7 149.8 -23.1V0H127.6V-56.4H149.8V-46Q153.2 -50.9 158.1 -53.9Q163 -56.8 168.3 -56.8Z M224.1 -24.3H188.4Q188.9 -17 194.5 -17Q198.1 -17 199.7 -20.3H223.2Q222 -14.3 218.2 -9.6Q214.3 -4.8 208.5 -2.1Q202.6 0.7 195.6 0.7Q187.2 0.7 180.7 -2.8Q174.1 -6.3 170.5 -12.9Q166.8 -19.4 166.8 -28.2Q166.8 -37 170.5 -43.5Q174.1 -50.1 180.7 -53.6Q187.2 -57.1 195.6 -57.1Q204 -57.1 210.6 -53.7Q217.1 -50.2 220.8 -43.8Q224.4 -37.4 224.4 -28.7Q224.4 -26.4 224.1 -24.3ZM201.9 -34Q201.9 -36.8 200.1 -38.2Q198.3 -39.7 195.6 -39.7Q189.7 -39.7 188.7 -34Z M247.2 -57.1Q252.7 -57.1 256.7 -54.9Q260.6 -52.6 262.7 -48.7V-74H284.9V0H262.7V-7.7Q260.6 -3.8 256.7 -1.6Q252.7 0.7 247.2 0.7Q240.6 0.7 235.3 -2.8Q230 -6.2 226.9 -12.8Q223.9 -19.3 223.9 -28.2Q223.9 -37.1 226.9 -43.7Q230 -50.2 235.3 -53.7Q240.6 -57.1 247.2 -57.1ZM254.6 -37.7Q251 -37.7 248.7 -35.2Q246.4 -32.7 246.4 -28.2Q246.4 -23.7 248.7 -21.2Q251 -18.7 254.6 -18.7Q258.2 -18.7 260.5 -21.2Q262.8 -23.7 262.8 -28.2Q262.8 -32.7 260.5 -35.2Q258.2 -37.7 254.6 -37.7Z M634.9 -5.6Q634.9 -8.2 636.7 -10Q638.5 -11.8 641.1 -11.8Q643.6 -11.8 645.4 -10Q647.1 -8.2 647.1 -5.6Q647.1 -3 645.4 -1.2Q643.6 0.6 641.1 0.6Q638.5 0.6 636.7 -1.2Q634.9 -3 634.9 -5.6Z M655.7 -69.9Q655.7 -72.5 657.5 -74.3Q659.3 -76.1 661.9 -76.1Q664.4 -76.1 666.1 -74.3Q667.9 -72.5 667.9 -69.9Q667.9 -67.3 666.1 -65.5Q664.4 -63.7 661.9 -63.7Q659.3 -63.7 657.5 -65.5Q655.7 -67.3 655.7 -69.9ZM666.3 -54.8V0H657.2V-54.8Z';

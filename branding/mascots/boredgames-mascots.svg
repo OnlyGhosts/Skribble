@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_1" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 278.81 249.91">
+  <!-- Generator: Adobe Illustrator 30.8.1, SVG Export Plug-In . SVG Version: 2.1.4 Build 1)  -->
+  <defs>
+    <style>
+      .st0, .st1, .st2, .st3 {
+        stroke: #141514;
+        stroke-linecap: round;
+      }
+
+      .st0, .st1, .st3 {
+        stroke-linejoin: round;
+        stroke-width: 6px;
+      }
+
+      .st0, .st2 {
+        fill: none;
+      }
+
+      .st1 {
+        fill: #a699d5;
+      }
+
+      .st2 {
+        stroke-width: 7px;
+      }
+
+      .st3 {
+        fill: #c7e976;
+      }
+
+      .st4 {
+        fill: #141514;
+      }
+    </style>
+  </defs>
+  <g>
+    <rect class="st4" x="90.98" y="63.51" width="215" height="118" rx="26" ry="26" transform="translate(52.7 304.58) rotate(-83)"/>
+    <g>
+      <rect id="phone" class="st1" x="138.3" y="11.45" width="112" height="209" rx="23" ry="23" transform="translate(15.58 -22.82) rotate(7)"/>
+      <g>
+        <g>
+          <path id="eye-left" class="st2" d="M160.84,101.26l22.83,2.8"/>
+          <path id="eye-right" class="st2" d="M207.49,106.99l22.83,2.8"/>
+        </g>
+        <path id="mouth" class="st2" d="M181.27,140.04l19.85,2.44"/>
+      </g>
+      <path id="speaker" class="st0" d="M200.54,24.51l9.82,1.21"/>
+    </g>
+  </g>
+  <g>
+    <rect class="st4" x="29.73" y="15.01" width="118" height="215" rx="26" ry="26" transform="translate(-14.27 11.73) rotate(-7)"/>
+    <g>
+      <rect id="phone1" data-name="phone" class="st3" x="26.04" y="12.79" width="112" height="209" rx="23" ry="23" transform="translate(-13.68 10.87) rotate(-7)"/>
+      <g>
+        <path id="speaker1" data-name="speaker" class="st0" d="M65.98,27.05l9.82-1.21"/>
+        <g>
+          <g>
+            <path id="eye-left1" data-name="eye-left" class="st2" d="M50.12,107.6c4.66-11.32,10.61-12.05,17.87-2.19"/>
+            <path id="eye-right1" data-name="eye-right" class="st2" d="M92.8,102.36c4.66-11.32,10.61-12.05,17.87-2.19"/>
+          </g>
+          <path id="mouth1" data-name="mouth" class="st4" d="M65.57,134.92l36.72-4.51c.53,20.76-4.16,31.74-14.09,32.96s-17.47-8.27-22.64-28.45"/>
+        </g>
+      </g>
+    </g>
+  </g>
+</svg>

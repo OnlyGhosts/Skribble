@@ -20,7 +20,7 @@ const { Home, cleanName, firstInvalidBox, focusAfterRefusal, homeView, initialGa
 const { Wordmark } = await import('./Wordmark');
 const { WORDMARK_BOX, WORDMARK_GEAR_CENTRE, WORDMARK_GEAR_POSITION } = await import('../brand/wordmark');
 const { PlayerList } = await import('./PlayerList');
-const { PhoneBored, PhoneHappy } = await import('./Mascots');
+const { BoredArt, HappyArt, MASCOTS_VIEWBOX, PHONE_BORED_VIEWBOX, PHONE_HAPPY_VIEWBOX, PhoneBored, PhoneHappy } = await import('./Mascots');
 const { SiteHeader } = await import('./SiteHeader');
 const { connectionLabel, shownConnectionLabel } = await import('./ConnectionPill');
 const { ReadyControls, readyState } = await import('./ReadyControls');
@@ -341,22 +341,45 @@ describe('wordmark and mascots', () => {
     expect(html.match(/<path [^>]*fill="currentColor"/g)?.length).toBe(3);
     expect(html).toContain('class="wordmark__accent"');
     expect(html).toContain('class="wordmark__gear"');
+    // On light, "games" stays lime and a copy of it underneath draws an ink outline; dark has no outline.
+    expect(html).toMatch(/<path class="wordmark__accent-outline" d="[^"]+" fill="none">/);
+    const css = stylesheet('components.css');
+    expect(ruleOf(css, '.wordmark__accent-outline')).toContain('display: none');
+    expect(ruleOf(css, ":root[data-theme='light'] .wordmark__accent")).toContain('color: var(--color-primary)');
+    expect(ruleOf(css, ":root[data-theme='light'] .wordmark__accent-outline")).toContain('stroke: var(--color-primary-contrast)');
     expect(html).not.toContain('<text');
     expect(html).not.toMatch(/font-family/);
     // "games" follows the theme: lime on dark, the deep olive cut on light.
     expect(ruleOf(stylesheet('components.css'), '.wordmark__accent')).toContain('color: var(--color-primary-text)');
   });
 
-  it('renders the pack mascots flat and decorative: solid fills, a hard shadow, no screen lines', () => {
-    for (const Mascot of [PhoneBored, PhoneHappy]) {
+  it('renders the mascots flat and decorative: solid fills, an ink outline and shadow, no screen lines', () => {
+    for (const [Mascot, viewBox] of [
+      [PhoneBored, PHONE_BORED_VIEWBOX],
+      [PhoneHappy, PHONE_HAPPY_VIEWBOX],
+    ] as const) {
       const html = renderToString(createElement(Mascot));
       expect(html).toContain('aria-hidden="true"');
       expect(html).not.toMatch(/gradient|filter|opacity/);
       expect(html.match(/<rect /g)?.length).toBe(2);
-      expect(html).toContain('viewBox="0 0 190 270"');
+      expect(html).toContain(`viewBox="${viewBox}"`);
     }
     expect(renderToString(createElement(PhoneBored))).toContain('#A699D5');
     expect(renderToString(createElement(PhoneHappy))).toContain('#C7E976');
+  });
+
+  it('draws every shape of the Illustrator file in branding/mascots, on its artboard', () => {
+    const source = readFileSync(fileURLToPath(new URL('../../../../branding/mascots/boredgames-mascots.svg', import.meta.url)), 'utf8');
+    expect(source).toContain(`viewBox="${MASCOTS_VIEWBOX}"`);
+    const pair = renderToString(createElement('svg', null, createElement(BoredArt), createElement(HappyArt)));
+    const shapes = [...source.matchAll(/<(rect|path)[^>]*>/g)].map((m) => m[0]);
+    expect(shapes).toHaveLength(12);
+    expect(pair.match(/<(rect|path) /g)).toHaveLength(12);
+    for (const shape of shapes) {
+      for (const [, name, value] of shape.matchAll(/ (d|x|y|width|height|rx|transform)="([^"]+)"/g)) {
+        expect(pair, `${name}="${value}"`).toContain(`${name}="${value}"`);
+      }
+    }
   });
 
   it('places the settings button on the gear "o": its centre matches the gear inside the logo box', () => {

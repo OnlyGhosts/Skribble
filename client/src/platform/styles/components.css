@@ -45,7 +45,7 @@
   display: block;
   height: var(--wordmark-height, 24px);
   width: auto;
-  aspect-ratio: 890.8 / 115.8;
+  aspect-ratio: 885.1 / 115.8;
   color: var(--color-text);
   flex: none;
 }
@@ -53,6 +53,32 @@
 /* "games": lime on dark, the deep olive cut on light (pale lime text on white is unreadable). */
 .wordmark__accent {
   color: var(--color-primary-text);
+}
+
+.wordmark__accent-outline {
+  display: none;
+}
+
+/*
+ * On light, "games" keeps the real lime with an ink outline 2.6 units wide, as thick as the
+ * phones' outlines beside it. A 5-unit lime stroke first closes the hairline openings of the "e"
+ * and the "s", which line up and would otherwise fill with ink like a strikethrough; the copy
+ * underneath, filled and stroked in ink 10.2 units wide, shows 2.6 units beyond that.
+ */
+:root[data-theme='light'] .wordmark__accent {
+  color: var(--color-primary);
+  stroke: var(--color-primary);
+  stroke-width: 5px;
+  stroke-linejoin: round;
+  paint-order: stroke;
+}
+
+:root[data-theme='light'] .wordmark__accent-outline {
+  display: inline;
+  fill: var(--color-primary-contrast);
+  stroke: var(--color-primary-contrast);
+  stroke-width: 10.2px;
+  stroke-linejoin: round;
 }
 
 .brand {

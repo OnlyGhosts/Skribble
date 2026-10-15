@@ -47,9 +47,10 @@ called Scribble), the owner's decisions win. The short version:
   the switch in the settings menu mutes everything.
 - **The wordmark is outlined Poppins, not text.** "boredgames" is Poppins Black and ".io" Poppins Regular (SIL OFL). The app inlines it
   (`client/src/platform/components/Wordmark.tsx`, accessible name "boredgames.io"): "bored" and
-  ".io" in the text colour, "games" in lime on dark and deep olive (`#405D17`) on light.
-- **Mascots.** Two small phone characters (lime happy, lilac bored) beside the wordmark on the
-  front door and on celebrations only, never above or between controls.
+  ".io" in the text colour, "games" in lime (on light with an ink outline, like the phones').
+- **Mascots.** Two small phone characters (lime happy, lilac bored), drawn in Illustrator
+  (`branding/mascots/boredgames-mascots.svg`), as the logo's icon and on celebrations only,
+  never above or between controls.
 - **Game glyphs.** Each game has a 24px line icon (`GameMeta.glyph`) on its accent, on the lobby
   tiles and in the game's header. The app icon is the lime smile (`node scripts/brand-icons.mjs`
   renders the opaque apple-touch and maskable PNGs).

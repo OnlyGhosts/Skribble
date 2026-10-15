@@ -90,8 +90,8 @@ test('the front door has exactly two action paths, four visible boxes and no cat
   // The wordmark is outlined vector art with an accessible name, never live text or a controller icon.
   const header = host.page.getByTestId('site-header');
   await expect(header.getByRole('img', { name: 'boredgames.io' })).toBeVisible();
-  // "bored" + ".i", "games", and the gear that stands in for the "o".
-  await expect(header.locator('svg[data-testid="wordmark"] > path')).toHaveCount(3);
+  // "bored" + ".i", "games" (and the copy under it that outlines it on light), and the gear that stands in for the "o".
+  await expect(header.locator('svg[data-testid="wordmark"] > path')).toHaveCount(4);
   await expect(header.locator('svg[data-testid="wordmark"] text')).toHaveCount(0);
   await expect(header.locator('.brand__mark')).toHaveCount(0);
   // The theme lives in the settings menu behind the gear, not as a header button of its own; the gear is the "o" of ".io".
@@ -473,10 +473,12 @@ test('the settings menu switches to the light theme and the choice survives a re
   const pageColor = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
   const panelColor = () => page.getByTestId('home-create').evaluate((el) => getComputedStyle(el).backgroundColor);
   const games = page.getByTestId('site-header').locator('.wordmark__accent');
+  const outline = page.getByTestId('site-header').locator('.wordmark__accent-outline');
   expect(await pageColor()).toBe('rgb(20, 21, 20)');
   expect(await panelColor()).toBe('rgb(32, 34, 31)');
-  // "games" in the wordmark is lime on dark and the deep olive on light.
+  // "games" in the wordmark is lime on both themes: bare on dark, with an ink outline on light.
   await expect(games).toHaveCSS('color', 'rgb(199, 233, 118)');
+  await expect(outline).toBeHidden();
 
   await page.getByTestId('settings-menu').click();
   await expect(page.getByTestId('settings-popover')).toBeVisible();
@@ -486,7 +488,9 @@ test('the settings menu switches to the light theme and the choice survives a re
   expect(await pageColor()).toBe('rgb(245, 246, 239)');
   await expect.poll(panelColor).toBe('rgb(255, 255, 255)');
   await expect(page.getByTestId('home-join')).toHaveCSS('background-color', 'rgb(199, 233, 118)');
-  await expect(games).toHaveCSS('color', 'rgb(64, 93, 23)');
+  await expect(games).toHaveCSS('color', 'rgb(199, 233, 118)');
+  await expect(outline).toBeVisible();
+  await expect(outline).toHaveCSS('stroke', 'rgb(20, 21, 20)');
   // Escape closes the menu and gives the focus back to the gear.
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('settings-popover')).toHaveCount(0);
