@@ -156,6 +156,13 @@ test('an invalid code shows the alphabet hint and an unknown code is reported as
   await enterNameIfAsked(bob.page, bob.name);
   await expect(bob.page.getByTestId('join-error')).toContainText(/couldn't find a room/i);
   await expect(bob.page.getByTestId('room-code')).toHaveCount(0);
+
+  // Typing a new code over it: a box retyped with the letter it already holds still moves on
+  // (it once stayed put, so "NZEH" typed over "ZZZZ" came out "NEHZ").
+  const over = `A${unknown[1]}B${unknown[3]}`;
+  await bob.page.getByTestId('code-input-0').click();
+  await bob.page.keyboard.type(over, { delay: 20 });
+  for (let i = 0; i < 4; i++) await expect(bob.page.getByTestId(`code-input-${i}`)).toHaveValue(over[i]);
 });
 
 test('player 2 joins by typing the code and player 3 joins through the share link', async () => {

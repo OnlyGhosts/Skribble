@@ -1,4 +1,4 @@
-import { useEffect, useImperativeHandle, useRef, type ChangeEvent, type ClipboardEvent, type KeyboardEvent, type Ref } from 'react';
+import { useEffect, useImperativeHandle, useRef, type ChangeEvent, type ClipboardEvent, type FormEvent, type KeyboardEvent, type Ref } from 'react';
 import { ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH, extractRoomCode } from '@shared/platform/roomCode';
 import { clearChar, padCode, typedText, writeChars } from '../lib/codeInput';
 
@@ -76,6 +76,14 @@ export function CodeInput({ value, onChange, onSubmit, onInvalidChar, disabled, 
     const { accepted, rejected } = filterChars(typed);
     if (rejected) onInvalidChar();
     if (accepted) writeFrom(i, accepted);
+  };
+
+  // Retyping the character a box already holds leaves its value as it was, so React sends no
+  // change and the focus would stay put: the next key then lands in this box ("NZEH" over
+  // "ZZZZ" came out "NEHZ"). The input event still comes, so advance from it.
+  const handleSameInput = (i: number) => (e: FormEvent<HTMLInputElement>) => {
+    const typed = e.currentTarget.value.toUpperCase();
+    if (typed !== '' && typed === chars[i]) writeFrom(i, typed);
   };
 
   const handleKeyDown = (i: number) => (e: KeyboardEvent<HTMLInputElement>) => {
@@ -167,6 +175,7 @@ export function CodeInput({ value, onChange, onSubmit, onInvalidChar, disabled, 
           value={ch}
           disabled={disabled}
           onChange={handleChange(i)}
+          onInput={handleSameInput(i)}
           onKeyDown={handleKeyDown(i)}
           onPaste={handlePaste(i)}
           onFocus={(e) => e.currentTarget.select()}

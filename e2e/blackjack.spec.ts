@@ -545,9 +545,23 @@ async function bigTable(browser: Browser, base: string, size: number): Promise<v
     await expect(phone.getByTestId('seat')).toHaveCount(size - 1);
     await expect(phone.getByTestId('spotlight')).toHaveAttribute('data-kind', 'bets');
     await fitsEverySize(phone, PHONES, `${size} players, betting`);
-    await desk.getByTestId('place-bet').click();
-    await phone.getByTestId('place-bet').click();
-    await expect(screenOf(phone)).toHaveAttribute('data-phase', 'acting', { timeout: 20_000 });
+    // A dealer blackjack settles the round at the peek, before anyone acts (about one deal in 21):
+    // the next round's bets open, so bet again until a round is played out.
+    for (let round = 1; ; round++) {
+      await desk.getByTestId('place-bet').click();
+      await phone.getByTestId('place-bet').click();
+      const dealt = async () => {
+        const [phase, now] = await Promise.all([screenOf(phone).getAttribute('data-phase'), screenOf(phone).getAttribute('data-round')]);
+        return phase === 'acting' && now === String(round) ? 'acting' : phase === 'betting' && now === String(round + 1) ? 'dealer blackjack' : null;
+      };
+      await expect.poll(dealt, { timeout: 20_000, message: `round ${round}: dealt` }).not.toBeNull();
+      if ((await dealt()) === 'acting') break;
+      await expect(phone.getByTestId('dealer-hand')).toHaveAttribute('data-total', '21', { timeout: 20_000 });
+      await expect(phone.getByTestId('dealer-hand')).toHaveAttribute('data-cards', '2');
+      expect(round, 'a dealer blackjack five deals running').toBeLessThan(5);
+      await expect(desk.getByTestId('place-bet')).toBeEnabled({ timeout: 20_000 });
+      await expect(phone.getByTestId('place-bet')).toBeEnabled({ timeout: 20_000 });
+    }
     await expect(screenOf(phone)).toHaveAttribute('data-busy', 'false', { timeout: 20_000 });
 
     const botIds = new Set(bots.map((b) => b.id));
