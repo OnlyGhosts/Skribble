@@ -513,6 +513,9 @@ async function bigTable(browser: Browser, base: string, size: number): Promise<v
   try {
     const code = await createParty(desk, 'Hana', 'blackjack');
     await joinByCode(phone, 'Pia', code);
+    // Slow clocks: the checks take their time, and nobody should sit a hand out over it.
+    for (const id of ['betSeconds', 'actSeconds']) await desk.getByTestId(`settings-${id}`).fill('60');
+    await expect(phone.getByTestId('settings-value-actSeconds')).toHaveText('60s');
     bots = await tableBots(size - 2, code, base, { game: 'blackjack', hold: true, thinkMs: 50 });
     await readyAll([phone]);
     await expectReadyCount(desk, size);
@@ -524,6 +527,8 @@ async function bigTable(browser: Browser, base: string, size: number): Promise<v
     await fitsEverySize(phone, PHONES, `${size} players, betting`);
     await desk.getByTestId('place-bet').click();
     await phone.getByTestId('place-bet').click();
+    await phone.waitForTimeout(3000);
+    console.log('DEBUG', await phone.getByTestId('turn-status').textContent(), await phone.getByTestId('spot-bets-count').textContent().catch(() => '?'), await desk.getByTestId('turn-status').textContent(), await phone.getByTestId('bj-panel').getAttribute('data-amount'), await phone.getByTestId('chat-toggle').count());
     await expect(screenOf(phone)).toHaveAttribute('data-phase', 'acting', { timeout: 20_000 });
     await expect(screenOf(phone)).toHaveAttribute('data-busy', 'false', { timeout: 20_000 });
 
@@ -544,18 +549,27 @@ async function bigTable(browser: Browser, base: string, size: number): Promise<v
       }
       await expect.poll(async () => (await screenOf(desk).getAttribute('data-turn-player')) !== turn, { timeout: 10_000 }).toBe(true);
     }
-    // A bot holds its turn: its tile is lit on both pages, the spotlight on it.
-    const turn = (await screenOf(desk).getAttribute('data-turn-player')) ?? '';
-    expect(botIds.has(turn), `${size} players: the turn reaches a bot`).toBe(true);
-    for (const p of [desk, phone]) {
-      const lit = p.locator('[data-testid="seat"][data-turn="true"]');
-      await expect(lit).toHaveCount(1);
-      await expect(lit).toHaveAttribute('data-player-id', turn);
-      await expect(p.getByTestId('spotlight')).toHaveAttribute('data-player-id', turn);
+    if (bots.length > 0) {
+      // A bot holds its turn: its tile is lit on both pages, the spotlight on it.
+      const turn = (await screenOf(desk).getAttribute('data-turn-player')) ?? '';
+      expect(botIds.has(turn), `${size} players: the turn reaches a bot`).toBe(true);
+      for (const p of [desk, phone]) {
+        const lit = p.locator('[data-testid="seat"][data-turn="true"]');
+        await expect(lit).toHaveCount(1);
+        await expect(lit).toHaveAttribute('data-player-id', turn);
+        await expect(p.getByTestId('spotlight')).toHaveAttribute('data-player-id', turn);
+      }
+      await expect(phone.getByTestId('turn-status')).toHaveText(/'s turn$/);
+      await fitsEverySize(phone, PHONES, `${size} players, a bot's turn`);
+      await fitsEverySize(desk, DESKTOPS, `${size} players, a bot's turn`);
+      for (const b of bots) b.setHold(false);
     }
-    await expect(phone.getByTestId('turn-status')).toHaveText(/'s turn$/);
-    await fitsEverySize(phone, PHONES, `${size} players, a bot's turn`);
-    await fitsEverySize(desk, DESKTOPS, `${size} players, a bot's turn`);
+    // The dealer plays in the spotlight, then the settled round stays up with my outcome in it.
+    await expect(phone.getByTestId('spotlight')).toHaveAttribute('data-kind', /^(dealer|result)$/, { timeout: 30_000 });
+    if ((await phone.getByTestId('spotlight').getAttribute('data-kind')) === 'dealer') await nothingScrolls(phone, `${size} players, the dealer's turn`);
+    await expect(phone.getByTestId('spotlight')).toHaveAttribute('data-kind', 'result', { timeout: 30_000 });
+    await expect(phone.getByTestId('turn-status')).toHaveAttribute('data-state', 'bet');
+    await fitsEverySize(phone, PHONES, `${size} players, settled`);
     // The tiles step down with the table.
     const tier = size - 1 <= 4 ? 'full' : size - 1 <= 9 ? 'compact' : size - 1 <= 23 ? 'small' : 'dense';
     await expect(phone.getByTestId('seats')).toHaveAttribute('data-tier', tier);
