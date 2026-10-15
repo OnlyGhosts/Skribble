@@ -1,14 +1,16 @@
 import { expect, test, type Browser, type BrowserContext, type Locator, type Page } from '@playwright/test';
+import WebSocket from 'ws';
 import { createParty, expectReadyCount, joinByCode, readyAll } from './party';
 
 /**
- * Blackjack the Stake way, between a desktop host and two phones (390x844, touch): unlimited
- * rounds set in the lobby, bets through the control panel (1/2, 2x, MAX, a typed amount, Enter,
- * the Space shortcut), hands played one at a time in seat order with only the acting page's
+ * Blackjack the Stake way, between a desktop host and two phones (390x844, touch): no rounds and
+ * no table limits to set (the rounds never run out, any bet from 1 chip to the whole stack), bets
+ * through the control panel (1/2, 2x, MAX for all in, a typed amount, Enter, the Space shortcut), hands played one at a time in seat order with only the acting page's
  * moves lit, the hole card hidden on every page until the dealer plays, the settled table staying
  * up through the next betting with each outcome paid by the rules, the chips always equal to the
  * platform score, and the host's End game taking the table to the podium. The phone layout is
- * checked at 390x844 and 320x568. The shoe is really shuffled, so the checks hold whatever is
+ * checked at 390x844 and 320x568, and again with twenty more players at the table (bots on their
+ * own sockets): the seat strip scrolls sideways and keeps the seat in play in view. The shoe is really shuffled, so the checks hold whatever is
  * dealt; re-splits are covered by the unit tests. Serial: the tests build on each other.
  */
 test.describe.configure({ mode: 'serial' });
@@ -17,8 +19,11 @@ const PORTRAIT = { width: 390, height: 844 };
 const SMALL = { width: 320, height: 568 };
 const MIN_TARGET = 44;
 const STARTING_CHIPS = 500;
-const MIN_BET = 25;
-const MAX_BET = 200;
+/** What the bet field offers before a first bet: a hundredth of the starting stack. */
+const SUGGESTED_BET = 5;
+const BOTS = 20;
+const PIA_BET = 2;
+const QUINN_BET = STARTING_CHIPS / 2;
 const SEATS = ['Hana', 'Pia', 'Quinn'];
 
 interface Player {
@@ -259,7 +264,7 @@ test.afterAll(async () => {
   for (const p of players) await p.context.close();
 });
 
-test('the host sets up an unlimited Blackjack table and two phones join', async () => {
+test('the host sets up a Blackjack table (no rounds or table limits to set) and two phones join', async () => {
   roomCode = await createParty(host.page, host.name, 'blackjack');
   for (const p of phones()) await joinByCode(p.page, p.name, roomCode);
   await expect(host.page.getByTestId('player-item')).toHaveCount(3);
@@ -267,19 +272,13 @@ test('the host sets up an unlimited Blackjack table and two phones join', async 
   await host.page.getByTestId('settings-startingChips').fill(String(STARTING_CHIPS));
   await host.page.getByTestId('settings-startingChips').press('Enter');
   await expect(pia.page.getByTestId('settings-value-startingChips')).toHaveText(String(STARTING_CHIPS));
-  await host.page.getByTestId(`settings-minBet-${MIN_BET}`).click();
-  await expect(quinn.page.getByTestId('settings-value-minBet')).toHaveText(String(MIN_BET));
-  await host.page.getByTestId('settings-maxBet').fill(String(MAX_BET));
-  await host.page.getByTestId('settings-maxBet').press('Enter');
-  await expect(quinn.page.getByTestId('settings-value-maxBet')).toHaveText(String(MAX_BET));
-
-  // Rounds: 10 by default, then Unlimited (stored as 0), shown as such on every page.
-  await expect(pia.page.getByTestId('settings-value-rounds')).toHaveText('10');
-  await expect(host.page.getByTestId('settings-unlimitedRounds')).not.toBeChecked();
-  await host.page.getByTestId('settings-row-unlimitedRounds').click();
-  await expect(host.page.getByTestId('settings-unlimitedRounds')).toBeChecked();
-  for (const p of players) await expect(p.page.getByTestId('settings-value-rounds')).toHaveText('Unlimited');
-  await expect(host.page.getByTestId('settings-rounds')).toHaveCount(0);
+  // No rounds, minimum or maximum bet anywhere: the game runs until one stack is left or the host ends it.
+  for (const p of players) {
+    for (const id of ['rounds', 'unlimitedRounds', 'minBet', 'maxBet']) {
+      await expect(p.page.getByTestId(`settings-${id}`)).toHaveCount(0);
+      await expect(p.page.getByTestId(`settings-value-${id}`)).toHaveCount(0);
+    }
+  }
 
   await host.page.getByTestId('settings-betSeconds').fill('60');
   await host.page.getByTestId('settings-actSeconds').fill('60');
@@ -298,7 +297,6 @@ test('the host sets up an unlimited Blackjack table and two phones join', async 
   for (const p of players) {
     await expect(screen(p)).toHaveAttribute('data-phase', 'betting');
     await expect(p.page.getByTestId('round-indicator')).toHaveAttribute('data-round', '1');
-    await expect(p.page.getByTestId('round-indicator')).toHaveAttribute('data-total', '0');
     await expect(p.page.getByTestId('round-indicator')).toContainText('Round 1');
     await expect(p.page.getByTestId('round-indicator')).not.toContainText(' of ');
     await expect(p.page.getByTestId('table-ribbon')).toContainText('BLACKJACK PAYS 3 TO 2');
@@ -321,15 +319,19 @@ test('round one: the phone layout fits, and bets go in through the panel', async
   // While the bets are open nobody can play a hand.
   for (const p of players) for (const id of ['action-hit', 'action-stand', 'action-double', 'action-split']) await expect(p.page.getByTestId(id)).toBeDisabled();
 
-  // The host: the field starts at the minimum; MAX, 1/2, 2x walk it, then a typed 75 goes in with Enter.
+  // The host: the field starts at a suggested amount; MAX is all in, 1/2 and 2x walk it, then a typed 75 goes in with Enter.
   const panel = host.page.getByTestId('bj-panel');
-  await expect(host.page.getByTestId('bet-input')).toHaveValue(String(MIN_BET));
+  await expect(host.page.getByTestId('bet-input')).toHaveValue(String(SUGGESTED_BET));
+  await expect(panel).toHaveAttribute('data-min', '1');
+  await expect(panel).toHaveAttribute('data-max', String(STARTING_CHIPS));
   await host.page.getByTestId('bet-max').click();
-  await expect(panel).toHaveAttribute('data-amount', String(MAX_BET));
+  await expect(panel).toHaveAttribute('data-amount', String(STARTING_CHIPS));
   await host.page.getByTestId('bet-half').click();
-  await expect(panel).toHaveAttribute('data-amount', String(MAX_BET / 2));
+  await expect(panel).toHaveAttribute('data-amount', String(STARTING_CHIPS / 2));
   await host.page.getByTestId('bet-double').click();
-  await expect(panel).toHaveAttribute('data-amount', String(MAX_BET));
+  await expect(panel).toHaveAttribute('data-amount', String(STARTING_CHIPS));
+  await host.page.getByTestId('bet-double').click();
+  await expect(panel).toHaveAttribute('data-amount', String(STARTING_CHIPS));
   await host.page.getByTestId('bet-clear').click();
   await expect(host.page.getByTestId('bet-input')).toHaveValue('');
   await expect(host.page.getByTestId('place-bet')).toBeDisabled();
@@ -339,16 +341,21 @@ test('round one: the phone layout fits, and bets go in through the panel', async
   await expect(host.page.getByTestId('turn-status')).toHaveText('Waiting for Pia and Quinn');
   await expect(pia.page.locator('[data-testid="seat"][data-name="Hana"]')).toHaveAttribute('data-bet', '75');
 
-  // Quinn types more than the table allows: the bet is clamped to the maximum.
+  // Quinn types more than she holds: the amount is clamped to her whole stack; half of it goes in.
   await quinn.page.getByTestId('bet-input').fill('9999');
-  await placeBetWith(quinn, () => quinn.page.getByTestId('place-bet').click(), MAX_BET);
-  expect(await chipsOf(quinn)).toBe(STARTING_CHIPS - MAX_BET);
+  await quinn.page.getByTestId('bet-input').blur();
+  await expect(quinn.page.getByTestId('bj-panel')).toHaveAttribute('data-amount', String(STARTING_CHIPS));
+  await quinn.page.getByTestId('bet-half').click();
+  await placeBetWith(quinn, () => quinn.page.getByTestId('place-bet').click(), QUINN_BET);
+  expect(await chipsOf(quinn)).toBe(STARTING_CHIPS - QUINN_BET);
 
-  // Pia: 1/2 cannot go under the minimum, 2x doubles it; her bet deals the cards.
-  await pia.page.getByTestId('bet-half').click();
-  await expect(pia.page.getByTestId('bj-panel')).toHaveAttribute('data-amount', String(MIN_BET));
+  // Pia: 1/2 walks down to a single chip and never under it, 2x doubles it; her bet deals the cards.
+  for (const amount of [2, 1, 1]) {
+    await pia.page.getByTestId('bet-half').click();
+    await expect(pia.page.getByTestId('bj-panel')).toHaveAttribute('data-amount', String(amount));
+  }
   await pia.page.getByTestId('bet-double').click();
-  await expect(pia.page.getByTestId('bet-input')).toHaveValue(String(MIN_BET * 2));
+  await expect(pia.page.getByTestId('bet-input')).toHaveValue(String(PIA_BET));
   await pia.page.getByTestId('place-bet').click();
 
   for (const p of players) {
@@ -357,17 +364,17 @@ test('round one: the phone layout fits, and bets go in through the panel', async
     await expect(p.page.getByTestId('seat')).toHaveCount(2);
   }
   expect(await chipsOf(host)).toBe(STARTING_CHIPS - 75);
-  expect(await chipsOf(pia)).toBe(STARTING_CHIPS - 50);
-  expect(await chipsOf(quinn)).toBe(STARTING_CHIPS - MAX_BET);
+  expect(await chipsOf(pia)).toBe(STARTING_CHIPS - PIA_BET);
+  expect(await chipsOf(quinn)).toBe(STARTING_CHIPS - QUINN_BET);
 });
 
 test('round one: hands are played one at a time in seat order, then the dealer settles and the table stays up', async () => {
-  const before = { Hana: STARTING_CHIPS - 75, Pia: STARTING_CHIPS - 50, Quinn: STARTING_CHIPS - MAX_BET };
+  const before = { Hana: STARTING_CHIPS - 75, Pia: STARTING_CHIPS - PIA_BET, Quinn: STARTING_CHIPS - QUINN_BET };
   const turns = await playOutRound(1, false, async () => {
     for (const p of phones()) await phoneLayoutHolds(p, PORTRAIT);
   });
   turnsInSeatOrder(turns);
-  await checkSettlement(1, before, { Hana: 75, Pia: 50, Quinn: MAX_BET });
+  await checkSettlement(1, before, { Hana: 75, Pia: PIA_BET, Quinn: QUINN_BET });
   // Straight into the next round's betting, the settled table still on show.
   for (const p of players) {
     await expect(screen(p)).toHaveAttribute('data-phase', 'betting');
@@ -383,7 +390,7 @@ test('round two: the amount is remembered, Space bets on the desktop, and the ho
   for (const p of players) before[p.name] = await chipsOf(p);
   // Each field starts from the bet placed last round, clamped to what the player now holds.
   await expect(host.page.getByTestId('bet-input')).toHaveValue(String(Math.min(75, before.Hana)));
-  await expect(pia.page.getByTestId('bet-input')).toHaveValue(String(Math.min(50, before.Pia)));
+  await expect(pia.page.getByTestId('bet-input')).toHaveValue(String(Math.min(PIA_BET, before.Pia)));
 
   for (const p of phones()) {
     const amount = Number(await p.page.getByTestId('bj-panel').getAttribute('data-amount'));
@@ -435,6 +442,107 @@ test('round two: the amount is remembered, Space bets on the desktop, and the ho
   await expect(host.page.getByTestId('back-to-lobby')).toBeVisible();
   await host.page.getByTestId('back-to-lobby').click();
   for (const p of players) await expect(p.page.getByTestId('room-code')).toHaveText(roomCode);
+});
+
+interface Bot {
+  name: string;
+  socket: WebSocket;
+  id: string | null;
+}
+
+type BotRoom = {
+  phase: string;
+  game: { phase: string; order: string[]; turn: { playerId: string } | null; players: Record<string, { bet: number }> } | null;
+  players: { id: string; ready: boolean }[];
+};
+
+/**
+ * A player on a bare socket: readies up in the lobby, bets a chip when the bets open and stands a
+ * moment after its turn comes, so the phones can watch the turn travel down a long seat strip.
+ */
+function bot(name: string, code: string, base: string): Promise<Bot> {
+  const url = `${base.replace(/^http/, 'ws')}/ws`;
+  const me: Bot = { name, socket: new WebSocket(url), id: null };
+  let acted = '';
+  me.socket.on('message', (raw) => {
+    const msg = JSON.parse(String(raw)) as { t: string; playerId?: string; room?: BotRoom };
+    if (msg.t === 'welcome' && msg.playerId) me.id = msg.playerId;
+    const room = msg.room;
+    if (!room || !me.id) return;
+    const id = me.id;
+    const send = (out: object) => me.socket.readyState === WebSocket.OPEN && me.socket.send(JSON.stringify(out));
+    if (room.phase === 'lobby' && !room.players.find((p) => p.id === id)?.ready) return send({ t: 'ready', ready: true });
+    const game = room.game;
+    if (room.phase !== 'playing' || !game) return;
+    if (game.phase === 'betting' && game.order.includes(id) && game.players[id]?.bet === 0) return send({ t: 'bet', amount: 1 });
+    const turn = `${game.phase}:${game.turn?.playerId}`;
+    if (game.phase === 'acting' && game.turn?.playerId === id && acted !== turn) {
+      acted = turn;
+      setTimeout(() => send({ t: 'stand' }), 600);
+    }
+  });
+  return new Promise((resolve, reject) => {
+    me.socket.on('open', () => {
+      me.socket.send(JSON.stringify({ t: 'join', code, name, avatar: { color: 0, emoji: 0 } }));
+      resolve(me);
+    });
+    me.socket.on('error', reject);
+  });
+}
+
+test('a big table on a phone: twenty more players, the seat strip scrolls and keeps the seat in play in view', async ({ baseURL }) => {
+  const bots: Bot[] = [];
+  try {
+    for (let i = 1; i <= BOTS; i++) bots.push(await bot(`Bot ${i}`, roomCode, baseURL ?? 'http://localhost:4173'));
+    await expect(host.page.getByTestId('player-item')).toHaveCount(3 + BOTS);
+    await readyAll([pia.page, quinn.page]);
+    await expectReadyCount(host.page, 3 + BOTS);
+    await host.page.getByTestId('start-game').click();
+    for (const p of players) await expect(screen(p)).toHaveAttribute('data-phase', 'betting');
+    // Nobody waits for a seat: everyone is dealt in.
+    await expect(pia.page.getByTestId('seat')).toHaveCount(2 + BOTS);
+    for (const p of players) await p.page.getByTestId('place-bet').click();
+
+    // The three of us stand when our turns come; then the bots play one by one.
+    const botIds = new Set(bots.map((b) => b.id));
+    await expect
+      .poll(
+        async () => {
+          for (const p of players) if (await p.page.getByTestId('action-stand').isEnabled()) await p.page.getByTestId('action-stand').click();
+          return botIds.has(await screen(host).getAttribute('data-turn-player'));
+        },
+        { timeout: 60_000, message: 'the turn reaches the bots' },
+      )
+      .toBe(true);
+
+    // On the phone the strip is wider than the screen and scrolls sideways, never the page.
+    await phoneLayoutHolds(pia, PORTRAIT);
+    const strip = pia.page.getByTestId('seats');
+    expect(await strip.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
+    // Far down the table, the seat in play is scrolled into view.
+    await expect
+      .poll(
+        () =>
+          strip.evaluate((el) => {
+            const seats = [...el.querySelectorAll<HTMLElement>('[data-testid="seat"]')];
+            const turn = seats.findIndex((s) => s.dataset.turn === 'true');
+            if (turn < 10) return false;
+            const box = el.getBoundingClientRect();
+            const seat = seats[turn].getBoundingClientRect();
+            return el.scrollLeft > 0 && seat.left >= box.left - 1 && seat.right <= box.right + 1;
+          }),
+        { timeout: 30_000, message: 'a seat far down the strip, in play and in view' },
+      )
+      .toBe(true);
+
+    // The round settles into the next betting; the host ends the game there.
+    for (const p of players) await expect(screen(p)).toHaveAttribute('data-phase', 'betting', { timeout: 60_000 });
+    await host.page.getByTestId('end-game').click();
+    await host.page.getByTestId('end-game-yes').click();
+    for (const p of players) await expect(p.page.getByTestId('overlay-game-end')).toBeVisible({ timeout: 20_000 });
+  } finally {
+    for (const b of bots) b.socket.close();
+  }
 });
 
 test('no page errors, and no em dash on any page', async () => {

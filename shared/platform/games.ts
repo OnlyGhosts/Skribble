@@ -127,6 +127,7 @@ export const GAME_LIST: readonly GameMeta[] = [
     name: 'Blackjack',
     howToPlay: [
       'Bet any amount each round, from 1 chip up to your whole stack. Everyone starts with the same stack.',
+      'No bet when the clock runs out? You sit that hand out and keep your chips.',
       'Hit to take a card, stand to stop. Over 21 and the hand is bust.',
       'Double your bet for exactly one more card, or split a pair into two hands (up to four).',
       'The dealer draws to 17. Beat the dealer to win your bet back twice over; a natural blackjack pays extra.',

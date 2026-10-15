@@ -193,10 +193,11 @@ describe('Blackjack', () => {
     partial<BlackjackView>({ round: 2, reshuffled: false, players: Object.fromEntries(Object.entries(bets).map(([id, b]) => [id, seat(b)])), ...extra });
   const tl = BJ.EMPTY_TIMELINE;
 
-  it('lays chips for every new bet, quieter for other seats, and shuffles once for a fresh shoe', () => {
+  it('lays chips once a snapshot however many bets went in (full when mine is one), quieter for other seats, and shuffles once for a fresh shoe', () => {
     const play = spy(blackjackSounds);
-    const prevView = view({ me: 0, bob: 0 });
-    playBlackjackSounds({ view: view({ me: 10, bob: 20 }, { reshuffled: true }), prevView, table: null, prevTable: null, before: tl, timeline: tl, me: 'me' });
+    const prevView = view({ me: 0, bob: 0, carol: 0 });
+    playBlackjackSounds({ view: view({ me: 10, bob: 20, carol: 0 }, { reshuffled: true }), prevView, table: null, prevTable: null, before: tl, timeline: tl, me: 'me' });
+    playBlackjackSounds({ view: view({ me: 10, bob: 20, carol: 5 }, { reshuffled: true }), prevView: view({ me: 10, bob: 20, carol: 0 }, { reshuffled: true }), table: null, prevTable: null, before: tl, timeline: tl, me: 'me' });
     expect(calls(play)).toEqual([
       ['shuffle', 1],
       ['bet', 1],

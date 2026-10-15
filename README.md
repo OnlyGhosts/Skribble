@@ -79,7 +79,7 @@ Open http://localhost:5173. The Vite dev server proxies `/ws` and `/api` to the 
 3. Everyone taps **Ready** (or **Sit out** to watch this one from the party), the host adjusts
    the settings and hits **Start** once enough players are ready (two for Scribble, three for
    the Spy Game and Quip Game). There is no cap on a game: everyone in the room plays, up to the
-   24 seats a room holds.
+   50 seats a room holds.
 4. The room is a party. After the podium nobody has to rejoin: ready up for the next game, sit it
    out, or let the host switch the party to another game from the lobby. The code and the invite
    link stay the same whatever game is on.
@@ -300,7 +300,7 @@ Every room has the platform settings; each game adds its own, flat next to them.
 | Content mode | Family | Family or Unhinged (18+); picks the words, prompts and locations of the games that use it |
 | Mid-game join | on | |
 
-There is no max-players setting: a room holds up to 24 seats and every player who is ready takes
+There is no max-players setting: a room holds up to 50 seats and every player who is ready takes
 part. Players who sit a game out stay in the party and watch.
 
 | Scribble | Default | Range |

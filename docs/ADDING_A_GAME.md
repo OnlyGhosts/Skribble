@@ -140,7 +140,7 @@ shows the `PodiumOverlay` with the host's Back-to-lobby button.
 **Kicks and vote-kicks.** Host kick, majority vote-kick (a majority of the other connected
 players in the game, at least two of them, never a single voter; in the lobby every connected
 player counts), kicked tokens refused on rejoin. Joins are refused only at the room's hard cap
-(`ROOM_HARD_CAP` = 24 seats, players in reconnect grace included); games never cap the party.
+(`ROOM_HARD_CAP` = 50 seats, players in reconnect grace included); games never cap the party.
 
 **Low-player handling.** A running game is sent back to the lobby only when fewer *participating
 seats* than `meta.minPlayers` remain: on a leave, a kick or a reconnect-grace expiry (a spectator
@@ -179,7 +179,10 @@ helpers. Section 8 lists them.
 **Playing cards.** A standard deck lives in [`shared/platform/cards.ts`](../shared/platform/cards.ts):
 `Card` / `CardRank` / `CardSuit`, `CARD_RANKS` / `CARD_SUITS`, `freshDeck(decks)`, `shuffle(cards, rng)`
 (Fisher-Yates over a copy, every index from the injected rng) and `cardOf('10H')` for tests and
-fixtures. Blackjack's shoe and Poker's deck both come from it. On the client the cards are drawn by
+fixtures. Blackjack's shoe and Poker's deck both come from it (Blackjack's shoe never has fewer
+decks than its setting, more at a big table: `shoeDecks(minDecks, seats)` keeps two rounds'
+reserve of four hands of three cards a seat, and `needsReshuffle` rebuilds it between rounds
+before it drops under one round's reserve, so a 50-seat table never runs dry mid-round). On the client the cards are drawn by
 [`PlayingCard`](../client/src/platform/components/PlayingCard.tsx) (`sm` / `md` / `lg` / `xl`, face down
 for `null`, `slot` for an empty place, `highlight` for the five that play) and chip counts by
 [`Chips`](../client/src/platform/components/Chips.tsx) (`ChipIcon`, `formatChips` in `lib/format.ts`);
@@ -702,8 +705,13 @@ wordle: {
   settings: { rounds: 1 },                 // applied by startGame before 'start': deterministic and short
   longSettings: { rounds: 10 },            // the longest game the settings allow (ideally still running 10 min in)
   validMessage: { t: 'guess', word: 'crane' },  // accepted from the host right after 'start'
+  // hostEnd: { t: 'endGame' },               // only for a game that never ends on its own clock: the host's message that ends it
 },
 ```
+
+A game that runs until the players decide it (Blackjack has no rounds setting and plays until one
+stack is left or the host taps End game) sets `hostEnd`; the cross-game suites send it once the
+clock has run, where they would otherwise wait for the game to end on its own.
 
 Write the module as the template does: a `Data` interface, `start`, `handle` (a `switch` on
 `event.type`, default `{ data, effects: [] }`), `nextDeadline`, `view`, and the exported module
@@ -1791,9 +1799,13 @@ Play a sound where the moment happens: in `onRoom` (comparing `prev` with the ne
 an action (a tap the player just made), or timed to an animation with `createSoundSchedule()`
 (the card games use `scheduleTimelineSounds` in
 [`platform/table/sounds.ts`](../client/src/platform/table/sounds.ts) so a card's sound lands with
-the card). Someone else's moment plays at `ONLOOKER_VOLUME`. A new file gets a row in
+the card; Blackjack's [`sfx.ts`](../client/src/games/blackjack/sfx.ts) gives every card movement
+its sound, the discard sweep included, and its tests check each against the planned timeline).
+Someone else's moment plays at `ONLOOKER_VOLUME`; give a sound that a burst of events could
+repeat a `cooldownMs` so it never stacks into noise. A new file gets a row in
 [`CREDITS.md`](../client/public/sounds/CREDITS.md) (pack, original file, licence; only CC0 or
-your own) and goes through `scripts/sounds/build.sh`; the unit tests fail on a file nothing
+your own) and goes through `scripts/sounds/build.sh` (a row may layer files from several packs,
+as the Blackjack sting does: a jingle with chips spilling under it); the unit tests fail on a file nothing
 plays, a missing credit or a set over 800 KB, and `e2e/sounds.spec.ts` checks every file is
 served and decodes.
 - [`lib/haptics.ts`](../client/src/platform/lib/haptics.ts): `vibrate(ms)`.
@@ -1897,7 +1909,9 @@ Run from the repository root; everything is green at HEAD.
 - **Content follows `ctx.settings.contentMode`.** Pick words, prompts and places through the
   shared pool helpers; never add a per-game "adult" switch.
 - **`meta.maxPlayers` is a seat limit, not a room cap.** `null` seats everyone (up to
-  `ROOM_HARD_CAP` = 24); a number benches the extra ready players for that game.
+  `ROOM_HARD_CAP` = 50); a number benches the extra ready players for that game. Prefer `null`:
+  the owner wants big parties to all play (Blackjack seats everyone and grows its shoe with the
+  table, see `shoeDecks` in `shared/games/blackjack/cards.ts`).
 - **Chat history** is capped at 60 lines and replayed in `welcome.chat`; private lines (explicit
   recipient lists) are never stored, so a late joiner does not see them.
 - **`playerJoined` arrives mid-game only** (joins in the lobby are not game events) and only when

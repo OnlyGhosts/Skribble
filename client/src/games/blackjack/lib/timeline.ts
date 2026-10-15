@@ -24,6 +24,14 @@ import { dealOrder, dealerKey, seatCards, type TableModel } from './table';
 export { DEAL_GAP_MS, DEAL_MS, DISCARD_MS, FLIP_MS, MAX_BACKLOG_MS, MOVE_MS, OUTCOME_HOLD_MS, animating, cardMotion, cardShown, frameAt, landed, nextEvent } from '../../../platform/table/timeline';
 
 export const DEALER_GAP_MS = 500;
+/** A big table's deal speeds up so it takes about this long, but a card never follows the last closer than MIN_DEAL_GAP_MS. */
+export const BIG_DEAL_MS = 3000;
+export const MIN_DEAL_GAP_MS = 60;
+
+/** The beat between two cards dealt in one go: a dealer's pace, quicker at a big table. */
+export function dealGapMs(cards: number): number {
+  return Math.max(MIN_DEAL_GAP_MS, Math.min(DEAL_GAP_MS, Math.floor(BIG_DEAL_MS / Math.max(1, cards))));
+}
 /** The beat between the dealer's last card and the outcomes. */
 export const OUTCOME_DELAY_MS = 150;
 /** A pause after the deal before a peeked dealer blackjack turns over. */
@@ -86,6 +94,7 @@ export function planTimeline(prev: Timeline, prevTable: TableModel | null, next:
     added = true;
   }
   let t = cursor;
+  const gap = dealGapMs(newKeys.filter((key) => !moving.has(key) && (dealerIndex(key) ?? 0) < 2).length);
   const draws: string[] = [];
   for (const key of newKeys) {
     if (moving.has(key)) continue;
@@ -97,7 +106,7 @@ export function planTimeline(prev: Timeline, prevTable: TableModel | null, next:
     added = true;
     tl.arrivals[key] = t;
     cursor = t + DEAL_MS;
-    t += DEAL_GAP_MS;
+    t += gap;
   }
 
   const holeShown = next.dealer.length >= 2 && next.dealer[1] !== null;

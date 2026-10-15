@@ -40,6 +40,16 @@ test('every sound file decodes in the browser', async ({ page }) => {
   expect(failures).toEqual([]);
 });
 
+test('the Blackjack sting is a celebration of about a second and a half', async ({ page }) => {
+  await page.goto('/');
+  const seconds = await page.evaluate(async () => {
+    const ctx = new OfflineAudioContext(1, 1, 44100);
+    return (await ctx.decodeAudioData(await (await fetch('/sounds/stings/blackjack.mp3')).arrayBuffer())).duration;
+  });
+  expect(seconds).toBeGreaterThanOrEqual(1);
+  expect(seconds).toBeLessThanOrEqual(1.6);
+});
+
 interface Seat {
   page: Page;
   errors: string[];
@@ -92,18 +102,20 @@ test('with sound on, a table loads its sounds when it mounts and plays them with
   for (const p of [host, guest]) {
     await expect(p.page.getByTestId('blackjack-screen')).toHaveAttribute('data-phase', 'betting');
     await expect.poll(() => p.sounds.some((s) => s.path.startsWith('/sounds/table/deal-'))).toBe(true);
+    await expect.poll(() => p.sounds.some((s) => s.path === '/sounds/stings/blackjack.mp3')).toBe(true);
   }
 
   // The host's bet waits for the guest's; the guest's deals the cards.
   await host.page.getByTestId('place-bet').click();
   await expect(host.page.getByTestId('place-bet')).toBeDisabled();
   await guest.page.getByTestId('place-bet').click();
-  // The deal: cards slide in with their sounds on both pages. A dealer blackjack (or two naturals)
-  // settles round one at once and opens round two's betting, so the deal shows as either.
+  // The deal: every card slides in with its sound on both pages (two each and the dealer's two).
+  // A dealer blackjack (or two naturals) settles round one at once and opens round two's betting,
+  // so the deal shows as either.
   for (const p of [host, guest]) {
     const screen = p.page.getByTestId('blackjack-screen');
     await expect.poll(async () => (await screen.getAttribute('data-phase')) !== 'betting' || (await screen.getAttribute('data-round')) !== '1').toBe(true);
-    await expect.poll(() => started(p.page), { timeout: 10_000 }).toBeGreaterThan(2);
+    await expect.poll(() => started(p.page), { timeout: 10_000 }).toBeGreaterThanOrEqual(6);
   }
 
   for (const p of [host, guest]) {
