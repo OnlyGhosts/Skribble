@@ -38,6 +38,8 @@ interface Props {
  * next. Its outline and label say whose turn it is before anything else on the screen does.
  */
 export function Spotlight({ subject, kind, tone, who, label, meta, next, clock, children, layout = 'stack', data }: Props) {
+  // A long name gives way before the rest of the label: "Christoph…'s turn".
+  const split = who && label.startsWith(who.name) ? who.name.length : label.length;
   return (
     <section className={`tbl-spot tbl-spot--${kind} tbl-spot--tone-${tone} tbl-spot--${layout}`} aria-label="Spotlight" data-testid="spotlight" data-subject={subject} data-kind={kind} data-player-id={who?.id} {...data}>
       <div key={`who:${subject}`} className="tbl-spot__who tbl-spot-in">
@@ -47,7 +49,8 @@ export function Spotlight({ subject, kind, tone, who, label, meta, next, clock, 
           </span>
         )}
         <strong className="tbl-spot__label" data-testid="spot-label">
-          {label}
+          <span className="tbl-spot__name">{label.slice(0, split)}</span>
+          {split < label.length && <span className="tbl-spot__rest">{label.slice(split)}</span>}
         </strong>
       </div>
       {(meta || next) && (

@@ -604,6 +604,13 @@
   font-size: 0.6rem;
 }
 
+/* My half of the head-to-head: a rule between it and the dealer's, my cards the dealer's size. */
+.bj-table.tbl-stage--tight .bj-mine--bottom {
+  --bj-mine-w: var(--bj-dealer-w);
+  padding-left: 6px;
+  border-left: 1px solid var(--color-border);
+}
+
 .bj-table.tbl-stage--tight .bj-mine__bet {
   font-size: 0.75rem;
 }

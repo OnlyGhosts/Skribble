@@ -501,6 +501,7 @@
 }
 
 .tbl-spot__label {
+  display: flex;
   min-width: 0;
   font-family: var(--font-display);
   font-weight: 700;
@@ -510,6 +511,16 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.tbl-spot__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tbl-spot__rest {
+  flex: none;
 }
 
 .tbl-spot--turn .tbl-spot__label,
