@@ -81,10 +81,14 @@ export function PokerScreen({ room, meId, isHost }: GameScreenProps<PokerView, P
       isPhone={isPhone}
       status={
         <>
-          {handLabel(view)} ·{' '}
-          <span data-testid="phase-kicker">
-            <span data-testid="blinds" data-small={view.blinds.small} data-big={view.blinds.big}>
-              {phaseKicker(view)}
+          {handLabel(view)}
+          {/* A phone shows the blinds by the pot instead. */}
+          <span className="gbar__more">
+            {' · '}
+            <span data-testid="phase-kicker">
+              <span data-testid="blinds" data-small={view.blinds.small} data-big={view.blinds.big}>
+                {phaseKicker(view)}
+              </span>
             </span>
           </span>
         </>

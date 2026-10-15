@@ -137,15 +137,17 @@ interface TileProps {
   extra?: ReactNode;
   /** Opens the seat's sheet with its full hand. */
   onOpen?(): void;
+  /** A compact tile shows the status line (Poker's last move) in place of the bet. */
+  compactLine?: boolean;
   data?: DataAttrs;
 }
 
 /** One player in the grid; how much it shows depends on the tier (table.css lays each tier out). */
-export function PlayerTile({ playerId, name, avatar, connected, count, turn, line, mark, outcome = null, chips, bet, total, dimmed = false, badge, tag, cards, extra, onOpen, data }: TileProps) {
+export function PlayerTile({ playerId, name, avatar, connected, count, turn, line, mark, outcome = null, chips, bet, total, dimmed = false, badge, tag, cards, extra, onOpen, compactLine = false, data }: TileProps) {
   const tier: TileTier = tileTier(count);
   return (
     <div
-      className={`tbl-tile tbl-tile--${tier}${turn ? ' tbl-tile--turn' : ''}${dimmed ? ' tbl-tile--dim' : ''}${outcome ? ` tbl-tile--${outcome}` : ''}`}
+      className={`tbl-tile tbl-tile--${tier}${turn ? ' tbl-tile--turn' : ''}${dimmed ? ' tbl-tile--dim' : ''}${outcome ? ` tbl-tile--${outcome}` : ''}${compactLine ? ' tbl-tile--line' : ''}`}
       data-testid="seat"
       data-player-id={playerId}
       data-name={name}

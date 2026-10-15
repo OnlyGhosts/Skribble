@@ -6,6 +6,7 @@ import { TableCard } from '../../../platform/table/TableCard';
 import { playerOf } from '../hooks';
 import { holeOnScreen, sameCard, winningCards, wonOnScreen } from '../lib/screen';
 import type { PokerTable } from '../lib/table';
+import { shortChips } from '../../../platform/lib/format';
 import { betAnchor, betValue, chipsValue, outcomesShown, paidOut, valueAt, type Timeline } from '../lib/timeline';
 import { categoryLabel, formatChips, lastActionLabel, payoutText } from '../lib/text';
 import { usePoker, usePokerStore } from '../store';
@@ -138,11 +139,12 @@ export function Seats({ room, view, ids, meId, table, timeline, live, now, leavi
                   {bet > 0 && <Chips value={bet} size={11} />}
                 </span>
               }
-              total={{ text: formatChips(stack), tone: won > 0 ? 'win' : 'neutral' }}
+              total={{ text: shortChips(stack), tone: won > 0 ? 'win' : 'neutral' }}
               dimmed={seat.busted || seat.status === 'folded' || !view.order.includes(id)}
               badge={seat.isDealer && <DealerButton testId="seat-dealer" />}
               tag={seat.status === 'allIn' && !seat.busted ? 'All in' : null}
               onOpen={() => openSeat(id)}
+              compactLine
               data={{ 'data-chips': seat.chips, 'data-bet': seat.bet, 'data-status': status, 'data-dealer': seat.isDealer, 'data-outcome': won > 0 ? 'win' : undefined, 'data-payout': won > 0 ? won : undefined }}
               cards={holeOnScreen(table, timeline, id, meId, now).map((c) => (
                 <TableCard key={`${timeline.id}:${c.key}`} card={c.card} size="sm" motion={c.motion} leaving={leaving || c.leaving} flipping={c.flipping} highlight={c.card !== null && best.some((b) => c.card !== null && sameCard(b, c.card))} testId="seat-card" />

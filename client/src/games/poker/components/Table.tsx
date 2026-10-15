@@ -64,7 +64,10 @@ export function Table({ room, view, meId, frame, live, now, isPhone, subject, cl
       <div className="tbl-felt__top pk-top">
         <DiscardTray discarded={mucked(table)} label="Muck" />
         <div className="pk-centre">
-          <Pot shown={valueAt(live, POT_VALUE, truth, now)} truth={truth} pots={view.phase === 'acting' ? view.pots : []} />
+          <div className="pk-centre__row">
+            <Pot shown={valueAt(live, POT_VALUE, truth, now)} truth={truth} pots={view.phase === 'acting' ? view.pots : []} />
+            <span className="pk-blinds">{`Blinds ${blindsLabel(view)}`}</span>
+          </div>
           <Board table={table} timeline={timeline} now={now} leaving={leaving} size={isPhone ? 'md' : 'lg'} />
         </div>
         <Deck remaining={52 - dealt(table)} name="deck" testId="deck" />

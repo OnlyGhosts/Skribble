@@ -18,6 +18,24 @@
   align-items: center;
 }
 
+.pk-centre__row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+/* The blinds by the pot on a phone (a desktop has them on the ribbon). */
+.pk-blinds {
+  display: none;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
 .pk-centre {
   grid-column: 2;
   display: flex;
@@ -394,7 +412,11 @@
     max-width: 150px;
   }
 
-  .pk-table .tbl-ribbon__sub {
+  .pk-blinds {
+    display: inline;
+  }
+
+  .pk-table .tbl-ribbon {
     display: none;
   }
 }
