@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "npm run build:client",
+  "buildCommand": "if [ \"$VERCEL_ENV\" = production ]; then export VITE_GAME_SERVER=https://boredgames-io.fly.dev; fi; npm run build:client",
   "outputDirectory": "dist/client",
   "framework": null,
   "fluid": true,
