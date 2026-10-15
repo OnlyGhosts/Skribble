@@ -3,71 +3,66 @@ import type { BlackjackView } from '@shared/games/blackjack/protocol';
 import type { Avatar as AvatarData } from '@shared/platform/avatar';
 import { Avatar } from '../../../platform/components/Avatar';
 import { Chips } from '../../../platform/components/Chips';
-import { PlayingCard, type PlayingCardSize } from '../../../platform/components/PlayingCard';
+import { PlayingCard } from '../../../platform/components/PlayingCard';
 import type { Frame } from '../lib/timeline';
-import { Hand } from './Hand';
+import { HandRow } from './HandRow';
 
 interface Props {
   view: BlackjackView;
   meId: string;
   frame: Frame;
   now: number;
-  size: PlayingCardSize;
-  /** In the spotlight (my turn, my result) or at the bottom of the table. */
-  place: 'spot' | 'bottom';
-  /** At the bottom: my face beside my hands, so they read as mine. */
+  /** My face beside my hands, so they read as mine. */
   avatar?: AvatarData;
 }
 
 /**
- * How many hands share the width and the most cards in any of them: the stylesheet sizes the
- * cards so every hand fits its box (blackjack.css, --fit-w), however many hits and splits.
+ * My hands, always in the same place: the bottom of the table, just above the control panel, the
+ * same size through every phase (it only changes with the screen and with how many hands I hold).
+ * Split hands side by side, the one in play lit; two empty slots, where my cards land, before my
+ * first deal and once my next stake is down (the stake under them, where a hand's stake goes; my
+ * last round's outcome has had its turn in the spotlight). The spotlight never takes them.
  */
-export function fanStyle(hands: readonly { cards: readonly unknown[] }[]): CSSProperties {
-  const fan = Math.max(2, ...hands.map((h) => h.cards.length));
-  return { '--hands': Math.max(1, hands.length), '--fan': fan } as CSSProperties;
-}
-
-/** My hands: split hands side by side, the one in play lit; two empty slots before my first deal. */
-export function MyHands({ view, meId, frame, now, size, place, avatar }: Props) {
+export function MyHands({ view, meId, frame, now, avatar }: Props) {
   const { table, timeline, leaving } = frame;
-  const hands = table?.hands[meId] ?? [];
   const seat = view.players[meId];
+  const stake = seat?.bet ?? 0;
+  // A settled table stays up for the others; my row moves on to the stake I just put down.
+  const hands = table?.settled && stake > 0 ? [] : (table?.hands[meId] ?? []);
   const live = table !== null && !table.settled && !leaving;
   const turnIndex = live && view.phase === 'acting' && view.turn?.playerId === meId ? view.turn.handIndex : -1;
-  const newBet = view.phase === 'betting' && seat && seat.bet > 0 ? seat.bet : 0;
-  const shown: PlayingCardSize = hands.length > 2 ? 'md' : size;
   return (
-    <section
-      className={`bj-mine bj-mine--${place} bj-mine--n${Math.max(1, hands.length)}${place === 'bottom' ? ' tbl-stage__mine' : ''}`}
-      style={fanStyle(hands)}
-      aria-label="Your hands"
-      data-testid="my-hands"
-      data-count={hands.length}
-    >
-      {place === 'bottom' && avatar && (
+    <section className="bj-mine tbl-stage__mine" aria-label="Your hands" data-testid="my-area" data-count={hands.length}>
+      {avatar && (
         <span className="tbl-me" aria-hidden="true">
           <Avatar avatar={avatar} size="sm" />
           <span className="tbl-me__label">You</span>
         </span>
       )}
-      {hands.length > 0 ? (
-        <div className="bj-mine__hands">
-          {hands.map((hand, i) => (
-            <Hand key={i} playerId={meId} index={i} hand={hand} timeline={timeline} now={now} leaving={leaving} size={shown} active={i === turnIndex} testId="my-hand" />
-          ))}
-        </div>
-      ) : (
-        <div className="bj-mine__empty" aria-hidden="true">
-          <PlayingCard card={null} size={shown} slot testId="my-slot" />
-          <PlayingCard card={null} size={shown} slot testId="my-slot" />
-        </div>
-      )}
-      {newBet > 0 && (
-        <span className="bj-mine__bet" data-testid="my-bet" data-bet={newBet}>
-          Bet <Chips value={newBet} size={14} />
-        </span>
-      )}
+      <div className="bj-mine__hands" data-testid="my-hands" data-count={hands.length}>
+        {hands.length > 0 ? (
+          <HandRow playerId={meId} hands={hands} timeline={timeline} now={now} leaving={leaving} activeIndex={turnIndex} place="mine" size="md" testId="my-hand" chipTestId="my-chip" />
+        ) : (
+          <div className="bj-hands bj-hands--mine" style={{ '--hands': 1, '--fan': 2 } as CSSProperties}>
+            <div className="bj-slot">
+              <div className="bj-hand bj-hand--big bj-hand--empty tbl-outline tbl-outline--neutral">
+                <div className="bj-hand__top" />
+                <div className="bj-hand__cards" aria-hidden="true">
+                  <PlayingCard card={null} size="md" slot testId="my-slot" />
+                  <PlayingCard card={null} size="md" slot testId="my-slot" />
+                </div>
+                {stake > 0 && (
+                  <div className="bj-hand__foot">
+                    <span className="bj-mine__bet" data-testid="my-bet" data-bet={stake}>
+                      Bet <Chips value={stake} size={14} />
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </section>
   );
 }

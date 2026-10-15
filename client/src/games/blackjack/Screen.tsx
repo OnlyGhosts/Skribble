@@ -1,7 +1,6 @@
 import type { BlackjackSettings, BlackjackView } from '@shared/games/blackjack/protocol';
 import { gameById } from '@shared/platform/games';
 import { PlayerList } from '../../platform/components/PlayerList';
-import { Timer } from '../../platform/components/Timer';
 import type { GameScreenProps } from '../../platform/game';
 import { PHONE_QUERY, useMediaQuery } from '../../platform/lib/media';
 import { useAppMode } from '../../platform/lib/useViewport';
@@ -27,9 +26,10 @@ function pendingPayout(table: TableModel | null, timeline: Timeline, now: number
 
 /**
  * The Blackjack table, Stake style, on the platform's table shell: the top bar (round and phase),
- * the table (dealer, the spotlight on the hand being played with the turn clock, every other
- * player as a tile, my hands) and the control panel always in the same place. The cards move by
- * the timeline the store plans from the snapshots; there is no results screen between rounds.
+ * the table (dealer, the spotlight on the hand being played, every other player as a tile, my
+ * hands) and the control panel always in the same place. Nothing runs on a clock: the bets and the
+ * turns wait for the players. The cards move by the timeline the store plans from the snapshots;
+ * a settled table stays up through the server's results pause and on through the next bets.
  */
 export function BlackjackScreen({ room, meId, isHost }: GameScreenProps<BlackjackView, BlackjackSettings>) {
   const game = useActiveGame();
@@ -67,18 +67,14 @@ export function BlackjackScreen({ room, meId, isHost }: GameScreenProps<Blackjac
     pending: pendingBettors(view)
       .filter((id) => id !== meId)
       .map((id) => nameOf(room, id)),
+    sittingOut: seat?.sittingOut ?? false,
     myTurn,
     turnName,
     handIndex: view.turn?.handIndex ?? 0,
     handCount: seat?.hands.length ?? 0,
     dealerPlaying,
-    awaitingFirstBet: view.phase === 'betting' && view.endsAt === null,
   });
   const subject = spotlightSubject({ view, table: frame.table, dealerPlaying, outcomesShown: outcomesShown(frame.timeline, now), meId });
-  // The dealer's turn has no clock of its own: the next bets' countdown waits until the spotlight moves on to them.
-  const timed = playing && !held && subject.kind !== 'dealer' && (view.phase === 'betting' || view.phase === 'acting' || view.phase === 'ending');
-  const tickUnder = myTurn || (view.phase === 'betting' && view.order.includes(meId) && (seat?.bet ?? 0) === 0) ? 5 : undefined;
-  const clock = <Timer endsAt={timed ? view.endsAt : null} paused={held} warnUnder={view.phase === 'ending' ? 0 : 5} tickUnder={tickUnder} size="md" />;
   // Someone else's turn: their face beside "Pia's turn" in the panel.
   const turnPlayer = status.state === 'their-turn' ? playerOf(room, view.turn?.playerId) : undefined;
   const panel = turnPlayer ? { ...status, who: turnPlayer.avatar } : status;
@@ -109,8 +105,8 @@ export function BlackjackScreen({ room, meId, isHost }: GameScreenProps<Blackjac
       sheet={sheet}
       onSheet={openSheet}
       endControl={(variant) => isHost && playing && <EndGameControl variant={variant} phase={view.phase} requested={view.endRequested} />}
-      table={<Table room={room} view={view} meId={meId} truth={table} frame={frame} now={now} isPhone={isPhone} subject={subject} clock={clock} chipsOf={chipsOf} />}
-      panel={<ControlPanel room={room} view={view} meId={meId} balance={chipsOf(meId)} status={panel} canSend={playing && connected} busy={busy} hotkeys={!isPhone} />}
+      table={<Table room={room} view={view} meId={meId} truth={table} frame={frame} now={now} isPhone={isPhone} subject={subject} chipsOf={chipsOf} />}
+      panel={<ControlPanel room={room} view={view} meId={meId} balance={chipsOf(meId)} status={panel} canSend={playing && connected && !held} busy={busy} turnName={turnName} hotkeys={!isPhone} />}
     />
   );
 }

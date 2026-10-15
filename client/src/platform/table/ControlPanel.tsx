@@ -25,6 +25,10 @@ interface ShellProps {
   data?: DataAttrs;
   /** Desktop: the shortcuts line under the controls. */
   hint?: string | false;
+  /** A small control at the end of the status line (Blackjack's Sit out, Deal now, Skip). */
+  action?: ReactNode;
+  /** The status line keeps the action's height whether or not one is on offer, so the panel never jumps. */
+  actionSlot?: boolean;
   children: ReactNode;
 }
 
@@ -44,14 +48,14 @@ export function releaseClickedButton(e: { detail: number; target: EventTarget | 
  * The control panel shell, the same place all game long: the status line (whose turn it is), then
  * the game's rows, then the shortcut hint on a desktop. A form, so Enter in the amount sends.
  */
-export function PanelShell({ label, status, onSubmit, testId, data, hint, children }: ShellProps) {
+export function PanelShell({ label, status, onSubmit, testId, data, hint, action, actionSlot = false, children }: ShellProps) {
   const submit = (e: FormEvent) => {
     e.preventDefault();
     onSubmit();
   };
   return (
     <form className="tbl-panel" onSubmit={submit} onClick={releaseClickedButton} noValidate aria-label={label} data-testid={testId} {...data}>
-      <div className={`tbl-panel__status tbl-panel__status--${status.tone}${status.who ? ' tbl-panel__status--who' : ''}`}>
+      <div className={`tbl-panel__status tbl-panel__status--${status.tone}${status.who ? ' tbl-panel__status--who' : ''}${actionSlot ? ' tbl-panel__status--slot' : ''}`}>
         {status.who && (
           <span className="tbl-panel__who" aria-hidden="true">
             <Avatar avatar={status.who} size="sm" />
@@ -60,6 +64,7 @@ export function PanelShell({ label, status, onSubmit, testId, data, hint, childr
         <p className="tbl-panel__status-text" data-testid="turn-status" data-state={status.state} role="status" aria-live="polite">
           {status.text}
         </p>
+        {action}
       </div>
       {children}
       {hint && (
@@ -68,6 +73,15 @@ export function PanelShell({ label, status, onSubmit, testId, data, hint, childr
         </p>
       )}
     </form>
+  );
+}
+
+/** The small control at the end of the status line: a pill whose tap target is a full 44px tall. */
+export function StatusAction({ label, ariaLabel, testId, onClick, enabled = true }: { label: string; ariaLabel?: string; testId: string; onClick(): void; enabled?: boolean }) {
+  return (
+    <button type="button" className="tbl-panel__act" onClick={onClick} disabled={!enabled} aria-label={ariaLabel} data-testid={testId}>
+      {label}
+    </button>
   );
 }
 

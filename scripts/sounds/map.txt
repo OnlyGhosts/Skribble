@@ -18,7 +18,6 @@ table/flip|casino-audio|card-place-2.ogg|0|64
 table/place-1|casino-audio|card-place-1.ogg|0|64
 table/place-2|casino-audio|card-place-4.ogg|0|64
 table/toss|casino-audio|card-shove-1.ogg|0|64
-table/shuffle|casino-audio|card-shuffle.ogg|2.2|64
 table/chip-lay-1|casino-audio|chip-lay-1.ogg|0|64
 table/chip-lay-2|casino-audio|chip-lay-3.ogg|0|64
 table/chips-1|casino-audio|chips-stack-1.ogg|0|64

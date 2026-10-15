@@ -1,7 +1,8 @@
 /**
  * Blackjack's part of the wire protocol: its settings, its client messages and the per-recipient
  * view the platform embeds in `RoomState.game`. Snapshots carry everything, so there are no server
- * messages. The table rules themselves (totals, the dealer's policy, payouts) live in cards.ts.
+ * messages. The table rules themselves (the endless deck, totals, the dealer's policy, payouts)
+ * live in cards.ts.
  */
 import { z } from 'zod';
 import type { RoomState } from '../../platform/protocol.js';
@@ -20,12 +21,14 @@ export type { Card, CardRank } from '../../platform/cards.js';
 
 export const BLACKJACK_SETTINGS_LIMITS = {
   startingChips: { min: 100, max: 100_000 },
-  /** The fewest decks in the shoe; a big table gets more (see shoeDecks in cards.ts). */
-  decks: { min: 1, max: 8 },
-  betSeconds: { min: 10, max: 60 },
-  actSeconds: { min: 10, max: 60 },
-  resultsSeconds: { min: 4, max: 20 },
 } as const;
+
+/**
+ * How long a settled table stays up, on top of the dealer's reveal: before the next round's bets
+ * open, and before the podium. Nothing else at the table runs on a clock: the bets and the turns
+ * wait for the players.
+ */
+export const BLACKJACK_RESULTS_MS = 5000;
 
 export const BLACKJACK_PAYOUTS = ['3:2', '6:5'] as const;
 export type BlackjackPayout = (typeof BLACKJACK_PAYOUTS)[number];
@@ -35,16 +38,11 @@ const limited = (key: keyof typeof BLACKJACK_SETTINGS_LIMITS) => z.number().int(
 export const blackjackSettingsSchema = z.object({
   /** Chips every player (late joiners included) starts with; the score is the chip count. */
   startingChips: limited('startingChips'),
-  /** The fewest decks in the shoe; it is reshuffled once under a quarter of it (or a round's worth) remains. */
-  decks: limited('decks'),
-  betSeconds: limited('betSeconds'),
-  actSeconds: limited('actSeconds'),
-  resultsSeconds: limited('resultsSeconds'),
   /** The dealer draws on a soft 17 (an ace counted as 11) instead of standing. */
   dealerHitsSoft17: z.boolean(),
   blackjackPayout: z.enum(BLACKJACK_PAYOUTS),
   allowDouble: z.boolean(),
-  /** Pairs split (and re-split) up to MAX_HANDS (4) hands a seat; split aces take one card each; 21 after a split pays 1:1. */
+  /** Pairs split, and re-split with no cap while the chips last; split aces take one card each; 21 after a split pays 1:1. */
   allowSplit: z.boolean(),
 });
 
@@ -52,10 +50,6 @@ export type BlackjackSettings = z.infer<typeof blackjackSettingsSchema>;
 
 export const DEFAULT_BLACKJACK_SETTINGS: BlackjackSettings = {
   startingChips: 1000,
-  decks: 6,
-  betSeconds: 15,
-  actSeconds: 20,
-  resultsSeconds: 5,
   dealerHitsSoft17: false,
   blackjackPayout: '3:2',
   allowDouble: true,
@@ -74,6 +68,18 @@ export const blackjackClientMessageSchema = z.discriminatedUnion('t', [
   z.object({ t: z.literal('stand') }),
   z.object({ t: z.literal('double') }),
   z.object({ t: z.literal('split') }),
+  /** During `betting`, a seat with chips that has not bet: no cards this hand. A bet before the deal brings it back in. */
+  z.object({ t: z.literal('sitOutHand') }),
+  /**
+   * During `betting` with at least one bet down: deals to the seats that bet; the rest sit the hand
+   * out. The host's (anyone's while the table waits on the host's own bet).
+   */
+  z.object({ t: z.literal('dealNow') }),
+  /**
+   * On another player's turn: stands the hand named, if it is still the one in play (a second tap
+   * never stands the next player's hand). The host's (anyone's on the host's own turn).
+   */
+  z.object({ t: z.literal('skip'), playerId: z.string().min(1).max(64), handIndex: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER) }),
   /** Host only: ends the game once the hand in play settles (at once between hands); the podium ranks the chips. */
   z.object({ t: z.literal('endGame') }),
 ]);
@@ -88,12 +94,14 @@ export type BlackjackServerMessage = never;
 // ---------------------------------------------------------------------------
 
 /**
- * `betting` opens straight after the last round settled (its table stays on show in `lastRound`;
- * once its clock ran out with no bet at all it waits, unclocked, for the first one),
- * `acting` is one hand at a time, `held` waits for a player still in the game to reconnect,
- * `ending` keeps the final table on show before the podium.
+ * `results` keeps a settled table on show (the dealer's reveal, then BLACKJACK_RESULTS_MS), then
+ * `betting` opens (the table stays on show in `lastRound` until the deal). Betting has no clock:
+ * the cards go out once every connected seat with chips has bet or sat out, or when the host
+ * deals. `acting` is one hand at a time, also unclocked (a disconnected player's hand stands at
+ * once, and the host may skip an idle one), `held` waits for a player still in the game to
+ * reconnect, `ending` keeps the final table on show for the same pause before the podium.
  */
-export type BlackjackPhase = 'betting' | 'acting' | 'held' | 'ending' | 'gameOver';
+export type BlackjackPhase = 'betting' | 'acting' | 'results' | 'held' | 'ending' | 'gameOver';
 
 /** A hand's state as the round goes: dealt (`waiting`), in play, finished by the player, settled by the dealer. */
 export type HandStatus = 'waiting' | 'acting' | 'stood' | 'bust' | 'blackjack' | 'won' | 'lost' | 'push';
@@ -139,6 +147,8 @@ export interface BlackjackPlayerView {
   hands: HandView[];
   /** Dealt in this round. */
   inRound: boolean;
+  /** Chose to sit this hand out during `betting` (a bet brings them back in before the deal). */
+  sittingOut: boolean;
   /** Out of the game: no chips left. */
   bustedOut: boolean;
 }
@@ -165,6 +175,16 @@ export interface BlackjackActions {
   canSplit: boolean;
 }
 
+/** The viewer's table controls outside the hand in play. */
+export interface BlackjackControls {
+  /** Betting, in the round, chips left, no bet down and not sitting out already. */
+  canSitOut: boolean;
+  /** During betting with at least one bet down: the host, or anyone while the table waits on the host's bet. */
+  canDealNow: boolean;
+  /** While another player's hand is in play: the host, or anyone on the host's own turn. */
+  canSkip: boolean;
+}
+
 export interface BlackjackView {
   phase: BlackjackPhase;
   /** 1-based current round (the round being bet on during `betting`); the rounds never run out. */
@@ -173,22 +193,17 @@ export interface BlackjackView {
   order: string[];
   /** The hand in play during `acting`. */
   turn: { playerId: string; handIndex: number } | null;
-  /** Epoch ms (server clock) when the current phase ends on its own; null while held, at the end and while the table waits for a first bet. */
-  endsAt: number | null;
+  /** During `betting`: the seats the deal still waits for (connected, chips left, no bet, not sitting out). */
+  waitingFor: string[];
   dealer: DealerView;
   /** Every participant, keyed by player id. */
   players: Record<string, BlackjackPlayerView>;
   /** What the viewer may do right now; all false unless it is their hand. */
   actions: BlackjackActions;
+  controls: BlackjackControls;
   lastRound: LastRoundView | null;
   /** The host ended the game: it ends once the hand in play settles. */
   endRequested: boolean;
-  /** Cards left in the shoe. */
-  shoeRemaining: number;
-  /** Cards in the shoe when it was last built: more decks than the setting at a big table. */
-  shoeSize: number;
-  /** The shoe was reshuffled at the start of this round. */
-  reshuffled: boolean;
 }
 
 export type BlackjackRoomState = RoomState<BlackjackView, BlackjackSettings>;

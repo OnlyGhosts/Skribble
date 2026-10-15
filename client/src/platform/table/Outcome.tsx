@@ -9,10 +9,10 @@ export function outlineClass(tone: Tone): string {
   return `tbl-outline tbl-outline--${tone}`;
 }
 
-/** A total pill over a hand (or a hand's name), in the hand's tone. */
+/** A total pill over a hand (or a hand's name), in the hand's tone; a long one ("10/20") is marked `data-long`. */
 export function TotalPill({ tone, children, testId }: { tone: Tone; children: string; testId?: string }) {
   return (
-    <span className={`tbl-pill tbl-pill--${tone}`} data-testid={testId}>
+    <span className={`tbl-pill tbl-pill--${tone}`} data-testid={testId} data-long={children.length > 3 || undefined}>
       {children}
     </span>
   );

@@ -610,6 +610,14 @@
   text-align: right;
 }
 
+/* Nothing in the body (the words alone): the line under the label lines up under it. */
+.tbl-spot--row:not(:has(.tbl-spot__body)) .tbl-spot__sub {
+  grid-column: 1 / -1;
+  align-items: flex-start;
+  justify-self: start;
+  text-align: left;
+}
+
 .tbl-spot__next {
   min-width: 0;
   max-width: 100%;
@@ -1380,6 +1388,54 @@
   margin: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* A status line with room for a small control at its end (it keeps that height with none on offer). */
+.tbl-panel__status.tbl-panel__status--slot {
+  min-height: 30px;
+  overflow: visible;
+}
+
+.tbl-panel__act {
+  position: relative;
+  flex: none;
+  margin-left: auto;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 999px;
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+/* The pill is small to keep the panel short; its tap target is a full 44px tall. */
+.tbl-panel__act + .tbl-panel__act {
+  margin-left: 0;
+}
+
+.tbl-panel__act:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.tbl-panel__act::after {
+  content: '';
+  position: absolute;
+  inset: -7px -4px;
+}
+
+.tbl-panel__act:hover {
+  border-color: var(--color-primary-text);
+}
+
+.tbl-panel__act:focus-visible {
+  outline: 2px solid var(--color-primary-text);
+  outline-offset: 2px;
 }
 
 /* Someone else's turn: their avatar in place of the dot. */

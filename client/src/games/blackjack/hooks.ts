@@ -25,9 +25,9 @@ export function isInRound(view: BlackjackView | null, playerId: string | null): 
   return playerId !== null && view !== null && view.order.includes(playerId);
 }
 
-/** Seats still to bet while the betting clock runs. */
+/** The seats the deal still waits for (connected, no bet, not sitting out). */
 export function pendingBettors(view: BlackjackView): string[] {
-  return view.phase === 'betting' ? view.order.filter((id) => (view.players[id]?.bet ?? 0) === 0) : [];
+  return view.phase === 'betting' ? view.waitingFor : [];
 }
 
 /**

@@ -11,7 +11,7 @@ import { createParty, expectReadyCount, joinByCode, readyAll } from './party';
 
 test('every sound file in the registry is served, and the set stays within budget', async ({ request }) => {
   const urls = allSoundUrls();
-  expect(urls.length).toBeGreaterThanOrEqual(30);
+  expect(urls.length).toBeGreaterThanOrEqual(25);
   let total = 0;
   for (const url of urls) {
     const res = await request.get(url);
@@ -110,8 +110,8 @@ test('with sound on, a table loads its sounds when it mounts and plays them with
   await expect(host.page.getByTestId('place-bet')).toBeDisabled();
   await guest.page.getByTestId('place-bet').click();
   // The deal: every card slides in with its sound on both pages (two each and the dealer's two).
-  // A dealer blackjack (or two naturals) settles round one at once and opens round two's betting,
-  // so the deal shows as either.
+  // A dealer blackjack (or two naturals) settles round one at once (the results pause, then round
+  // two's betting), so the deal shows as any of them.
   for (const p of [host, guest]) {
     const screen = p.page.getByTestId('blackjack-screen');
     await expect.poll(async () => (await screen.getAttribute('data-phase')) !== 'betting' || (await screen.getAttribute('data-round')) !== '1').toBe(true);

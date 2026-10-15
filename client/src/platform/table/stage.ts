@@ -7,8 +7,9 @@ export const SHORT_PHONE_QUERY = '(max-height: 680px)';
 export const MID_PHONE_QUERY = '(max-height: 780px)';
 
 /**
- * Whether the table packs tight: the spotlight in one row, and (Blackjack) the dealer and my hand
- * side by side in the top row, so the players keep the height. A short phone always does; a
+ * Whether the table packs tight: the spotlight in one row, so the players keep the height (a
+ * game may pack more). Blackjack's dealer and my hands never move: they keep their own fixed rows
+ * whatever this says. A short phone always does; a
  * shorter phone once the tiles go compact (five or more others); any phone, and a desktop too,
  * once the table has ten or more other players.
  */

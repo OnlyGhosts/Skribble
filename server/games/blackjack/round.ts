@@ -1,12 +1,12 @@
-/** The round boundary: the next round's betting, the end of the game (with its final pause), the host's End game and the holds. */
+/** The round boundary: the results pause, the next round's betting, the end of the game, the host's End game and the holds. */
 import { RESUME_SETTLE_MS, holdEffects, resumeEffect } from '../waiting.js';
-import { needsReshuffle } from '../../../shared/games/blackjack/cards.js';
-import { MIN_PLAYERS, activePlayers, adjustChips, connectedActive, fail, rebuildShoe, shoeSizeOf, snapshot, systemMessage, type Gx } from './state.js';
+import { BLACKJACK_RESULTS_MS } from '../../../shared/games/blackjack/protocol.js';
+import { MIN_PLAYERS, activePlayers, adjustChips, anyBetDown, connectedActive, dropLegacyShoe, fail, snapshot, systemMessage, type Gx } from './state.js';
 
 /** Seats a newcomer (or a player without a seat yet) with the starting stack. */
 export function seatPlayer(gx: Gx, playerId: string): void {
   if (gx.data.seats[playerId]) return;
-  gx.data.seats[playerId] = { chips: 0, bet: 0, hands: [], bustedOut: false };
+  gx.data.seats[playerId] = { chips: 0, bet: 0, hands: [], bustedOut: false, sittingOut: false };
   adjustChips(gx, playerId, gx.ctx.settings.startingChips);
 }
 
@@ -38,31 +38,26 @@ function seatNewcomers(gx: Gx): void {
   for (const p of activePlayers(ctx, data)) if (!data.seats[p.id]) seatPlayer(gx, p.id);
 }
 
-/**
- * Seats the newcomers and puts every seat still in the game into the round about to be bet on,
- * with a shoe that holds a round for all of them. The table is clear, so a rebuild puts the last
- * round's cards back in the shoe.
- */
-function fillRound(gx: Gx): void {
+/** Seats the newcomers and puts every seat still in the game into the round about to be bet on. */
+export function fillRound(gx: Gx): void {
   const { data, ctx } = gx;
   seatNewcomers(gx);
   data.order = activePlayers(ctx, data)
     .filter((p) => data.seats[p.id])
     .map((p) => p.id);
-  if (needsReshuffle(data.shoe.length, shoeSizeOf(data, ctx.settings), data.order.length)) rebuildShoe(gx, 'The shoe is running low');
 }
 
 /**
- * Straight after a settle: the next round's betting, its clock lengthened by `revealMs` so the
- * dealer's reveal can play first, or the final pause with the settled table on show.
+ * Straight after a settle the table stays on show for the dealer's reveal (`revealMs`), then
+ * BLACKJACK_RESULTS_MS more: before the next round's bets open, or before the podium.
  */
 export function afterSettle(gx: Gx, revealMs: number): void {
   const { data, ctx } = gx;
-  if (ctx.players.length >= MIN_PLAYERS && gameIsOver(gx)) {
-    data.phase = { kind: 'ending', endsAt: ctx.now + revealMs + ctx.settings.resultsSeconds * 1000 };
-    return snapshot(gx);
-  }
-  beginRound(gx, revealMs);
+  // Nobody left to see it: back to the lobby at once.
+  if (ctx.players.length < MIN_PLAYERS) return beginRound(gx);
+  const endsAt = ctx.now + revealMs + BLACKJACK_RESULTS_MS;
+  data.phase = gameIsOver(gx) ? { kind: 'ending', endsAt } : { kind: 'results', endsAt };
+  snapshot(gx);
 }
 
 /**
@@ -70,7 +65,7 @@ export function afterSettle(gx: Gx, revealMs: number): void {
  * still in the game connected it holds instead (a reconnect or a join calls it again), and it
  * abandons the game only when no seat is left.
  */
-export function beginRound(gx: Gx, revealMs = 0): void {
+export function beginRound(gx: Gx): void {
   const { data, ctx } = gx;
   if (ctx.players.length < MIN_PLAYERS) {
     gx.effects.push({ type: 'abort', reason: 'Not enough players. Back to the lobby.' });
@@ -81,63 +76,39 @@ export function beginRound(gx: Gx, revealMs = 0): void {
   if (data.phase.kind === 'held') gx.effects.push(resumeEffect());
 
   data.round += 1;
-  data.reshuffled = false;
+  dropLegacyShoe(data);
   for (const seat of Object.values(data.seats)) {
     seat.bet = 0;
     seat.hands = [];
+    seat.sittingOut = false;
   }
   data.dealer = [];
   data.holeHidden = true;
   // Only a round that really starts seats the newcomers (with the starting stack).
   fillRound(gx);
-  data.phase = { kind: 'betting', endsAt: ctx.now + revealMs + ctx.settings.betSeconds * 1000 };
+  data.phase = { kind: 'betting' };
   systemMessage(gx, `Round ${data.round}: place your bets!`);
   snapshot(gx);
 }
 
-/** Betting with its clock run out and no bet down: the table waits, unclocked, for the first one. */
-export function waitingForFirstBet(gx: Gx): boolean {
-  const { phase } = gx.data;
-  return phase.kind === 'betting' && phase.endsAt === null;
+/**
+ * The bets are open with none down and nobody still in the game is connected to place one: the
+ * table holds, and the round is not spent (it opens again once someone is back).
+ */
+export function holdBetting(gx: Gx): void {
+  gx.data.round -= 1;
+  hold(gx);
 }
 
 /**
- * The betting clock ran out and nobody bet: no cards go out. The table waits for the first bet
- * (newcomers are seated straight into it), or holds when nobody still in the game is connected;
- * the round is not spent either way.
+ * A newcomer joining while the bets are open and none is down yet is seated at once (nothing has
+ * been played, so they bet with everyone); false otherwise (they are seated from the next round).
  */
-export function awaitFirstBet(gx: Gx): void {
-  const { data, ctx } = gx;
-  if (connectedActive(ctx, data).length < MIN_PLAYERS) {
-    data.round -= 1;
-    return hold(gx);
-  }
-  data.phase = { kind: 'betting', endsAt: null };
-  fillRound(gx);
-  systemMessage(gx, 'Nobody bet. The dealer waits for the first bet.');
-  snapshot(gx);
-}
-
-/** A newcomer joining a table that waits for its first bet is seated at once; false otherwise. */
-export function seatWhileWaiting(gx: Gx): boolean {
-  if (!waitingForFirstBet(gx)) return false;
+export function seatWhileBetting(gx: Gx): boolean {
+  if (gx.data.phase.kind !== 'betting' || anyBetDown(gx.data)) return false;
   fillRound(gx);
   snapshot(gx);
   return true;
-}
-
-/**
- * A player dropped, came back or left: a hold is re-evaluated, and a table waiting for a first bet
- * holds once nobody connected is left to place it. `seatsChanged` sends the table out regardless.
- */
-export function onConnectionChange(gx: Gx, seatsChanged = false): void {
-  const { data, ctx } = gx;
-  if (waitingForFirstBet(gx) && connectedActive(ctx, data).length < MIN_PLAYERS) {
-    data.round -= 1;
-    return hold(gx);
-  }
-  if (seatsChanged) return snapshotOrResume(gx);
-  resumeIfHeld(gx);
 }
 
 /** The host ends the game: at once between hands (stakes on the table go back), otherwise once the hand in play settles. */
@@ -162,6 +133,8 @@ export function endGame(gx: Gx, playerId: string): void {
       break;
     case 'held':
       gx.effects.push(resumeEffect());
+      break;
+    case 'results':
       break;
   }
   data.endRequested = true;

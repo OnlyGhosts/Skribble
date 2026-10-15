@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEALER_RESERVE, MAX_HANDS, REVEAL_CARD_MS, REVEAL_HOLE_MS, SEAT_RESERVE, dealerPeeks, dealerShouldHit, freshShoe, handTotal, isBust, isNatural, isPair, isTenValue, naturalWinnings, needsReshuffle, revealAllowanceMs, roundReserve, settleHand, shoeDecks, shuffle } from './cards.js';
+import { DECK, REVEAL_CARD_MS, REVEAL_HOLE_MS, dealerPeeks, dealerShouldHit, drawCard, handTotal, isBust, isNatural, isPair, isTenValue, naturalWinnings, revealAllowanceMs, settleHand } from './cards.js';
 import type { Card, CardRank } from './protocol.js';
 
 /** 'AS', '10H', 'KD' -> a card. */
@@ -54,55 +54,58 @@ describe('the dealer', () => {
   });
 });
 
-describe('the shoe', () => {
-  it('holds 52 cards per deck, shuffles into a permutation and is deterministic for a given rng', () => {
-    expect(freshShoe(1)).toHaveLength(52);
-    expect(freshShoe(6)).toHaveLength(312);
-    expect(new Set(freshShoe(1).map((c) => `${c.rank}${c.suit}`)).size).toBe(52);
-    const deck = freshShoe(2);
-    let seed = 7;
-    const rng = (): number => {
-      seed = (seed * 48271) % 2147483647;
-      return seed / 2147483647;
-    };
-    const a = shuffle(deck, rng);
-    seed = 7;
-    const b = shuffle(deck, rng);
+/** A seeded rng (mulberry32): the same seed always gives the same draws. */
+function seeded(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+describe('the endless deck', () => {
+  it('draws from the 52 cards with one rng call a card, the whole range of the rng covering the deck in order', () => {
+    expect(DECK).toHaveLength(52);
+    expect(new Set(DECK.map((c) => `${c.rank}${c.suit}`)).size).toBe(52);
+    expect(drawCard(() => 0)).toEqual(card('AS'));
+    expect(drawCard(() => 0.999999)).toEqual(card('KC'));
+    DECK.forEach((c, i) => expect(drawCard(() => (i + 0.5) / 52)).toEqual(c));
+    let calls = 0;
+    drawCard(() => {
+      calls += 1;
+      return 0.5;
+    });
+    expect(calls).toBe(1);
+    // A drawn card is its own object: changing it never changes the deck.
+    const drawn = drawCard(() => 0);
+    drawn.rank = 'K';
+    expect(DECK[0]).toEqual(card('AS'));
+  });
+
+  it('is deterministic for a given rng and never runs out', () => {
+    const a = Array.from({ length: 2000 }, ((rng) => () => drawCard(rng))(seeded(7)));
+    const b = Array.from({ length: 2000 }, ((rng) => () => drawCard(rng))(seeded(7)));
     expect(a).toEqual(b);
-    expect(a).not.toEqual(deck);
-    expect(a).toHaveLength(104);
-    expect([...a].sort((x, y) => `${x.rank}${x.suit}`.localeCompare(`${y.rank}${y.suit}`))).toEqual([...deck].sort((x, y) => `${x.rank}${x.suit}`.localeCompare(`${y.rank}${y.suit}`)));
-    // The input is never touched.
-    expect(deck).toEqual(freshShoe(2));
-    expect(shuffle(deck, () => 0.999)).toHaveLength(104);
+    expect(a.every((c) => DECK.some((d) => d.rank === c.rank && d.suit === c.suit))).toBe(true);
   });
 
-  it('is due for a reshuffle once under a quarter of it remains, or under a round for every seat', () => {
-    expect(needsReshuffle(78, 6 * 52, 2)).toBe(false);
-    expect(needsReshuffle(77, 6 * 52, 2)).toBe(true);
-    expect(needsReshuffle(0, 8 * 52, 1)).toBe(true);
-    // A seat sets four hands of three cards aside, the dealer eight: one deck, one seat needs 20.
-    expect(roundReserve(1)).toBe(SEAT_RESERVE + DEALER_RESERVE);
-    expect(SEAT_RESERVE).toBe(MAX_HANDS * 3);
-    expect(needsReshuffle(20, 52, 1)).toBe(false);
-    expect(needsReshuffle(19, 52, 1)).toBe(true);
-    // Fifty seats: a quarter of the shoe is not enough, a round's reserve is the mark.
-    expect(needsReshuffle(roundReserve(50), 24 * 52, 50)).toBe(false);
-    expect(needsReshuffle(roundReserve(50) - 1, 24 * 52, 50)).toBe(true);
-  });
-
-  it('grows the shoe with the table: the setting is the fewest decks, a big table gets twice its seats a reserve', () => {
-    expect(shoeDecks(6, 2)).toBe(6);
-    expect(shoeDecks(1, 1)).toBe(1);
-    expect(shoeDecks(1, 2)).toBe(1);
-    expect(shoeDecks(1, 3)).toBe(2);
-    expect(shoeDecks(6, 20)).toBe(10);
-    expect(shoeDecks(8, 50)).toBe(24);
-    // A fresh shoe is never due for a reshuffle itself, however big the table.
-    for (let seats = 1; seats <= 50; seats++) {
-      const size = shoeDecks(1, seats) * 52;
-      expect(needsReshuffle(size, size, seats), `${seats} seats`).toBe(false);
+  it('draws every card about as often as any other (a chi-squared check over 104,000 seeded draws)', () => {
+    const rng = seeded(20261015);
+    const draws = 104_000;
+    const counts = new Map<string, number>();
+    for (let i = 0; i < draws; i++) {
+      const c = drawCard(rng);
+      counts.set(`${c.rank}${c.suit}`, (counts.get(`${c.rank}${c.suit}`) ?? 0) + 1);
     }
+    expect(counts.size).toBe(52);
+    const expected = draws / 52;
+    const chi = [...counts.values()].reduce((sum, n) => sum + (n - expected) ** 2 / expected, 0);
+    // 51 degrees of freedom: the 99.9th percentile is about 87.
+    expect(chi).toBeLessThan(87);
+    for (const n of counts.values()) expect(Math.abs(n - expected) / expected).toBeLessThan(0.1);
   });
 });
 
@@ -155,9 +158,5 @@ describe('the peek and the reveal', () => {
     expect(REVEAL_CARD_MS).toBe(500);
     // A dealer cleared before a deal (or never dealt) still gets the flip allowance only.
     expect(revealAllowanceMs(0)).toBe(1200);
-  });
-
-  it('stops splitting at four hands', () => {
-    expect(MAX_HANDS).toBe(4);
   });
 });

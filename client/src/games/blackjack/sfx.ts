@@ -2,7 +2,7 @@
  * When Blackjack's sounds play. Every card that moves makes a sound timed to its animation: each
  * card dealt, hit or doubled as it slides in, the half of a split as it slides to its new hand, the
  * dealer's draws, the hole card turning over, and a soft swoosh as the last round goes to the
- * discards. Chips as bets go down, a reshuffle, the viewer's own bust and settle, and the blackjack
+ * discards. Chips as bets go down, the viewer's own bust and settle, and the blackjack
  * sting: full on the viewer's own natural, quieter on someone else's, at most one per deal.
  */
 import type { BlackjackView } from '@shared/games/blackjack/protocol';
@@ -66,7 +66,6 @@ function newlyStatus(table: TableModel, prevTable: TableModel | null, status: Ta
 
 export function playBlackjackSounds({ view, prevView, table, prevTable, before, timeline, me }: BlackjackMoment): void {
   const sameRound = prevView.round === view.round;
-  if (view.reshuffled && (!prevView.reshuffled || !sameRound)) sfx.play('shuffle');
   // One chip sound a snapshot, however many stakes went down in it: mine in full, otherwise softer.
   const grew = Object.keys(view.players).filter((id) => staked(view, id) > (sameRound ? staked(prevView, id) : 0));
   if (grew.length > 0) sfx.play('bet', { volume: me !== null && grew.includes(me) ? 1 : ONLOOKER_VOLUME });

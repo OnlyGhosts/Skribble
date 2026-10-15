@@ -4,8 +4,9 @@ import { tableBots, type TableBot } from './tableBots';
 import { tilesReadable } from './tableFit';
 
 /**
- * Blackjack the Stake way, between a desktop host and two phones (390x844, touch): no rounds and
- * no table limits to set (the rounds never run out, any bet from 1 chip to the whole stack), bets
+ * Blackjack the Stake way, between a desktop host and two phones (390x844, touch): no rounds, no
+ * table limits and no clocks to set (the rounds never run out, any bet from 1 chip to the whole
+ * stack, the bets and the turns wait for the players), bets
  * through the control panel (1/2, 2x, MAX for all in, a typed amount, Enter, the Space shortcut), hands played one at a time in seat order with only the acting page's
  * moves lit, the hole card hidden on every page until the dealer plays, the settled table staying
  * up through the next betting with each outcome paid by the rules, the chips always equal to the
@@ -305,12 +306,13 @@ test('the host sets up a Blackjack table (no rounds or table limits to set) and 
     }
   }
 
-  await host.page.getByTestId('settings-betSeconds').fill('60');
-  await host.page.getByTestId('settings-actSeconds').fill('60');
-  await host.page.getByTestId('settings-resultsSeconds').fill('4');
-  await expect(pia.page.getByTestId('settings-value-betSeconds')).toHaveText('60s');
-  await expect(pia.page.getByTestId('settings-value-actSeconds')).toHaveText('60s');
-  await expect(pia.page.getByTestId('settings-value-resultsSeconds')).toHaveText('4s');
+  // No clocks to set either: the bets and the turns wait for the players.
+  for (const p of players) {
+    for (const id of ['betSeconds', 'actSeconds', 'resultsSeconds']) {
+      await expect(p.page.getByTestId(`settings-${id}`)).toHaveCount(0);
+      await expect(p.page.getByTestId(`settings-value-${id}`)).toHaveCount(0);
+    }
+  }
   await expect(pia.page.getByTestId('settings-value-blackjackPayout')).toHaveText('3 to 2');
   await expect(host.page.getByTestId('settings-allowSplit')).toBeChecked();
   // No insurance anywhere.
@@ -326,6 +328,9 @@ test('the host sets up a Blackjack table (no rounds or table limits to set) and 
     await expect(p.page.getByTestId('round-indicator')).not.toContainText(' of ');
     await expect(p.page.getByTestId('table-ribbon')).toContainText('BLACKJACK PAYS 3 TO 2');
     await expect(p.page.getByTestId('turn-status')).toHaveText('Place your bet');
+    // No countdown anywhere, and a way to sit the hand out instead of betting.
+    await expect(p.page.getByTestId('timer')).toHaveCount(0);
+    await expect(p.page.getByTestId('sit-out')).toBeVisible();
     expect(await chipsOf(p)).toBe(STARTING_CHIPS);
   }
   await expect(host.page.getByTestId('hotkey-hint')).toBeVisible();
@@ -400,9 +405,10 @@ test('round one: hands are played one at a time in seat order, then the dealer s
   });
   turnsInSeatOrder(turns);
   await checkSettlement(1, before, { Hana: 75, Pia: PIA_BET, Quinn: QUINN_BET });
-  // Straight into the next round's betting, the settled table still on show.
+  // The settled table stays up for the reveal and a fixed 5 s, then the next round's betting opens
+  // with it still on show (the pause is by design, so the wait allows for it).
   for (const p of players) {
-    await expect(screen(p)).toHaveAttribute('data-phase', 'betting');
+    await expect(screen(p)).toHaveAttribute('data-phase', 'betting', { timeout: 20_000 });
     await expect(p.page.getByTestId('round-indicator')).toHaveAttribute('data-round', '2');
     await expect(p.page.getByTestId('overlay-results')).toHaveCount(0);
   }
@@ -490,9 +496,23 @@ async function nothingScrolls(page: Page, label: string): Promise<void> {
         table: over(document.querySelector('[data-testid="bj-table"]')),
         seats: document.querySelector('[data-testid="seats"]') ? over(document.querySelector('[data-testid="seats"]')) : false,
         status: status !== null && status.getClientRects().length > 0 && over(status),
+        // Diagnostics: whatever reaches past the table's edges.
+        past: (() => {
+          const table = document.querySelector('[data-testid="bj-table"]');
+          if (!table || !over(table)) return [];
+          const box = table.getBoundingClientRect();
+          const past = Array.from(table.querySelectorAll('*'))
+            .filter((el) => {
+              const r = el.getBoundingClientRect();
+              return r.width > 0 && (r.bottom > box.bottom - 8.5 || r.right > box.right - 8.5);
+            })
+            .slice(0, 5)
+            .map((el) => `${el.tagName}.${el.className} ${JSON.stringify(el.getBoundingClientRect())}`);
+          return [`table ${table.scrollWidth}/${table.clientWidth} x ${table.scrollHeight}/${table.clientHeight}`, ...Array.from(table.children).map((el) => `${el.className} ${JSON.stringify(el.getBoundingClientRect())}`), ...past];
+        })(),
       };
     });
-  await expect.poll(read, { message: `${label}: nothing scrolls` }).toEqual({ document: false, main: false, table: false, seats: false, status: false });
+  await expect.poll(read, { message: `${label}: nothing scrolls` }).toEqual({ document: false, main: false, table: false, seats: false, status: false, past: [] });
 }
 
 /**
@@ -551,9 +571,6 @@ async function bigTable(browser: Browser, base: string, size: number): Promise<v
   try {
     const code = await createParty(desk, 'Hana', 'blackjack');
     await joinByCode(phone, 'Pia', code);
-    // Slow clocks: the checks take their time, and nobody should sit a hand out over it.
-    for (const id of ['betSeconds', 'actSeconds']) await desk.getByTestId(`settings-${id}`).fill('60');
-    await expect(phone.getByTestId('settings-value-actSeconds')).toHaveText('60s');
     bots = await tableBots(size - 2, code, base, { game: 'blackjack', hold: true, thinkMs: 50 });
     await readyAll([phone]);
     await expectReadyCount(desk, size);
@@ -570,7 +587,9 @@ async function bigTable(browser: Browser, base: string, size: number): Promise<v
       await phone.getByTestId('place-bet').click();
       const dealt = async () => {
         const [phase, now] = await Promise.all([screenOf(phone).getAttribute('data-phase'), screenOf(phone).getAttribute('data-round')]);
-        return phase === 'acting' && now === String(round) ? 'acting' : phase === 'betting' && now === String(round + 1) ? 'dealer blackjack' : null;
+        if (phase === 'acting' && now === String(round)) return 'acting';
+        // Settled at the peek: the results pause, then the next round's bets.
+        return (phase === 'results' && now === String(round)) || (phase === 'betting' && now === String(round + 1)) ? 'dealer blackjack' : null;
       };
       await expect.poll(dealt, { timeout: 20_000, message: `round ${round}: dealt` }).not.toBeNull();
       if ((await dealt()) === 'acting') break;
@@ -637,6 +656,134 @@ for (const size of [2, 6, 12, 24, 50]) {
     await bigTable(browser, baseURL ?? 'http://localhost:4173', size);
   });
 }
+
+/** The round on `page`'s screen. */
+async function roundOn(page: Page): Promise<number> {
+  return Number(await page.getByTestId('round-indicator').getAttribute('data-round'));
+}
+
+/** Whose turn, on which hand, in which round, as the page has it. */
+async function turnKeyOn(page: Page): Promise<string> {
+  return page.getByTestId('blackjack-screen').evaluate((el) => ['phase', 'round', 'turnPlayer', 'turnHand'].map((k) => (el as HTMLElement).dataset[k] ?? '').join(':'));
+}
+
+/**
+ * Stands every hand that comes up on these pages until round `round` settles (the next round's
+ * bets open). A round the dealer's blackjack settled at the deal has no hand to stand.
+ */
+async function standOut(pages: Page[], round: number): Promise<void> {
+  for (let moves = 0; moves < 12; moves++) {
+    let actor: Page | null = null;
+    await expect
+      .poll(
+        async () => {
+          if ((await roundOn(pages[0])) > round) return 'settled';
+          for (const p of pages) {
+            if (await p.getByTestId('action-stand').isEnabled()) {
+              actor = p;
+              return 'turn';
+            }
+          }
+          return null;
+        },
+        { timeout: 20_000, message: `round ${round}: a hand to stand, or the settle` },
+      )
+      .not.toBeNull();
+    if (!actor) return;
+    const acting: Page = actor;
+    const before = await turnKeyOn(acting);
+    await acting.getByTestId('action-stand').click();
+    await expect.poll(async () => (await roundOn(pages[0])) > round || (await turnKeyOn(acting)) !== before).toBe(true);
+  }
+  throw new Error(`round ${round} did not settle`);
+}
+
+test('no clocks: a player sits a hand out, the host deals now to whoever has bet, and skips an idle player', async ({ browser }) => {
+  test.setTimeout(120_000);
+  const deskCtx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const phoneCtx = await browser.newContext({ viewport: SMALL, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
+  const desk = await deskCtx.newPage();
+  const phone = await phoneCtx.newPage();
+  const errors: string[] = [];
+  for (const p of [desk, phone]) p.on('pageerror', (err) => errors.push(err.message));
+  try {
+    const code = await createParty(desk, 'Hana', 'blackjack');
+    await joinByCode(phone, 'Pia', code);
+    await readyAll([phone]);
+    await expectReadyCount(desk, 2);
+    await desk.getByTestId('start-game').click();
+    for (const p of [desk, phone]) await expect(p.getByTestId('blackjack-screen')).toHaveAttribute('data-phase', 'betting');
+    const log = desk.getByTestId('chat-log');
+
+    // Round 1: Pia sits it out. The deal waits for nobody else once the host bets.
+    await expect(phone.getByTestId('sit-out')).toBeVisible();
+    await phone.getByTestId('sit-out').click();
+    await expect(phone.getByTestId('turn-status')).toHaveAttribute('data-state', 'sat-out');
+    await expect(phone.getByTestId('turn-status')).toHaveText('You sit this hand out');
+    await expect(phone.getByTestId('sit-out')).toHaveCount(0);
+    // A bet would still bring her back in.
+    await expect(phone.getByTestId('place-bet')).toBeEnabled();
+    await expect(desk.getByTestId('spot-bets-count')).toHaveText('0 of 1 bets in');
+    await nothingScrolls(phone, 'Pia sitting out at 320x568');
+    await desk.getByTestId('place-bet').click();
+    await expect(log).toContainText('Pia sits this hand out.');
+    await expect(phone.getByTestId('my-hand')).toHaveCount(0);
+    await standOut([desk, phone], 1);
+
+    // Round 2: the host bets and deals now; Pia, still deciding, sits this one out.
+    await expect.poll(() => roundOn(desk), { timeout: 20_000 }).toBe(2);
+    await expect(desk.getByTestId('place-bet')).toBeEnabled({ timeout: 20_000 });
+    await desk.getByTestId('place-bet').click();
+    await expect(desk.getByTestId('turn-status')).toHaveText('Waiting for Pia');
+    await expect(desk.getByTestId('deal-now')).toBeVisible();
+    await expect(phone.getByTestId('deal-now')).toHaveCount(0);
+    await expect(phone.getByTestId('sit-out')).toBeVisible();
+    await desk.getByTestId('deal-now').click();
+    await expect.poll(async () => (await log.textContent())?.split('Pia sits this hand out.').length ?? 0).toBe(3);
+    await standOut([desk, phone], 2);
+
+    // Then rounds where both play, until Pia's turn comes (a natural or the dealer's blackjack can
+    // skip it): the host skips her while she waits, and her hand stands.
+    let skipped = false;
+    for (let round = 3; round < 9 && !skipped; round++) {
+      await expect.poll(() => roundOn(desk), { timeout: 20_000 }).toBe(round);
+      for (const p of [desk, phone]) {
+        await expect(p.getByTestId('place-bet')).toBeEnabled({ timeout: 20_000 });
+        await p.getByTestId('place-bet').click();
+      }
+      for (let moves = 0; moves < 12 && !skipped; moves++) {
+        const state = async () => ((await roundOn(desk)) > round ? 'settled' : (await phone.getByTestId('action-stand').isEnabled()) ? 'pia' : (await desk.getByTestId('action-stand').isEnabled()) ? 'hana' : null);
+        await expect.poll(state, { timeout: 20_000 }).not.toBeNull();
+        const now = await state();
+        if (now === 'settled') break;
+        if (now === 'hana') {
+          await expect(desk.getByTestId('skip-turn')).toHaveCount(0);
+          // An idle host never stalls the table: on the host's own turn Pia may stand it.
+          await expect(phone.getByTestId('skip-turn')).toHaveAttribute('aria-label', "Stand Hana's hand");
+          const before = await turnKeyOn(desk);
+          await desk.getByTestId('action-stand').click();
+          await expect.poll(async () => (await roundOn(desk)) > round || (await turnKeyOn(desk)) !== before).toBe(true);
+          continue;
+        }
+        await expect(phone.getByTestId('turn-status')).toHaveAttribute('data-state', 'my-turn');
+        await expect(phone.getByTestId('skip-turn')).toHaveCount(0);
+        await expect(desk.getByTestId('turn-status')).toHaveText("Pia's turn");
+        await expect(desk.getByTestId('skip-turn')).toHaveAttribute('aria-label', "Stand Pia's hand");
+        for (const p of [desk, phone]) await expect(p.getByTestId('timer')).toHaveCount(0);
+        await desk.getByTestId('skip-turn').click();
+        await expect(log).toContainText("Hana stood Pia's hand.");
+        await expect(phone.getByTestId('action-stand')).toBeDisabled();
+        skipped = true;
+      }
+    }
+    expect(skipped, "Pia's turn came up within six rounds").toBe(true);
+    expect(await phone.evaluate(() => document.body.innerText.includes('\u2014'))).toBe(false);
+    expect(errors).toEqual([]);
+  } finally {
+    await deskCtx.close();
+    await phoneCtx.close();
+  }
+});
 
 test('no page errors, and no em dash on any page', async () => {
   for (const p of players) expect(await p.page.evaluate(() => document.body.innerText.includes('\u2014'))).toBe(false);

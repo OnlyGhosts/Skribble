@@ -2,14 +2,19 @@
 import { dealerShouldHit, handTotal, revealAllowanceMs, settleHand } from '../../../shared/games/blackjack/cards.js';
 import type { HandOutcome, HandStatus } from '../../../shared/games/blackjack/protocol.js';
 import { afterSettle } from './round.js';
-import { adjustChips, autoStatus, draw, nameOf, snapshot, systemMessage, type Gx, type SettledHand } from './state.js';
+import { adjustChips, autoStatus, draw, isConnected, nameOf, snapshot, systemMessage, type Gx, type SettledHand } from './state.js';
+
+export function awayLine(gx: Gx, playerId: string): string {
+  return `${nameOf(gx.ctx, playerId)} is away and stands.`;
+}
 
 /**
  * Hands the play to the next hand waiting, one at a time like a table: seats in order, each seat's
- * hands left to right. A hand that needs no decision is settled on the way; none left means the dealer.
- * `allowanceMs` lengthens the clock while the client still shows what led here (the deal).
+ * hands left to right. A hand that needs no decision is settled on the way, and so is the hand of
+ * a player who is away (it stands, said once a player in `away`); none left means the dealer.
+ * There is no clock: the player in play acts when ready.
  */
-export function nextHand(gx: Gx, allowanceMs = 0): void {
+export function nextHand(gx: Gx, away: Set<string> = new Set()): void {
   const { data, ctx } = gx;
   for (const id of data.order) {
     const seat = data.seats[id];
@@ -21,8 +26,14 @@ export function nextHand(gx: Gx, allowanceMs = 0): void {
         hand.status = auto;
         continue;
       }
+      if (!isConnected(ctx, id)) {
+        hand.status = 'stood';
+        if (!away.has(id)) systemMessage(gx, awayLine(gx, id));
+        away.add(id);
+        continue;
+      }
       hand.status = 'acting';
-      data.phase = { kind: 'acting', playerId: id, handIndex: index, endsAt: ctx.now + allowanceMs + ctx.settings.actSeconds * 1000 };
+      data.phase = { kind: 'acting', playerId: id, handIndex: index };
       return snapshot(gx);
     }
   }

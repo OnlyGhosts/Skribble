@@ -1,12 +1,14 @@
-/** Betting and the deal: stakes, the betting clock, the cards in table order and the dealer's peek. */
+/**
+ * Betting and the deal: stakes, sitting a hand out, the deal once nobody is left to wait for (or
+ * when the host deals), the cards in table order and the dealer's peek. Betting has no clock.
+ */
 import { dealerPeeks, isNatural } from '../../../shared/games/blackjack/cards.js';
-import { dealAllowanceMs } from '../../../shared/games/blackjack/deal.js';
 import { settleRound, nextHand } from './dealer.js';
-import { awaitFirstBet, beginRound, waitingForFirstBet } from './round.js';
-import { adjustChips, draw, fail, nameOf, settledStatus, snapshot, systemMessage, type Gx, type HandData } from './state.js';
+import { beginRound, fillRound, holdBetting } from './round.js';
+import { MIN_PLAYERS, adjustChips, anyBetDown, canDealNow, canSitOut, connectedActive, draw, fail, nameOf, settledStatus, snapshot, systemMessage, waitingFor, type Gx, type HandData } from './state.js';
 
 export function bet(gx: Gx, playerId: string, amount: number): void {
-  const { data, ctx } = gx;
+  const { data } = gx;
   const seat = data.seats[playerId];
   if (data.phase.kind !== 'betting' || !seat || !data.order.includes(playerId)) return fail(gx, playerId, 'You cannot bet right now.');
   // Any whole number of chips from 1 up to the whole stack (a stake already down included).
@@ -15,32 +17,47 @@ export function bet(gx: Gx, playerId: string, amount: number): void {
   // A bet may be changed until the cards are dealt: the earlier stake comes back first.
   adjustChips(gx, playerId, seat.bet - amount);
   seat.bet = amount;
-  if (dealIfAllBet(gx)) return;
-  // The first bet at a table that stopped waiting on the clock starts it again for everyone else.
-  if (waitingForFirstBet(gx)) data.phase = { kind: 'betting', endsAt: ctx.now + ctx.settings.betSeconds * 1000 };
+  // A bet brings a seat that sat out back in.
+  seat.sittingOut = false;
+  if (dealIfReady(gx)) return;
   snapshot(gx);
 }
 
-/** Deals as soon as every seat in the round has a stake down. */
-export function dealIfAllBet(gx: Gx): boolean {
-  const { data } = gx;
-  if (data.phase.kind !== 'betting' || data.order.length === 0 || !data.order.every((id) => data.seats[id].bet > 0)) return false;
+/** No cards for this seat this hand; it can still bet before the deal to come back in. */
+export function sitOut(gx: Gx, playerId: string): void {
+  if (!canSitOut(gx.data, playerId)) return fail(gx, playerId, 'You cannot sit out right now.');
+  gx.data.seats[playerId].sittingOut = true;
+  if (dealIfReady(gx)) return;
+  snapshot(gx);
+}
+
+/** Deals to the seats that bet; everyone else sits the hand out. The host's, or anyone's while the table waits on the host. */
+export function dealNow(gx: Gx, playerId: string): void {
+  const { data, ctx } = gx;
+  if (data.phase.kind !== 'betting') return fail(gx, playerId, 'The cards are already out.');
+  if (!anyBetDown(data)) return fail(gx, playerId, 'Nobody has bet yet.');
+  if (!canDealNow(ctx, data, playerId)) return fail(gx, playerId, 'Only the host can deal.');
   deal(gx);
-  return true;
 }
 
 /**
- * The betting clock ran out. Whoever has not bet sits the hand out (no cards, chips untouched)
- * and is dealt in again once they bet in a later round; there is no minimum to bet for them.
- * With no bet at all nothing is dealt: the table waits for the first one.
+ * Deals once nobody is left to wait for and a stake is down. Seats that sat out or are away sit
+ * the hand out. With no stake down at all nothing is dealt: everyone still in the game takes a
+ * seat in the round (a newcomer who came in behind a stake that has since left the table too) and
+ * the table waits, or holds once nobody still in the game is connected to bet.
  */
-export function betTimedOut(gx: Gx): void {
+export function dealIfReady(gx: Gx): boolean {
   const { data, ctx } = gx;
-  if (data.phase.kind !== 'betting') return;
-  if (data.order.length > 0 && data.order.every((id) => data.seats[id].bet === 0)) return awaitFirstBet(gx);
-  const sittingOut = data.order.filter((id) => data.seats[id].bet === 0);
-  if (sittingOut.length > 0) systemMessage(gx, `${sittingOut.map((id) => nameOf(ctx, id)).join(', ')} sit${sittingOut.length === 1 ? 's' : ''} this hand out.`);
+  if (data.phase.kind !== 'betting' || data.order.length === 0) return false;
+  if (!anyBetDown(data)) {
+    fillRound(gx);
+    if (connectedActive(ctx, data).length >= MIN_PLAYERS) return false;
+    holdBetting(gx);
+    return true;
+  }
+  if (waitingFor(ctx, data).length > 0) return false;
   deal(gx);
+  return true;
 }
 
 function freshHand(gx: Gx, bet: number): HandData {
@@ -48,18 +65,22 @@ function freshHand(gx: Gx, bet: number): HandData {
 }
 
 /**
- * Deals like a table: a card to every seat in order, the dealer's up card, a second card to every
- * seat, the hole card. The last round's table goes to the discards. With an ace or a ten-value card
- * up the dealer peeks, and a dealer blackjack settles the round at once.
+ * Deals like a table: a card to every seat with a stake in order, the dealer's up card, a second
+ * card to every seat, the hole card. Whoever has no stake down sits the hand out (no cards, chips
+ * untouched) and is dealt in again once they bet in a later round. The last round's table goes to
+ * the discards. With an ace or a ten-value card up the dealer peeks, and a dealer blackjack
+ * settles the round at once.
  */
 function deal(gx: Gx): void {
   const { data, ctx } = gx;
+  const sittingOut = data.order.filter((id) => data.seats[id].bet === 0);
   data.order = data.order.filter((id) => data.seats[id].bet > 0);
   if (data.order.length === 0) {
     // Nobody is left to deal to (the seats emptied while the bets were open): the round is not spent.
     data.round -= 1;
     return beginRound(gx);
   }
+  if (sittingOut.length > 0) systemMessage(gx, `${sittingOut.map((id) => nameOf(ctx, id)).join(', ')} sit${sittingOut.length === 1 ? 's' : ''} this hand out.`);
   data.lastRound = null;
   for (const id of data.order) data.seats[id].hands = [freshHand(gx, data.seats[id].bet)];
   data.dealer = [draw(gx)];
@@ -76,6 +97,5 @@ function deal(gx: Gx): void {
     systemMessage(gx, 'The dealer has blackjack.');
     return settleRound(gx, true);
   }
-  // The first turn's clock starts once the deal has landed on the players' screens.
-  nextHand(gx, dealAllowanceMs(data.order.length));
+  nextHand(gx);
 }

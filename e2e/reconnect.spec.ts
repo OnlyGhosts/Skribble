@@ -136,6 +136,19 @@ test('the drawer reloads mid-turn: still the drawer, and new strokes still reach
 test('the host kicks the other player, who lands on the home screen', async () => {
   const target = guest;
   await host.page.getByTestId('kick-player').first().click();
+  // The row's points ("+395") pop in with a transform, which paints them over their neighbours. Held
+  // in that state, they still never sit over Kick: a tap there is a tap on Kick.
+  const onTop = await host.page.getByTestId('kick-confirm').evaluate((button) => {
+    const pops = Array.from(document.querySelectorAll('.player__turn-points')).map((el) => el.animate([{ transform: 'scale(1)' }, { transform: 'scale(1)' }], { duration: 60_000 }));
+    const r = button.getBoundingClientRect();
+    const hits = [r.left + 2, r.left + r.width / 2, r.right - 2].every((x) => {
+      const hit = document.elementFromPoint(x, r.top + r.height / 2);
+      return hit !== null && button.contains(hit);
+    });
+    for (const pop of pops) pop.cancel();
+    return hits;
+  });
+  expect(onTop, 'Kick is the top element wherever it is tapped').toBe(true);
   await host.page.getByTestId('kick-confirm').click();
 
   await expect(target.page.getByTestId('home-create')).toBeVisible();

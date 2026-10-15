@@ -34,7 +34,7 @@ const mp3s = filesUnder(SOUNDS).filter((f) => f.endsWith('.mp3'));
 describe('the sound catalogue', () => {
   it('points every sound at a file that exists', () => {
     const urls = allSoundUrls();
-    expect(urls.length).toBeGreaterThanOrEqual(30);
+    expect(urls.length).toBeGreaterThanOrEqual(25);
     for (const url of urls) expect(statSync(join(PUBLIC, url)).isFile(), url).toBe(true);
   });
 

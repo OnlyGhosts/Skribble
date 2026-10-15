@@ -1,7 +1,8 @@
 /**
  * What Blackjack's spotlight is on, phase by phase (pure, for the screen and the tests): the hand
- * being played and who is next; the dealer while the reveal plays; who has bet and who we wait for
- * while the bets go down; my own outcome once the round settles (until my next bet goes down).
+ * being played and who is next; the dealer while the reveal plays; my own outcome once the round
+ * settles (through the results pause, until my next bet goes down); who has bet and who we wait
+ * for while the bets go down.
  */
 import type { BlackjackView, HandOutcome } from '@shared/games/blackjack/protocol';
 import { pendingBettors } from '../hooks';
@@ -11,9 +12,10 @@ export type BjSubject =
   /** `next` is who plays after this seat; null when the dealer is next. */
   | { kind: 'turn'; playerId: string; handIndex: number; mine: boolean; next: string | null }
   | { kind: 'dealer' }
-  | { kind: 'bets'; placed: string[]; waiting: string[]; first: boolean }
+  | { kind: 'bets'; placed: string[]; waiting: string[] }
   | { kind: 'result'; playerId: string }
-  | { kind: 'idle'; reason: 'held' | 'over' };
+  /** `next`: the results pause before the next round, for someone with no hand in it. */
+  | { kind: 'idle'; reason: 'held' | 'over' | 'next' };
 
 export interface SubjectInput {
   view: BlackjackView;
@@ -42,10 +44,10 @@ export function spotlightSubject({ view, table, dealerPlaying, outcomesShown, me
   }
   const settledMine = meId !== null && Boolean(table?.settled) && outcomesShown && (table?.hands[meId]?.length ?? 0) > 0;
   if (view.phase === 'ending' || view.phase === 'gameOver') return settledMine && meId !== null ? { kind: 'result', playerId: meId } : { kind: 'idle', reason: 'over' };
+  if (view.phase === 'results') return settledMine && meId !== null ? { kind: 'result', playerId: meId } : { kind: 'idle', reason: 'next' };
   // Betting: my outcome stays in the spotlight until my next stake goes down.
   if (settledMine && meId !== null && (view.players[meId]?.bet ?? 0) === 0) return { kind: 'result', playerId: meId };
-  const waiting = pendingBettors(view);
-  return { kind: 'bets', placed: view.order.filter((id) => !waiting.includes(id)), waiting, first: view.endsAt === null };
+  return { kind: 'bets', placed: view.order.filter((id) => (view.players[id]?.bet ?? 0) > 0), waiting: pendingBettors(view) };
 }
 
 /** A stable key per subject: a new key slides the spotlight over to it. */

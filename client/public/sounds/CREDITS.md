@@ -43,7 +43,6 @@ ffmpeg's amix (the knock, the gavel and the blackjack sting). `scripts/sounds/bu
 | `table/place-1.mp3` | Casino Audio | `Audio/card-place-1.ogg` | CC0 |
 | `table/place-2.mp3` | Casino Audio | `Audio/card-place-4.ogg` | CC0 |
 | `table/toss.mp3` | Casino Audio | `Audio/card-shove-1.ogg` | CC0 |
-| `table/shuffle.mp3` | Casino Audio | `Audio/card-shuffle.ogg` (first 2.2 s, faded) | CC0 |
 | `table/chip-lay-1.mp3` | Casino Audio | `Audio/chip-lay-1.ogg` | CC0 |
 | `table/chip-lay-2.mp3` | Casino Audio | `Audio/chip-lay-3.ogg` | CC0 |
 | `table/chips-1.mp3` | Casino Audio | `Audio/chips-stack-1.ogg` | CC0 |
@@ -82,7 +81,6 @@ the last-seconds tick, the old correct, turn end and fanfare cues).
 | Blackjack | Your push | `ui/click.mp3` | UI Audio |
 | Blackjack | Your hand busts | `table/thud.mp3` | Impact Sounds |
 | Blackjack | A natural blackjack (full on yours, softer on someone else's) | `stings/blackjack.mp3` | Music Jingles, Casino Audio |
-| Blackjack | The shoe is reshuffled | `table/shuffle.mp3` | Casino Audio |
 | Poker | Hole cards dealt | `table/deal-1/2/3.mp3` | Casino Audio |
 | Poker | Flop, turn and river | `table/place-1/2.mp3` | Casino Audio |
 | Poker | Hands turn over at a showdown | `table/flip.mp3` | Casino Audio |

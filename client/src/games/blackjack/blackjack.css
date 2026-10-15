@@ -1,25 +1,70 @@
 /* Blackjack on the platform's card table (platform/styles/table.css): the dealer, the hands and their sizes. */
 
-/* ---------- The table: card sizes per place (every card here is 2:3) ---------- */
+/*
+ * ---------- The table: fixed places for the dealer and my hands ----------
+ * The dealer's row (the stage's first) and mine (its last) have a fixed height, and the cards in
+ * them a fixed size, that depend on the screen alone: never on the phase or the number of players.
+ * Everything between them (the ribbon, the spotlight, the players) takes what is left and may
+ * shrink or change to show what is going on. Every card here is 2:3.
+ *
+ * --bj-dealer-w, --bj-mine-w, --bj-spot-w: a card's width in each place.
+ * --bj-total-*: the big totals by the dealer's cards and mine (font, height, the column they sit in).
+ * --bj-pad: a hand's padding inside its 2px outline.
+ */
 .bj-table {
-  --bj-dealer-w: 48px;
+  --bj-dealer-w: 56px;
+  --bj-mine-w: 60px;
   --bj-spot-w: 64px;
-  --bj-mine-w: 52px;
   --tbl-mini-w: 26px;
+  --bj-total-font: 1.25rem;
+  --bj-total-h: 36px;
+  --bj-total-col: 66px;
+  --bj-pad: 4px;
+  --bj-col-gap: 8px;
+  /* A hand's width beyond its total and its cards: padding, outline, the gap between the two. */
+  --bj-hand-x: calc(2 * var(--bj-pad) + 4px + var(--bj-col-gap));
+  --bj-hand-y: calc(2 * var(--bj-pad) + 4px);
+  --bj-top-h: calc(var(--bj-dealer-w) * 1.5 + var(--bj-hand-y));
+  --bj-mine-h: calc(var(--bj-mine-w) * 1.5 + var(--bj-hand-y));
+  --bj-side: 44px;
+}
+
+/*
+ * Fixed first and last rows; the middle shares what is left (the players last, down to nothing).
+ * The spotlight keeps its own margins rather than a row gap, so a hidden ribbon costs no height.
+ */
+.bj-table.tbl-stage {
+  --bj-gap: var(--space-3);
+  grid-template-rows: var(--bj-top-h) minmax(0, auto) minmax(0, auto) minmax(0, 1fr) var(--bj-mine-h);
+  row-gap: 0;
+}
+
+.bj-table > .tbl-spot,
+.bj-table > .tbl-ribbon {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.bj-table > .tbl-spot {
+  margin: var(--bj-gap) 0;
+}
+
+.bj-table > .tbl-grid {
+  margin-bottom: var(--bj-gap);
 }
 
 .bj-hand__cards > .playing-card,
-.bj-mine__empty > .playing-card {
+.bj-hand--empty .bj-hand__cards > .playing-card {
   --card-w: var(--tbl-w);
   --card-h: calc(var(--tbl-w) * 1.5);
   --card-font: calc(var(--tbl-w) * 0.26 + 2px);
 }
 
-/* Cards in a hand fan to the right, half of each one under the next. */
+/* Cards in a hand fan to the right, a little under half of each one under the next. */
 .bj-hand__cards {
   display: flex;
   align-items: flex-start;
-  justify-content: center;
+  justify-content: flex-start;
   min-height: calc(var(--tbl-w) * 1.5);
 }
 
@@ -27,72 +72,73 @@
   margin-left: calc(var(--tbl-w) * -0.55);
 }
 
-.bj-hand__cards > .playing-card--slot + .playing-card--slot,
-.bj-mine__empty > .playing-card + .playing-card {
-  margin-left: 8px;
+.bj-hand__cards > .playing-card--slot + .playing-card--slot {
+  margin-left: 6px;
 }
 
 /* ---------- The top row: discards, dealer, shoe ---------- */
-.bj-top {
+.bj-table .bj-top {
+  grid-template-columns: var(--bj-side) minmax(0, 1fr) var(--bj-side);
   align-items: center;
+  height: var(--bj-top-h);
+  container-type: inline-size;
 }
 
-/* ---------- Dealer ---------- */
-.bj-dealer {
-  --tbl-w: var(--bj-dealer-w);
-  grid-column: 2;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
+/* The shoe's stacked backs step up and to the right: keep them clear of the table's edge. */
+.bj-table .bj-top .tbl-deck {
+  justify-self: center;
+  padding-right: 4px;
 }
 
-.bj-dealer__label {
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--color-text-faint);
+.bj-table .bj-top .tbl-discard {
+  justify-self: center;
 }
 
-/* The dealer is in the spotlight: the top row keeps its place, just the label. */
-.bj-dealer--away {
-  justify-content: center;
-  min-height: calc(var(--bj-dealer-w) * 1.5);
-}
-
-.tbl-spot .bj-dealer {
-  --tbl-w: var(--bj-spot-w);
-  grid-column: auto;
-  flex-direction: row;
-  gap: 10px;
-}
-
-/* ---------- Hands ---------- */
+/* ---------- Hands: the total (and the stake under it) beside the cards ---------- */
 .bj-hand {
   position: relative;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: auto auto;
+  grid-template-areas: 'top cards' 'foot cards';
   align-items: center;
-  gap: 6px;
-  padding: 6px;
+  justify-items: center;
+  column-gap: var(--bj-col-gap);
+  row-gap: 2px;
+  padding: var(--bj-pad);
 }
 
 .bj-hand__top {
+  grid-area: top;
+  align-self: end;
   position: relative;
   display: flex;
   justify-content: center;
-  min-height: 24px;
+}
+
+.bj-hand__cards {
+  grid-area: cards;
 }
 
 .bj-hand__foot {
+  grid-area: foot;
+  align-self: start;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
-  min-height: 20px;
-  font-size: 0.85rem;
+  justify-content: center;
+  gap: 2px 4px;
+  max-width: var(--bj-total-col);
+  font-size: 0.75rem;
   font-weight: 700;
+  line-height: 1.15;
+  text-align: center;
+}
+
+/* A lone total (no stake line under it) sits level with the cards. */
+.bj-hand__top:only-child,
+.bj-hand > .bj-hand__top:has(+ .bj-hand__cards:last-child) {
+  grid-row: 1 / span 2;
+  align-self: center;
 }
 
 .bj-hand__bet {
@@ -115,43 +161,335 @@
   color: var(--color-text-muted);
 }
 
-/* ---------- The spotlight: the hand being played, large ---------- */
-.bj-spot__hands {
-  --tbl-w: var(--bj-spot-w);
+/*
+ * The big totals, mine and the dealer's: larger, bolder and solid, always in the same column beside
+ * the cards, so the count reads at a glance. A plain total is a light pill on the dark felt.
+ */
+.bj-hand--big {
+  grid-template-columns: var(--bj-total-col) auto;
+}
+
+.bj-hand--big .tbl-pill {
+  height: var(--bj-total-h);
+  min-width: calc(var(--bj-total-h) * 1.3);
+  max-width: var(--bj-total-col);
+  padding: 0 8px;
+  border-width: 2px;
+  font-size: var(--bj-total-font);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.bj-hand--big .tbl-pill--neutral {
+  background: var(--color-text);
+  border-color: var(--color-text);
+  color: var(--color-bg);
+}
+
+.bj-hand--big .tbl-pill--active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-primary-contrast);
+}
+
+/* A soft total ("10/20") is five characters: a touch smaller, so it stays inside its pill on the narrowest phones. */
+.bj-hand--big .tbl-pill[data-long] {
+  padding: 0 3px;
+  font-size: calc(var(--bj-total-font) * 0.9);
+  letter-spacing: -0.04em;
+}
+
+/* ---------- Dealer: always at the top, the cards fanning right from a fixed spot ---------- */
+.bj-dealer {
+  --tbl-w: var(--bj-dealer-w);
+  /* Where the hand starts: two cards and the total centred, any more cards going on to the right. */
+  --bj-anchor: calc((var(--bj-total-col) + var(--bj-hand-x) + var(--bj-dealer-w) * 1.45) / 2);
+  grid-column: 2;
+  align-self: stretch;
   display: flex;
+  align-items: center;
+  min-width: 0;
+  padding-left: max(0px, calc(50% - var(--bj-anchor)));
+}
+
+/* A long draw shrinks the dealer's cards to the room left on the right, never past the shoe. */
+.bj-dealer__hand {
+  --bj-room: calc((100cqw - 2 * var(--bj-side) - 2 * var(--space-3)) / 2 + var(--bj-anchor) - var(--bj-total-col) - var(--bj-hand-x));
+  --tbl-w: min(var(--bj-dealer-w), max(14px, calc(var(--bj-room) / (1 + 0.45 * (var(--fan, 2) - 1)))));
+  border: 2px solid transparent;
+}
+
+.bj-dealer__label {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-text-faint);
+}
+
+/* ---------- My hands: always at the bottom, each hand in a fixed slot ---------- */
+.bj-mine {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: 6px;
+  position: relative;
+  min-width: 0;
+  height: var(--bj-mine-h);
+}
+
+.bj-mine__hands {
+  height: 100%;
+  min-width: 0;
+  container-type: size;
+}
+
+.bj-hands {
+  display: flex;
+  align-items: center;
   justify-content: center;
-  gap: var(--space-2);
+  gap: 8px;
   min-width: 0;
 }
 
-.bj-spot__hands--n2 {
-  --tbl-w: calc(var(--bj-spot-w) * 0.8);
+/*
+ * N hands share my row in N equal slots (fanStyle sets --hands and the most cards in a hand,
+ * --fan). In its slot a hand starts from a fixed spot (two cards and the total centred) and grows
+ * to the right; its cards shrink until the widest hand fits its slot, and never outgrow the row.
+ */
+.bj-hands--mine {
+  --bj-slot: calc((100cqw - (var(--hands, 1) - 1) * 8px) / var(--hands, 1));
+  --bj-anchor: calc((var(--bj-total-col) + var(--bj-hand-x) + var(--bj-mine-w) * 1.45) / 2);
+  --bj-room: calc(var(--bj-slot) / 2 + min(var(--bj-anchor), var(--bj-slot) / 2) - var(--bj-total-col) - var(--bj-hand-x));
+  --fit-w: max(14px, calc(var(--bj-room) / (1 + 0.45 * (var(--fan, 2) - 1))));
+  --fit-h: calc((100cqh - var(--bj-hand-y)) / 1.5);
+  --tbl-w: min(var(--bj-mine-w), var(--fit-w), var(--fit-h));
+  height: 100%;
+  justify-content: flex-start;
 }
 
-.bj-spot__hands--n3,
-.bj-spot__hands--n4 {
-  --tbl-w: calc(var(--bj-spot-w) * 0.55);
+/*
+ * My row has a fixed height, so a hand's foot (stake and 2x, or outcome and payout) keeps to the
+ * whole lines left under the total: one on a short phone. A piece that wraps past them is clipped
+ * (the payout still floats up and the spotlight names it); the hand never outgrows the row.
+ */
+.bj-hands--mine .bj-hand__foot {
+  --bj-foot-line: 14px;
+  align-content: flex-start;
+  max-height: calc(round(down, 100cqh - var(--bj-hand-y) - var(--bj-total-h), var(--bj-foot-line) + 2px) - 2px);
+  overflow: visible clip;
+  line-height: var(--bj-foot-line);
 }
 
-/* My one settled hand: the spotlight's label says its outcome already. */
-.tbl-spot--result .bj-mine--n1 .bj-hand__foot {
+.bj-hands--mine .bj-hand__foot > * {
+  height: var(--bj-foot-line);
+  white-space: nowrap;
+}
+
+.bj-hands--mine .bj-hand__foot > .tbl-tag {
+  padding: 0 4px;
+  line-height: calc(var(--bj-foot-line) - 2px);
+}
+
+.bj-hands--mine > .bj-slot {
+  flex: 1 1 0;
+  display: flex;
+  justify-content: flex-start;
+  min-width: 0;
+  padding-left: max(0px, calc(var(--bj-slot) / 2 - var(--bj-anchor)));
+}
+
+/* Past what fits, the hand in play keeps its full size and the others fold into chips beside it. */
+.bj-hands--chips {
+  justify-content: center;
+}
+
+.bj-hands--mine.bj-hands--chips {
+  --tbl-w: min(var(--bj-mine-w), var(--fit-h));
+}
+
+.bj-hands--chips > .bj-slot {
+  flex: none;
+  padding-left: 0;
+}
+
+.bj-chips {
+  flex: 1 1 0;
+  display: grid;
+  grid-template-columns: repeat(var(--chip-cols, 1), minmax(0, 1fr));
+  grid-template-rows: repeat(var(--chip-rows, 1), minmax(0, 1fr));
+  gap: 4px;
+  min-width: 0;
+  max-width: calc(var(--chip-cols, 1) * 64px);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bj-hands--mine .bj-chips {
+  height: 100%;
+  max-height: calc(var(--chip-rows, 1) * 46px);
+  align-self: center;
+}
+
+/* The spotlight's chips: totals only, a row or two, so it never grows tall. */
+.bj-hands--spot .bj-chips {
+  grid-template-rows: repeat(var(--chip-rows, 1), var(--bj-spot-chip-h, 26px));
+  max-width: calc(var(--chip-cols, 1) * 48px);
+}
+
+.bj-hands--spot .bj-chip__bet {
   display: none;
 }
 
-/* One hand in the spotlight: its outline says it is in play, and its stake is beside it. */
-.bj-spot__hands--n1 > .bj-hand,
-.bj-mine--spot.bj-mine--n1 .bj-hand {
+.bj-hands--spot .bj-chip__total.tbl-pill {
+  padding: 0 2px;
+}
+
+.bj-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+  min-height: 0;
+  padding: 1px 2px;
+  border-width: 1.5px;
+  background: var(--color-surface-2);
+  overflow: hidden;
+  container-type: size;
+}
+
+.bj-chip .tbl-pill--neutral {
   border-color: transparent;
   background: none;
 }
 
-.bj-spot__hands--n1 .bj-hand__bet,
-.bj-mine--spot.bj-mine--n1 .bj-hand__bet {
+.bj-chip__total.tbl-pill {
+  height: auto;
+  min-width: 0;
+  max-width: 100%;
+  padding: 1px 4px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+/* My folded hands keep the big totals' weight: a chip's total is as easy to follow as the hand in play's. */
+.bj-hands--mine .bj-chip__total.tbl-pill {
+  padding: 0 3px;
+  font-size: 1rem;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+/* The hands that did not get a chip: "+N", a tap away from every hand in the seat's sheet. */
+.bj-chip--more {
+  padding: 0;
+  border-style: dashed;
+}
+
+/* "+12" is a character longer than a total: no padding around it in its pill. */
+.bj-chip--more .bj-chip__total.tbl-pill {
+  padding: 0;
+  letter-spacing: -0.04em;
+}
+
+.bj-chip__more {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: 1px 2px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.bj-chip__bet {
+  font-size: 0.66rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* A short chip keeps its total; its stake goes. */
+@container (max-height: 33px) {
+  .bj-chip__bet {
+    display: none;
+  }
+}
+
+/* My next stake, under my empty slots where a hand's stake goes: never over a card or a chip. */
+.bj-mine__bet {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 2px 4px;
+  color: var(--color-text-muted);
+}
+
+/* My face marks the row as mine; a fixed size per screen, whatever the table. */
+.bj-mine .tbl-me .avatar {
+  width: 28px;
+  height: 28px;
+  font-size: 16px;
+}
+
+/* An empty hand (before my first deal): just the two places my cards will land. */
+.bj-hand--empty.tbl-outline {
+  border-color: transparent;
+}
+
+/* ---------- The spotlight: another player's hand, large ---------- */
+/* Always the body's whole width, so how many hands fit (measured from it) never depends on the hands themselves. */
+.bj-hands--spot {
+  --tbl-w: var(--bj-spot-w);
+  width: 100%;
+  max-width: 100%;
+}
+
+.bj-hands--spot .bj-hand__cards {
+  justify-content: center;
+}
+
+/* Two hands share the spotlight's width: the cards shrink until the widest fan fits its share. */
+.tbl-spot--stack .bj-hands--spot {
+  --fit-w: calc(((100cqw - (var(--hands, 1) - 1) * 8px) / var(--hands, 1) - 64px) / (1 + 0.45 * (var(--fan, 2) - 1)));
+  --tbl-w: min(var(--bj-spot-w), max(14px, var(--fit-w)));
+}
+
+.tbl-spot--stack .bj-hands--spot.bj-hands--chips {
+  --tbl-w: var(--bj-spot-w);
+}
+
+/* One hand in the spotlight: its outline says it is in play, and its stake is beside it already. */
+.tbl-spot--row .bj-hands--spot .bj-hand {
+  border-color: transparent;
+  background: none;
+}
+
+.tbl-spot--row .bj-hands--spot .bj-hand__bet {
   display: none;
 }
 
 .bj-spot__stake {
   color: var(--color-text);
+}
+
+.bj-spot__marker {
+  color: var(--color-primary-text);
+  font-weight: 700;
 }
 
 /* Who has bet (lit, with the amount) and who we wait for (dimmed). */
@@ -194,147 +532,9 @@
   color: var(--color-text-muted);
 }
 
-/* ---------- My hands ---------- */
-.bj-mine {
-  --tbl-w: var(--bj-mine-w);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-}
-
-.bj-mine--spot {
-  --bj-mine-w: var(--bj-spot-w);
-}
-
-.bj-mine__hands {
-  display: flex;
-  justify-content: safe center;
-  gap: var(--space-2);
-  max-width: 100%;
-  padding-top: 20px;
-  margin-top: -20px;
-}
-
-.bj-mine--n2 {
-  --tbl-w: calc(var(--bj-mine-w) * 0.8);
-}
-
-.bj-mine--n3,
-.bj-mine--n4 {
-  --tbl-w: calc(var(--bj-mine-w) * 0.55);
-}
-
-.bj-mine--n3 .bj-hand,
-.bj-mine--n4 .bj-hand {
-  padding: 4px;
-}
-
-.bj-mine__empty {
-  display: flex;
-  justify-content: center;
-}
-
-.bj-mine__bet {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: var(--color-text-muted);
-}
-
-/* One or two hands lie on their side (total, cards, stake in a row) to save height, on any screen. */
-.bj-dealer,
-.bj-mine--n1 .bj-hand,
-.bj-mine--n2 .bj-hand,
-.bj-spot__hands--n1 .bj-hand,
-.bj-spot__hands--n2 .bj-hand {
-  flex-direction: row;
-}
-
-.bj-mine--bottom {
-  flex-direction: row;
-  justify-content: center;
-  gap: 10px;
-}
-
-.bj-mine--bottom .bj-mine__hands {
-  padding-top: 0;
-  margin-top: 0;
-}
-
-/*
- * Split hands in the spotlight share its width: the cards shrink until the widest fan fits its
- * share. --hands and --fan come from the hands (fanStyle); every card after the first adds 0.45 of
- * a card. Two hands keep the total over the stake beside the cards (a hand's padding, outline and
- * that column take 72px); three or four stand up (total, cards), 20px a hand.
- */
-.tbl-spot--stack .bj-spot__hands--n2,
-.tbl-spot--stack .bj-mine--spot.bj-mine--n2 .bj-mine__hands {
-  --fit-w: calc(((100cqw - var(--space-2)) / 2 - 72px) / (1 + 0.45 * (var(--fan, 2) - 1)));
-  --tbl-w: min(calc(var(--bj-spot-w) * 0.8), var(--fit-w));
-}
-
-.tbl-spot--stack .bj-spot__hands--n3,
-.tbl-spot--stack .bj-spot__hands--n4,
-.tbl-spot--stack .bj-mine--spot.bj-mine--n3 .bj-mine__hands,
-.tbl-spot--stack .bj-mine--spot.bj-mine--n4 .bj-mine__hands {
-  --fit-w: calc(((100cqw - (var(--hands, 3) - 1) * var(--space-2)) / var(--hands, 3) - 20px) / (1 + 0.45 * (var(--fan, 2) - 1)));
-  --tbl-w: min(calc(var(--bj-spot-w) * 0.55), var(--fit-w));
-}
-
-.tbl-spot--stack .bj-spot__hands--n2 .bj-hand,
-.tbl-spot--stack .bj-mine--spot.bj-mine--n2 .bj-hand {
-  display: grid;
-  grid-template-columns: 46px auto;
-  grid-template-areas: 'top cards' 'foot cards';
-  align-items: center;
-  justify-items: center;
-  column-gap: 6px;
-  row-gap: 2px;
-}
-
-.tbl-spot--stack .bj-spot__hands--n2 .bj-hand__top,
-.tbl-spot--stack .bj-mine--spot.bj-mine--n2 .bj-hand__top {
-  grid-area: top;
-  align-self: end;
-}
-
-.tbl-spot--stack .bj-spot__hands--n2 .bj-hand__cards,
-.tbl-spot--stack .bj-mine--spot.bj-mine--n2 .bj-hand__cards {
-  grid-area: cards;
-}
-
-.tbl-spot--stack .bj-spot__hands--n2 .bj-hand__foot,
-.tbl-spot--stack .bj-mine--spot.bj-mine--n2 .bj-hand__foot {
-  grid-area: foot;
-  align-self: start;
-  flex-wrap: wrap;
-  justify-content: center;
-  max-width: 46px;
-  font-size: 0.72rem;
-  line-height: 1.15;
-  text-align: center;
-}
-
-/* A tight table: the hands hug their cards. */
-.tbl-stage--tight .tbl-spot--stack .bj-spot__hands--n2 .bj-hand,
-.tbl-stage--tight .tbl-spot--stack .bj-mine--spot.bj-mine--n2 .bj-hand {
-  padding: 2px 4px;
-  row-gap: 0;
-}
-
-.tbl-spot--stack .bj-spot__hands--n3 .bj-hand,
-.tbl-spot--stack .bj-spot__hands--n4 .bj-hand,
-.tbl-spot--stack .bj-mine--spot.bj-mine--n3 .bj-hand,
-.tbl-spot--stack .bj-mine--spot.bj-mine--n4 .bj-hand {
-  flex-direction: column;
-}
-
 /* ---------- A hand in miniature, on a tile ---------- */
 .bj-hand--mini {
+  display: flex;
   flex-direction: row-reverse;
   align-items: center;
   padding: 2px;
@@ -488,110 +688,76 @@
   color: var(--color-danger-text);
 }
 
+
+/* ---------- Screen sizes: the fixed places' sizes go by the screen alone ---------- */
 @media (max-width: 1100px) {
   .bj-table {
-    --bj-dealer-w: 44px;
+    --bj-dealer-w: 50px;
+    --bj-mine-w: 54px;
     --bj-spot-w: 58px;
-    --bj-mine-w: 48px;
   }
 }
 
-/* A big table: the dealer and my hands give the players room first. */
-.bj-table.tbl-crowd--small {
-  --bj-dealer-w: 52px;
-  --bj-mine-w: 56px;
-}
-
+/* A big table: the spotlight gives the players room first (the dealer and my hands keep theirs). */
 .bj-table.tbl-crowd--dense {
-  --bj-dealer-w: 44px;
-  --bj-mine-w: 48px;
-  --bj-spot-w: 72px;
+  --bj-spot-w: 52px;
 }
 
-/* ---------- Phones: the hands lie on their side (total, cards, stake in a row) to save height ---------- */
+/* ---------- Phones ---------- */
 @media (max-width: 760px), (min-aspect-ratio: 3/2) and (max-height: 520px) {
   .bj-table {
-    --bj-dealer-w: 40px;
-    --bj-spot-w: 60px;
-    --bj-mine-w: 50px;
+    --bj-dealer-w: 42px;
+    --bj-mine-w: 48px;
+    --bj-spot-w: 52px;
     --tbl-mini-w: 22px;
+    --bj-total-font: 1.15rem;
+    --bj-total-h: 32px;
+    --bj-total-col: 58px;
+    --bj-pad: 3px;
+    --bj-col-gap: 6px;
+    --bj-side: 34px;
   }
 
-  .bj-table.tbl-crowd--small {
-    --bj-dealer-w: 36px;
-    --bj-mine-w: 44px;
-  }
-
+  .bj-table.tbl-crowd--small,
   .bj-table.tbl-crowd--dense {
-    --bj-dealer-w: 32px;
-    --bj-mine-w: 40px;
-    --bj-spot-w: 48px;
-  }
-
-  .bj-table.tbl-crowd--small {
-    --bj-spot-w: 48px;
+    --bj-spot-w: 42px;
   }
 
   .bj-table.tbl-crowd--small .tbl-ribbon,
-  .bj-table.tbl-crowd--dense .tbl-ribbon {
+  .bj-table.tbl-crowd--dense .tbl-ribbon,
+  .bj-table .tbl-ribbon__sub {
     display: none;
-  }
-
-  .bj-hand {
-    padding: 3px 6px;
-  }
-
-  .bj-mine__hands {
-    padding-top: 0;
-    margin-top: 0;
-  }
-
-  .bj-mine--n3 .bj-hand__foot,
-  .bj-mine--n4 .bj-hand__foot,
-  .bj-spot__hands--n3 .bj-hand__foot,
-  .bj-spot__hands--n4 .bj-hand__foot {
-    display: none;
-  }
-
-  .bj-mine--n3 .bj-hand,
-  .bj-mine--n4 .bj-hand,
-  .bj-spot__hands--n3 .bj-hand,
-  .bj-spot__hands--n4 .bj-hand {
-    gap: 2px;
-  }
-
-  .bj-mine--n3 .tbl-pill,
-  .bj-mine--n4 .tbl-pill,
-  .bj-spot__hands--n3 .tbl-pill,
-  .bj-spot__hands--n4 .tbl-pill {
-    height: 18px;
-    min-width: 26px;
-    padding: 0 5px;
-    font-size: 0.68rem;
   }
 
   .bj-hand__foot {
-    min-height: 0;
+    font-size: 0.7rem;
   }
 
-  .bj-table .tbl-ribbon__sub {
-    display: none;
+  .bj-table.tbl-stage {
+    --bj-gap: 6px;
+  }
+
+  .bj-mine .tbl-me .avatar {
+    width: 24px;
+    height: 24px;
+    font-size: 14px;
   }
 }
 
 /* Shorter phones (360x740 and the like): smaller cards all round. */
 @media (max-width: 760px) and (max-height: 760px) {
   .bj-table {
-    --bj-dealer-w: 34px;
-    --bj-spot-w: 50px;
+    --bj-dealer-w: 36px;
     --bj-mine-w: 42px;
+    --bj-spot-w: 44px;
+    --bj-total-font: 1.1rem;
+    --bj-total-h: 30px;
+    --bj-total-col: 54px;
   }
 
   .bj-table.tbl-crowd--small,
   .bj-table.tbl-crowd--dense {
-    --bj-dealer-w: 30px;
-    --bj-mine-w: 36px;
-    --bj-spot-w: 46px;
+    --bj-spot-w: 36px;
   }
 
   .bj-table .tbl-ribbon {
@@ -599,34 +765,66 @@
   }
 }
 
-/* Short phones (an SE, a phone on its side): the smallest cards. */
+/* Short phones (an SE, a phone on its side): the smallest cards, the totals still half again as big as the tiles'. */
 @media (max-width: 760px) and (max-height: 680px), (min-aspect-ratio: 3/2) and (max-height: 520px) {
   .bj-table {
-    --bj-dealer-w: 30px;
-    --bj-spot-w: 38px;
+    --bj-dealer-w: 28px;
     --bj-mine-w: 30px;
+    --bj-spot-w: 30px;
+    --bj-total-font: 1.05rem;
+    --bj-total-h: 28px;
+    --bj-total-col: 50px;
+    --bj-pad: 2px;
+    --bj-col-gap: 5px;
+    --bj-side: 30px;
   }
 
+  .bj-table.tbl-stage {
+    --bj-gap: 4px;
+    --bj-spot-chip-h: 20px;
+  }
+
+  .bj-table.tbl-crowd--compact,
   .bj-table.tbl-crowd--small,
   .bj-table.tbl-crowd--dense {
-    --bj-dealer-w: 26px;
-    --bj-mine-w: 26px;
-    --bj-spot-w: 34px;
+    --bj-spot-w: 24px;
   }
 
-  .bj-table .tbl-pill {
-    height: 20px;
-    min-width: 28px;
-    padding: 0 6px;
-    font-size: 0.72rem;
+  /* A big table on a short phone: smaller cards in the spotlight and no line under the name, so the tiles keep their room. */
+  .bj-table.tbl-crowd--small,
+  .bj-table.tbl-crowd--dense {
+    --bj-spot-w: 20px;
+    --bj-spot-chip-h: 17px;
+  }
+
+  .bj-table.tbl-crowd--small .tbl-spot--turn .tbl-spot__sub,
+  .bj-table.tbl-crowd--dense .tbl-spot--turn .tbl-spot__sub {
+    display: none;
+  }
+
+  /* A table of several: the tiles show who has bet, so the bets roll gives the players its room. */
+  .bj-table.tbl-crowd--compact .bj-bets,
+  .bj-table.tbl-crowd--small .bj-bets,
+  .bj-table.tbl-crowd--dense .bj-bets {
+    display: none;
+  }
+
+  .bj-table .tbl-deck__stack,
+  .bj-table .tbl-discard__slot {
+    width: 22px;
+    height: 33px;
   }
 
   .bj-table .tbl-spot {
-    padding: 3px 8px 5px;
+    padding: 2px 8px 3px;
   }
 
   .bj-table .tbl-spot__label {
     font-size: 1.05rem;
+  }
+
+  .bj-mine .tbl-me__label {
+    display: none;
   }
 
   .bj-bets {
@@ -634,102 +832,57 @@
   }
 }
 
-/*
- * A tight table (a short phone, or ten or more others): the dealer and my hands share the top
- * row, a head-to-head, so the spotlight and the players keep the height.
- */
-.bj-table.tbl-stage--tight {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  grid-template-rows: auto auto minmax(0, 1fr);
-  grid-template-areas: 'top mine' 'spot spot' 'seats seats';
-  column-gap: 6px;
-}
-
-.bj-table.tbl-stage--tight.tbl-stage--no-mine {
-  grid-template-areas: 'top top' 'spot spot' 'seats seats';
-}
-
-.bj-table.tbl-stage--tight .tbl-ribbon {
+/* A tight table: a hand in the spotlight is just its total and cards (its stake is beside the name). */
+.bj-table.tbl-stage--tight .bj-hands--spot .bj-hand__foot {
   display: none;
 }
 
-.bj-table.tbl-stage--tight .tbl-felt__top {
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 4px;
+.bj-table.tbl-stage--tight .bj-hands--spot .bj-hand {
+  padding: 1px 3px;
 }
 
-/* The tray stays the cards' way out, tucked into the corner. */
-.bj-table.tbl-stage--tight .tbl-discard {
-  position: absolute;
-  top: 4px;
-  left: 4px;
-  opacity: 0;
-  pointer-events: none;
+/* On a tight table another player's hands share the spotlight's row with their name, the hands taking the rest of it. */
+.bj-table.tbl-stage--tight .tbl-spot--turn.tbl-spot--row {
+  grid-template-columns: fit-content(40%) minmax(0, 1fr) auto;
 }
 
-.bj-table.tbl-stage--tight .bj-dealer {
-  grid-column: 1;
-  justify-self: center;
-  gap: 4px;
+.bj-table.tbl-stage--tight .tbl-spot--turn .tbl-spot__body {
+  container-type: inline-size;
 }
 
-.bj-table.tbl-stage--tight .tbl-deck {
-  grid-column: 2;
+.bj-table.tbl-stage--tight .tbl-spot--turn .bj-hands--spot {
+  --fit-w: calc(((100cqw - (var(--hands, 1) - 1) * 8px) / var(--hands, 1) - 44px) / (1 + 0.45 * (var(--fan, 2) - 1)));
+  --tbl-w: min(var(--bj-spot-w), max(14px, var(--fit-w)));
+  width: 100%;
 }
 
-.bj-table.tbl-stage--tight .tbl-deck__stack,
-.bj-table.tbl-stage--tight .tbl-discard__slot {
-  width: 20px;
-  height: 30px;
-}
-
-.bj-table.tbl-stage--tight .tbl-deck__count {
-  font-size: 0.6rem;
-}
-
-/* My half of the head-to-head: a rule between it and the dealer's, my cards the dealer's size. */
-.bj-table.tbl-stage--tight .bj-mine--bottom {
-  --bj-mine-w: var(--bj-dealer-w);
-  padding-left: 6px;
-  border-left: 1px solid var(--color-border);
-}
-
-.bj-table.tbl-stage--tight .bj-mine__bet {
-  font-size: 0.75rem;
+.bj-table.tbl-stage--tight .tbl-spot--turn .bj-hands--spot.bj-hands--chips {
+  --tbl-w: var(--bj-spot-w);
 }
 
 /*
- * My cards fit my half of the row however many there are: my face takes 24px, each hand's total
- * and padding 58px, every card after the first 0.45 of a card (fanStyle sets --hands and --fan).
+ * Another player's split hands on a tight table: the left column takes up to half, so which hand
+ * is in play and who is next both fit beside the cards; the stake is on their tile already.
  */
-.bj-table.tbl-stage--tight .bj-mine--bottom .bj-mine__hands {
-  --fit-w: calc(((100cqw - 24px - (var(--hands, 1) - 1) * var(--space-2)) / var(--hands, 1) - 58px) / (1 + 0.45 * (var(--fan, 2) - 1)));
-  --tbl-w: min(var(--bj-mine-w), var(--fit-w));
+.bj-table.tbl-stage--tight .tbl-spot--turn.tbl-spot--row:has(.bj-spot__marker) {
+  grid-template-columns: fit-content(50%) minmax(0, 1fr) auto;
 }
 
-.bj-table.tbl-stage--tight .bj-mine--bottom.bj-mine--n2 .bj-mine__hands {
-  --tbl-w: min(calc(var(--bj-mine-w) * 0.8), var(--fit-w));
-}
-
-.bj-table.tbl-stage--tight .bj-mine--bottom.bj-mine--n3 .bj-mine__hands,
-.bj-table.tbl-stage--tight .bj-mine--bottom.bj-mine--n4 .bj-mine__hands {
-  --tbl-w: min(calc(var(--bj-mine-w) * 0.55), var(--fit-w));
-}
-
-/* No room for the stake beside my cards here (the spotlight shows it on my turn). */
-.tbl-stage--tight .bj-mine--bottom .bj-hand__bet {
+.bj-table.tbl-stage--tight .tbl-spot--turn .tbl-spot__sub:has(.bj-spot__marker) .bj-spot__stake,
+.bj-table.tbl-stage--tight .bj-spot__marker-word {
   display: none;
 }
 
-.tbl-stage--tight .bj-mine--bottom {
-  gap: 4px;
+.bj-table.tbl-stage--tight .tbl-spot--turn .bj-spot__marker {
+  flex: none;
 }
 
-.tbl-stage--tight .bj-mine--bottom .bj-hand {
-  padding: 2px 4px;
-  gap: 4px;
+.bj-table.tbl-stage--tight .tbl-spot--turn .tbl-spot__next {
+  flex: 0 1 auto;
+  min-width: 8ch;
 }
 
-.tbl-stage--tight .bj-mine--bottom .bj-hand__foot {
-  font-size: 0.72rem;
+/* The bets on a tight table: a long "Waiting for ..." gives way before the count of bets in. */
+.bj-table.tbl-stage--tight .tbl-spot--bets {
+  grid-template-columns: minmax(0, 1fr) auto auto;
 }

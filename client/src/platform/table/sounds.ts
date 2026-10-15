@@ -10,7 +10,6 @@ export const TABLE_FILES = {
   flip: 'table/flip',
   place: ['table/place-1', 'table/place-2'],
   toss: 'table/toss',
-  shuffle: 'table/shuffle',
   chipLay: ['table/chip-lay-1', 'table/chip-lay-2'],
   chips: ['table/chips-1', 'table/chips-2'],
   collect: 'table/collect',

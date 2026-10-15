@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react';
 import { create } from 'zustand';
 import type { BlackjackView } from '@shared/games/blackjack/protocol';
 import type { TableSheet } from '../../platform/table/TableShell';
-import { tableOf, type TableModel } from './lib/table';
+import { cardsOnTable, tableOf, type TableModel } from './lib/table';
 import { EMPTY_TIMELINE, planTimeline, snapTimeline, type Timeline } from './lib/timeline';
 
 /** The phone sheets the screen can show; one at a time. */
@@ -20,6 +20,8 @@ interface BlackjackState {
   confirmEnd: boolean;
   /** The table as the last snapshot had it. */
   table: TableModel | null;
+  /** Cards swept to the discards since this page joined: every table a new deal replaced. */
+  swept: number;
   timeline: Timeline;
   /**
    * The timeline the sounds follow: the same as `timeline`, except under reduced motion, where the
@@ -43,7 +45,7 @@ interface BlackjackActions {
 
 export type BlackjackStore = BlackjackState & BlackjackActions;
 
-const INITIAL: BlackjackState = { betText: null, lastBet: null, sheet: null, seat: null, confirmEnd: false, table: null, timeline: EMPTY_TIMELINE, soundTimeline: EMPTY_TIMELINE };
+const INITIAL: BlackjackState = { betText: null, lastBet: null, sheet: null, seat: null, confirmEnd: false, table: null, swept: 0, timeline: EMPTY_TIMELINE, soundTimeline: EMPTY_TIMELINE };
 
 export const useBlackjackStore = create<BlackjackStore>()((set, get) => ({
   ...INITIAL,
@@ -53,11 +55,13 @@ export const useBlackjackStore = create<BlackjackStore>()((set, get) => ({
   openSeat: (seat) => set({ seat }),
   setConfirmEnd: (confirmEnd) => set({ confirmEnd }),
   applyView: (view, now, fresh, motion) => {
-    const { table: prevTable, timeline: prev, soundTimeline: prevSound } = get();
+    const { table: prevTable, timeline: prev, soundTimeline: prevSound, swept } = get();
     const table = tableOf(view);
     const timeline = planTimeline(prev, prevTable, table, now, fresh, motion);
     const soundTimeline = motion ? timeline : planTimeline(prevSound, prevTable, table, now, fresh, true);
-    set({ table, timeline, soundTimeline });
+    // A new round's table replaces the last one: its cards go to the discards.
+    const replaced = prevTable !== null && table !== null && table.round !== prevTable.round;
+    set({ table, timeline, soundTimeline, swept: swept + (replaced ? cardsOnTable(prevTable) : 0) });
     return timeline;
   },
   snap: (now) => set((s) => ({ timeline: snapTimeline(s.table, now) })),

@@ -1,6 +1,6 @@
 /** Blackjack's JSON-safe game state (the module's `D`), its working context and the queries over it. */
-import { MAX_HANDS, freshShoe, handTotal, isBust, isNatural, isPair, shoeDecks, shuffle } from '../../../shared/games/blackjack/cards.js';
-import type { BlackjackActions, BlackjackServerMessage, BlackjackSettings, Card, HandOutcome, HandStatus } from '../../../shared/games/blackjack/protocol.js';
+import { drawCard, handTotal, isBust, isNatural, isPair } from '../../../shared/games/blackjack/cards.js';
+import type { BlackjackActions, BlackjackControls, BlackjackServerMessage, BlackjackSettings, Card, HandOutcome, HandStatus } from '../../../shared/games/blackjack/protocol.js';
 import { gameById } from '../../../shared/platform/games.js';
 import type { GameCtx, GameEffect, PlatformPlayer } from '../../platform/game.js';
 
@@ -39,12 +39,16 @@ export interface SeatData {
   hands: HandData[];
   /** No chips left: out of the game, watching. */
   bustedOut: boolean;
+  /** Chose to sit this round's hand out while the bets were open (absent in rooms stored before it existed). */
+  sittingOut?: boolean;
 }
 
+/** Betting and acting have no clock (rooms stored with one keep an `endsAt` nothing reads). */
 export type PhaseData =
-  /** endsAt is null once the clock ran out with no bet at all: the table waits for the first one. */
-  | { kind: 'betting'; endsAt: number | null }
-  | { kind: 'acting'; playerId: string; handIndex: number; endsAt: number }
+  | { kind: 'betting' }
+  | { kind: 'acting'; playerId: string; handIndex: number }
+  /** The settled table stays on show until endsAt (the dealer's reveal, then BLACKJACK_RESULTS_MS); then the next round's bets open. */
+  | { kind: 'results'; endsAt: number }
   /** The next round waits for a player still in the game to reconnect; resumeAt is the settle once one is back. */
   | { kind: 'held'; resumeAt: number | null }
   /** The final table stays on show until endsAt, then the podium. */
@@ -62,12 +66,6 @@ export interface BlackjackData {
   /** The dealer's cards this round: up card, hole card, then draws. Empty from the settle to the deal. */
   dealer: Card[];
   holeHidden: boolean;
-  /** Cards still in the shoe; the next card is the last one. */
-  shoe: Card[];
-  /** Cards in the shoe when it was built; absent in rooms stored before the shoe grew with the table. */
-  shoeSize?: number;
-  /** The shoe was rebuilt at the start of this round. */
-  reshuffled: boolean;
   lastRound: LastRoundData | null;
   /** The host ended the game: it ends once the hand in play settles. */
   endRequested: boolean;
@@ -89,8 +87,9 @@ export function findPlayer(ctx: Pick<Ctx, 'players'>, id: string): PlatformPlaye
   return ctx.players.find((p) => p.id === id);
 }
 
-export function nameOf(ctx: Pick<Ctx, 'players'>, id: string): string {
-  return findPlayer(ctx, id)?.name ?? 'Someone';
+/** A player's name; the host may be watching rather than playing (Skip, Deal now). */
+export function nameOf(ctx: Pick<Ctx, 'players' | 'spectators'>, id: string): string {
+  return findPlayer(ctx, id)?.name ?? ctx.spectators.find((p) => p.id === id)?.name ?? 'Someone';
 }
 
 /**
@@ -106,6 +105,24 @@ export function connectedActive(ctx: Pick<Ctx, 'players'>, data: BlackjackData):
   return activePlayers(ctx, data).filter((p) => p.connected);
 }
 
+export function isConnected(ctx: Pick<Ctx, 'players'>, id: string): boolean {
+  return findPlayer(ctx, id)?.connected === true;
+}
+
+/** Whether any stake is down while the bets are open. */
+export function anyBetDown(data: BlackjackData): boolean {
+  return data.order.some((id) => data.seats[id].bet > 0);
+}
+
+/**
+ * The seats the deal waits for while the bets are open: in the round, connected, no stake down and
+ * not sitting out. A disconnected seat never holds the table up.
+ */
+export function waitingFor(ctx: Pick<Ctx, 'players'>, data: BlackjackData): string[] {
+  if (data.phase.kind !== 'betting') return [];
+  return data.order.filter((id) => data.seats[id].bet === 0 && !data.seats[id].sittingOut && isConnected(ctx, id));
+}
+
 /** The hand in play, when `playerId` is acting on it. */
 export function actingHand(data: BlackjackData, playerId: string): HandData | undefined {
   if (data.phase.kind !== 'acting' || data.phase.playerId !== playerId) return undefined;
@@ -114,9 +131,9 @@ export function actingHand(data: BlackjackData, playerId: string): HandData | un
 
 const NO_ACTIONS: BlackjackActions = { canHit: false, canStand: false, canDouble: false, canSplit: false };
 
-/** A pair may be split while the seat has fewer than MAX_HANDS hands and the chips for another stake. */
+/** A pair may be split, again and again with no cap, while the seat has the chips for another stake. */
 export function canSplitHand(settings: BlackjackSettings, seat: SeatData, hand: HandData): boolean {
-  return settings.allowSplit && hand.cards.length === 2 && isPair(hand.cards) && seat.hands.length < MAX_HANDS && seat.chips >= hand.bet;
+  return settings.allowSplit && hand.cards.length === 2 && isPair(hand.cards) && seat.chips >= hand.bet;
 }
 
 /** What the acting player may do with the hand in play. */
@@ -129,6 +146,43 @@ export function actionsFor(data: BlackjackData, settings: BlackjackSettings, pla
     canStand: true,
     canDouble: settings.allowDouble && !hand.splitAces && hand.cards.length === 2 && seat.chips >= hand.bet,
     canSplit: canSplitHand(settings, seat, hand),
+  };
+}
+
+/** Whether `playerId` may sit this hand out: betting, in the round, chips left, no stake down, not out already. */
+export function canSitOut(data: BlackjackData, playerId: string): boolean {
+  const seat = data.seats[playerId];
+  return data.phase.kind === 'betting' && seat !== undefined && data.order.includes(playerId) && seat.chips > 0 && seat.bet === 0 && !seat.sittingOut;
+}
+
+/**
+ * The host deals and skips. When the host is the one holding the table up (connected but idle with
+ * no bet down, or on their own turn) every other player gets the same control, so an idle host
+ * never stalls a table that has no clocks.
+ */
+function hostIsWaitedOn(ctx: Pick<Ctx, 'players' | 'hostId'>, data: BlackjackData): boolean {
+  if (data.phase.kind === 'betting') return waitingFor(ctx, data).includes(ctx.hostId);
+  return data.phase.kind === 'acting' && data.phase.playerId === ctx.hostId;
+}
+
+/** Whether `viewerId` may deal now: during betting with a bet down, the host (or anyone, while the table waits on the host). */
+export function canDealNow(ctx: Pick<Ctx, 'players' | 'hostId'>, data: BlackjackData, viewerId: string): boolean {
+  if (data.phase.kind !== 'betting' || !anyBetDown(data) || viewerId === '') return false;
+  return viewerId === ctx.hostId || (findPlayer(ctx, viewerId) !== undefined && hostIsWaitedOn(ctx, data));
+}
+
+/** Whether `viewerId` may stand the hand in play: someone else's turn, and the host (or anyone, on the host's own turn). */
+export function canSkip(ctx: Pick<Ctx, 'players' | 'hostId'>, data: BlackjackData, viewerId: string): boolean {
+  if (data.phase.kind !== 'acting' || data.phase.playerId === viewerId || viewerId === '') return false;
+  return viewerId === ctx.hostId || (findPlayer(ctx, viewerId) !== undefined && hostIsWaitedOn(ctx, data));
+}
+
+/** The viewer's table controls: sitting out, Deal now and Skip. */
+export function controlsFor(ctx: Pick<Ctx, 'players' | 'hostId'>, data: BlackjackData, viewerId: string): BlackjackControls {
+  return {
+    canSitOut: canSitOut(data, viewerId),
+    canDealNow: canDealNow(ctx, data, viewerId),
+    canSkip: canSkip(ctx, data, viewerId),
   };
 }
 
@@ -153,49 +207,17 @@ export function adjustChips(gx: Gx, playerId: string, delta: number): void {
   gx.effects.push({ type: 'score', playerId, delta });
 }
 
-/** The dealer's cards and every hand on the table (a settled round's cards are back in the discards). */
-export function cardsInPlay(data: BlackjackData): Card[] {
-  return [...data.dealer, ...Object.values(data.seats).flatMap((seat) => seat.hands.flatMap((hand) => hand.cards))];
-}
-
-/** Cards in the shoe as it was built (rooms stored before shoeSize was kept had the setting's decks). */
-export function shoeSizeOf(data: BlackjackData, settings: BlackjackSettings): number {
-  return data.shoeSize ?? settings.decks * 52;
-}
-
-/** A shuffled shoe sized for `seats` seats, with its size recorded. */
-export function newShoe(gx: Gx, seats: number): void {
-  const decks = shoeDecks(gx.ctx.settings.decks, seats);
-  gx.data.shoe = shuffle(freshShoe(decks), gx.ctx.rng);
-  gx.data.shoeSize = decks * 52;
-}
-
-/**
- * A fresh shoe sized for the seats in this round, less the cards on the table (one copy each, so
- * a mid-hand rebuild never deals a card twice), shuffled with the injected rng and announced.
- */
-export function rebuildShoe(gx: Gx, reason: string): void {
-  const inPlay = new Map<string, number>();
-  for (const card of cardsInPlay(gx.data)) inPlay.set(card.rank + card.suit, (inPlay.get(card.rank + card.suit) ?? 0) + 1);
-  const decks = shoeDecks(gx.ctx.settings.decks, Math.max(1, gx.data.order.length));
-  const fresh = freshShoe(decks).filter((card) => {
-    const left = inPlay.get(card.rank + card.suit) ?? 0;
-    if (left === 0) return true;
-    inPlay.set(card.rank + card.suit, left - 1);
-    return false;
-  });
-  gx.data.shoe = shuffle(fresh, gx.ctx.rng);
-  gx.data.shoeSize = decks * 52;
-  gx.data.reshuffled = true;
-  systemMessage(gx, `${reason}. The shoe is reshuffled.`);
-}
-
-/** The next card from the shoe; an empty shoe is rebuilt first. */
+/** The next card from the endless deck: drawn on its own from the 52 with the injected rng. */
 export function draw(gx: Gx): Card {
-  if (gx.data.shoe.length === 0) rebuildShoe(gx, 'The shoe ran out');
-  const card = gx.data.shoe.pop();
-  if (!card) throw new Error('blackjack: empty shoe after a rebuild');
-  return card;
+  return drawCard(gx.ctx.rng);
+}
+
+/** Keys of the shoe that rooms stored before the endless deck still carry; nothing reads them. */
+const LEGACY_SHOE_KEYS = ['shoe', 'shoeSize', 'reshuffled'] as const;
+
+/** Drops a stored room's old shoe (up to hundreds of cards) so it is not carried round after round. */
+export function dropLegacyShoe(data: BlackjackData): void {
+  for (const key of LEGACY_SHOE_KEYS) if (key in data) Reflect.deleteProperty(data, key);
 }
 
 /** The status a freshly dealt or hit hand settles into on its own: a natural, a bust, or 21 (nothing to gain by hitting). */

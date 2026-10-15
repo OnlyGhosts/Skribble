@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import type { Card } from '@shared/games/blackjack/protocol';
 import { PlayingCard, type PlayingCardSize } from '../../../platform/components/PlayingCard';
 import { TotalPill } from '../../../platform/table/Outcome';
@@ -25,7 +26,11 @@ export function dealerOnScreen(table: TableModel | null, timeline: Timeline, now
   return cards;
 }
 
-/** The house, top centre: the total pill over the cards, two empty slots before the deal. */
+/**
+ * The house, always in the same place: the top of the table, the same size through every phase.
+ * The total sits beside the cards (the "Dealer" label before the deal), and the cards fan out to
+ * the right from a fixed spot, so a draw never moves the cards already down.
+ */
 export function Dealer({ table, timeline, now, leaving, size }: Props) {
   const cards = dealerOnScreen(table, timeline, now);
   const holeHidden = cards.some((c) => c.card === null);
@@ -34,25 +39,27 @@ export function Dealer({ table, timeline, now, leaving, size }: Props) {
   const blackjack = !holeHidden && cards.length === 2 && total?.total === 21;
   const tone = total && total.total > 21 ? 'bust' : blackjack ? 'blackjack' : 'neutral';
   return (
-    <section className="bj-dealer" aria-label="Dealer" data-testid="dealer-hand" data-hole-hidden={holeHidden} data-total={total?.total ?? 0} data-cards={cards.length} data-settled={table?.settled ?? false}>
-      <div className="bj-hand__top">
-        {total ? (
-          <TotalPill tone={tone} testId="dealer-total">
-            {totalText(total, holeHidden)}
-          </TotalPill>
-        ) : (
-          <span className="bj-dealer__label">Dealer</span>
-        )}
-      </div>
-      <div className="bj-hand__cards bj-dealer__cards">
-        {cards.length > 0 ? (
-          cards.map(({ key, card, flipping }) => <TableCard key={`${timeline.id}:${key}`} card={card} size={size} motion={cardMotion(timeline, key, now)} leaving={leaving} flipping={flipping} testId="dealer-card" />)
-        ) : (
-          <>
-            <PlayingCard card={null} size={size} slot testId="dealer-slot" />
-            <PlayingCard card={null} size={size} slot testId="dealer-slot" />
-          </>
-        )}
+    <section className="bj-dealer" aria-label="Dealer" data-testid="dealer-area" style={{ '--fan': Math.max(2, cards.length) } as CSSProperties}>
+      <div className="bj-hand bj-hand--big bj-dealer__hand" data-testid="dealer-hand" data-hole-hidden={holeHidden} data-total={total?.total ?? 0} data-cards={cards.length} data-settled={table?.settled ?? false}>
+        <div className="bj-hand__top">
+          {total ? (
+            <TotalPill tone={tone} testId="dealer-total">
+              {totalText(total, holeHidden)}
+            </TotalPill>
+          ) : (
+            <span className="bj-dealer__label">Dealer</span>
+          )}
+        </div>
+        <div className="bj-hand__cards bj-dealer__cards">
+          {cards.length > 0 ? (
+            cards.map(({ key, card, flipping }) => <TableCard key={`${timeline.id}:${key}`} card={card} size={size} motion={cardMotion(timeline, key, now)} leaving={leaving} flipping={flipping} testId="dealer-card" />)
+          ) : (
+            <>
+              <PlayingCard card={null} size={size} slot testId="dealer-slot" />
+              <PlayingCard card={null} size={size} slot testId="dealer-slot" />
+            </>
+          )}
+        </div>
       </div>
     </section>
   );

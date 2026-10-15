@@ -1139,6 +1139,7 @@
   flex: none;
 }
 
+/* A long meta line (score, this turn's points) is cut at its column: it never runs under the row's buttons. */
 .player__meta {
   display: flex;
   align-items: center;
@@ -1146,6 +1147,7 @@
   font-size: 0.8rem;
   color: var(--color-text-muted);
   white-space: nowrap;
+  overflow: hidden;
 }
 
 .player__score {
@@ -1160,8 +1162,11 @@
 }
 
 
+/* Above the rest of the row, so a tap on Kick always lands on it (the points' pop-in is a transform, painted on top otherwise). */
 .player__actions {
   flex: none;
+  position: relative;
+  z-index: 1;
 }
 
 .player__actions--spacer {

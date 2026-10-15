@@ -1,21 +1,12 @@
 /**
- * Blackjack's table rules, pure and shared by both sides: the shoe, hand totals with soft aces,
- * naturals, the dealer's drawing policy and the payouts. Randomness is passed in, never read.
+ * Blackjack's table rules, pure and shared by both sides: the endless deck, hand totals with soft
+ * aces, naturals, the dealer's drawing policy and the payouts. Randomness is passed in, never read.
  */
-import { freshDeck, shuffle } from '../../platform/cards.js';
+import { freshDeck } from '../../platform/cards.js';
 import type { BlackjackPayout, Card, CardRank, HandOutcome } from './protocol.js';
-
-export { shuffle };
 
 export const BLACKJACK = 21;
 export const DEALER_STANDS_AT = 17;
-/** The shoe is rebuilt once fewer cards than this share of it remain. */
-export const RESHUFFLE_BELOW = 0.25;
-/** Splitting and re-splitting stops at this many hands a seat. */
-export const MAX_HANDS = 4;
-/** Cards a round sets aside for each seat (four hands of three cards) and for the dealer's draws. */
-export const SEAT_RESERVE = MAX_HANDS * 3;
-export const DEALER_RESERVE = 8;
 /** Time the client gets to turn the hole card over once the dealer plays, and then to draw each further card. */
 export const REVEAL_HOLE_MS = 1200;
 export const REVEAL_CARD_MS = 500;
@@ -80,27 +71,16 @@ export function dealerShouldHit(cards: readonly Card[], hitsSoft17: boolean): bo
   return total === DEALER_STANDS_AT && soft && hitsSoft17;
 }
 
-/** `decks` full decks, unshuffled. */
-export function freshShoe(decks: number): Card[] {
-  return freshDeck(decks);
-}
-
-/** The cards a round with `seats` seats dealt may take: a round never starts with fewer in the shoe. */
-export function roundReserve(seats: number): number {
-  return seats * SEAT_RESERVE + DEALER_RESERVE;
-}
+/** The 52 cards every draw picks from. */
+export const DECK: readonly Card[] = freshDeck(1);
 
 /**
- * Decks in a fresh shoe: the table's setting, or more at a big table, so the shoe holds every
- * seat's reserve twice over and a reshuffle comes every few rounds rather than every round.
+ * The endless deck (an infinite shoe): every card is drawn on its own, uniformly from the 52, by
+ * one call to `rng` (uniform in [0, 1)). It never runs out, so it never needs a reshuffle.
  */
-export function shoeDecks(minDecks: number, seats: number): number {
-  return Math.max(minDecks, Math.ceil((2 * seats * SEAT_RESERVE) / 52));
-}
-
-/** A shoe is due for a reshuffle under a quarter of its size, or under one round's reserve for this many seats. */
-export function needsReshuffle(remaining: number, shoeSize: number, seats: number): boolean {
-  return remaining < Math.max(Math.ceil(shoeSize * RESHUFFLE_BELOW), roundReserve(seats));
+export function drawCard(rng: () => number): Card {
+  const card = DECK[Math.min(DECK.length - 1, Math.floor(rng() * DECK.length))];
+  return { ...card };
 }
 
 /** The whole-chip winnings on a natural: 3:2 or 6:5 of the stake, rounded down. */

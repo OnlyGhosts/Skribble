@@ -100,7 +100,10 @@ spectators (`GameCtx.spectators`). Spectators get snapshots and chat, but their 
 refused with `NOT_ALLOWED` before your module sees them, and they neither vote-kick nor count
 towards a vote-kick majority while a game runs. The one exception is the host's own controls: a
 module lists the message types the host may send while sitting out in `hostMessages` (Spy Game:
-`nextRound` and `endGame`, Quip Game: `next`), and those reach `handle` whoever the host is. A
+`nextRound` and `endGame`, Quip Game: `next`, Blackjack: `endGame`, `dealNow` and `skip`, which
+the players may also send while the table waits on the host), and
+those reach `handle` whoever the host is (so a game names a host who watches from
+`GameCtx.spectators` too). A
 newcomer can join between games (lobby and podium alike) whatever `allowMidGameJoin` says; the
 setting only governs joins while the room is `'playing'`.
 
@@ -177,10 +180,11 @@ helpers. Section 8 lists them.
 **Playing cards.** A standard deck lives in [`shared/platform/cards.ts`](../shared/platform/cards.ts):
 `Card` / `CardRank` / `CardSuit`, `CARD_RANKS` / `CARD_SUITS`, `freshDeck(decks)`, `shuffle(cards, rng)`
 (Fisher-Yates over a copy, every index from the injected rng) and `cardOf('10H')` for tests and
-fixtures. Blackjack's shoe and Poker's deck both come from it (Blackjack's shoe never has fewer
-decks than its setting, more at a big table: `shoeDecks(minDecks, seats)` keeps two rounds'
-reserve of four hands of three cards a seat, and `needsReshuffle` rebuilds it between rounds
-before it drops under one round's reserve, so a 50-seat table never runs dry mid-round; Poker deals
+fixtures. Blackjack's deck and Poker's both come from it (Blackjack's is endless, an infinite
+shoe: `drawCard(rng)` in [`shared/games/blackjack/cards.ts`](../shared/games/blackjack/cards.ts)
+picks every card on its own, uniformly from the 52, with one call to the injected rng, so it never
+runs out, never needs a reshuffle and has no decks setting; its tests script `ctx.rng` to deal
+exact cards. Pairs split, and re-split, with no cap while the chips last; Poker deals
 from one deck with no burn cards, so its table seats 23, two hole cards each and five on the board,
 and anyone beyond that, ready at the start or joining later, watches, `waitingForSeat` in their view,
 until a seat frees up, first come first seated: the module sets `queuesSeats`, so the platform makes
@@ -200,19 +204,25 @@ used by Blackjack and Poker: `TableShell` (the top bar, one row on a phone; the 
 panel under it on a phone and in a left column on a desktop, the chat on the right, the players /
 chat / options sheets), the felt laid out as a stage that never scrolls (`.tbl-felt.tbl-stage`:
 the centre piece row `.tbl-felt__top`, the ribbon, the spotlight, the players, my hand
-`.tbl-stage__mine`; `useTightStage` in `stage.ts` packs it tighter on a short phone, a shorter
-phone from five other players, and any screen from ten), `Deck` and `DiscardTray` (the anchors cards fly from and to), `TableRibbon`, `Spotlight`
-(centre stage: the hand being played large, whose turn it is with their avatar, the turn clock and
-who is next; the game picks its subject per phase, and the viewer's own hand moves up into it on
-their turn), `PlayersGrid` / `PlayerTile` / `SeatSheet` (every other player as a tile in seat order
+`.tbl-stage__mine`; `useTightStage` in `stage.ts` packs the spotlight tighter on a short phone, a
+shorter phone from five other players, and any screen from ten. Blackjack keeps the dealer's hand and mine in fixed places instead: its
+stage's first and last rows have a fixed height and its cards there a fixed size that go by the
+screen alone, never the phase or the number of players, so only the spotlight and the tiles in
+between change; [`lib/hands.ts`](../client/src/games/blackjack/lib/hands.ts) decides when split
+hands fold into chips, total and stake, the hand in play staying full size, and, never narrower
+than a two-digit total, past what fits into one "+N" that opens the seat's sheet with every hand), `Deck` and `DiscardTray` (the anchors cards fly from and to), `TableRibbon`, `Spotlight`
+(centre stage: the hand being played large, whose turn it is with their avatar, the turn clock
+where the game has one (Poker; Blackjack's turns have none) and who is next; the game picks its subject per phase; in Blackjack it never takes the dealer's
+cards or mine: on my turn it just says so while my hand is lit where it always is), `PlayersGrid` / `PlayerTile` / `SeatSheet` (every other player as a tile in seat order
 in a grid that fits its space: [`grid.ts`](../client/src/platform/table/grid.ts) steps the tiles
 down from full to compact, small and dense as the table grows and fits the columns to the room
 left, never narrower than the tier's `minWidth` so names and totals stay whole (a short tile drops
 its second line instead; a narrow small tile wears its total as a badge on its corner), a desktop
 sets them on a gentle arc that flattens as the tiles get smaller; the seat on turn gets the lime ring and the Playing tag,
 a settled seat its outcome's colour, and tapping a tile opens its hand in a sheet),
-`PanelShell` / `PanelLabelRow` / `AmountField` / `PanelMoves` / `MoveButton` (the control panel:
-the status line, the amount with its quick amounts joined to it, the moves always in place and
+`PanelShell` / `PanelLabelRow` / `AmountField` / `PanelMoves` / `MoveButton` / `StatusAction` (the control panel:
+the status line with an optional small control at its end, `action` and `actionSlot`, where
+Blackjack puts Sit out, Deal now and Skip; the amount with its quick amounts joined to it, the moves always in place and
 dimmed when not on offer), `TotalPill` / `PayoutFloat` / `outlineClass` (the outcome colours),
 `TableCard` (a card that slides in from the deck, turns over and leaves for the discards),
 `ChipFlights` (chips sliding between `data-table-anchor` places) and `useHotkeys` in
@@ -223,9 +233,9 @@ game's own planner, then `cardShown`, `faceDown`, `departure`, `valueAt`, `fligh
 to draw it); a welcome (`createEntryFlag`), reduced motion or a backlog over three seconds shows
 the truth at once. Blackjack's [`lib/timeline.ts`](../client/src/games/blackjack/lib/timeline.ts) and
 Poker's [`lib/timeline.ts`](../client/src/games/poker/lib/timeline.ts) are the two planners. A
-planner keeps a whole deal under that backlog however big the table (Blackjack's pace is shared
-with the server in [`shared/games/blackjack/deal.ts`](../shared/games/blackjack/deal.ts), whose
-`dealAllowanceMs` the first turn's clock gets on top, as Poker's `reveal.ts` does for its showdown),
+planner keeps a whole deal under that backlog however big the table (Blackjack's pace lives in
+[`shared/games/blackjack/deal.ts`](../shared/games/blackjack/deal.ts), whose `dealAllowanceMs` the
+tests keep under it; Poker's `reveal.ts` adds its showdown's length to the next clock),
 and a game's sound schedule is cleared when a plan snaps, so no stale card sound plays after it.
 
 ---
@@ -734,6 +744,21 @@ A game that runs until the players decide it (Blackjack has no rounds setting an
 stack is left or the host taps End game) sets `hostEnd`; the cross-game suites send it once the
 clock has run, where they would otherwise wait for the game to end on its own.
 
+Blackjack has no clocks at all but the settled table's: after every settle the `results` phase
+keeps the table up for the dealer's reveal and `BLACKJACK_RESULTS_MS` (5 seconds, no setting)
+before the next round's bets open, and the final table does the same in `ending` before the
+podium. The bets wait for the players: the cards go out once every connected seat with chips has
+bet or tapped Sit out, a player who is away never holds up the deal (they sit the hand out), and
+the host's Deal now deals to whoever has bet. With no bet down nothing is dealt (a newcomer who
+came in behind a stake that has since left is seated then), and the table holds once nobody
+connected is left to bet. The turns wait too: the player in play acts when ready, a player who
+drops (or is away when their turn comes) stands at once, and the host's Skip stands an idle
+player's hand in play (a skip names the hand, so a second tap never stands the next one). An idle
+host never stalls the table: while the bets wait on the host, anyone may Deal now, and on the
+host's own turn anyone may Skip it. Stored rooms with
+the old `betSeconds`, `actSeconds`, `resultsSeconds` and `decks` keys load fine and ignore them,
+and a stored room's old shoe (`shoe`, `shoeSize`, `reshuffled`) is dropped at its next round.
+
 Write the module as the template does: a `Data` interface, `start`, `handle` (a `switch` on
 `event.type`, default `{ data, effects: [] }`), `nextDeadline`, `view`, and the exported module
 object with `meta: gameById('wordle')`, `settings: defineSettings(schema, defaults, normalize?)`
@@ -822,6 +847,12 @@ podium (`podium-entry` with `data-rank`), `back-to-lobby` for the host and `room
 afterwards. The Click Race test in `home.spec.ts` ("the hidden template game plays a whole Click
 Race between two players") is exactly this and is the one to copy. Keep the "no page errors"
 assertion pattern.
+
+A layout a real game cannot reach on demand (a seat with twelve split hands) is checked against
+the real components with rigged snapshots instead: [`e2e/harness/`](../e2e/harness) renders
+Blackjack's screen from a scenario in the query string, and
+[`e2e/blackjack-layout.spec.ts`](../e2e/blackjack-layout.spec.ts) serves it with Vite on its own
+port. Nothing in the production build imports it, and the server has no test-only hook.
 
 The platform test ids you will use: `home-create`, `home-join`, `code-input-0..3`, `join-panel`,
 `create-panel`, `name-step`, `home-name`, `home-continue`, `home-back`, `room-preview`,
@@ -1934,8 +1965,8 @@ Run from the repository root; everything is green at HEAD.
   shared pool helpers; never add a per-game "adult" switch.
 - **`meta.maxPlayers` is a seat limit, not a room cap.** `null` seats everyone (up to
   `ROOM_HARD_CAP` = 50); a number benches the extra ready players for that game. Prefer `null`:
-  the owner wants big parties to all play (Blackjack seats everyone and grows its shoe with the
-  table, see `shoeDecks` in `shared/games/blackjack/cards.ts`). Only a hard limit of the game
+  the owner wants big parties to all play (Blackjack seats everyone and deals from an endless
+  deck, see `drawCard` in `shared/games/blackjack/cards.ts`). Only a hard limit of the game
   itself justifies a number: Poker's 23 is what one deck can deal. Test a start with a full room
   (`server/games/bigParty.test.ts` does it for every live game) and keep long lists scrolling
   inside their own panel.

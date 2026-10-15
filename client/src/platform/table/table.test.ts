@@ -372,7 +372,10 @@ describe('the components', () => {
 
   it('the deck and the discards, the ribbon, the pill, the outline and the payout', () => {
     expect(html(createElement(Deck, { remaining: 268, name: 'shoe', testId: 'shoe' }))).toMatch(/data-testid="shoe" data-remaining="268" aria-label="268 cards in the shoe"[\s\S]*data-table-deck=""[\s\S]*268</);
-    expect(html(createElement(Deck, { remaining: 312, note: 'New shoe', name: 'shoe', testId: 'shoe' }))).toContain('New shoe');
+    // An endless deck: the stack and no count.
+    const endless = html(createElement(Deck, { name: 'shoe', testId: 'shoe' }));
+    expect(endless).toMatch(/data-testid="shoe" aria-label="The shoe"[\s\S]*data-table-deck=""/);
+    expect(endless).not.toContain('tbl-deck__count');
     expect(html(createElement(DiscardTray, { discarded: 0 }))).not.toContain('tbl-stack');
     expect(html(createElement(DiscardTray, { discarded: 45, label: 'Muck' }))).toMatch(/aria-label="Muck"[\s\S]*data-table-discard=""[\s\S]*tbl-stack__card/);
     expect(html(createElement(TableRibbon, { main: 'BLACKJACK PAYS 3 TO 2', sub: 'DEALER STANDS ON 17' }))).toContain('tbl-ribbon__sub');

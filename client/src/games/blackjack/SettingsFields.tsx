@@ -1,5 +1,5 @@
 import { BLACKJACK_PAYOUTS, BLACKJACK_SETTINGS_LIMITS, type BlackjackPayout, type BlackjackSettings } from '@shared/games/blackjack/protocol';
-import { RangeSetting, SettingRow, ToggleSetting } from '../../platform/components/SettingControls';
+import { SettingRow, ToggleSetting } from '../../platform/components/SettingControls';
 import type { SettingsFieldsProps } from '../../platform/game';
 import { ChipsSetting } from '../../platform/components/ChipsSetting';
 
@@ -8,18 +8,14 @@ const L = BLACKJACK_SETTINGS_LIMITS;
 const PAYOUT_LABELS: Record<BlackjackPayout, string> = { '3:2': '3 to 2', '6:5': '6 to 5' };
 
 /**
- * Blackjack's rows in the lobby settings panel: the chips, the shoe, the clocks and the house rules.
- * There are no rounds or table limits to set: any bet up to the stack, until one stack is left.
+ * Blackjack's rows in the lobby settings panel: the chips and the house rules. There are no rounds,
+ * table limits, clocks or decks to set: any bet up to the stack, until one stack is left, the table
+ * waits for its players, and the deck never runs out.
  */
 export function BlackjackSettingsFields({ settings, canEdit, patch }: SettingsFieldsProps<BlackjackSettings>) {
-  const range = { canEdit, revision: settings };
   return (
     <>
       <ChipsSetting id="startingChips" label="Starting chips" value={settings.startingChips} min={L.startingChips.min} max={L.startingChips.max} presets={[500, 1000, 2500, 5000, 10000]} canEdit={canEdit} onCommit={(v) => patch({ startingChips: v })} hint="Every player starts with this stack. Bet any amount of it. The chips are the score." />
-      <RangeSetting id="decks" label="Decks in the shoe" rowLabel="Decks" value={settings.decks} min={L.decks.min} max={L.decks.max} onCommit={(v) => patch({ decks: v })} hint="The fewest decks in the shoe. A big table gets more. It is reshuffled when it runs low." {...range} />
-      <RangeSetting id="betSeconds" label="Betting time in seconds" rowLabel="Betting time" value={settings.betSeconds} display={`${settings.betSeconds}s`} min={L.betSeconds.min} max={L.betSeconds.max} onCommit={(v) => patch({ betSeconds: v })} hint="Anyone who has not bet by then sits the hand out." {...range} />
-      <RangeSetting id="actSeconds" label="Turn time in seconds" rowLabel="Turn time" value={settings.actSeconds} display={`${settings.actSeconds}s`} min={L.actSeconds.min} max={L.actSeconds.max} onCommit={(v) => patch({ actSeconds: v })} hint="A hand that runs out of time stands." {...range} />
-      <RangeSetting id="resultsSeconds" label="Final table time in seconds" rowLabel="Final table" value={settings.resultsSeconds} display={`${settings.resultsSeconds}s`} min={L.resultsSeconds.min} max={L.resultsSeconds.max} onCommit={(v) => patch({ resultsSeconds: v })} hint="How long the last hand stays up before the podium." {...range} />
       <SettingRow
         label="Blackjack pays"
         testId="blackjackPayout"
@@ -38,7 +34,7 @@ export function BlackjackSettingsFields({ settings, canEdit, patch }: SettingsFi
       />
       <ToggleSetting id="dealerHitsSoft17" checked={settings.dealerHitsSoft17} disabled={!canEdit} onChange={(v) => patch({ dealerHitsSoft17: v })} label="Dealer hits soft 17" hint="The dealer draws on a 17 with an ace counted as 11." />
       <ToggleSetting id="allowDouble" checked={settings.allowDouble} disabled={!canEdit} onChange={(v) => patch({ allowDouble: v })} label="Doubling down" hint="Double the stake on two cards for exactly one more card, after a split too." />
-      <ToggleSetting id="allowSplit" checked={settings.allowSplit} disabled={!canEdit} onChange={(v) => patch({ allowSplit: v })} label="Splitting pairs" hint="Split pairs up to four hands. Split aces get one card each. 21 after a split pays 1 to 1." />
+      <ToggleSetting id="allowSplit" checked={settings.allowSplit} disabled={!canEdit} onChange={(v) => patch({ allowSplit: v })} label="Splitting pairs" hint="Split any pair, and split again on another pair. Split aces get one card each. 21 after a split pays 1 to 1." />
     </>
   );
 }

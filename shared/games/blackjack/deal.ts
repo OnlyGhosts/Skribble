@@ -1,8 +1,8 @@
 /**
- * How long the client takes to show a deal, so the first turn's clock starts once the cards are on
- * the table: the server adds dealAllowanceMs to the first acting deadline after a deal. It mirrors
- * the client's plan (client/src/games/blackjack/lib/timeline.ts on the platform's table timeline)
- * as an upper bound, and a client test keeps the two in step.
+ * The pace of a deal on screen: the client's plan (client/src/games/blackjack/lib/timeline.ts on
+ * the platform's table timeline) follows these timings, and dealAllowanceMs is how long a whole
+ * deal takes to show. Tests keep the two in step and the whole deal under the client's animation
+ * backlog, however big the table.
  */
 
 /** The client's animation timings, in ms. */

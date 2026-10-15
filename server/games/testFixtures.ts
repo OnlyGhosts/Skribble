@@ -43,12 +43,12 @@ export const GAME_TEST_FIXTURES: Readonly<Record<GameId, GameTestFixture>> = {
     validMessage: { t: 'answer', promptId: 'r1-p0', text: 'banana' },
   },
   blackjack: {
-    // One deck and the shortest clocks: rng () => 0 deals the shuffled single deck in a fixed order. The rounds never run out.
-    settings: { decks: 1, betSeconds: 10, actSeconds: 10, resultsSeconds: 4, startingChips: 1000 },
-    longSettings: { decks: 8, betSeconds: 60, actSeconds: 60, resultsSeconds: 20, startingChips: 100_000 },
+    // The endless deck: rng () => 0 deals the ace of spades every time. No clocks, and the rounds never run out.
+    settings: { startingChips: 1000 },
+    longSettings: { startingChips: 100_000 },
     // The round opens with betting; any stake up to the stack is allowed.
     validMessage: { t: 'bet', amount: 10 },
-    // Idle players sit every hand out and the table waits for a bet, so only the host ends it.
+    // The bets wait for idle players, so only the host ends it.
     hostEnd: { t: 'endGame' },
   },
   poker: {

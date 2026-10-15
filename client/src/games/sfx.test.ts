@@ -105,21 +105,21 @@ describe('Poker', () => {
 });
 
 describe('Blackjack', () => {
-  const seat = (bet: number): BlackjackPlayerView => ({ chips: 100, bet, hands: [], inRound: true, bustedOut: false });
+  const seat = (bet: number): BlackjackPlayerView => ({ chips: 100, bet, hands: [], inRound: true, sittingOut: false, bustedOut: false });
   const view = (bets: Record<string, number>, extra: Partial<BlackjackView> = {}) =>
-    partial<BlackjackView>({ round: 2, reshuffled: false, players: Object.fromEntries(Object.entries(bets).map(([id, b]) => [id, seat(b)])), ...extra });
+    partial<BlackjackView>({ round: 2, players: Object.fromEntries(Object.entries(bets).map(([id, b]) => [id, seat(b)])), ...extra });
   const tl = BJ.EMPTY_TIMELINE;
 
-  it('lays chips once a snapshot however many bets went in (full when mine is one), quieter for other seats, and shuffles once for a fresh shoe', () => {
+  it('lays chips once a snapshot however many bets went in (full when mine is one), quieter for other seats, and never shuffles (the deck is endless)', () => {
     const play = spy(blackjackSounds);
     const prevView = view({ me: 0, bob: 0, carol: 0 });
-    playBlackjackSounds({ view: view({ me: 10, bob: 20, carol: 0 }, { reshuffled: true }), prevView, table: null, prevTable: null, before: tl, timeline: tl, me: 'me' });
-    playBlackjackSounds({ view: view({ me: 10, bob: 20, carol: 5 }, { reshuffled: true }), prevView: view({ me: 10, bob: 20, carol: 0 }, { reshuffled: true }), table: null, prevTable: null, before: tl, timeline: tl, me: 'me' });
+    playBlackjackSounds({ view: view({ me: 10, bob: 20, carol: 0 }), prevView, table: null, prevTable: null, before: tl, timeline: tl, me: 'me' });
+    playBlackjackSounds({ view: view({ me: 10, bob: 20, carol: 5 }), prevView: view({ me: 10, bob: 20, carol: 0 }), table: null, prevTable: null, before: tl, timeline: tl, me: 'me' });
     expect(calls(play)).toEqual([
-      ['shuffle', 1],
       ['bet', 1],
       ['bet', ONLOOKER_VOLUME],
     ]);
+    expect(Object.keys(blackjackSounds)).not.toContain('shuffle');
   });
 
   it('thuds my bust once the busting card lands', () => {

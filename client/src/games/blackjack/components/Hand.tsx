@@ -20,6 +20,8 @@ interface Props {
   active: boolean;
   /** A tile's small hand: no bet line, the outcome only as colour. */
   mini?: boolean;
+  /** My hands: the total larger and bolder, easy to follow at a glance. */
+  big?: boolean;
   testId: string;
 }
 
@@ -34,23 +36,24 @@ export function handOnScreen(playerId: string, index: number, hand: TableHand, t
   return { cards, total, outcome };
 }
 
-function toneOf(outcome: TableHand['outcome'], bust: boolean, natural: boolean, active: boolean): HandTone {
+/** A hand's colour: its outcome once shown, a bust or a natural as soon as they land, lit while in play. */
+export function handTone(outcome: TableHand['outcome'], bust: boolean, natural: boolean, active: boolean): HandTone {
   if (outcome) return outcome;
   if (bust) return 'bust';
   if (natural) return 'blackjack';
   return active ? 'active' : 'neutral';
 }
 
-/** One hand: the total pill over the cards, then the stake (and the outcome with its payout once settled). */
-export function Hand({ playerId, index, hand, timeline, now, leaving, size, active, mini = false, testId }: Props) {
+/** One hand: the total beside the cards with the stake under it (the outcome and its payout once settled). */
+export function Hand({ playerId, index, hand, timeline, now, leaving, size, active, mini = false, big = false, testId }: Props) {
   const { cards, total, outcome } = handOnScreen(playerId, index, hand, timeline, now);
   const bust = total !== null && total.total > 21;
-  const tone = toneOf(outcome, bust, hand.status === 'blackjack' && cards.length === 2, active);
+  const tone = handTone(outcome, bust, hand.status === 'blackjack' && cards.length === 2, active);
   const payout = outcome && outcome !== 'push' && hand.payout !== null ? payoutText(hand.payout) : '';
   return (
     <div
       role="group"
-      className={`bj-hand ${outlineClass(tone)}${mini ? ' bj-hand--mini' : ''}`}
+      className={`bj-hand ${outlineClass(tone)}${mini ? ' bj-hand--mini' : ''}${big ? ' bj-hand--big' : ''}`}
       aria-label={`Hand ${index + 1}${total ? `: ${total.total}` : ''}${outcome ? `, ${outcomeLabel(outcome)}` : ''}`}
       data-testid={testId}
       data-index={index}
@@ -78,9 +81,12 @@ export function Hand({ playerId, index, hand, timeline, now, leaving, size, acti
       {!mini && (
         <div className="bj-hand__foot">
           {outcome ? (
-            <span className={`bj-hand__outcome bj-hand__outcome--${outcome}`} data-testid="hand-outcome">
-              {payout ? `${outcomeLabel(outcome)} ${payout}` : outcomeLabel(outcome)}
-            </span>
+            <>
+              <span className={`bj-hand__outcome bj-hand__outcome--${outcome}`} data-testid="hand-outcome">
+                {outcomeLabel(outcome)}
+              </span>
+              {payout && <span className={`bj-hand__outcome bj-hand__outcome--${outcome}`}>{payout}</span>}
+            </>
           ) : (
             <Chips value={hand.bet} size={14} className="bj-hand__bet" />
           )}

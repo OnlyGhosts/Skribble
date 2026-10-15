@@ -1,7 +1,7 @@
-/** The acting player's moves on the hand in play: hit, stand, double, split, and the clock running out. */
+/** The acting player's moves on the hand in play (hit, stand, double, split) and the host's Skip. */
 import { handTotal } from '../../../shared/games/blackjack/cards.js';
-import { nextHand } from './dealer.js';
-import { actingHand, actionsFor, adjustChips, draw, fail, nameOf, settledStatus, snapshot, type Gx, type HandData } from './state.js';
+import { awayLine, nextHand } from './dealer.js';
+import { actingHand, actionsFor, adjustChips, canSkip, draw, fail, nameOf, settledStatus, snapshot, systemMessage, type Gx, type HandData } from './state.js';
 
 const NOT_YOUR_TURN = 'It is not your turn.';
 
@@ -17,10 +17,9 @@ export function hit(gx: Gx, playerId: string): void {
   if (!hand) return fail(gx, playerId, NOT_YOUR_TURN);
   if (!actionsFor(gx.data, gx.ctx.settings, playerId).canHit) return fail(gx, playerId, 'Split aces take one card each.');
   hand.cards.push(draw(gx));
-  // A bust or a 21 moves on by itself; otherwise the player keeps acting with a fresh clock.
+  // A bust or a 21 moves on by itself; otherwise the player keeps acting.
   const settled = settledStatus(hand);
   if (settled === 'bust' || settled === 'stood') return finishHand(gx, playerId, hand, settled);
-  if (gx.data.phase.kind === 'acting') gx.data.phase.endsAt = gx.ctx.now + gx.ctx.settings.actSeconds * 1000;
   snapshot(gx);
 }
 
@@ -44,8 +43,8 @@ export function double(gx: Gx, playerId: string): void {
 
 /**
  * A pair becomes two hands side by side with the same stake, each dealt a second card, and the
- * play goes on from the left one. Split aces take that one card (a second ace may be split again,
- * up to four hands); other pairs play on and may be split again too.
+ * play goes on from the left one. Split aces take that one card (a second ace may be split again);
+ * other pairs play on and may be split again too. There is no cap: only the chips stop a split.
  */
 export function split(gx: Gx, playerId: string): void {
   const { data, ctx } = gx;
@@ -67,12 +66,31 @@ export function split(gx: Gx, playerId: string): void {
   nextHand(gx);
 }
 
-/** The acting clock ran out: the hand stands. */
-export function actTimedOut(gx: Gx): void {
-  const { data } = gx;
-  if (data.phase.kind !== 'acting') return;
-  const hand = actingHand(data, data.phase.playerId);
+/**
+ * On another player's turn: the hand named stands (a split hand at a time), if it is still the
+ * one in play; a stale target (a second tap after the turn moved on) is refused. The host's Skip,
+ * or anyone's on the host's own turn.
+ */
+export function skip(gx: Gx, playerId: string, target: { playerId: string; handIndex: number }): void {
+  const { data, ctx } = gx;
+  if (data.phase.kind !== 'acting') return fail(gx, playerId, 'There is no turn to skip.');
+  if (data.phase.playerId === playerId) return fail(gx, playerId, 'It is your own turn.');
+  if (!canSkip(ctx, data, playerId)) return fail(gx, playerId, 'Only the host can skip a turn.');
+  if (data.phase.playerId !== target.playerId || data.phase.handIndex !== target.handIndex) return fail(gx, playerId, 'That hand is already done.');
+  const actor = data.phase.playerId;
+  const hand = actingHand(data, actor);
   if (!hand) return nextHand(gx);
-  gx.effects.push({ type: 'chat', to: 'all', kind: 'system', text: `${nameOf(gx.ctx, data.phase.playerId)} ran out of time and stands.` });
-  finishHand(gx, data.phase.playerId, hand, 'stood');
+  systemMessage(gx, `${nameOf(ctx, playerId)} stood ${nameOf(ctx, actor)}'s hand.`);
+  finishHand(gx, actor, hand, 'stood');
+}
+
+/** The player in play dropped: their hand stands at once and the play moves on (nextHand stands their later hands too). */
+export function standAway(gx: Gx, playerId: string): void {
+  const { data } = gx;
+  if (data.phase.kind !== 'acting' || data.phase.playerId !== playerId) return;
+  const hand = actingHand(data, playerId);
+  if (!hand) return nextHand(gx);
+  hand.status = 'stood';
+  systemMessage(gx, awayLine(gx, playerId));
+  nextHand(gx, new Set([playerId]));
 }

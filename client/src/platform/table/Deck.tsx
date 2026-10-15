@@ -12,22 +12,22 @@ function Stack({ count }: { count: number }) {
 }
 
 interface DeckProps {
-  remaining: number;
-  /** Shown in place of the count (a fresh shoe). */
-  note?: string;
+  /** Cards left, shown under the stack; an endless deck (Blackjack's) leaves it out. */
+  remaining?: number;
   /** What the deck is called to a screen reader: "shoe", "deck". */
   name: string;
   testId: string;
 }
 
 /** The deck (Blackjack's shoe), top right: the cards fly out of it. */
-export function Deck({ remaining, note, name, testId }: DeckProps) {
+export function Deck({ remaining, name, testId }: DeckProps) {
+  const label = remaining === undefined ? `The ${name}` : `${remaining} cards in the ${name}`;
   return (
-    <div className="tbl-deck" data-testid={testId} data-remaining={remaining} aria-label={`${remaining} cards in the ${name}`} role="img">
+    <div className="tbl-deck" data-testid={testId} data-remaining={remaining} aria-label={label} role="img">
       <span className="tbl-deck__stack" data-table-deck="">
         <Stack count={3} />
       </span>
-      <span className="tbl-deck__count">{note ?? formatChips(remaining)}</span>
+      {remaining !== undefined && <span className="tbl-deck__count">{formatChips(remaining)}</span>}
     </div>
   );
 }

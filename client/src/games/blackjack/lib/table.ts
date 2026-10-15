@@ -125,11 +125,10 @@ export function cardsOnTable(table: TableModel | null): number {
 }
 
 /**
- * Cards in the discard tray: whatever has left the shoe (`shoeSize` cards when built) and is not on the felt. The settled round
- * stays on the felt until the next deal, and its cards count as discarded only once they have
- * slid to the tray (`shown` is the table being drawn, the old one while it leaves).
+ * Cards in the discard tray: every table swept since this page joined (`swept`, the store keeps
+ * it), less the one still sliding there (`shown`, the old table while it leaves). The tray shows
+ * a pile, never a count: the deck is endless.
  */
-export function discardedCount(shoeSize: number, shoeRemaining: number, truth: TableModel | null, shown: TableModel | null): number {
-  const onFelt = cardsOnTable(truth) + (shown !== null && shown !== truth ? cardsOnTable(shown) : 0);
-  return Math.max(0, shoeSize - shoeRemaining - onFelt);
+export function discardedCount(swept: number, truth: TableModel | null, shown: TableModel | null): number {
+  return Math.max(0, swept - (shown !== null && shown !== truth ? cardsOnTable(shown) : 0));
 }

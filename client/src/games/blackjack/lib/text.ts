@@ -10,6 +10,8 @@ export function chatPlaceholderFor(phase: BlackjackPhase | undefined, inRound: b
       return inRound ? 'Bet, then chat…' : 'Watching this round…';
     case 'acting':
       return 'Hit or stand? Talk it over…';
+    case 'results':
+      return 'Good hand? Talk it over…';
     case 'ending':
     case 'gameOver':
       return 'Good game…';
@@ -32,9 +34,11 @@ export function phaseKicker(view: BlackjackView, turnName: string, mine: boolean
   if (view.endRequested && view.phase === 'acting') return 'Last hand';
   switch (view.phase) {
     case 'betting':
-      return view.endsAt === null ? 'Waiting for a bet' : 'Place your bets';
+      return 'Place your bets';
     case 'acting':
       return mine ? 'Your turn' : `${turnName}'s turn`;
+    case 'results':
+      return 'Next round soon';
     case 'held':
       return 'Waiting for players';
     case 'ending':
@@ -47,6 +51,16 @@ export function phaseKicker(view: BlackjackView, turnName: string, mine: boolean
 export function joinNames(names: readonly string[]): string {
   if (names.length <= 1) return names[0] ?? '';
   return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+}
+
+/** Past this many letters, two or three names read as a count: they would be cut on a small phone. */
+const WAITING_NAMES_MAX = 20;
+
+/** "Waiting for Pia", "Waiting for Pia and Quinn"; many names, or long ones, as "Waiting for 4 players". */
+export function waitingText(names: readonly string[]): string {
+  const joined = joinNames(names);
+  if (names.length > 3 || (names.length > 1 && joined.length > WAITING_NAMES_MAX)) return `Waiting for ${names.length} players`;
+  return `Waiting for ${joined}`;
 }
 
 const PAYS: Record<BlackjackPayout, string> = { '3:2': '3 TO 2', '6:5': '6 TO 5' };
@@ -72,7 +86,7 @@ export function payoutText(payout: number): string {
 
 export const HOTKEY_HINT = 'Space bet · H hit · S stand · D double · P split';
 
-export type PanelState = 'spectating' | 'out' | 'offline' | 'held' | 'over' | 'dealer' | 'next-round' | 'bet' | 'waiting' | 'dealing' | 'my-turn' | 'their-turn';
+export type PanelState = 'spectating' | 'out' | 'offline' | 'held' | 'over' | 'dealer' | 'results' | 'next-round' | 'sat-out' | 'bet' | 'waiting' | 'dealing' | 'my-turn' | 'their-turn';
 
 const TONES: Record<PanelState, StatusTone> = {
   spectating: 'quiet',
@@ -81,7 +95,9 @@ const TONES: Record<PanelState, StatusTone> = {
   held: 'quiet',
   over: 'quiet',
   dealer: 'other',
+  results: 'quiet',
   'next-round': 'quiet',
+  'sat-out': 'quiet',
   bet: 'go',
   waiting: 'quiet',
   dealing: 'quiet',
@@ -100,7 +116,9 @@ export interface PanelStatusInput {
   /** A seat with chips: one not dealt in sat the hand out rather than waiting for a seat. */
   hasChips: boolean;
   betPlaced: boolean;
-  /** Names of the seats still to bet, the viewer left out. */
+  /** Chose to sit this hand out while the bets are open. */
+  sittingOut: boolean;
+  /** Names of the seats the deal still waits for, the viewer left out. */
   pending: string[];
   myTurn: boolean;
   turnName: string;
@@ -109,8 +127,6 @@ export interface PanelStatusInput {
   handCount: number;
   /** The dealer's reveal is still playing on screen. */
   dealerPlaying: boolean;
-  /** Nobody bet before the clock ran out: the table waits for the first bet. */
-  awaitingFirstBet: boolean;
 }
 
 function line(state: PanelState, text: string): PanelStatus {
@@ -125,14 +141,15 @@ export function panelStatus(s: PanelStatusInput): PanelStatus {
   if (!s.connected) return line('offline', 'Reconnecting…');
   if (s.phase === 'held') return line('held', 'Waiting for players');
   if (s.dealerPlaying) return line('dealer', "Dealer's turn");
+  if (s.phase === 'results') return line('results', 'Next round soon');
   if (s.phase === 'betting') {
     if (!s.inRound) return line('next-round', "You're in from the next round");
-    if (!s.betPlaced) return line('bet', s.awaitingFirstBet ? 'Place a bet to deal' : 'Place your bet');
-    if (s.pending.length > 3) return line('waiting', `Waiting for ${s.pending.length} players`);
-    if (s.pending.length > 0) return line('waiting', `Waiting for ${joinNames(s.pending)}`);
+    if (s.sittingOut) return line('sat-out', 'You sit this hand out');
+    if (!s.betPlaced) return line('bet', 'Place your bet');
+    if (s.pending.length > 0) return line('waiting', waitingText(s.pending));
     return line('dealing', 'Dealing');
   }
-  // Seated with chips but not dealt in: no bet went down in time (a newcomer has no chips yet).
+  // Seated with chips but not dealt in: they sat the hand out (a newcomer has no chips yet).
   if (!s.inRound) return line('next-round', s.hasChips ? 'You sit this hand out' : "You're in from the next round");
   if (s.myTurn) return line('my-turn', s.handCount > 1 ? `Your turn, hand ${s.handIndex + 1} of ${s.handCount}` : 'Your turn');
   return line('their-turn', `${s.turnName}'s turn`);
@@ -152,17 +169,24 @@ export function resultLabel(outcome: HandOutcome, back: number): string {
   }
 }
 
-/** The spotlight's label while the bets go down. */
-export function betsLabel(first: boolean, meWaiting: boolean, waiting: readonly string[]): string {
-  if (first) return 'Waiting for a bet';
+/** The spotlight's label while the bets go down: `waiting` names who the deal waits for, the viewer left out. */
+export function betsLabel(meWaiting: boolean, waiting: readonly string[], anyBet: boolean): string {
   if (meWaiting) return 'Place your bet';
-  if (waiting.length === 0) return 'Dealing';
-  if (waiting.length > 3) return `Waiting for ${waiting.length} players`;
-  return `Waiting for ${joinNames(waiting)}`;
+  if (waiting.length === 0) return anyBet ? 'Dealing' : 'Waiting for a bet';
+  return waitingText(waiting);
 }
 
-/** The spotlight's label on a turn. */
-export function turnLabel(mine: boolean, name: string, handIndex: number, handCount: number): string {
-  if (!mine) return `${name}'s turn`;
-  return handCount > 1 ? `Your turn, hand ${handIndex + 1} of ${handCount}` : 'Your turn';
+/** Which of a seat's hands is in play, for a seat holding more than one: "Hand 3 of 7". */
+export function handMarker(handIndex: number, handCount: number): string {
+  return `Hand ${handIndex + 1} of ${handCount}`;
+}
+
+/** Under "Dealer's turn" while the dealer plays: the rule it plays by. */
+export function dealerRule(hitsSoft17: boolean): string {
+  return hitsSoft17 ? 'Draws to 17, hits a soft 17' : 'Draws to 17';
+}
+
+/** The spotlight's label on a turn (the hand in play goes under it, as a marker). */
+export function turnLabel(mine: boolean, name: string): string {
+  return mine ? 'Your turn' : `${name}'s turn`;
 }

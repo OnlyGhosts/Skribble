@@ -27,7 +27,7 @@ function hand(cards: string[], over: Partial<HandView> = {}): HandView {
 }
 
 function seat(hands: HandView[], bet = 10): BlackjackPlayerView {
-  return { chips: 1000, bet, hands, inRound: true, bustedOut: false };
+  return { chips: 1000, bet, hands, inRound: true, sittingOut: false, bustedOut: false };
 }
 
 function view(over: Partial<BlackjackView> = {}): BlackjackView {
@@ -36,15 +36,13 @@ function view(over: Partial<BlackjackView> = {}): BlackjackView {
     round: 1,
     order: ['me', 'bob'],
     turn: null,
-    endsAt: null,
+    waitingFor: [],
     dealer: { cards: [], holeHidden: true, total: 0, soft: false, blackjack: false },
     players: { me: seat([]), bob: seat([]) },
     actions: { canHit: false, canStand: false, canDouble: false, canSplit: false },
+    controls: { canSitOut: false, canDealNow: false, canSkip: false },
     lastRound: null,
     endRequested: false,
-    shoeRemaining: 300,
-    shoeSize: 312,
-    reshuffled: false,
     ...over,
   };
 }

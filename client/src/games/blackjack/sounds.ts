@@ -15,5 +15,4 @@ export const blackjackSounds = defineSounds('blackjack', {
   bust: { file: TABLE_FILES.thud, volume: 0.5 },
   /** A bright jingle with a cascade of chips, about 1.4 s. */
   blackjack: { file: 'stings/blackjack', volume: 0.7, steady: true },
-  shuffle: { file: TABLE_FILES.shuffle, volume: 0.45, cooldownMs: 2000 },
 });

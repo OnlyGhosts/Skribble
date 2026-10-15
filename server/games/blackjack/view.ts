@@ -2,7 +2,7 @@
 import { handTotal, isNatural } from '../../../shared/games/blackjack/cards.js';
 import type { BlackjackPlayerView, BlackjackSettings, BlackjackView, Card, DealerView, HandView, LastRoundView, SettledHandView } from '../../../shared/games/blackjack/protocol.js';
 import type { GameViewCtx } from '../../platform/game.js';
-import { actionsFor, shoeSizeOf, type BlackjackData, type HandData, type LastRoundData, type SettledHand } from './state.js';
+import { actionsFor, controlsFor, waitingFor, type BlackjackData, type HandData, type LastRoundData, type SettledHand } from './state.js';
 
 function handView(hand: HandData): HandView {
   const { total, soft } = handTotal(hand.cards);
@@ -38,22 +38,20 @@ export function viewFor(data: BlackjackData, viewerId: string | null, ctx: GameV
   for (const p of ctx.players) {
     const seat = data.seats[p.id];
     players[p.id] = seat
-      ? { chips: seat.chips, bet: seat.bet, hands: seat.hands.map(handView), inRound: data.order.includes(p.id), bustedOut: seat.bustedOut }
-      : { chips: 0, bet: 0, hands: [], inRound: false, bustedOut: false };
+      ? { chips: seat.chips, bet: seat.bet, hands: seat.hands.map(handView), inRound: data.order.includes(p.id), sittingOut: phase.kind === 'betting' && seat.sittingOut === true, bustedOut: seat.bustedOut }
+      : { chips: 0, bet: 0, hands: [], inRound: false, sittingOut: false, bustedOut: false };
   }
   return {
     phase: phase.kind,
     round: data.round,
     order: [...data.order],
     turn: phase.kind === 'acting' ? { playerId: phase.playerId, handIndex: phase.handIndex } : null,
-    endsAt: phase.kind === 'betting' || phase.kind === 'acting' || phase.kind === 'ending' ? phase.endsAt : null,
+    waitingFor: waitingFor(ctx, data),
     dealer: dealerView(data.dealer, data.holeHidden),
     players,
     actions: actionsFor(data, ctx.settings, viewerId ?? ''),
+    controls: controlsFor(ctx, data, viewerId ?? ''),
     lastRound: data.lastRound ? lastRoundView(data.lastRound, new Set(ctx.players.map((p) => p.id))) : null,
     endRequested: data.endRequested,
-    shoeRemaining: data.shoe.length,
-    shoeSize: shoeSizeOf(data, ctx.settings),
-    reshuffled: data.reshuffled,
   };
 }

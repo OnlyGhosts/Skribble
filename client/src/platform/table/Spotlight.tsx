@@ -24,8 +24,8 @@ interface Props {
   meta?: ReactNode;
   /** Who plays after this turn. */
   next?: string | null;
-  /** The turn clock. */
-  clock: ReactNode;
+  /** The turn clock, where the game has one (Poker); Blackjack's turns wait for the player. */
+  clock?: ReactNode;
   /** The hand being played, large. */
   children?: ReactNode;
   /** `row`: one hand, beside the stake and who is next (saves height); `stack`: under them (split hands, the bets). */
@@ -37,8 +37,8 @@ interface Props {
 export const SHORT_NAME = 6;
 
 /**
- * Centre stage: the hand being played right now, large, with its owner, the turn clock and who is
- * next. Its outline and label say whose turn it is before anything else on the screen does.
+ * Centre stage: the hand being played right now, large, with its owner, the turn clock (if the
+ * game has one) and who is next. Its outline and label say whose turn it is before anything else on the screen does.
  */
 export function Spotlight({ subject, kind, tone, who, label, meta, next, clock, children, layout = 'stack', data }: Props) {
   // A long name gives way before the rest of the label: "Christoph…'s turn"; a short one never does.
@@ -68,7 +68,7 @@ export function Spotlight({ subject, kind, tone, who, label, meta, next, clock, 
           )}
         </div>
       )}
-      <div className="tbl-spot__clock">{clock}</div>
+      {clock && <div className="tbl-spot__clock">{clock}</div>}
       {children && (
         <div key={`body:${subject}`} className="tbl-spot__body tbl-spot-in">
           {children}
