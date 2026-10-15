@@ -27,15 +27,22 @@ export interface Cell {
 export type ShipShape = Pick<Ship, 'x' | 'y' | 'length' | 'horizontal'>;
 export type Shots = Readonly<Record<string, CellMark>>;
 
-/** The board side for a crew of players sharing it: 10, 12, 13, then 14 for four or more. */
-export function boardSizeFor(crew: number): number {
-  const index = Math.min(BATTLESHIPS_BOARD_SIZES.length, Math.max(1, crew)) - 1;
-  return BATTLESHIPS_BOARD_SIZES[index];
+/** The crew a board is sized for: 1 to 4, as a bigger crew shares the largest board. */
+function grownCrew(crew: number): number {
+  return Math.min(BATTLESHIPS_BOARD_SIZES.length, Math.max(1, crew));
 }
 
-/** The fleet's ship lengths for a crew, longest first: every member beyond the first adds a 3-ship. */
+/** The board side for a crew of players sharing it: 10, 12, 13, then 14 for four or more. */
+export function boardSizeFor(crew: number): number {
+  return BATTLESHIPS_BOARD_SIZES[grownCrew(crew) - 1];
+}
+
+/**
+ * The fleet's ship lengths for a crew, longest first: every member beyond the first adds a 3-ship
+ * while the board still grows (three extra at most, from a crew of four on).
+ */
 export function fleetFor(fleet: BattleshipsFleet, crew: number): number[] {
-  const extra = new Array<number>(Math.max(0, crew - 1)).fill(BATTLESHIPS_EXTRA_SHIP_LENGTH);
+  const extra = new Array<number>(grownCrew(crew) - 1).fill(BATTLESHIPS_EXTRA_SHIP_LENGTH);
   return [...BATTLESHIPS_FLEETS[fleet], ...extra].sort((a, b) => b - a);
 }
 

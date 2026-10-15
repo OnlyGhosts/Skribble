@@ -1,4 +1,4 @@
-import type { BattleshipsRoomState, BattleshipsView, SideView, TargetGridView } from '@shared/games/battleships/protocol';
+import type { BattleshipsRoomState, BattleshipsView, ShotEvent, SideView, TargetGridView } from '@shared/games/battleships/protocol';
 import type { PlayerPublic, RoomState } from '@shared/platform/protocol';
 import type { TurnDraft, TurnMode } from './store';
 
@@ -65,9 +65,13 @@ export function isNewGame(prev: BattleshipsRoomState | null, next: BattleshipsRo
   return next.game !== null && (prev?.game === null || prev === null || prev.phase === 'lobby');
 }
 
-/** A shot landed since `prev` (the final shot of the game included). */
-export function shotAdded(prev: BattleshipsView | null, next: BattleshipsView): boolean {
-  return next.lastShot !== null && (prev === null || prev.turnNumber !== next.turnNumber);
+/**
+ * The shot fired since `prev` (the final shot of the game included), or null. Keyed on the turn's
+ * own action: after a move `lastShot` still holds the shot before it, which must not replay.
+ */
+export function newShot(prev: BattleshipsView | null, next: BattleshipsView): ShotEvent | null {
+  if (prev !== null && prev.turnNumber === next.turnNumber) return null;
+  return next.lastAction?.kind === 'fire' ? next.lastAction.shot : null;
 }
 
 /** The viewer's side went down since `prev`. */

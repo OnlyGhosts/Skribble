@@ -5,11 +5,11 @@
 import type { GameMeta } from '@shared/platform/games';
 import type { PlayerPublic, PodiumEntry, RoomState } from '@shared/platform/protocol';
 
-/** "3+ players" for a game that seats any number, "2–6 players" with a seat limit. */
+/** "3+ players" for a game that seats any number, "2 to 23 players" with a seat limit. */
 export function playerCountLabel(meta: GameMeta): string {
   if (meta.maxPlayers === null) return `${meta.minPlayers}+ players`;
   if (meta.maxPlayers === meta.minPlayers) return `${meta.minPlayers} players`;
-  return `${meta.minPlayers}–${meta.maxPlayers} players`;
+  return `${meta.minPlayers} to ${meta.maxPlayers} players`;
 }
 
 /** "Alice", "Alice and Bob", "Alice, Bob and Carol". */

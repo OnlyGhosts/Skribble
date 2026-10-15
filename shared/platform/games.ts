@@ -115,7 +115,7 @@ export const GAME_LIST: readonly GameMeta[] = [
       'You can\'t move two turns in a row. A fleet with every ship sunk is out, and the last one floating wins.',
     ],
     minPlayers: 2,
-    maxPlayers: 8,
+    maxPlayers: null,
     glyph: 'M3 15h18l-4 5H7z M8 15V8h8v7 M11 8V4h3',
     accent: '#88c7ea',
     contentModes: false,

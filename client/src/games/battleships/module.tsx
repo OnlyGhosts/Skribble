@@ -11,7 +11,7 @@ import { vibrate } from '../../platform/lib/haptics';
 import { playCue } from '../../platform/lib/sound';
 import { usePlatformStore } from '../../platform/store/usePlatformStore';
 import { AnchorIcon, CrosshairIcon, SkullIcon } from './components/Icons';
-import { isEliminated, isNewGame, isShooter, isWatching, mySideSunk, nameOf, shotAdded, targetForTurn, turnKey } from './hooks';
+import { isEliminated, isNewGame, isShooter, isWatching, mySideSunk, nameOf, newShot, targetForTurn, turnKey } from './hooks';
 import { chatPlaceholderFor } from './lib/text';
 import { BattleshipsScreen } from './Screen';
 import { BattleshipsSettingsFields } from './SettingsFields';
@@ -105,8 +105,8 @@ export const battleshipsClient = defineGameClient<BattleshipsView, BattleshipsSe
     // The aim is forgotten whenever the grid stops being tappable: the next tap must never fire on its own.
     if (!myTurn && store.aim !== null) store.setAim(null);
     if (prev && before) playBattleshipsSounds(view, before, me);
-    if (prev && shotAdded(before, view) && view.lastShot) {
-      const shot = view.lastShot;
+    const shot = prev ? newShot(before, view) : null;
+    if (shot) {
       if (shot.targetId === view.mySideId && shot.result !== 'miss') vibrate(shot.result === 'sunk' ? 80 : 30);
     }
     // A move says only who moved: everyone but the mover hears it here too, as the next turn has already begun.

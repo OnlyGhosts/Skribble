@@ -4,10 +4,10 @@
  * move controls), the settings rows and the snapshot cues. Runs in node: browser globals are
  * stubbed, components render through react-dom/server.
  */
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
 import { renderToString } from 'react-dom/server';
-import { DEFAULT_BATTLESHIPS_SETTINGS, type BattleshipsRoomState, type ShipMove, type BattleshipsView, type OwnBoardView, type ShipView, type TargetGridView } from '@shared/games/battleships/protocol';
+import { DEFAULT_BATTLESHIPS_SETTINGS, type BattleshipsRoomState, type ShipMove, type BattleshipsView, type OwnBoardView, type ShipView, type ShotEvent, type TargetGridView } from '@shared/games/battleships/protocol';
 import { installBrowserGlobals, setLocation } from '../../test/env';
 
 installBrowserGlobals();
@@ -19,7 +19,8 @@ const { useBattleshipsStore } = await import('./store');
 const { BattleshipsScreen, statusOf } = await import('./Screen');
 const { BattleshipsSettingsFields } = await import('./SettingsFields');
 const { draftFrom, layoutKey, layoutOf, layoutSoFar, placeShip, shipSpan, unplaced } = await import('./lib/placement');
-const { fleetStatus, resolveTab, targetForTurn, turnKey } = await import('./hooks');
+const { fleetStatus, newShot, resolveTab, targetForTurn, turnKey } = await import('./hooks');
+const { battleshipsSounds } = await import('./sounds');
 const { backToChoice, chooseFire, chooseMove, pickShipToMove, resetMove, stepShip, turnShip } = await import('./actions');
 const { confirmProblem, moveUnavailable, movesLeft, stepGhost, turnGhost } = await import('./lib/moveDraft');
 const { cellDescription } = await import('./components/Board');
@@ -592,6 +593,34 @@ describe('move or fire', () => {
     enter(inGame({ ...planning, mySideId: 'A' }), 'host');
     snapshot(inGame({ ...after, myBoard: ownBoard({ sideId: 'A' }) }));
     expect(platform().toasts).toEqual([]);
+  });
+
+  it('buzzes once for a hit on my fleet, and a move after it never replays that shot', () => {
+    const vibrate = vi.fn();
+    vi.stubGlobal('navigator', { vibrate });
+    const play = vi.spyOn(battleshipsSounds, 'play').mockImplementation(() => undefined);
+    try {
+      const hit: ShotEvent = { shooterId: 'bob', targetId: 'host', x: 0, y: 0, result: 'hit', length: null, dice: 4, auto: false };
+      const bobsTurn = rolled(4, { turn: { sideId: 'bob', shooterId: 'bob', roll: 4, canMove: true } });
+      enter(inGame(bobsTurn), 'host');
+      const fired = rolled(2, { turnNumber: 2, turn: { sideId: 'carol', shooterId: 'carol', roll: 2, canMove: true }, lastShot: hit, lastAction: { kind: 'fire', shot: hit }, log: [hit] });
+      snapshot(inGame(fired));
+      expect(vibrate.mock.calls).toEqual([[30]]);
+      expect(play.mock.calls.map(([name]) => name)).toContain('fire');
+      vibrate.mockClear();
+      play.mockClear();
+      // Carol moves: the turn number changes while lastShot is still Bob's hit.
+      const moved = rolled(5, { turnNumber: 3, turn: { sideId: 'bob', shooterId: 'bob', roll: 5, canMove: true }, lastShot: hit, lastAction: { kind: 'move', playerId: 'carol', sideId: 'carol', dice: 2 }, log: [hit] });
+      snapshot(inGame(moved));
+      expect(vibrate).not.toHaveBeenCalled();
+      expect(play.mock.calls.map(([name]) => name)).not.toContain('fire');
+      expect(newShot(fired, moved)).toBeNull();
+      expect(newShot(bobsTurn, fired)).toBe(hit);
+      expect(newShot(fired, fired)).toBeNull();
+    } finally {
+      vi.unstubAllGlobals();
+      play.mockRestore();
+    }
   });
 
   it('draws a 14 × 14 team board with its extra ships, and damage that moved with its ship', () => {

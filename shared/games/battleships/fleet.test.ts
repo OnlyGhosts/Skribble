@@ -55,13 +55,16 @@ describe('board sizes and fleets by crew', () => {
     expect(14 * 14).toBeLessThan(2 * 10 * 10);
   });
 
-  it('adds one 3-ship per crew member beyond the first, longest first', () => {
+  it('adds one 3-ship per crew member beyond the first, up to three, longest first', () => {
     expect(fleetFor('small', 1)).toEqual(SMALL);
     expect(fleetFor('classic', 1)).toEqual(CLASSIC);
     expect(fleetFor('classic', 2)).toEqual([5, 4, 3, 3, 3, 2]);
     expect(fleetFor('classic', 3)).toEqual([5, 4, 3, 3, 3, 3, 2]);
     expect(fleetFor('small', 4)).toEqual([4, 3, 3, 3, 3, 3, 2]);
     expect(fleetFor('classic', 0)).toEqual(CLASSIC);
+    // The board stops growing at a crew of four, and so does the fleet: a 25-strong team plays the same eight ships.
+    expect(fleetFor('classic', 5)).toEqual(fleetFor('classic', 4));
+    expect(fleetFor('classic', 25)).toEqual([5, 4, 3, 3, 3, 3, 3, 2]);
     expect(fleetShipIds(fleetFor('classic', 3))).toEqual(['s0', 's1', 's2', 's3', 's4', 's5', 's6']);
     // A copy: callers may not mutate the shared constant through it.
     fleetFor('small', 1).push(9);
