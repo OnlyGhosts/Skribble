@@ -133,8 +133,8 @@
   --tbl-w: calc(var(--bj-spot-w) * 0.55);
 }
 
-/* A tight table: my one settled hand says its outcome in the spotlight's label already. */
-.tbl-stage--tight .bj-mine--spot.bj-mine--n1 .bj-hand__foot {
+/* My one settled hand: the spotlight's label says its outcome already. */
+.tbl-spot--result .bj-mine--n1 .bj-hand__foot {
   display: none;
 }
 
@@ -284,6 +284,12 @@
 
 .bj-hand--mini .bj-hand__top {
   min-height: 0;
+}
+
+/* A lone hand on a ringed tile needs no box of its own. */
+.tbl-tile__cards > .bj-hand--mini.tbl-outline--active:only-child {
+  border-color: transparent;
+  background: none;
 }
 
 .bj-hand--mini .tbl-pill {

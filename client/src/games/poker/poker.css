@@ -459,6 +459,11 @@
     font-size: 0.62rem;
   }
 
+  /* The pill says "Pot" to a screen reader; here the coin says it to the eye. */
+  .pk-pot__label {
+    display: none;
+  }
+
   .pk-pot__pill {
     height: 24px;
     padding: 0 8px;
