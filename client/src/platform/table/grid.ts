@@ -27,21 +27,26 @@ export interface TierShape {
   cols: readonly [number, number];
   /** The most columns the tier may spread to when the grid is short. */
   maxCols: number;
+  /**
+   * The narrowest the tile still reads (its name, its total, the Playing tag): a short grid never
+   * spreads to columns narrower than this, the tiles get shorter instead.
+   */
+  minWidth: number;
 }
 
 export const TIER_SHAPES: Record<TileTier, TierShape> = {
-  full: { width: 168, height: 96, cols: [1, 4], maxCols: 4 },
-  compact: { width: 116, height: 56, cols: [3, 5], maxCols: 5 },
-  small: { width: 70, height: 50, cols: [4, 6], maxCols: 10 },
-  dense: { width: 46, height: 30, cols: [6, 8], maxCols: 14 },
+  full: { width: 168, height: 96, cols: [1, 4], maxCols: 4, minWidth: 92 },
+  compact: { width: 116, height: 56, cols: [3, 5], maxCols: 5, minWidth: 80 },
+  small: { width: 70, height: 50, cols: [4, 6], maxCols: 10, minWidth: 44 },
+  dense: { width: 46, height: 30, cols: [6, 8], maxCols: 14, minWidth: 30 },
 };
 
 /** A desktop table is wider than a phone: the tiles may be too. */
 export const WIDE_TIER_SHAPES: Record<TileTier, TierShape> = {
-  full: { width: 190, height: 104, cols: [1, 4], maxCols: 4 },
-  compact: { width: 140, height: 60, cols: [3, 5], maxCols: 9 },
-  small: { width: 80, height: 56, cols: [4, 8], maxCols: 12 },
-  dense: { width: 52, height: 34, cols: [6, 10], maxCols: 16 },
+  full: { width: 190, height: 104, cols: [1, 4], maxCols: 4, minWidth: 120 },
+  compact: { width: 140, height: 60, cols: [3, 5], maxCols: 9, minWidth: 110 },
+  small: { width: 80, height: 56, cols: [4, 8], maxCols: 9, minWidth: 64 },
+  dense: { width: 52, height: 34, cols: [6, 10], maxCols: 12, minWidth: 48 },
 };
 
 export interface GridFit {
@@ -77,7 +82,9 @@ export function tileScale(count: number, cols: number, box: { width: number; hei
 /**
  * The columns that give the largest tiles in the box; on a tie (tiles already at their natural
  * size) the tier's usual shape. Searched over the tier's usual range first; a short box may spread
- * further, up to the tier's limit, when that makes the tiles clearly larger.
+ * further, up to the tier's limit, when that makes the tiles clearly larger, but never to columns
+ * narrower than the tier's minimum width (a narrow tile clips its name and total; a short one
+ * only drops its second line).
  */
 export function fitGrid(count: number, box: { width: number; height: number } | null, { wide = false, gap = 6 }: { wide?: boolean; gap?: number } = {}): GridFit {
   const n = Math.max(1, count);
@@ -94,9 +101,11 @@ export function fitGrid(count: number, box: { width: number; height: number } | 
     }
     return pick;
   };
-  const usual = best(Math.min(shape.cols[0], usualCols), shape.cols[1]);
+  // The most columns whose tiles are still wide enough to read (always at least one).
+  const widest = Math.max(1, Math.floor((box.width + gap) / (shape.minWidth + gap)));
+  const usual = best(Math.min(shape.cols[0], usualCols, widest), Math.min(shape.cols[1], widest));
   if (usual.scale >= 1) return { cols: usual.cols, rows: Math.ceil(n / usual.cols) };
-  const spread = best(1, shape.maxCols);
+  const spread = best(1, Math.min(shape.maxCols, widest));
   const pick = spread.scale > usual.scale + 0.02 ? spread : usual;
   return { cols: pick.cols, rows: Math.ceil(n / pick.cols) };
 }

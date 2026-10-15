@@ -265,6 +265,67 @@
   margin-top: 0;
 }
 
+/*
+ * Split hands in the spotlight share its width: the cards shrink until the widest fan fits its
+ * share. --hands and --fan come from the hands (fanStyle); every card after the first adds 0.45 of
+ * a card. Two hands keep the total over the stake beside the cards (a hand's padding, outline and
+ * that column take 72px); three or four stand up (total, cards), 20px a hand.
+ */
+.tbl-spot--stack .bj-spot__hands--n2,
+.tbl-spot--stack .bj-mine--spot.bj-mine--n2 .bj-mine__hands {
+  --fit-w: calc(((100cqw - var(--space-2)) / 2 - 72px) / (1 + 0.45 * (var(--fan, 2) - 1)));
+  --tbl-w: min(calc(var(--bj-spot-w) * 0.8), var(--fit-w));
+}
+
+.tbl-spot--stack .bj-spot__hands--n3,
+.tbl-spot--stack .bj-spot__hands--n4,
+.tbl-spot--stack .bj-mine--spot.bj-mine--n3 .bj-mine__hands,
+.tbl-spot--stack .bj-mine--spot.bj-mine--n4 .bj-mine__hands {
+  --fit-w: calc(((100cqw - (var(--hands, 3) - 1) * var(--space-2)) / var(--hands, 3) - 20px) / (1 + 0.45 * (var(--fan, 2) - 1)));
+  --tbl-w: min(calc(var(--bj-spot-w) * 0.55), var(--fit-w));
+}
+
+.tbl-spot--stack .bj-spot__hands--n2 .bj-hand,
+.tbl-spot--stack .bj-mine--spot.bj-mine--n2 .bj-hand {
+  display: grid;
+  grid-template-columns: 46px auto;
+  grid-template-areas: 'top cards' 'foot cards';
+  align-items: center;
+  justify-items: center;
+  column-gap: 6px;
+  row-gap: 2px;
+}
+
+.tbl-spot--stack .bj-spot__hands--n2 .bj-hand__top,
+.tbl-spot--stack .bj-mine--spot.bj-mine--n2 .bj-hand__top {
+  grid-area: top;
+  align-self: end;
+}
+
+.tbl-spot--stack .bj-spot__hands--n2 .bj-hand__cards,
+.tbl-spot--stack .bj-mine--spot.bj-mine--n2 .bj-hand__cards {
+  grid-area: cards;
+}
+
+.tbl-spot--stack .bj-spot__hands--n2 .bj-hand__foot,
+.tbl-spot--stack .bj-mine--spot.bj-mine--n2 .bj-hand__foot {
+  grid-area: foot;
+  align-self: start;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 46px;
+  font-size: 0.72rem;
+  line-height: 1.15;
+  text-align: center;
+}
+
+.tbl-spot--stack .bj-spot__hands--n3 .bj-hand,
+.tbl-spot--stack .bj-spot__hands--n4 .bj-hand,
+.tbl-spot--stack .bj-mine--spot.bj-mine--n3 .bj-hand,
+.tbl-spot--stack .bj-mine--spot.bj-mine--n4 .bj-hand {
+  flex-direction: column;
+}
+
 /* ---------- A hand in miniature, on a tile ---------- */
 .bj-hand--mini {
   flex-direction: row-reverse;
@@ -628,6 +689,24 @@
 
 .bj-table.tbl-stage--tight .bj-mine__bet {
   font-size: 0.75rem;
+}
+
+/*
+ * My cards fit my half of the row however many there are: my face takes 24px, each hand's total
+ * and padding 44px, every card after the first 0.45 of a card (fanStyle sets --hands and --fan).
+ */
+.bj-table.tbl-stage--tight .bj-mine--bottom .bj-mine__hands {
+  --fit-w: calc(((100cqw - 24px - (var(--hands, 1) - 1) * var(--space-2)) / var(--hands, 1) - 44px) / (1 + 0.45 * (var(--fan, 2) - 1)));
+  --tbl-w: min(var(--bj-mine-w), var(--fit-w));
+}
+
+.bj-table.tbl-stage--tight .bj-mine--bottom.bj-mine--n2 .bj-mine__hands {
+  --tbl-w: min(calc(var(--bj-mine-w) * 0.8), var(--fit-w));
+}
+
+.bj-table.tbl-stage--tight .bj-mine--bottom.bj-mine--n3 .bj-mine__hands,
+.bj-table.tbl-stage--tight .bj-mine--bottom.bj-mine--n4 .bj-mine__hands {
+  --tbl-w: min(calc(var(--bj-mine-w) * 0.55), var(--fit-w));
 }
 
 /* No room for the stake beside my cards here (the spotlight shows it on my turn). */

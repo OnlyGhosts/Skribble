@@ -339,6 +339,17 @@
   text-align: left;
 }
 
+/* Stacked (split hands, the bets): whose turn, the stake and who is next share the first row. */
+.tbl-stage--tight .tbl-spot--stack {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas: 'who sub clock' 'body body body';
+  column-gap: 8px;
+}
+
+.tbl-stage--tight .tbl-spot--stack .tbl-spot__sub {
+  gap: 8px;
+}
+
 .tbl-stage--tight .tbl-spot__label {
   font-size: 1.15rem;
 }
@@ -384,9 +395,11 @@
   font-size: 12px;
 }
 
+/* My half of a tight top row is a size container: the game fits my cards to it (cqw) rather than cut them. */
 .tbl-stage--tight .tbl-stage__mine {
   min-width: 0;
   overflow: hidden;
+  container-type: inline-size;
 }
 
 /* ---------- Chips in the air (ChipFlights) ---------- */
@@ -536,11 +549,16 @@
   text-overflow: ellipsis;
 }
 
-/* A long name gives way before "'s turn"; a short one ("Ada") never does. */
+/* A long name gives way before "'s turn", down to its first few letters; a short one ("Ada") never does. */
 .tbl-spot__name {
-  min-width: min(4ch, 100%);
+  min-width: min(5ch, 100%);
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.tbl-spot__name--short {
+  flex: none;
+  min-width: 0;
 }
 
 .tbl-spot__rest {
@@ -608,6 +626,11 @@
   align-items: flex-end;
   gap: 8px;
   min-width: 0;
+}
+
+/* A stacked spotlight's body is a size container: a game fits what it shows (split hands) to its width (cqw). */
+.tbl-spot--stack .tbl-spot__body {
+  container-type: inline-size;
 }
 
 .tbl-spot-in {
@@ -1006,10 +1029,14 @@
     display: none;
   }
 
-  .tbl-tile--compact .tbl-tile__total,
-  .tbl-tile--compact.tbl-tile--turn .tbl-tile__total {
+  .tbl-tile--compact .tbl-tile__total {
     display: flex;
     justify-self: end;
+  }
+
+  /* On turn the ring says it and the spotlight has the total: the name keeps the room. */
+  .tbl-tile--compact.tbl-tile--turn .tbl-tile__total {
+    display: none;
   }
 }
 

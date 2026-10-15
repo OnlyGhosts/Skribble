@@ -10,7 +10,7 @@ import type { Frame } from '../lib/timeline';
 import { betsLabel, resultLabel, turnLabel } from '../lib/text';
 import { Dealer } from './Dealer';
 import { Hand } from './Hand';
-import { MyHands } from './MyHands';
+import { MyHands, fanStyle } from './MyHands';
 
 interface Props {
   room: BlackjackRoomState;
@@ -80,7 +80,7 @@ export function BjSpotlight({ room, view, meId, subject, frame, now, size, clock
           {subject.mine ? (
             <MyHands view={view} meId={meId} frame={frame} now={now} size={size} place="spot" />
           ) : (
-            <div className={`bj-spot__hands bj-spot__hands--n${Math.max(1, hands.length)}`}>
+            <div className={`bj-spot__hands bj-spot__hands--n${Math.max(1, hands.length)}`} style={fanStyle(hands)}>
               {hands.map((hand, i) => (
                 <Hand key={i} playerId={subject.playerId} index={i} hand={hand} timeline={timeline} now={now} leaving={leaving} size={hands.length > 2 ? 'md' : size} active={i === subject.handIndex} testId="spot-hand" />
               ))}

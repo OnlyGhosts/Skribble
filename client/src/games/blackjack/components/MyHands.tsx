@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import type { BlackjackView } from '@shared/games/blackjack/protocol';
 import type { Avatar as AvatarData } from '@shared/platform/avatar';
 import { Avatar } from '../../../platform/components/Avatar';
@@ -18,6 +19,15 @@ interface Props {
   avatar?: AvatarData;
 }
 
+/**
+ * How many hands share the width and the most cards in any of them: the stylesheet sizes the
+ * cards so every hand fits its box (blackjack.css, --fit-w), however many hits and splits.
+ */
+export function fanStyle(hands: readonly { cards: readonly unknown[] }[]): CSSProperties {
+  const fan = Math.max(2, ...hands.map((h) => h.cards.length));
+  return { '--hands': Math.max(1, hands.length), '--fan': fan } as CSSProperties;
+}
+
 /** My hands: split hands side by side, the one in play lit; two empty slots before my first deal. */
 export function MyHands({ view, meId, frame, now, size, place, avatar }: Props) {
   const { table, timeline, leaving } = frame;
@@ -28,7 +38,13 @@ export function MyHands({ view, meId, frame, now, size, place, avatar }: Props) 
   const newBet = view.phase === 'betting' && seat && seat.bet > 0 ? seat.bet : 0;
   const shown: PlayingCardSize = hands.length > 2 ? 'md' : size;
   return (
-    <section className={`bj-mine bj-mine--${place} bj-mine--n${Math.max(1, hands.length)}${place === 'bottom' ? ' tbl-stage__mine' : ''}`} aria-label="Your hands" data-testid="my-hands" data-count={hands.length}>
+    <section
+      className={`bj-mine bj-mine--${place} bj-mine--n${Math.max(1, hands.length)}${place === 'bottom' ? ' tbl-stage__mine' : ''}`}
+      style={fanStyle(hands)}
+      aria-label="Your hands"
+      data-testid="my-hands"
+      data-count={hands.length}
+    >
       {place === 'bottom' && avatar && (
         <span className="tbl-me" aria-hidden="true">
           <Avatar avatar={avatar} size="sm" />

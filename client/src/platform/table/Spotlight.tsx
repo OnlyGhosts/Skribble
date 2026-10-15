@@ -33,13 +33,17 @@ interface Props {
   data?: DataAttrs;
 }
 
+/** A name this short ("Ada", "Quinn") is never cut: "A…'s turn" says nothing. */
+export const SHORT_NAME = 6;
+
 /**
  * Centre stage: the hand being played right now, large, with its owner, the turn clock and who is
  * next. Its outline and label say whose turn it is before anything else on the screen does.
  */
 export function Spotlight({ subject, kind, tone, who, label, meta, next, clock, children, layout = 'stack', data }: Props) {
-  // A long name gives way before the rest of the label: "Christoph…'s turn".
+  // A long name gives way before the rest of the label: "Christoph…'s turn"; a short one never does.
   const split = who && label.startsWith(who.name) ? who.name.length : label.length;
+  const short = split <= SHORT_NAME;
   return (
     <section className={`tbl-spot tbl-spot--${kind} tbl-spot--tone-${tone} tbl-spot--${layout}`} aria-label="Spotlight" data-testid="spotlight" data-subject={subject} data-kind={kind} data-player-id={who?.id} {...data}>
       <div key={`who:${subject}`} className="tbl-spot__who tbl-spot-in">
@@ -49,7 +53,7 @@ export function Spotlight({ subject, kind, tone, who, label, meta, next, clock, 
           </span>
         )}
         <strong className="tbl-spot__label" data-testid="spot-label">
-          <span className="tbl-spot__name">{label.slice(0, split)}</span>
+          <span className={`tbl-spot__name${short ? ' tbl-spot__name--short' : ''}`}>{label.slice(0, split)}</span>
           {split < label.length && <span className="tbl-spot__rest">{label.slice(split)}</span>}
         </strong>
       </div>
