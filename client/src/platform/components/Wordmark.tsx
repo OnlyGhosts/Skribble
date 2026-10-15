@@ -6,7 +6,7 @@ interface WordmarkProps {
 }
 
 /**
- * The boredgames.io wordmark: outlined Space Grotesk paths, inline so the theme recolours it.
+ * The boredgames.io wordmark: outlined Poppins paths, inline so the theme recolours it.
  * "bored" and ".io" take the text colour, "games" the primary text colour (lime on dark, deep
  * olive on light). Height comes from CSS; the viewBox keeps the proportions.
  */

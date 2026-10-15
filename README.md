@@ -45,7 +45,7 @@ called Scribble), the owner's decisions win. The short version:
   CC0 packs, mono MP3 under 800 KB in all (`client/public/sounds/`, with `CREDITS.md` listing each
   file's pack and original and what plays when). A game's sounds load when its screen mounts;
   the switch in the settings menu mutes everything.
-- **The wordmark is outlined Space Grotesk, not text.** The app inlines it
+- **The wordmark is outlined Poppins, not text.** "boredgames" is Poppins Black and ".io" Poppins Regular (SIL OFL). The app inlines it
   (`client/src/platform/components/Wordmark.tsx`, accessible name "boredgames.io"): "bored" and
   ".io" in the text colour, "games" in lime on dark and deep olive (`#405D17`) on light.
 - **Mascots.** Two small phone characters (lime happy, lilac bored) beside the wordmark on the
