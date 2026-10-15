@@ -20,6 +20,18 @@
   gap: clamp(28px, 7vh, 64px);
 }
 
+/* A desktop has room for a bigger logo: from 1024px it outgrows the column (two fifths of the screen, at most 600px), centred over it. */
+@media (min-width: 1024px) {
+  .home {
+    --home-logo: clamp(var(--home-column), 40vw, 600px);
+  }
+
+  .home .site-header--hero {
+    width: var(--home-logo);
+    margin-inline: calc((100% - var(--home-logo)) / 2);
+  }
+}
+
 .home__main {
   display: flex;
   flex-direction: column;

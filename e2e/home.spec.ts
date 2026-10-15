@@ -496,7 +496,7 @@ test('the settings menu switches to the light theme and the choice survives a re
   await context.close();
 });
 
-for (const width of [320, 390, 700, 768, 1440]) {
+for (const width of [320, 390, 700, 768, 1024, 1440]) {
   test(`at ${width}px nothing overflows, the buttons are 48px and the boxes 64 to 112px tall, in one centred column`, async ({ browser }) => {
     const height = width >= 1024 ? 900 : width >= 768 ? 1024 : 844;
     const context = await browser.newContext({ viewport: { width, height }, isMobile: width < 768, hasTouch: width < 768 });
@@ -533,9 +533,16 @@ for (const width of [320, 390, 700, 768, 1440]) {
     const gap = (createBtn?.y ?? 0) - ((joinBtn?.y ?? 0) + (joinBtn?.height ?? 0));
     expect(gap, 'Create a room sits right under Join').toBeGreaterThanOrEqual(0);
     expect(gap).toBeLessThanOrEqual(16);
-    // The logo (the phones, then the text) fills the column, above Join a room.
+    // The logo (the phones, then the text) fills the column, above Join a room. From 1024px it is
+    // bigger than the column (two fifths of the screen, at most 600px) and centred over it.
     const mark = await page.getByTestId('site-header').getByTestId('wordmark').boundingBox();
-    expect(Math.abs((mark?.width ?? 0) - (joinBtn?.width ?? 0))).toBeLessThanOrEqual(1);
+    if (width >= 1024) {
+      expect(Math.abs((mark?.width ?? 0) - Math.min(width * 0.4, 600)), 'the logo is two fifths of the screen').toBeLessThanOrEqual(1);
+      expect(mark?.width ?? 0, 'and wider than the column').toBeGreaterThan((joinBtn?.width ?? 0) + 40);
+      expect(Math.abs((mark?.x ?? 0) + (mark?.width ?? 0) / 2 - width / 2), 'centred over the column').toBeLessThanOrEqual(1);
+    } else {
+      expect(Math.abs((mark?.width ?? 0) - (joinBtn?.width ?? 0))).toBeLessThanOrEqual(1);
+    }
     const icon = await page.getByTestId('site-header').locator('.wordmark__icon').boundingBox();
     expect(icon?.x ?? -1, 'the icon starts the logo').toBeLessThanOrEqual((mark?.x ?? 0) + (mark?.width ?? 0) * 0.05);
     expect((icon?.x ?? 0) + (icon?.width ?? 0), 'and stays left of the text').toBeLessThanOrEqual((mark?.x ?? 0) + (mark?.width ?? 0) * 0.2);

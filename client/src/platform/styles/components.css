@@ -1600,7 +1600,7 @@
   }
 }
 
-/* The front door: the status pill and gear on a small row at the top right, then the logo filling the column's width. */
+/* The front door: the status pill and gear on a small row at the top right, then the logo filling the header's width (home.css sizes it). */
 .site-header--hero {
   display: grid;
   grid-template-columns: minmax(0, 1fr);

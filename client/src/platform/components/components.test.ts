@@ -304,6 +304,12 @@ describe('front door', () => {
     expect(desktop).not.toContain('grid-template-columns');
     // On every screen, phones included, the column sits in the middle of the page, top to bottom.
     expect(ruleOf(css, '.home')).toContain('justify-content: center');
+    // From 1024px only the logo grows past the column (two fifths of the screen, at most 600px), centred over it.
+    const wide = mediaBlock(css, '(min-width: 1024px)');
+    expect(wide).toContain('--home-logo: clamp(var(--home-column), 40vw, 600px)');
+    expect(wide).toContain('width: var(--home-logo)');
+    expect(wide).toContain('margin-inline: calc((100% - var(--home-logo)) / 2)');
+    expect(wide).not.toContain('--home-column:');
   });
 
   it('shows the phones only as the logo icon, not as a separate decoration beside it', () => {
