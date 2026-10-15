@@ -13,8 +13,7 @@ export interface GameMeta {
   /** Slugs the game used before a rename: old links on them redirect to `slug` (same rules as `slug`). */
   formerSlugs?: readonly string[];
   name: string;
-  tagline: string;
-  description: string;
+  /** The rules in a few short lines (plain copy, no taglines). */
   howToPlay: string[];
   minPlayers: number;
   /** Seats the game can hold at once, or null when any number may play. Extra players sit a game out and stay in the party. */
@@ -38,8 +37,6 @@ export const GAME_LIST: readonly GameMeta[] = [
     slug: 'scribble',
     formerSlugs: ['skribble'],
     name: 'Scribble',
-    tagline: 'Draw it, guess it, laugh about it.',
-    description: 'One player draws a secret word while everyone else races to guess it. Fast guesses score more, and clear drawings earn the artist points too.',
     howToPlay: [
       'Everyone takes turns drawing a word of their choice.',
       'Guess in the chat: the faster you guess, the more points you score.',
@@ -57,9 +54,6 @@ export const GAME_LIST: readonly GameMeta[] = [
     id: 'spygame',
     slug: 'spygame',
     name: 'The Spy Game',
-    tagline: 'Find the spy before the spy finds the location.',
-    description:
-      'Everyone is at the same secret location except one player: the spy. Ask each other questions out loud to sniff out who is bluffing, while the spy listens for clues and tries to guess where you all are.',
     howToPlay: [
       'Everyone except the spy sees the secret location on their phone.',
       'Take turns asking each other questions about the place without giving it away.',
@@ -78,9 +72,6 @@ export const GAME_LIST: readonly GameMeta[] = [
     id: 'quipgame',
     slug: 'quipgame',
     name: 'Quip Game',
-    tagline: 'Write the funniest answer. Win the room.',
-    description:
-      'Everyone gets two silly prompts and types the funniest answer they can. Answers go head to head, the room votes for the best one, and the biggest laughs score the most points. No TV needed: it all happens on your phones.',
     howToPlay: [
       'Each round you get two prompts; write a quick, funny answer to each on your phone.',
       'Answers go head to head: everyone except the two writers votes for the funnier one.',
@@ -98,9 +89,6 @@ export const GAME_LIST: readonly GameMeta[] = [
     id: 'hangman',
     slug: 'hangman',
     name: 'Hangman',
-    tagline: 'Guess the word before the drawing is done.',
-    description:
-      'One player picks a secret word and the others take turns guessing letters. Every wrong guess lets the hangman draw one more piece of the figure, their way: the classic gallows is only a faint template. Solve the word before the drawing is finished.',
     howToPlay: [
       'The hangman picks a word from three choices or types their own.',
       'Guessers take turns: name a letter, or risk the whole word.',
@@ -119,9 +107,6 @@ export const GAME_LIST: readonly GameMeta[] = [
     id: 'battleships',
     slug: 'battleships',
     name: 'Battleships',
-    tagline: 'Hunt the fleets. Last one floating wins.',
-    description:
-      'Hide your fleet on a grid, then take turns against everyone else. Play every player for themselves or in two teams sharing a bigger board. Each turn starts with a roll of the die: fire a shot, or secretly move one of your ships. The last fleet afloat wins.',
     howToPlay: [
       'Place your ships on your grid before the clock runs out, or let the game place them for you.',
       'Each turn you roll the die, then fire or move.',
@@ -140,9 +125,6 @@ export const GAME_LIST: readonly GameMeta[] = [
     id: 'blackjack',
     slug: 'blackjack',
     name: 'Blackjack',
-    tagline: 'Beat the house without going bust.',
-    description:
-      'Everyone plays against the house with a stack of chips. Bet, draw towards 21 without going over, and watch the dealer turn over the hole card. The biggest stack at the end wins the table.',
     howToPlay: [
       'Place a bet each round; the host decides how many chips everyone starts with.',
       'Hit to take a card, stand to stop. Over 21 and the hand is bust.',
@@ -161,9 +143,6 @@ export const GAME_LIST: readonly GameMeta[] = [
     id: 'poker',
     slug: 'poker',
     name: 'Poker',
-    tagline: "Texas Hold'em on your phones.",
-    description:
-      "No-limit Texas Hold'em around one table: two private cards each, five shared on the board, blinds that rotate with the button. Bet, raise, bluff or fold; the best five-card hand at the showdown takes the pot, and the biggest stack at the end wins.",
     howToPlay: [
       'Everyone starts with the same stack of chips; the blinds rotate with the dealer button.',
       'You get two private cards. Fold, check, call, bet or raise as the five community cards come out.',
@@ -182,8 +161,6 @@ export const GAME_LIST: readonly GameMeta[] = [
     id: 'template',
     slug: 'template',
     name: 'Click Race',
-    tagline: 'Tap faster than your friends.',
-    description: 'The simplest possible game: everyone taps a button and the first to reach the target wins. It exists to prove the platform contract and as the copy base for new games.',
     howToPlay: ['Tap the big button as fast as you can.', 'The first player to reach the target wins 100 points.', 'Everyone else scores one point per tap when the race ends.'],
     minPlayers: 1,
     maxPlayers: null,

@@ -94,13 +94,15 @@ test('with sound on, a table loads its sounds when it mounts and plays them with
     await expect.poll(() => p.sounds.some((s) => s.path.startsWith('/sounds/table/deal-'))).toBe(true);
   }
 
+  // The host's bet waits for the guest's; the guest's deals the cards.
+  await host.page.getByTestId('place-bet').click();
+  await expect(host.page.getByTestId('place-bet')).toBeDisabled();
+  await guest.page.getByTestId('place-bet').click();
+  // The deal: cards slide in with their sounds on both pages. A dealer blackjack (or two naturals)
+  // settles round one at once and opens round two's betting, so the deal shows as either.
   for (const p of [host, guest]) {
-    await p.page.getByTestId('place-bet').click();
-    await expect(p.page.getByTestId('place-bet')).toBeDisabled();
-  }
-  // The deal: cards slide in with their sounds on both pages.
-  for (const p of [host, guest]) {
-    await expect(p.page.getByTestId('blackjack-screen')).not.toHaveAttribute('data-phase', 'betting');
+    const screen = p.page.getByTestId('blackjack-screen');
+    await expect.poll(async () => (await screen.getAttribute('data-phase')) !== 'betting' || (await screen.getAttribute('data-round')) !== '1').toBe(true);
     await expect.poll(() => started(p.page), { timeout: 10_000 }).toBeGreaterThan(2);
   }
 

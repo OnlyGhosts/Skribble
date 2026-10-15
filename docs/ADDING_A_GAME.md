@@ -225,8 +225,6 @@ export interface GameMeta {
   /** URL segment. Lowercase letters only and never 4 characters long, so it can never collide with a room code. */
   slug: string;
   name: string;
-  tagline: string;
-  description: string;
   howToPlay: string[];
   minPlayers: number;
   /** Seats the game can hold at once, or null when any number may play. Extra players sit a game out and stay in the party. */
@@ -256,7 +254,7 @@ to; `'soon'` and `'hidden'` games are not offered (a hidden game is only reachab
 party through `/?game=<slug>`, which is how Click Race ships for its tests; the picker still shows
 it as the current game then). [`shared/platform/games.test.ts`](../shared/platform/games.test.ts)
 checks every entry: lowercase-letter slug, never 4 characters, unique id and slug, a non-empty
-name/tagline/howToPlay, path-data `glyph`, a boolean `contentModes`, a `#rrggbb` accent, `1 <= minPlayers` (and `minPlayers <= maxPlayers` when a
+name/howToPlay, path-data `glyph`, a boolean `contentModes`, a `#rrggbb` accent, `1 <= minPlayers` (and `minPlayers <= maxPlayers` when a
 limit is set; `seatLimit(meta)` in `settings.ts` turns `null` into the room's hard cap), and that
 `gameIdSchema` in `protocol.ts` lists every id.
 
@@ -634,8 +632,6 @@ export type GameId = 'skribble' | 'template' | 'wordle';
   id: 'wordle',
   slug: 'wordle',
   name: 'Wordle Royale',
-  tagline: 'Five letters, six tries, one winner.',
-  description: 'Everyone solves the same hidden word. Fewest guesses wins.',
   howToPlay: ['Type a five-letter word.', 'Green is right, yellow is misplaced.', 'Solve it in the fewest tries.'],
   minPlayers: 1,
   maxPlayers: null, // or a number when the game cannot seat everyone; the rest sit a game out
