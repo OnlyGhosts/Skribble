@@ -457,6 +457,14 @@ describe('copy', () => {
     expect(css.match(/@keyframes pk-seat-rise \{[\s\S]*?\n\}/)?.[0]).not.toContain('-50%');
     expect(resultText(SHOWDOWN, (id) => (id === 'host' ? 'You' : 'Quinn'))).toBe('You win 25 with three of a kind, kings');
     expect(resultText(SHOWDOWN, () => 'Hana')).toBe('Hana wins 25 with three of a kind, kings');
+    // An article where English wants one: "with a straight", never "with straight".
+    const named = (handName: string) => resultText({ ...SHOWDOWN, pots: [{ ...SHOWDOWN.pots[0], handName }] }, () => 'Pia');
+    expect(named('Straight, seven high')).toBe('Pia wins 25 with a straight, seven high');
+    expect(named('Pair of kings')).toBe('Pia wins 25 with a pair of kings');
+    expect(named('Full house, kings over fives')).toBe('Pia wins 25 with a full house, kings over fives');
+    expect(named('Royal flush')).toBe('Pia wins 25 with a royal flush');
+    expect(named('Two pair, kings and fives')).toBe('Pia wins 25 with two pair, kings and fives');
+    expect(named('Ace high')).toBe('Pia wins 25 with ace high');
     const base = { phase: 'acting' as const, seated: true, waitingForSeat: false, busted: false, connected: true, held: false, inHand: true, myTurn: false, turnName: 'Pia', result: null, won: false };
     expect(panelStatus(base)).toEqual({ state: 'their-turn', text: "Pia's turn", tone: 'other' });
     expect(panelStatus({ ...base, myTurn: true })).toEqual({ state: 'my-turn', text: 'Your turn', tone: 'go' });
@@ -557,7 +565,7 @@ describe('the screen', () => {
     const pia = render(pkRoom(showdown()), 'bob', false);
     expect(textOf(pia, 'turn-status')).toBe('Hana wins 25 with three of a kind, kings');
     expect(attr(tagWith(pia, 'spotlight'), 'data-player-id')).toBe('host');
-    expect(pia).toContain('tbl-spot__name tbl-spot__name--short">Hana</span><span class="tbl-spot__rest"> wins 25<');
+    expect(pia).toContain('tbl-spot__name tbl-spot__name--short">Hana</span><span class="tbl-spot__rest">\u00a0wins 25<');
     const host = tagsWith(pia, 'seat').find((t) => attr(t, 'data-player-id') === 'host') ?? '';
     expect(attr(host, 'data-outcome')).toBe('win');
   });

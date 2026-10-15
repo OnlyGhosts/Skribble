@@ -54,7 +54,8 @@ export function Spotlight({ subject, kind, tone, who, label, meta, next, clock, 
         )}
         <strong className="tbl-spot__label" data-testid="spot-label">
           <span className={`tbl-spot__name${short ? ' tbl-spot__name--short' : ''}`}>{label.slice(0, split)}</span>
-          {split < label.length && <span className="tbl-spot__rest">{label.slice(split)}</span>}
+          {/* The label is a flex row, which drops a space at the start of a span: "Pia wins" read "Piawins". */}
+          {split < label.length && <span className="tbl-spot__rest">{label.slice(split).replace(/^ /, ' ')}</span>}
         </strong>
       </div>
       {(meta || next) && (

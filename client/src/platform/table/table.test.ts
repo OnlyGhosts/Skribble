@@ -208,6 +208,13 @@ describe('the players grid', () => {
     expect(label('Christopher')).toContain('class="tbl-spot__name">Christopher<');
   });
 
+  it('keeps the space after the name: a flex row drops it at the start of a span ("Piawins 40")', () => {
+    const avatar = { color: 1, emoji: 2 };
+    const out = html(createElement(Spotlight, { subject: 'r', kind: 'result', tone: 'win', who: { id: 'p', name: 'Pia', avatar, connected: true }, label: 'Pia wins 40', clock: null }));
+    expect(out).toContain('tbl-spot__name tbl-spot__name--short">Pia<');
+    expect(out).toContain('class="tbl-spot__rest"> wins 40<');
+  });
+
   it('lifts the ends of a desktop row less as the tiles get smaller (the arc costs height)', () => {
     const grid = (n: number) => html(createElement(PlayersGrid, { count: n, label: 'Players', wide: true, children: [] }));
     expect(grid(3)).toContain('--arc:16px');

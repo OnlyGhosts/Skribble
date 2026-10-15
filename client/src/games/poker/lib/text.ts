@@ -82,6 +82,9 @@ export function payoutText(amount: number): string {
 
 const lower = (name: string): string => `${name.charAt(0).toLowerCase()}${name.slice(1)}`;
 
+/** "a straight", "a pair of kings", but "two pair", "three of a kind", "ace high" as they are. */
+const withArticle = (name: string): string => (/^(straight|flush|full house|pair|royal flush)/.test(name) ? `a ${name}` : name);
+
 /**
  * How the hand ended, for the panel: "Pia wins 300 with a flush", "You take the pot", "Split pot
  * with two pair". `nameOf` names a player ("You" for the viewer).
@@ -92,7 +95,7 @@ export function resultText(results: PokerResults, nameOf: (id: string) => string
   const names = main.winners.map((w) => nameOf(w.playerId));
   const you = names[0] === 'You';
   if (results.uncontested) return `${names[0]} ${you ? 'take' : 'takes'} the pot`;
-  const hand = main.handName ? ` with ${lower(main.handName)}` : '';
+  const hand = main.handName ? ` with ${withArticle(lower(main.handName))}` : '';
   if (names.length > 1) return `Split pot${hand}`;
   return `${names[0]} ${you ? 'win' : 'wins'} ${formatChips(main.amount)}${hand}`;
 }
