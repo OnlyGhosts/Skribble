@@ -295,7 +295,8 @@ describe('front door', () => {
     const css = stylesheet('home.css');
     expect(ruleOf(css, '.code-field .code-preview:empty')).toContain('margin-top: -8px');
     expect(ruleOf(css, '.code-field')).toContain('gap: 8px');
-    expect(ruleOf(css, '.home')).toContain('width: min(calc(460px + 2 * var(--home-gutter)), 100%)');
+    expect(ruleOf(css, '.home')).toContain('--home-column: 328px');
+    expect(ruleOf(css, '.home')).toContain('width: min(calc(var(--home-column) + 2 * var(--home-gutter)), 100%)');
     expect(ruleOf(css, '.home')).toContain('margin: 0 auto');
     // Nothing widens the column or splits it into side-by-side panels on a wide screen.
     const desktop = mediaBlock(css, '(min-width: 768px)');

@@ -1,8 +1,13 @@
 /* ---------- The front door ('/'): one centred column on every screen, as on the brand board ---------- */
 .home {
   --home-gutter: 16px;
+  /* The column: four square code boxes and their gaps; the logo, Join and Create a room span the same width. */
+  --home-column: 328px;
+  --home-box-gap: 8px;
+  /* One code box: a quarter of the column less the gaps (the column only narrows on screens under 360px). */
+  --home-box: calc((min(var(--home-column), 100vw - 2 * var(--home-gutter)) - 3 * var(--home-box-gap)) / 4);
   min-height: 100dvh;
-  width: min(calc(460px + 2 * var(--home-gutter)), 100%);
+  width: min(calc(var(--home-column) + 2 * var(--home-gutter)), 100%);
   margin: 0 auto;
   padding: calc(var(--space-2) + env(safe-area-inset-top)) max(var(--home-gutter), env(safe-area-inset-right)) calc(var(--space-5) + env(safe-area-inset-bottom))
     max(var(--home-gutter), env(safe-area-inset-left));
@@ -31,10 +36,6 @@
   gap: var(--space-4);
 }
 
-.home__form {
-  gap: var(--space-5);
-}
-
 .home__title {
   font-family: var(--font-display);
   font-weight: 700;
@@ -44,15 +45,16 @@
 }
 
 .home .code-input {
-  gap: 10px;
+  gap: var(--home-box-gap);
 }
 
+/* Square boxes, the letter half their height. */
 .home .code-input__box {
-  height: clamp(72px, 26vw, 112px);
+  height: var(--home-box);
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: clamp(2.25rem, 12vw, 3.25rem);
-  border-radius: 12px;
+  font-size: calc(var(--home-box) / 2);
+  border-radius: var(--radius-item);
   border-width: 1.5px;
   border-color: var(--color-border);
   background: var(--color-surface);
@@ -83,12 +85,14 @@
   border-color: var(--color-danger);
 }
 
+/* Join and Create a room: 58px tall with a big label; the slimmer side padding keeps "Waiting for connection…" on one line. */
 .home .home__btn {
-  min-height: 64px;
-  border-radius: 12px;
+  min-height: 58px;
+  padding-inline: 12px;
+  border-radius: var(--radius-item);
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: 1.25rem;
+  font-size: 1.4375rem;
 }
 
 .home__create .btn--secondary {
@@ -188,9 +192,5 @@
 @media (max-width: 360px) {
   .home__title {
     font-size: 1.625rem;
-  }
-
-  .home .code-input__box {
-    height: 64px;
   }
 }
