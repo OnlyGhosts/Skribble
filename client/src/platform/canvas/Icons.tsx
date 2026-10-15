@@ -10,3 +10,4 @@ export const BucketIcon = (p: IconProps) => (
 export const UndoIcon = (p: IconProps) => <Icon {...p} paths={['M9 14 4 9l5-5', 'M4 9h10.5a5.5 5.5 0 0 1 0 11H11']} />;
 export const RedoIcon = (p: IconProps) => <Icon {...p} paths={['m15 14 5-5-5-5', 'M20 9H9.5a5.5 5.5 0 0 0 0 11H13']} />;
 export const TrashIcon = (p: IconProps) => <Icon {...p} paths={['M3 6h18', 'M8 6V4h8v2', 'M19 6l-1 14H6L5 6', 'M10 11v6M14 11v6']} />;
+export const PlusIcon = (p: IconProps) => <Icon {...p} paths="M12 5v14M5 12h14" />;

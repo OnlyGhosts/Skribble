@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { BRUSH_SIZES, PALETTE } from '@shared/games/skribble/constants';
+import { BRUSH_SIZES } from '@shared/games/skribble/constants';
 import { BucketIcon, EraserIcon, PencilIcon, RedoIcon, TrashIcon, UndoIcon } from './Icons';
+import { Palette } from './Palette';
 import type { DrawTool, DrawingSettings } from './useDrawing';
 
 interface Props {
@@ -32,7 +33,7 @@ const dotSize = (size: number): number => Math.max(4, Math.min(22, size * 0.7));
 
 /**
  * The drawer's tools, as on the brand board: segmented groups [brush | eraser | fill], [size],
- * [undo | redo], [clear], then one row of colour swatches. The size button opens the five sizes.
+ * [undo | redo], [clear], then one row of colour swatches (Palette). The size button opens the five sizes.
  */
 export function Toolbar({ settings, onChange, canUndo, onUndo, canRedo = false, onRedo, onClear }: Props) {
   const [confirmClear, setConfirmClear] = useState(false);
@@ -94,8 +95,6 @@ export function Toolbar({ settings, onChange, canUndo, onUndo, canRedo = false, 
     document.addEventListener('pointerdown', onPointer);
     return () => document.removeEventListener('pointerdown', onPointer);
   }, [sizesOpen]);
-
-  const isCustomColor = !PALETTE.includes(settings.color);
 
   return (
     <div className="toolbar" role="toolbar" aria-label="Drawing tools" data-testid="toolbar">
@@ -200,31 +199,7 @@ export function Toolbar({ settings, onChange, canUndo, onUndo, canRedo = false, 
         )}
       </div>
 
-      <div className="toolbar__palette" role="radiogroup" aria-label="Colour">
-        {PALETTE.map((hex) => (
-          <button
-            key={hex}
-            type="button"
-            role="radio"
-            aria-checked={settings.color === hex && settings.tool !== 'eraser'}
-            className={`swatch${settings.color === hex ? ' is-selected' : ''}`}
-            style={{ background: hex }}
-            onClick={() => onChange({ ...settings, color: hex, tool: settings.tool === 'eraser' ? 'brush' : settings.tool })}
-            aria-label={`Colour ${hex}`}
-            title={hex}
-            data-testid={`tool-color-${hex.slice(1)}`}
-          />
-        ))}
-        <label className={`swatch swatch--custom${isCustomColor ? ' is-selected' : ''}`} title="Custom colour" style={isCustomColor ? { background: settings.color } : undefined}>
-          <input
-            type="color"
-            value={settings.color}
-            aria-label="Custom colour"
-            data-testid="tool-custom-color"
-            onChange={(e) => onChange({ ...settings, color: e.target.value, tool: settings.tool === 'eraser' ? 'brush' : settings.tool })}
-          />
-        </label>
-      </div>
+      <Palette color={settings.color} erasing={settings.tool === 'eraser'} onPick={(color) => onChange({ ...settings, color, tool: settings.tool === 'eraser' ? 'brush' : settings.tool })} />
     </div>
   );
 }
