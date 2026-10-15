@@ -4,7 +4,8 @@
 #   scripts/sounds/build.sh <packs dir> client/public/sounds scripts/sounds/map.txt
 #
 # <packs dir> holds one folder per pack, named as in map.txt, each with the pack's zip unpacked
-# into x/ (so <packs dir>/casino-audio/x/Audio/card-slide-1.ogg). Every picked file is
+# into x/ (so <packs dir>/casino-audio/x/Audio/card-slide-1.ogg). A row may layer more files
+# from any pack ("first.ogg+other-pack::second.ogg@0.4"). Every picked file is
 # transcoded to mono MP3: silence trimmed at both ends, an optional max length with a short
 # fade, loudness evened out (RMS towards -16 dB, at most 8 dB of transient limiting, peaks
 # under -1 dB). Needs ffmpeg with libmp3lame.
@@ -14,17 +15,25 @@ TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 grep -v '^#' "$MAP" | while IFS='|' read -r name pack src max kbps; do
   [ -z "$name" ] && continue
-  base="$DL/$pack/x/Audio"
-  first=${src%%+*}
-  inputs=(-i "$base/$first")
-  filter="[0:a]aformat=channel_layouts=mono,aresample=44100[a0]"
-  mixin="[a0]"
-  if [[ "$src" == *+* ]]; then
-    second=${src#*+}; file=${second%@*}; delay=${second##*@}
+  # The first file is from the row's pack; each further "+[pack::]file@seconds" is mixed in at that offset.
+  IFS='+' read -r -a parts <<< "$src"
+  inputs=(); filter=""; mix=""
+  for i in "${!parts[@]}"; do
+    part=${parts[$i]}; delay=0
+    if [ "$i" -gt 0 ]; then delay=${part##*@}; part=${part%@*}; fi
+    from=$pack
+    if [[ "$part" == *::* ]]; then from=${part%%::*}; part=${part#*::}; fi
+    inputs+=(-i "$DL/$from/x/Audio/$part")
     ms=$(awk "BEGIN{print int($delay*1000)}")
-    inputs+=(-i "$base/$file")
-    filter="$filter;[1:a]aformat=channel_layouts=mono,aresample=44100,adelay=${ms}[a1];[a0][a1]amix=inputs=2:duration=longest:normalize=0[m]"
+    filter="$filter[$i:a]aformat=channel_layouts=mono,aresample=44100,adelay=${ms}[a$i];"
+    mix="$mix[a$i]"
+  done
+  if [ "${#parts[@]}" -gt 1 ]; then
+    filter="$filter${mix}amix=inputs=${#parts[@]}:duration=longest:normalize=0[m]"
     mixin="[m]"
+  else
+    filter=${filter%;}
+    mixin="[a0]"
   fi
   trim="silenceremove=start_periods=1:start_threshold=-50dB,areverse,silenceremove=start_periods=1:start_threshold=-60dB,areverse"
   if [ "$max" != "0" ]; then

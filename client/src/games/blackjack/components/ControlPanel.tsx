@@ -4,7 +4,7 @@ import { useHotkeys } from '../../../platform/lib/hotkeys';
 import { AmountField } from '../../../platform/table/AmountField';
 import { MoveButton, PanelLabelRow, PanelMoves, PanelShell, type PanelStatus } from '../../../platform/table/ControlPanel';
 import { double, hit, placeBet, split, stand } from '../actions';
-import { betAmount, betWindow, defaultBet, doubleBet, halfBet } from '../lib/bet';
+import { betAmount, betWindow, defaultBet, doubleBet, halfBet, suggestedBet } from '../lib/bet';
 import { HOTKEY_HINT } from '../lib/text';
 import { useBlackjack, useBlackjackStore } from '../store';
 
@@ -50,8 +50,8 @@ export function ControlPanel({ room, view, meId, balance, status, canSend, busy,
   const lastBet = useBlackjack((s) => s.lastBet);
   const [editing, setEditing] = useState(false);
 
-  const range = seat && !seat.bustedOut ? betWindow(settings.minBet, settings.maxBet, seat.chips, seat.bet) : null;
-  const text = betText ?? (range ? String(defaultBet(lastBet, range)) : '');
+  const range = seat && !seat.bustedOut ? betWindow(seat.chips, seat.bet) : null;
+  const text = betText ?? (range ? String(defaultBet(lastBet, range, suggestedBet(settings.startingChips))) : '');
   const amount = range ? betAmount(text, range) : null;
   const canBet = canSend && !busy && range !== null && amount !== null && view.phase === 'betting' && view.order.includes(meId) && seat !== undefined && seat.bet === 0;
   const fieldOn = range !== null && canSend;
@@ -92,14 +92,14 @@ export function ControlPanel({ room, view, meId, balance, status, canSend, busy,
         steps={[
           { label: '1/2', ariaLabel: 'Half the amount', testId: 'bet-half', onClick: () => range && setAmount(halfBet(amount ?? range.min, range)) },
           { label: '2x', ariaLabel: 'Double the amount', testId: 'bet-double', onClick: () => range && setAmount(doubleBet(amount ?? range.min, range)) },
-          { label: 'MAX', ariaLabel: 'Maximum amount', testId: 'bet-max', onClick: () => range && setAmount(range.max) },
+          { label: 'MAX', ariaLabel: 'All in', testId: 'bet-max', onClick: () => range && setAmount(range.max) },
         ]}
         describedBy="bj-bet-range"
         inputTestId="bet-input"
         clearTestId="bet-clear"
       />
       <span id="bj-bet-range" className="sr-only">
-        {range ? `Between ${range.min} and ${range.max} chips` : 'No bet possible'}
+        {range ? `Any bet from 1 to ${range.max} chips` : 'No chips to bet'}
       </span>
       <PanelMoves>
         {moveButton(MOVES.hit, true)}

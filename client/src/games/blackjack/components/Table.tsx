@@ -64,7 +64,7 @@ export function Table({ room, view, meId, truth, frame, now, isPhone, chipsOf }:
   const settings = room.settings;
   const dealt = table?.order ?? [];
   const others = seatOrder(room, view, dealt).filter((id) => id !== meId);
-  const discarded = discardedCount(settings.decks, view.shoeRemaining, truth, table);
+  const discarded = discardedCount(view.shoeSize, view.shoeRemaining, truth, table);
   return (
     <section className={`tbl-felt bj-table${leaving ? ' bj-table--leaving' : ''}`} aria-label="Table" data-testid="bj-table" data-round={table?.round ?? 0} data-settled={table?.settled ?? false}>
       <div className="tbl-felt__top">

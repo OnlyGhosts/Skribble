@@ -99,8 +99,9 @@ function onPlayerLeft(gx: Gx, playerId: string): void {
   switch (data.phase.kind) {
     case 'betting':
       if (inRound && dealIfAllBet(gx)) return;
-      // A table waiting for a first bet that nobody is left to place starts the round over (or ends).
-      if (waitingForFirstBet(gx) && data.order.length === 0) {
+      if (waitingForFirstBet(gx)) {
+        // A table waiting for a first bet that nobody is left to place starts the round over (or ends).
+        if (data.order.length > 0) return onConnectionChange(gx, true);
         data.round -= 1;
         return beginRound(gx);
       }

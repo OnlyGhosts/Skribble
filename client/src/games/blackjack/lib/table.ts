@@ -125,11 +125,11 @@ export function cardsOnTable(table: TableModel | null): number {
 }
 
 /**
- * Cards in the discard tray: whatever has left the shoe and is not on the felt. The settled round
+ * Cards in the discard tray: whatever has left the shoe (`shoeSize` cards when built) and is not on the felt. The settled round
  * stays on the felt until the next deal, and its cards count as discarded only once they have
  * slid to the tray (`shown` is the table being drawn, the old one while it leaves).
  */
-export function discardedCount(decks: number, shoeRemaining: number, truth: TableModel | null, shown: TableModel | null): number {
+export function discardedCount(shoeSize: number, shoeRemaining: number, truth: TableModel | null, shown: TableModel | null): number {
   const onFelt = cardsOnTable(truth) + (shown !== null && shown !== truth ? cardsOnTable(shown) : 0);
-  return Math.max(0, decks * 52 - shoeRemaining - onFelt);
+  return Math.max(0, shoeSize - shoeRemaining - onFelt);
 }

@@ -3,7 +3,7 @@
  * snapshot diffs (deal order, hits, the reveal inside the server's allowance, the discards, splits,
  * snapping to the truth), the bet arithmetic, the copy, the screen per phase (the panel's lit and
  * dimmed controls, the hidden hole card, split hands up to four, the settled table during the next
- * betting), the settings rows with Unlimited rounds and the player-list hooks. Runs in node:
+ * betting), the settings rows (no rounds or table limits) and the player-list hooks. Runs in node:
  * browser globals are stubbed, components render through react-dom/server.
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
@@ -31,7 +31,7 @@ const { blackjackClient } = await import('./module');
 const { useBlackjackStore } = await import('./store');
 const { dealOrder, discardedCount, tableOf, totalText, shownTotal } = await import('./lib/table');
 const T = await import('./lib/timeline');
-const { betAmount, betWindow, defaultBet, doubleBet, halfBet, parseBet } = await import('./lib/bet');
+const { betAmount, betWindow, defaultBet, doubleBet, halfBet, parseBet, suggestedBet } = await import('./lib/bet');
 const { panelStatus, roundLabel, ribbonText, payoutText, joinNames, phaseKicker, HOTKEY_HINT } = await import('./lib/text');
 const { player, registryOf, resetStore, room, welcome } = await import('../../test/fixtures');
 
@@ -53,7 +53,6 @@ function view(overrides: Partial<BlackjackView> = {}): BlackjackView {
   return {
     phase: 'betting',
     round: 2,
-    totalRounds: 10,
     order: ['host', 'bob'],
     turn: null,
     endsAt: NOW + 20_000,
@@ -66,6 +65,7 @@ function view(overrides: Partial<BlackjackView> = {}): BlackjackView {
     lastRound: null,
     endRequested: false,
     shoeRemaining: 280,
+    shoeSize: 312,
     reshuffled: false,
     ...overrides,
   };
@@ -174,12 +174,12 @@ describe('the table model', () => {
     const settledTable = tableOf(nextBetting());
     const deal3 = tableOf(acting({ round: 3 }));
     // Six decks; three cards went to the tray in round 1, round 2's nine cards are still on the felt.
-    expect(discardedCount(6, 300, settledTable, settledTable)).toBe(3);
+    expect(discardedCount(312, 300, settledTable, settledTable)).toBe(3);
     // Round 3 is dealt (six cards out of the shoe) while round 2 slides off: still three in the tray.
-    expect(discardedCount(6, 294, deal3, settledTable)).toBe(3);
+    expect(discardedCount(312, 294, deal3, settledTable)).toBe(3);
     // Once they reach the tray, round 2's cards count.
-    expect(discardedCount(6, 294, deal3, deal3)).toBe(12);
-    expect(discardedCount(1, 52, settledTable, settledTable)).toBe(0);
+    expect(discardedCount(312, 294, deal3, deal3)).toBe(12);
+    expect(discardedCount(52, 52, settledTable, settledTable)).toBe(0);
   });
 
   it('shows soft totals both ways and counts a face-down card for nothing', () => {
@@ -274,7 +274,7 @@ describe('the animation timeline', () => {
     expect(T.frameAt(tl, tableOf(deal3), (tl.discard?.until ?? 0) + 1).table?.round).toBe(3);
   });
 
-  it('moves the split card instead of dealing it, and deals the two new cards after it', () => {
+  it('moves the split card instead of dealing it, and deals the two new cards once it is in place', () => {
     const before = acting();
     const after = acting({
       players: {
@@ -285,8 +285,8 @@ describe('the animation timeline', () => {
     const tl = plan(before, after, plan(view(), before), NOW + 3000);
     expect(tl.moved['host/1/0/8D']).toBe(true);
     expect(tl.arrivals['host/1/0/8D']).toBe(NOW + 3000);
-    expect(tl.arrivals['host/0/1/3H']).toBe(NOW + 3000);
-    expect(tl.arrivals['host/1/1/KC']).toBe(NOW + 3150);
+    expect(tl.arrivals['host/0/1/3H']).toBe(NOW + 3000 + T.MOVE_MS);
+    expect(tl.arrivals['host/1/1/KC']).toBe(NOW + 3000 + T.MOVE_MS + T.DEAL_GAP_MS);
   });
 
   it('snaps to the truth on a fresh entry, under reduced motion and when it would run far behind', () => {
@@ -351,31 +351,46 @@ describe('sounds under reduced motion', () => {
 });
 
 describe('the bet amount', () => {
-  it('stays inside the table limits and the stack, remembers the last bet and walks with 1/2, 2x and MAX', () => {
-    const w = betWindow(10, 500, 300, 0);
-    expect(w).toEqual({ min: 10, max: 300 });
-    expect(betWindow(10, 500, 5, 0)).toBeNull();
+  it('takes anything from 1 chip to the whole stack, remembers the last bet and walks with 1/2, 2x and MAX', () => {
+    const w = betWindow(300, 0);
+    expect(w).toEqual({ min: 1, max: 300 });
+    // A stake already down counts as available; no chips at all means no bet.
+    expect(betWindow(250, 50)).toEqual({ min: 1, max: 300 });
+    expect(betWindow(0, 0)).toBeNull();
+    expect(betWindow(1, 0)).toEqual({ min: 1, max: 1 });
     if (!w) throw new Error('no window');
-    expect(defaultBet(null, w)).toBe(10);
-    expect(defaultBet(800, w)).toBe(300);
-    expect(halfBet(15, w)).toBe(10);
+    expect(suggestedBet(1000)).toBe(10);
+    expect(suggestedBet(100_000)).toBe(1000);
+    expect(suggestedBet(50)).toBe(1);
+    expect(defaultBet(null, w, suggestedBet(1000))).toBe(10);
+    expect(defaultBet(null, w)).toBe(1);
+    expect(defaultBet(800, w, 10)).toBe(300);
+    expect(halfBet(15, w)).toBe(7);
+    expect(halfBet(1, w)).toBe(1);
     expect(doubleBet(200, w)).toBe(300);
     expect(parseBet('')).toBeNull();
     expect(parseBet('12a')).toBeNull();
     expect(parseBet('0')).toBeNull();
     expect(betAmount('9999', w)).toBe(300);
-    expect(betAmount('3', w)).toBe(10);
+    expect(betAmount('3', w)).toBe(3);
+    expect(betAmount('1', w)).toBe(1);
   });
 });
 
 describe('copy', () => {
   it('says whose turn it is in the panel', () => {
-    const base = { phase: 'acting' as const, seated: true, bustedOut: false, connected: true, inRound: true, betPlaced: true, pending: [], myTurn: false, turnName: 'Pia', handIndex: 0, handCount: 1, dealerPlaying: false };
+    const base = { phase: 'acting' as const, seated: true, bustedOut: false, connected: true, inRound: true, hasChips: true, betPlaced: true, pending: [], myTurn: false, turnName: 'Pia', handIndex: 0, handCount: 1, dealerPlaying: false, awaitingFirstBet: false };
     expect(panelStatus(base).text).toBe("Pia's turn");
     expect(panelStatus({ ...base, myTurn: true }).text).toBe('Your turn');
     expect(panelStatus({ ...base, myTurn: true, handIndex: 1, handCount: 3 }).text).toBe('Your turn, hand 2 of 3');
     expect(panelStatus({ ...base, phase: 'betting', betPlaced: false }).text).toBe('Place your bet');
+    expect(panelStatus({ ...base, phase: 'betting', betPlaced: false, awaitingFirstBet: true }).text).toBe('Place a bet to deal');
     expect(panelStatus({ ...base, phase: 'betting', pending: ['Pia', 'Quinn'] }).text).toBe('Waiting for Pia and Quinn');
+    // A big table counts the stragglers rather than naming them all.
+    expect(panelStatus({ ...base, phase: 'betting', pending: ['A', 'B', 'C', 'D'] }).text).toBe('Waiting for 4 players');
+    // Not dealt in: a seat with chips sat the hand out, a newcomer waits for the next round.
+    expect(panelStatus({ ...base, inRound: false })).toMatchObject({ state: 'next-round', text: 'You sit this hand out' });
+    expect(panelStatus({ ...base, inRound: false, hasChips: false }).text).toBe("You're in from the next round");
     expect(panelStatus({ ...base, phase: 'betting', dealerPlaying: true }).text).toBe("Dealer's turn");
     expect(panelStatus({ ...base, bustedOut: true }).state).toBe('out');
     expect(panelStatus({ ...base, seated: false }).state).toBe('spectating');
@@ -383,8 +398,8 @@ describe('copy', () => {
   });
 
   it('labels the rounds, the ribbon and the payouts', () => {
-    expect(roundLabel(4, 10)).toBe('Round 4 of 10');
-    expect(roundLabel(4, 0)).toBe('Round 4');
+    expect(roundLabel(4)).toBe('Round 4');
+    expect(roundLabel(0)).toBe('Round 1');
     expect(ribbonText('3:2')).toBe('BLACKJACK PAYS 3 TO 2');
     expect(ribbonText('6:5')).toBe('BLACKJACK PAYS 6 TO 5');
     expect(payoutText(220)).toBe('+220');
@@ -413,6 +428,21 @@ describe('copy', () => {
     const bet = bobHands[0].bet;
     expect(seatLine(next, 'bob', settle('win', bet * 2), true, false)).toMatchObject({ state: 'settled', text: `Win +${bet * 2}` });
     expect(seatLine(next, 'bob', settle('push', bet), true, false)).toMatchObject({ state: 'settled', text: 'Push' });
+  });
+
+  it('says a seat with chips that did not bet is sitting the hand out, and a big table still renders every seat in the strip', async () => {
+    const { seatLine } = await import('./components/Seats');
+    const satOut = acting({ order: ['host'], players: { ...acting().players, bob: { chips: 300, bet: 0, hands: [], inRound: false, bustedOut: false } } });
+    expect(seatLine(satOut, 'bob', [], false)).toMatchObject({ state: 'sitting-out', text: 'Sitting out' });
+    // Twenty-four seats: one strip that scrolls, the seat in play marked for the scroll to find.
+    const ids = Array.from({ length: 24 }, (_, i) => `p${i}`);
+    const players = Object.fromEntries(ids.map((id) => [id, { chips: 1000, bet: 10, hands: [hand([c('9'), c('7')], { total: 16 })], inRound: true, bustedOut: false }]));
+    const big = acting({ order: ids, turn: { playerId: 'p17', handIndex: 0 }, players });
+    const state = { ...bjRoom(big), players: ids.map((id, i) => player(id, { name: `Seat ${i}`, joinOrder: i })) };
+    const html = render(state, 'p0');
+    expect(tagsWith(html, 'seat')).toHaveLength(23);
+    expect(tagWith(html, 'seats')).toContain('tbl-seats');
+    expect(attr(html.match(/<li[^>]*data-player-id="p17"[^>]*>/)?.[0] ?? '', 'aria-current')).toBe('true');
   });
 
   it('never shows an em dash or mentions insurance anywhere in the module', () => {
@@ -448,7 +478,8 @@ describe('the screen', () => {
     expect(tagsWith(html, 'dealer-slot')).toHaveLength(2);
     expect(attr(tagWith(html, 'turn-status'), 'data-state')).toBe('bet');
     expect(html).toContain('BLACKJACK PAYS 3 TO 2');
-    expect(attr(tagWith(html, 'round-indicator'), 'data-total')).toBe('10');
+    expect(attr(tagWith(html, 'round-indicator'), 'data-round')).toBe('2');
+    expect(html).toContain('Any bet from 1 to 300 chips');
   });
 
   it('betting after my stake: Bet is dimmed and says so, my bet shows on the table', () => {
@@ -520,8 +551,8 @@ describe('the screen', () => {
     expect(attr(tagWith(html, 'round-indicator'), 'data-round')).toBe('3');
   });
 
-  it('unlimited rounds read "Round N"; a spectator watches with everything dimmed', () => {
-    const html = render(bjRoom(acting({ totalRounds: 0 })), 'carol');
+  it('the rounds never run out and read "Round N"; a spectator watches with everything dimmed', () => {
+    const html = render(bjRoom(acting()), 'carol');
     expect(html).toContain('Round 2<');
     expect(attr(tagWith(html, 'turn-status'), 'data-state')).toBe('spectating');
     expect(disabled(html, 'place-bet')).toBe(true);
@@ -542,21 +573,19 @@ describe('settings rows', () => {
     return renderToString(createElement(blackjackClient.SettingsFields, { settings: s, canEdit, patch: () => undefined }));
   };
 
-  it('offers Unlimited rounds: a toggle, then "Unlimited" in place of the slider', () => {
-    const finite = fields(settings, true);
-    expect(tagWith(finite, 'settings-rounds')).toContain('type="range"');
-    expect(tagWith(finite, 'settings-unlimitedRounds')).not.toContain('checked');
-    const unlimited = fields({ ...settings, rounds: 0 }, true);
-    expect(tagsWith(unlimited, 'settings-rounds')).toHaveLength(0);
-    expect(unlimited).toMatch(/data-testid="settings-value-rounds"[^>]*>Unlimited</);
-    expect(tagWith(unlimited, 'settings-unlimitedRounds')).toContain('checked');
+  it('has no rounds, minimum or maximum bet rows: any bet up to the stack, until one stack is left', () => {
+    const host = fields(settings, true);
+    for (const id of ['rounds', 'unlimitedRounds', 'minBet', 'maxBet']) expect(tagsWith(host, `settings-${id}`), id).toHaveLength(0);
+    expect(tagWith(host, 'settings-startingChips')).toBeTruthy();
+    expect(tagWith(host, 'settings-decks')).toContain('type="range"');
+    expect(host).toContain('sits the hand out');
   });
 
   it('shows the defaults read-only to the guests', () => {
     const guest = fields(settings, false);
     expect(guest).toMatch(/data-testid="settings-value-betSeconds"[^>]*>15s</);
     expect(guest).toMatch(/data-testid="settings-value-actSeconds"[^>]*>20s</);
-    expect(guest).toMatch(/data-testid="settings-value-rounds"[^>]*>10</);
+    expect(guest).toMatch(/data-testid="settings-value-decks"[^>]*>6</);
     expect(tagsWith(guest, 'settings-blackjackPayout')).toHaveLength(0);
   });
 });

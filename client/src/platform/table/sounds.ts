@@ -17,7 +17,6 @@ export const TABLE_FILES = {
   pushAll: 'table/push-all',
   knock: 'table/knock',
   thud: 'table/thud',
-  natural: 'table/natural',
 } as const;
 
 /** What each kind of moment sounds like; leave one out for silence. Each runs at its moment. */

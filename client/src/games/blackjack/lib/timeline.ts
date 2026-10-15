@@ -74,24 +74,27 @@ export function planTimeline(prev: Timeline, prevTable: TableModel | null, next:
   const { tl, same, start } = draft;
 
   const known = new Set(same && prevTable ? dealOrder(prevTable) : []);
-  let t = start;
+  const newKeys = dealOrder(next).filter((key) => !known.has(key) && tl.arrivals[key] === undefined);
+  const moving = new Set(same && prevTable ? newKeys.filter((key) => dealerIndex(key) === null && movedCard(prevTable, next, key)) : []);
   let cursor = start;
   let added = false;
+  // A split's moving card slides over first; the new cards are dealt once it is in place.
+  for (const key of moving) {
+    tl.arrivals[key] = start;
+    tl.moved[key] = true;
+    cursor = start + MOVE_MS;
+    added = true;
+  }
+  let t = cursor;
   const draws: string[] = [];
-  for (const key of dealOrder(next)) {
-    if (known.has(key) || tl.arrivals[key] !== undefined) continue;
+  for (const key of newKeys) {
+    if (moving.has(key)) continue;
     const d = dealerIndex(key);
     if (d !== null && d >= 2) {
       draws.push(key);
       continue;
     }
     added = true;
-    if (same && prevTable && d === null && movedCard(prevTable, next, key)) {
-      tl.arrivals[key] = start;
-      tl.moved[key] = true;
-      cursor = Math.max(cursor, start + MOVE_MS);
-      continue;
-    }
     tl.arrivals[key] = t;
     cursor = t + DEAL_MS;
     t += DEAL_GAP_MS;

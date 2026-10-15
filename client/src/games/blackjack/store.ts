@@ -10,7 +10,7 @@ export type BlackjackSheet = TableSheet;
 
 /** Blackjack's own client state: the bet field, the open sheet, the host's End game confirmation and the table's animation timeline. */
 interface BlackjackState {
-  /** What is typed in the bet field; null until touched (the field then shows the last bet, else the minimum). */
+  /** What is typed in the bet field; null until touched (the field then shows the last bet, else a suggested amount). */
   betText: string | null;
   /** The stake last placed on this device. */
   lastBet: number | null;

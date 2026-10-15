@@ -16,7 +16,8 @@ Packs used (each downloaded as the zip linked from its page):
 | Music Jingles | <https://kenney.nl/assets/music-jingles> | CC0 |
 
 Every file was transcoded with ffmpeg to mono MP3 (64 kbps, 80 kbps for the musical stings),
-silence trimmed at both ends and loudness evened out. `scripts/sounds/build.sh` with
+silence trimmed at both ends and loudness evened out. A few are two or more files layered with
+ffmpeg's amix (the knock, the gavel and the blackjack sting). `scripts/sounds/build.sh` with
 `scripts/sounds/map.txt` rebuilds the whole folder from the packs.
 
 ## Files
@@ -39,6 +40,7 @@ silence trimmed at both ends and loudness evened out. `scripts/sounds/build.sh` 
 | `stings/lose.mp3` | Music Jingles | `Audio/Pizzicato jingles/jingles_PIZZI04.ogg` | CC0 |
 | `stings/sly.mp3` | Music Jingles | `Audio/Sax jingles/jingles_SAX12.ogg` | CC0 |
 | `stings/sink.mp3` | Music Jingles | `Audio/8-Bit jingles/jingles_NES12.ogg` | CC0 |
+| `stings/blackjack.mp3` | Music Jingles, Casino Audio | `Audio/Steel jingles/jingles_STEEL16.ogg`, with Casino Audio's `Audio/chips-handle-1.ogg` 0.38 s in, `Audio/chips-collide-1.ogg` at 0.8 s and `Audio/chips-stack-3.ogg` at 1.0 s (first 1.5 s, faded) | CC0 |
 | `table/deal-1.mp3` | Casino Audio | `Audio/card-slide-1.ogg` | CC0 |
 | `table/deal-2.mp3` | Casino Audio | `Audio/card-slide-3.ogg` | CC0 |
 | `table/deal-3.mp3` | Casino Audio | `Audio/card-slide-5.ogg` | CC0 |
@@ -55,7 +57,6 @@ silence trimmed at both ends and loudness evened out. `scripts/sounds/build.sh` 
 | `table/push-all.mp3` | Casino Audio | `Audio/chips-handle-5.ogg` | CC0 |
 | `table/knock.mp3` | Impact Sounds | `Audio/impactWood_light_002.ogg` then `Audio/impactWood_light_000.ogg` 0.14 s later | CC0 |
 | `table/thud.mp3` | Impact Sounds | `Audio/impactSoft_heavy_000.ogg` | CC0 |
-| `table/natural.mp3` | Interface Sounds | `Audio/confirmation_002.ogg` | CC0 |
 | `battleships/dice.mp3` | Casino Audio | `Audio/dice-throw-1.ogg` | CC0 |
 | `battleships/cannon.mp3` | Sci-Fi Sounds | `Audio/lowFrequency_explosion_001.ogg` (first 0.8 s, faded) | CC0 |
 | `battleships/hit.mp3` | Sci-Fi Sounds | `Audio/explosionCrunch_000.ogg` | CC0 |
@@ -84,13 +85,15 @@ correct, turn end and fanfare cues).
 | Platform | Last 5 seconds of your clock | tick cue | made in code |
 | Platform | Podium, on the winner's phone | `stings/fanfare.mp3` | Music Jingles |
 | Platform | Podium, on everyone else's | `stings/game-over.mp3` | Music Jingles |
-| Blackjack | Each card dealt, as it lands | `table/deal-1/2/3.mp3` | Casino Audio |
+| Blackjack | Each card dealt, hit, doubled or drawn by the dealer, as it slides in | `table/deal-1/2/3.mp3` | Casino Audio |
+| Blackjack | A split card slides over to its new hand | `table/place-1/2.mp3` | Casino Audio |
 | Blackjack | Hole card turns over | `table/flip.mp3` | Casino Audio |
+| Blackjack | The last round's cards swept to the discards at the next deal | whoosh (soft) | made in code |
 | Blackjack | A bet goes down (doubles and splits too) | `table/chip-lay-1/2.mp3` | Casino Audio |
 | Blackjack | Your chips won | `table/collect.mp3` | Casino Audio |
 | Blackjack | Your push | `ui/click.mp3` | UI Audio |
 | Blackjack | Your hand busts | `table/thud.mp3` | Impact Sounds |
-| Blackjack | Your blackjack | `table/natural.mp3` | Interface Sounds |
+| Blackjack | A natural blackjack (full on yours, softer on someone else's) | `stings/blackjack.mp3` | Music Jingles, Casino Audio |
 | Blackjack | The shoe is reshuffled | `table/shuffle.mp3` | Casino Audio |
 | Poker | Hole cards dealt | `table/deal-1/2/3.mp3` | Casino Audio |
 | Poker | Flop, turn and river | `table/place-1/2.mp3` | Casino Audio |

@@ -18,9 +18,9 @@ export function chatPlaceholderFor(phase: BlackjackPhase | undefined, inRound: b
   }
 }
 
-/** "Round 4 of 10", or "Round 4" when the rounds are unlimited. */
-export function roundLabel(round: number, totalRounds: number): string {
-  return totalRounds > 0 ? `Round ${round} of ${totalRounds}` : `Round ${round}`;
+/** "Round 4": the rounds never run out. A hold before the first deal reads as round 1. */
+export function roundLabel(round: number): string {
+  return `Round ${Math.max(1, round)}`;
 }
 
 /**
@@ -32,7 +32,7 @@ export function phaseKicker(view: BlackjackView, turnName: string, mine: boolean
   if (view.endRequested && view.phase === 'acting') return 'Last hand';
   switch (view.phase) {
     case 'betting':
-      return view.totalRounds > 0 && view.round === view.totalRounds ? 'Last round' : 'Place your bets';
+      return view.endsAt === null ? 'Waiting for a bet' : 'Place your bets';
     case 'acting':
       return mine ? 'Your turn' : `${turnName}'s turn`;
     case 'held':
@@ -97,6 +97,8 @@ export interface PanelStatusInput {
   bustedOut: boolean;
   connected: boolean;
   inRound: boolean;
+  /** A seat with chips: one not dealt in sat the hand out rather than waiting for a seat. */
+  hasChips: boolean;
   betPlaced: boolean;
   /** Names of the seats still to bet, the viewer left out. */
   pending: string[];
@@ -107,6 +109,8 @@ export interface PanelStatusInput {
   handCount: number;
   /** The dealer's reveal is still playing on screen. */
   dealerPlaying: boolean;
+  /** Nobody bet before the clock ran out: the table waits for the first bet. */
+  awaitingFirstBet: boolean;
 }
 
 function line(state: PanelState, text: string): PanelStatus {
@@ -123,10 +127,13 @@ export function panelStatus(s: PanelStatusInput): PanelStatus {
   if (s.dealerPlaying) return line('dealer', "Dealer's turn");
   if (s.phase === 'betting') {
     if (!s.inRound) return line('next-round', "You're in from the next round");
-    if (!s.betPlaced) return line('bet', 'Place your bet');
+    if (!s.betPlaced) return line('bet', s.awaitingFirstBet ? 'Place a bet to deal' : 'Place your bet');
+    if (s.pending.length > 3) return line('waiting', `Waiting for ${s.pending.length} players`);
     if (s.pending.length > 0) return line('waiting', `Waiting for ${joinNames(s.pending)}`);
     return line('dealing', 'Dealing');
   }
+  // Seated with chips but not dealt in: no bet went down in time (a newcomer has no chips yet).
+  if (!s.inRound) return line('next-round', s.hasChips ? 'You sit this hand out' : "You're in from the next round");
   if (s.myTurn) return line('my-turn', s.handCount > 1 ? `Your turn, hand ${s.handIndex + 1} of ${s.handCount}` : 'Your turn');
   return line('their-turn', `${s.turnName}'s turn`);
 }

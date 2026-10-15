@@ -61,6 +61,7 @@ export function BlackjackScreen({ room, meId, isHost }: GameScreenProps<Blackjac
     bustedOut: seat?.bustedOut ?? false,
     connected,
     inRound: view.order.includes(meId),
+    hasChips: (seat?.chips ?? 0) + (seat?.bet ?? 0) > 0,
     betPlaced: (seat?.bet ?? 0) > 0,
     pending: pendingBettors(view)
       .filter((id) => id !== meId)
@@ -70,6 +71,7 @@ export function BlackjackScreen({ room, meId, isHost }: GameScreenProps<Blackjac
     handIndex: view.turn?.handIndex ?? 0,
     handCount: seat?.hands.length ?? 0,
     dealerPlaying,
+    awaitingFirstBet: view.phase === 'betting' && view.endsAt === null,
   });
   const timed = playing && !held && (view.phase === 'betting' || view.phase === 'acting' || view.phase === 'ending');
   const tickUnder = myTurn || (view.phase === 'betting' && view.order.includes(meId) && (seat?.bet ?? 0) === 0) ? 5 : undefined;
@@ -85,11 +87,11 @@ export function BlackjackScreen({ room, meId, isHost }: GameScreenProps<Blackjac
       isPhone={isPhone}
       status={
         <>
-          {roundLabel(view.round, view.totalRounds)} · <span data-testid="phase-kicker">{phaseKicker(view, turnName, myTurn, dealerPlaying)}</span>
+          {roundLabel(view.round)} · <span data-testid="phase-kicker">{phaseKicker(view, turnName, myTurn, dealerPlaying)}</span>
         </>
       }
       statusTestId="round-indicator"
-      statusData={{ 'data-round': view.round, 'data-total': view.totalRounds }}
+      statusData={{ 'data-round': view.round }}
       clock={<Timer endsAt={timed ? view.endsAt : null} paused={held} warnUnder={view.phase === 'ending' ? 0 : 5} tickUnder={tickUnder} />}
       room={room}
       players={<PlayerList room={room} meId={meId} isHost={isHost} mode="game" game={game} />}

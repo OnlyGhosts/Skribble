@@ -29,6 +29,8 @@ export function seatLine(view: BlackjackView, id: string, hands: TableHand[], se
   const betting = view.phase === 'betting' && view.order.includes(id);
   if (betting && seat.bet > 0) return { state: 'bet', text: `Bet ${formatChips(seat.bet)}`, tone: 'quiet' };
   if (view.phase === 'acting' && view.turn?.playerId === id) return { state: 'playing', text: 'Playing', tone: 'turn' };
+  // Not dealt in with chips to play: no bet went down in time, so this hand goes by without them.
+  if (view.phase === 'acting' && !view.order.includes(id) && seat.chips > 0) return { state: 'sitting-out', text: 'Sitting out', tone: 'quiet' };
   if (settledShown && hands.length > 0) {
     const back = hands.reduce((sum, h) => sum + (h.payout ?? 0), 0);
     const staked = hands.reduce((sum, h) => sum + h.bet, 0);

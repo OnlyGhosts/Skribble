@@ -126,13 +126,17 @@ export function seatWhileWaiting(gx: Gx): boolean {
   return true;
 }
 
-/** A player dropped or came back: a hold is re-evaluated, and a table waiting for a first bet holds once nobody is left to place it. */
-export function onConnectionChange(gx: Gx): void {
+/**
+ * A player dropped, came back or left: a hold is re-evaluated, and a table waiting for a first bet
+ * holds once nobody connected is left to place it. `seatsChanged` sends the table out regardless.
+ */
+export function onConnectionChange(gx: Gx, seatsChanged = false): void {
   const { data, ctx } = gx;
   if (waitingForFirstBet(gx) && connectedActive(ctx, data).length < MIN_PLAYERS) {
     data.round -= 1;
     return hold(gx);
   }
+  if (seatsChanged) return snapshotOrResume(gx);
   resumeIfHeld(gx);
 }
 
