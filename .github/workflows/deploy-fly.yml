@@ -52,3 +52,12 @@ jobs:
       - name: Keep exactly one machine
         if: env.FLY_API_TOKEN != ''
         run: flyctl scale count 1 --yes
+      # A new app needs public addresses before boredgames-io.fly.dev answers (free: shared IPv4, IPv6).
+      - name: Public addresses
+        if: env.FLY_API_TOKEN != ''
+        run: |
+          if [ "$(flyctl ips list --json | jq 'length')" = "0" ]; then
+            flyctl ips allocate-v4 --shared
+            flyctl ips allocate-v6
+          fi
+          flyctl ips list
