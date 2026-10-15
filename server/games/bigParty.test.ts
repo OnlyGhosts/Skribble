@@ -11,6 +11,8 @@ import { viewFor } from '../platform/engine/view.js';
 import type { BattleshipsData } from './battleships/module.js';
 import type { BlackjackData } from './blackjack/module.js';
 import type { HangmanData } from './hangman/module.js';
+import type { PokerView } from '../../shared/games/poker/protocol.js';
+import { moduleFor } from '../platform/engine/module.js';
 import type { PokerData } from './poker/module.js';
 import type { QuipgameData } from './quipgame/module.js';
 import type { SkribbleData } from './skribble/state.js';
@@ -50,20 +52,23 @@ describe('a full room of 50', () => {
       expect(s.data.phase).toBe('playing');
       const seats = Math.min(seatLimit(meta), ROOM_HARD_CAP);
       const seated = ids.slice(0, seats);
-      expect(s.data.players.filter((p) => p.participating).map((p) => p.id)).toEqual(seated);
+      // A game that queues its own seats (Poker) keeps everyone in it, the extras waiting for a seat.
+      const players = moduleFor(id).queuesSeats ? ids : seated;
+      expect(s.data.players.filter((p) => p.participating).map((p) => p.id)).toEqual(players);
       expect([...dealtIn(s, id)].sort()).toEqual([...seated].sort());
       for (const viewer of ids) expect(viewFor(s.data, viewer, s.now).game, viewer).not.toBeNull();
       // The first deadline passes without a hitch and nobody is dropped from the game.
       s.tick();
       expect(s.data.phase).toBe('playing');
-      expect(s.data.players.filter((p) => p.participating)).toHaveLength(seats);
+      expect(s.data.players.filter((p) => p.participating)).toHaveLength(players.length);
     });
   }
 
-  it('seats 23 at Poker and has the other 27 watch', () => {
+  it('seats 23 at Poker and has the other 27 watch, waiting for a seat', () => {
     const s = sim('poker');
     const ids = startGame(s, names);
     expect((s.data.game as PokerData).order).toEqual(ids.slice(0, 23));
-    expect(s.data.players.filter((p) => !p.participating)).toHaveLength(27);
+    const waiting = ids.slice(23).filter((viewer) => (viewFor(s.data, viewer, s.now).game as PokerView).players[viewer]?.waitingForSeat);
+    expect(waiting).toHaveLength(27);
   });
 });

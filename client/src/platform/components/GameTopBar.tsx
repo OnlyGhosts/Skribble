@@ -131,6 +131,24 @@ export function GameTopBar({ meta, room, isPhone, testId, className, status, sta
   );
 }
 
+/**
+ * The part of a status the narrowest phones leave out so the game's name stays whole: wrap
+ * "Round " in it and "Round 1/5" reads "1/5" there.
+ */
+export function Wide({ children }: { children: ReactNode }) {
+  return <span className="gbar__wide">{children}</span>;
+}
+
+/** "Round 1/5" (just "1/5" on the narrowest phones). */
+export function RoundStatus({ round, total }: { round: number; total: number }) {
+  return (
+    <>
+      <Wide>Round </Wide>
+      {round}/{total}
+    </>
+  );
+}
+
 /** The phone's options sheet behind the top bar's menu button: preferences, the game's own rows, Leave room. */
 export function GameMenuSheet({ open, onClose, children }: { open: boolean; onClose(): void; children?: ReactNode }) {
   return (

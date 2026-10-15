@@ -154,6 +154,17 @@ export interface GameServerModule<S = unknown, D = unknown, V = unknown, CMsg = 
    * round" or "end game". A spectator's other messages never reach `handle`.
    */
   hostMessages?: ReadonlySet<string>;
+  /**
+   * The game seats at most `meta.maxPlayers` at once by itself and queues the rest in join order
+   * (they watch until a seat frees up). The platform then makes every ready player a participant
+   * at the start instead of benching the extras, so the queue is fair to the earliest.
+   */
+  queuesSeats?: boolean;
+  /**
+   * Whether a participant goes on the podium. A game that queues seats leaves off a player it
+   * never dealt in (they would rank last having never played). Everyone by default.
+   */
+  ranks?(data: D, playerId: string): boolean;
 }
 
 /** The erased module type the registry and the engine work with. */

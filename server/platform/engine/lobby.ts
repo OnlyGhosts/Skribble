@@ -82,7 +82,8 @@ function requireBetweenGames(cx: Cx, playerId: string, message: string): boolean
 /**
  * Starts the game with the players who readied up (the host counts as ready by pressing start,
  * unless they sit out). Everyone else stays in the party as a spectator; a game with a seat
- * limit takes the first ready players by join order. Ready flags reset, sit-out choices persist.
+ * limit takes the first ready players by join order (one that queues its own seats takes them all
+ * and seats them itself). Ready flags reset, sit-out choices persist.
  * A readied player whose socket is down at that moment is seated all the same (the game holds
  * for them like for any participant), but only connected ones count towards the minimum, so a
  * game never starts straight into a hold.
@@ -95,7 +96,9 @@ export function start(cx: Cx, playerId: string): void {
   if (ready.filter((p) => p.connected).length < needed) {
     return fail(cx, playerId, 'NOT_ALLOWED', `You need at least ${needed} player${needed === 1 ? '' : 's'} ready to start.`);
   }
-  const limit = gameSeatLimit(data);
+  const game = moduleFor(data.gameId);
+  // A game that queues its own seats takes everyone ready; the extras wait in its queue for a seat.
+  const limit = game.queuesSeats ? ready.length : gameSeatLimit(data);
   const seated = ready.slice(0, limit);
   const benched = ready.slice(limit);
   for (const p of data.players) {
@@ -112,7 +115,6 @@ export function start(cx: Cx, playerId: string): void {
     systemMessage(cx, `${gameById(data.gameId).name} seats ${limit} players: ${listNames(benched.map((p) => p.name))} ${benched.length === 1 ? 'sits' : 'sit'} this one out`);
   }
   systemMessage(cx, 'The game has started!');
-  const game = moduleFor(data.gameId);
   const applied = applyGameResult(cx, game.start(gameCtx(cx)));
   // A game that announced nothing still needs everyone to see the new phase.
   if (!applied.snapshotted && data.phase === 'playing') broadcastSnapshot(cx);
@@ -138,7 +140,9 @@ export function podiumOf(players: Array<{ id: string; score: number; joinOrder: 
 export function finishGame(cx: Cx): void {
   const { data } = cx;
   data.waiting = null;
-  data.podium = podiumOf(participants(data));
+  const game = moduleFor(data.gameId);
+  const ranked = participants(data).filter((p) => data.game === null || !game.ranks || game.ranks(data.game, p.id));
+  data.podium = podiumOf(ranked);
   data.phase = 'ended';
   const top = data.podium[0]?.score;
   const winners = data.podium.filter((e) => e.score === top).map((e) => findPlayer(data, e.playerId)?.name ?? '');

@@ -2,7 +2,7 @@ import type { QuipgameSettings, QuipgameView } from '@shared/games/quipgame/prot
 import { gameById } from '@shared/platform/games';
 import { BottomSheet } from '../../platform/components/BottomSheet';
 import { Chat } from '../../platform/components/Chat';
-import { GameMenuSheet, GameTopBar } from '../../platform/components/GameTopBar';
+import { GameMenuSheet, GameTopBar, RoundStatus } from '../../platform/components/GameTopBar';
 import { PlayerList } from '../../platform/components/PlayerList';
 import { Timer } from '../../platform/components/Timer';
 import type { GameScreenProps } from '../../platform/game';
@@ -49,7 +49,7 @@ export function QuipGameScreen({ room, meId, isHost }: GameScreenProps<QuipgameV
         isPhone={isPhone}
         testId="quipgame-header"
         className="quip__top"
-        status={roundLabel(view, false)}
+        status={view.phase.startsWith('final') ? roundLabel(view, false) : <RoundStatus round={view.round} total={view.totalRounds} />}
         statusData={{ 'data-round': view.round, 'data-total': view.totalRounds }}
         clock={<Timer endsAt={playing ? view.endsAt : null} paused={holding} warnUnder={10} tickUnder={ticking ? 5 : undefined} />}
         players={{ label: 'Scores', open: sheet === 'players', onOpen: () => openSheet('players') }}

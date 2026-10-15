@@ -3,7 +3,7 @@ import type { SkribblePhase, SkribbleSettings, SkribbleView } from '@shared/game
 import { gameById } from '@shared/platform/games';
 import { BottomSheet } from '../../platform/components/BottomSheet';
 import { Chat } from '../../platform/components/Chat';
-import { GameMenuSheet, GameTopBar } from '../../platform/components/GameTopBar';
+import { GameMenuSheet, GameTopBar, RoundStatus } from '../../platform/components/GameTopBar';
 import { PlayerList } from '../../platform/components/PlayerList';
 import { Timer } from '../../platform/components/Timer';
 import type { GameScreenProps } from '../../platform/game';
@@ -158,7 +158,7 @@ export function SkribbleScreen({ room, meId, isHost }: GameScreenProps<SkribbleV
         className="game__top"
         status={
           <>
-            Round {view.round}/{view.totalRounds}
+            <RoundStatus round={view.round} total={view.totalRounds} />
             <span className="gbar__more">
               {' '}
               · Turn {view.turn}/{view.turnsInRound}

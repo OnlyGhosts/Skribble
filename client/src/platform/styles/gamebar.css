@@ -20,9 +20,9 @@
   color: var(--color-text);
 }
 
-/* The name gives way before the status when the row runs short (it shrinks four times as fast). */
+/* The name keeps its width: on a phone the status takes its short form first (.gbar__wide), and the name steps down a size. */
 .gbar__name {
-  flex: 0 4 auto;
+  flex: 0 1 auto;
   min-width: 0;
   font-family: var(--font-display);
   font-weight: 700;
@@ -272,6 +272,17 @@
   display: none;
 }
 
+/* The full bar's status is short ("Round 1/5", "Placing fleets") and stays on one line beside the whole name. */
+.gbar--phone:not(.gbar--compact) .gbar__status {
+  flex: none;
+  display: block;
+  white-space: nowrap;
+}
+
+.gbar--phone:not(.gbar--compact) .gbar__name {
+  font-size: 1.375rem;
+}
+
 .gbar--phone .timer--lg {
   width: 64px;
   height: 64px;
@@ -279,8 +290,14 @@
 }
 
 @media (max-width: 360px) {
-  .gbar--phone .gbar__name {
+  .gbar--phone .gbar__name,
+  .gbar--phone:not(.gbar--compact) .gbar__name {
     font-size: 1.25rem;
+  }
+
+  /* "Round 1/5" reads "1/5", "Placing fleets" reads "Placing". */
+  .gbar--phone .gbar__wide {
+    display: none;
   }
 
   .gbar--phone .gbar__row,
@@ -291,6 +308,12 @@
   .gbar--phone .timer--lg {
     width: 56px;
     height: 56px;
+    font-size: 1.125rem;
+  }
+}
+
+@media (max-width: 340px) {
+  .gbar--phone:not(.gbar--compact) .gbar__name {
     font-size: 1.125rem;
   }
 }

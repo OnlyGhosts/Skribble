@@ -44,12 +44,46 @@ describe('Poker: a big table', () => {
     expect(TABLE_SEATS * 2 + 5).toBeLessThanOrEqual(52);
   });
 
-  it('seats 23 players at the start and benches the 24th', () => {
+  it('seats 23 players at the start; the extras wait their turn for a seat, ahead of anyone who joins later', () => {
+    const s = sim('poker');
+    const ids = startGame(s, names(25), { hands: 0 });
+    expect(data(s).order).toEqual(ids.slice(0, 23));
+    // The 24th and 25th are in the game, waiting for a seat (they watch the hand).
+    for (const id of ids.slice(23)) {
+      expect(s.data.players.find((p) => p.id === id)?.participating).toBe(true);
+      expect(view(s).players[id]).toMatchObject({ status: 'out', chips: 0, waitingForSeat: true });
+    }
+    const late = join(s, 'Late');
+    foldAround(s);
+    tickResults(s);
+    expect(data(s).seats[ids[23]]).toBeUndefined();
+    // A seat frees up: the first of the extras takes it from the next hand, not the later joiner.
+    s.apply({ type: 'leave', playerId: ids[5] });
+    expect(view(s).players[ids[23]]).toMatchObject({ waitingForSeat: false });
+    expect(view(s).players[ids[24]]).toMatchObject({ waitingForSeat: true });
+    expect(view(s).players[late]).toMatchObject({ waitingForSeat: true });
+    foldAround(s);
+    tickResults(s);
+    expect(data(s).order).toHaveLength(23);
+    expect(data(s).order).toContain(ids[23]);
+    expect(data(s).order).not.toContain(ids[24]);
+    expect(data(s).order).not.toContain(late);
+  });
+
+  it('leaves a player who never got a seat off the podium', () => {
     const s = sim('poker');
     const ids = startGame(s, names(24), { hands: 0 });
-    expect(data(s).order).toEqual(ids.slice(0, 23));
-    expect(s.data.players.find((p) => p.id === ids[23])?.participating).toBe(false);
-    expect(view(s).players[ids[23]]).toBeUndefined();
+    const late = join(s, 'Late');
+    act(s, ids[0], { t: 'endGame' });
+    for (let guard = 0; guard < 50 && s.data.phase === 'playing'; guard++) {
+      foldAround(s);
+      tickResults(s);
+    }
+    expect(s.data.phase).toBe('ended');
+    const podium = s.data.podium?.map((e) => e.playerId) ?? [];
+    expect(podium).toHaveLength(23);
+    expect(podium).not.toContain(ids[23]);
+    expect(podium).not.toContain(late);
   });
 
   it('keeps a mid-game joiner watching while 23 seats hold chips, and seats them from the first hand after a seat frees up', () => {

@@ -184,7 +184,10 @@ decks than its setting, more at a big table: `shoeDecks(minDecks, seats)` keeps 
 reserve of four hands of three cards a seat, and `needsReshuffle` rebuilds it between rounds
 before it drops under one round's reserve, so a 50-seat table never runs dry mid-round; Poker deals
 from one deck with no burn cards, so its table seats 23, two hole cards each and five on the board,
-and a newcomer beyond that watches, `waitingForSeat` in their view, until a seat frees up). On the client the cards are drawn by
+and anyone beyond that, ready at the start or joining later, watches, `waitingForSeat` in their view,
+until a seat frees up, first come first seated: the module sets `queuesSeats`, so the platform makes
+every ready player a participant and Poker's queue seats them; `ranks` keeps a player who never got
+a seat off the podium). On the client the cards are drawn by
 [`PlayingCard`](../client/src/platform/components/PlayingCard.tsx) (`sm` / `md` / `lg` / `xl`, face down
 for `null`, `slot` for an empty place, `highlight` for the five that play) and chip counts by
 [`Chips`](../client/src/platform/components/Chips.tsx) (`ChipIcon`, `formatChips` in `lib/format.ts`);
@@ -434,6 +437,10 @@ export interface GameServerModule<S = unknown, D = unknown, V = unknown, CMsg = 
   createSideStore?(storage: GameStorage): GameSideStore<D, CMsg, SMsg>;
   /** Message types (`msg.t`) the host may send even while sitting the game out, such as "next round" or "end game". */
   hostMessages?: ReadonlySet<string>;
+  /** The game seats `meta.maxPlayers` at a time itself and queues the rest in join order: every ready player starts as a participant. */
+  queuesSeats?: boolean;
+  /** Whether a participant goes on the podium (a queued player who never got a seat does not). Everyone by default. */
+  ranks?(data: D, playerId: string): boolean;
 }
 
 /** Builds a settings spec from a zod object schema. */

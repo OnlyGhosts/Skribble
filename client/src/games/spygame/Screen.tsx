@@ -2,7 +2,7 @@ import type { SpygameSettings, SpygameView } from '@shared/games/spygame/protoco
 import { gameById } from '@shared/platform/games';
 import { BottomSheet } from '../../platform/components/BottomSheet';
 import { Chat } from '../../platform/components/Chat';
-import { GameMenuSheet, GameTopBar } from '../../platform/components/GameTopBar';
+import { GameMenuSheet, GameTopBar, RoundStatus } from '../../platform/components/GameTopBar';
 import { PlayerList } from '../../platform/components/PlayerList';
 import type { GameScreenProps } from '../../platform/game';
 import { PHONE_QUERY, useMediaQuery } from '../../platform/lib/media';
@@ -55,7 +55,7 @@ export function SpyGameScreen({ room, meId, isHost }: GameScreenProps<SpygameVie
         isPhone={isPhone}
         testId="spygame-header"
         className="spy__top"
-        status={`Round ${view.round}/${view.totalRounds}`}
+        status={<RoundStatus round={view.round} total={view.totalRounds} />}
         clock={<RoundClock clock={view.clock} holding={holding} />}
         players={{ label: 'Scores', open: playersOpen, onOpen: () => openSheet('players') }}
         chat={isPhone ? { open: chatOpen, onOpen: () => openSheet('chat') } : undefined}

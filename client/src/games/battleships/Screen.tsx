@@ -4,7 +4,7 @@ import { gameById } from '@shared/platform/games';
 import type { RoomState } from '@shared/platform/protocol';
 import { BottomSheet } from '../../platform/components/BottomSheet';
 import { Chat } from '../../platform/components/Chat';
-import { GameMenuSheet, GameTopBar } from '../../platform/components/GameTopBar';
+import { GameMenuSheet, GameTopBar, Wide } from '../../platform/components/GameTopBar';
 import { PlayerList } from '../../platform/components/PlayerList';
 import { Timer } from '../../platform/components/Timer';
 import type { GameScreenProps } from '../../platform/game';
@@ -192,7 +192,15 @@ export function BattleshipsScreen({ room, meId, isHost }: GameScreenProps<Battle
         isPhone={isPhone}
         testId="battleships-header"
         className="bs__top"
-        status={turnKicker(view.phase, view.turnNumber)}
+        status={
+          view.phase === 'placing' ? (
+            <>
+              Placing<Wide> fleets</Wide>
+            </>
+          ) : (
+            turnKicker(view.phase, view.turnNumber)
+          )
+        }
         statusTestId="turn-indicator"
         statusData={{ 'data-turn': view.turnNumber }}
         clock={<Timer endsAt={endsAt} paused={paused} warnUnder={view.phase === 'placing' ? 10 : 5} tickUnder={myTurn && view.phase === 'playing' ? 5 : undefined} />}

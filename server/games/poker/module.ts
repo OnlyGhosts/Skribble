@@ -134,6 +134,10 @@ export const pokerModule: GameServerModule<PokerSettings, PokerData, PokerView, 
   nextDeadline,
   view: viewFor,
   hostMessages: new Set(['next', 'endGame']),
+  // One deck seats TABLE_SEATS: the extras wait for a seat in join order (stackedPlayers).
+  queuesSeats: true,
+  // A player who never got a seat never played: they stay off the podium.
+  ranks: (data, playerId) => data.seats[playerId] !== undefined,
 };
 
 export type { PokerData };
