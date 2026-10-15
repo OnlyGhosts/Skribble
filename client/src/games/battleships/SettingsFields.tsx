@@ -66,7 +66,7 @@ export function BattleshipsSettingsFields({ settings, canEdit, patch }: Settings
           label: fleet === 'small' ? 'Small' : 'Classic',
           blurb: `Ships of ${BATTLESHIPS_FLEETS[fleet].join(', ')}`,
         }))}
-        hint="Boards are 10 × 10. A shared team board grows with its crew and gets an extra 3-ship per extra player."
+        hint="Boards are 10 × 10. A team board grows with its crew, up to 14 × 14 with three extra 3-ships."
       />
       <RangeSetting
         id="placeSeconds"

@@ -17,7 +17,7 @@ export function formSides(ctx: Ctx): SideData[] {
 
 /**
  * Every board is the classic 10x10 for one player. A team board grows with its crew (with an extra
- * 3-ship per extra member), and both teams play the larger team's board and fleet so neither side
+ * 3-ship per extra member, up to 14x14 and three extra ships), and both teams play the larger team's board and fleet so neither side
  * hides in more water. Joiners after the start do not change it.
  */
 export function initialData(ctx: Ctx): BattleshipsData {

@@ -103,13 +103,17 @@
   flex-direction: column;
 }
 
-/* The board's player rows: a roomier list on the panel colour, the status on the right. */
+/* The board's player rows: a roomier list on the panel colour, the status on the right. A big party scrolls inside the list, so the settings and chat stay close. */
 .lobby__players .player-list {
   background: var(--color-surface);
   border-radius: 12px;
+  max-height: min(60dvh, 560px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .lobby__players .player {
+  flex: none;
   min-height: 52px;
   padding: 8px 12px 8px 14px;
   gap: 14px;

@@ -176,6 +176,7 @@ async function playOutRound(round: number, hostDoubles: boolean, onFirstTurn?: (
     const bet = Number(await active.getAttribute('data-bet'));
     const cards = Number(await active.getAttribute('data-cards'));
     const double = acting.page.getByTestId('action-double');
+    const turnBefore = await turnKeyOf(acting);
     if (hostDoubles && acting === host && (await double.isEnabled())) {
       // The keyboard shortcut on the desktop: D doubles, one more card, the stake twice.
       await host.page.keyboard.press('d');
@@ -183,11 +184,22 @@ async function playOutRound(round: number, hostDoubles: boolean, onFirstTurn?: (
     } else if (total < 12) {
       await acting.page.getByTestId('action-hit').click();
       await expect.poll(async () => (await settled()) || Number(await acting.page.locator(`[data-testid="my-hand"][data-index="${hand}"]`).getAttribute('data-cards')) > cards).toBe(true);
+      continue;
     } else {
       await acting.page.getByTestId('action-stand').click();
     }
+    // A stand or a double ends the hand, but the acting page keeps Stand lit until the server's
+    // answer reaches it: wait for its turn to move on, or the next poll would find the same turn again.
+    await expect
+      .poll(async () => (await settled()) || (await turnKeyOf(acting)) !== turnBefore, { message: `${acting.name}: the turn moves on after the move` })
+      .toBe(true);
   }
   throw new Error('the round did not settle');
+}
+
+/** Whose turn, on which hand, in which round, as `p`'s page has it. */
+async function turnKeyOf(p: Player): Promise<string> {
+  return screen(p).evaluate((el) => ['phase', 'round', 'turnPlayer', 'turnHand'].map((k) => (el as HTMLElement).dataset[k] ?? '').join(':'));
 }
 
 /** Turns go seat by seat (join order), each seat's hands left to right, never back. */
@@ -451,14 +463,17 @@ async function nothingScrolls(page: Page, label: string): Promise<void> {
     page.evaluate(() => {
       const over = (el: Element | null) => (el ? el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight : true);
       const doc = document.documentElement;
+      // The round under the name is never cut short (a short landscape phone hides it altogether).
+      const status = document.querySelector('[data-testid="round-indicator"]');
       return {
         document: over(doc),
         main: over(document.querySelector('[data-testid="blackjack-main"]')),
         table: over(document.querySelector('[data-testid="bj-table"]')),
         seats: document.querySelector('[data-testid="seats"]') ? over(document.querySelector('[data-testid="seats"]')) : false,
+        status: status !== null && status.getClientRects().length > 0 && over(status),
       };
     });
-  await expect.poll(read, { message: `${label}: nothing scrolls` }).toEqual({ document: false, main: false, table: false, seats: false });
+  await expect.poll(read, { message: `${label}: nothing scrolls` }).toEqual({ document: false, main: false, table: false, seats: false, status: false });
 }
 
 /** At every phone size and both desktops: nothing scrolls. The page ends at its own size. */

@@ -1923,7 +1923,11 @@ Run from the repository root; everything is green at HEAD.
 - **`meta.maxPlayers` is a seat limit, not a room cap.** `null` seats everyone (up to
   `ROOM_HARD_CAP` = 50); a number benches the extra ready players for that game. Prefer `null`:
   the owner wants big parties to all play (Blackjack seats everyone and grows its shoe with the
-  table, see `shoeDecks` in `shared/games/blackjack/cards.ts`).
+  table, see `shoeDecks` in `shared/games/blackjack/cards.ts`; Battleships gives each of up to 50
+  players a fleet, and a team board stops growing at 14x14 with three extra ships). Only a hard
+  limit of the game itself justifies a number: Poker's 23 is what one deck can deal. Test a start
+  with a full room (`server/games/bigParty.test.ts` does it for every live game) and keep long
+  lists scrolling inside their own panel.
 - **Chat history** is capped at 60 lines and replayed in `welcome.chat`; private lines (explicit
   recipient lists) are never stored, so a late joiner does not see them.
 - **`playerJoined` arrives mid-game only** (joins in the lobby are not game events) and only when

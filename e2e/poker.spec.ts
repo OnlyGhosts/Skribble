@@ -83,12 +83,13 @@ async function phoneLayoutHolds(p: Player, size: { width: number; height: number
   // Nothing scrolls, either way: the document, the table, the players.
   const scrolls = () =>
     p.page.evaluate(() =>
-      ['html', '[data-testid="poker-main"]', '[data-testid="pk-table"]', '[data-testid="seats"]'].filter((sel) => {
+      ['html', '[data-testid="poker-main"]', '[data-testid="pk-table"]', '[data-testid="seats"]', '[data-testid="hand-indicator"]'].filter((sel) => {
         const el = document.querySelector(sel);
         return el !== null && (el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight);
       }),
     );
-  await expect.poll(scrolls, { message: `${p.name}: nothing scrolls` }).toEqual([]);
+  // Nor is the hand under the name ever cut short.
+  await expect.poll(scrolls, { message: `${p.name}: nothing scrolls or is cut short` }).toEqual([]);
 }
 
 async function chipsOf(p: Player): Promise<number> {
