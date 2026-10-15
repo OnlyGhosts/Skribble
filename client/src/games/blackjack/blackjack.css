@@ -133,6 +133,11 @@
   --tbl-w: calc(var(--bj-spot-w) * 0.55);
 }
 
+/* A tight table: my one settled hand says its outcome in the spotlight's label already. */
+.tbl-stage--tight .bj-mine--spot.bj-mine--n1 .bj-hand__foot {
+  display: none;
+}
+
 /* One hand in the spotlight: its outline says it is in play, and its stake is beside it. */
 .bj-spot__hands--n1 > .bj-hand,
 .bj-mine--spot.bj-mine--n1 .bj-hand {

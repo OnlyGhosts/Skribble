@@ -351,6 +351,25 @@
   font-size: 15px;
 }
 
+/* The narrowest phones: a smaller face and clock, so the label keeps its room. */
+@media (max-width: 360px) {
+  .tbl-stage--tight .tbl-spot .timer--md {
+    width: 34px;
+    height: 34px;
+    font-size: 0.75rem;
+  }
+
+  .tbl-stage--tight .tbl-spot__face .avatar {
+    width: 22px;
+    height: 22px;
+    font-size: 13px;
+  }
+
+  .tbl-stage--tight .tbl-spot__who {
+    gap: 6px;
+  }
+}
+
 .tbl-stage--tight .tbl-me__label {
   display: none;
 }
@@ -945,8 +964,26 @@
 @container tile (max-height: 46px) {
   .tbl-tile--compact,
   .tbl-tile--compact.tbl-tile--turn {
+    --face: 22px;
     grid-template-columns: auto minmax(0, 1fr) auto;
     grid-template-areas: 'face name total';
+    column-gap: 4px;
+    padding: 3px 5px;
+  }
+
+  .tbl-tile--compact.tbl-tile--turn {
+    padding: 1.5px 3.5px;
+  }
+
+  .tbl-tile--compact .tbl-tile__name {
+    font-size: 0.72rem;
+  }
+
+  .tbl-tile--compact .tbl-tile__total .tbl-pill {
+    height: 18px;
+    min-width: 24px;
+    padding: 0 4px;
+    font-size: 0.68rem;
   }
 
   .tbl-tile--compact .tbl-tile__meta,
