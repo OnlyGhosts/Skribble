@@ -1091,7 +1091,24 @@
 
 /* A narrow compact tile: the name and the total keep the room; the stake is on the seat's sheet. */
 @container tile (max-width: 99px) {
+  .tbl-tile--compact {
+    --face: 22px;
+    column-gap: 4px;
+  }
+
   .tbl-tile--compact:not(.tbl-tile--line) .tbl-tile__meta {
+    display: none;
+  }
+
+  .tbl-tile--compact .tbl-tile__tag {
+    padding: 0 4px;
+    font-size: 0.6rem;
+  }
+}
+
+/* A corner word ("All in") needs the room the name has; the mark on the avatar says it already. */
+@container tile (max-width: 129px) {
+  .tbl-tile--compact:not(.tbl-tile--turn) .tbl-tile__tag {
     display: none;
   }
 }
@@ -1105,7 +1122,7 @@
 
 /* Small (10 to 23): avatar with a status dot and the total; the name shortened under them. */
 .tbl-tile--small {
-  /* The avatar gives up height before the name does (the name goes under 34px). */
+  /* The avatar gives up height before the name does (the name goes under 36px). */
   --face: min(24px, max(16px, calc(100cqh - 19px)));
   grid-template-columns: auto minmax(0, 1fr);
   grid-template-areas: 'face total' 'name name';
@@ -1191,17 +1208,18 @@
     padding: 3px;
   }
 
-  .tbl-tile--small .tbl-tile__name,
-  .tbl-tile--small .tbl-tile__tag {
+  .tbl-tile--small .tbl-tile__name {
     justify-self: stretch;
     min-width: 0;
   }
 
-  .tbl-tile--small .tbl-tile__tag {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    text-align: center;
-    padding: 0 2px;
+  /* No room for the Playing tag: the lime ring says it, and the name stays. */
+  .tbl-tile--small.tbl-tile--turn .tbl-tile__name {
+    display: flex;
+  }
+
+  .tbl-tile--small.tbl-tile--turn .tbl-tile__tag {
+    display: none;
   }
 
   .tbl-tile--small .tbl-tile__total {
@@ -1220,13 +1238,14 @@
   }
 }
 
-@container tile (max-height: 33px) {
+@container tile (max-height: 35px) {
   .tbl-tile--small {
     --face: min(22px, calc(100cqh - 6px));
     grid-template-areas: 'face total';
   }
 
   .tbl-tile--small .tbl-tile__name,
+  .tbl-tile--small.tbl-tile--turn .tbl-tile__name,
   .tbl-tile--small .tbl-tile__tag {
     display: none;
   }

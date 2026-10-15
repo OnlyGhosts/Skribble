@@ -1,5 +1,6 @@
 import type { BlackjackRoomState, BlackjackView } from '@shared/games/blackjack/protocol';
 import { Chips } from '../../../platform/components/Chips';
+import { tileTier } from '../../../platform/table/grid';
 import type { Tone } from '../../../platform/table/Outcome';
 import { PlayerTile, PlayersGrid, SeatSheet, type SeatLine, type SeatMark } from '../../../platform/table/PlayersGrid';
 import { playerOf } from '../hooks';
@@ -77,13 +78,19 @@ export function seatMark(line: SeatLine, hands: readonly TableHand[], settledSho
   }
 }
 
-/** The total a small tile shows (every hand's, split hands joined) and its colour. */
-function tileTotal(id: string, hands: TableHand[], timeline: Timeline, now: number, turn: boolean, handIndex: number): { text: string; tone: Tone } | null {
-  const shown = hands.map((h, i) => ({ hand: h, i, ...handOnScreen(id, i, h, timeline, now) })).filter((s) => s.total !== null);
-  if (shown.length === 0) return null;
-  // A tile is small: the best total only, never "4/14".
+/**
+ * The total a tile shows and its colour: every hand's, split hands joined ("21/15"); a small or
+ * dense tile has room for one, the hand in play (or the best one standing).
+ */
+export function tileTotal(id: string, hands: TableHand[], timeline: Timeline, now: number, turn: boolean, handIndex: number, one = false): { text: string; tone: Tone } | null {
+  const all = hands.map((h, i) => ({ hand: h, i, ...handOnScreen(id, i, h, timeline, now) })).filter((s) => s.total !== null);
+  if (all.length === 0) return null;
+  const standing = all.filter((s) => (s.total?.total ?? 0) <= 21).sort((a, b) => (b.total?.total ?? 0) - (a.total?.total ?? 0));
+  const pick = all.find((s) => turn && s.i === handIndex) ?? standing[0] ?? all[0];
+  const shown = one && all.length > 1 ? [pick] : all;
+  // The best total only, never "4/14".
   const text = shown.map((s) => totalText(s.total ?? { total: 0, soft: false }, false)).join('/');
-  const outcome = shown.every((s) => s.outcome !== null) ? seatOutcome(hands) : null;
+  const outcome = all.every((s) => s.outcome !== null) ? seatOutcome(hands) : null;
   if (outcome) return { text, tone: outcome };
   if (shown.every((s) => (s.total?.total ?? 0) > 21)) return { text, tone: 'bust' };
   if (shown.length === 1 && shown[0].hand.status === 'blackjack' && shown[0].cards.length === 2) return { text, tone: 'blackjack' };
@@ -121,6 +128,8 @@ function SeatDetail({ room, view, id, table, timeline, now, leaving, chips }: { 
  */
 export function Seats({ room, view, ids, table, timeline, now, leaving, wide, chipsOf }: Props) {
   const turnId = view.phase === 'acting' ? view.turn?.playerId : undefined;
+  const tier = tileTier(ids.length);
+  const oneTotal = tier === 'small' || tier === 'dense';
   const open = useBlackjack((s) => s.seat);
   const openSeat = useBlackjackStore.getState().openSeat;
   const dealerPlaying = Boolean(table?.settled) && !outcomesShown(timeline, now);
@@ -152,7 +161,7 @@ export function Seats({ room, view, ids, table, timeline, now, leaving, wide, ch
               outcome={settledShown ? seatOutcome(hands) : null}
               chips={chipsOf(id)}
               bet={stake > 0 ? <Chips value={stake} size={11} /> : undefined}
-              total={tileTotal(id, hands, timeline, now, turn, view.turn?.handIndex ?? 0)}
+              total={tileTotal(id, hands, timeline, now, turn, view.turn?.handIndex ?? 0, oneTotal)}
               dimmed={seat.bustedOut}
               onOpen={() => openSeat(id)}
               data={{ 'data-chips': seat.chips, 'data-bet': seat.bet }}
