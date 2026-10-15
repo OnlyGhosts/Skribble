@@ -7,12 +7,17 @@ import type { Flight } from './timeline';
 /** The marker on the places chips fly between: `data-table-anchor="pot"`, `"seat:<id>"`, `"bet:<id>"`. */
 export const ANCHOR_ATTR = 'data-table-anchor';
 
+const STRIP_INSET = 16;
+
 function centreOf(doc: Document, anchor: string): { x: number; y: number } | null {
   const el = doc.querySelector(`[${ANCHOR_ATTR}="${CSS.escape(anchor)}"]`);
   if (!el) return null;
   const r = el.getBoundingClientRect();
   if (r.width === 0 && r.height === 0) return null;
-  return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  const x = r.left + r.width / 2;
+  // A seat scrolled out of the seat strip: the chips leave from (or land at) the strip's nearer edge.
+  const strip = el.closest('.tbl-seats')?.getBoundingClientRect();
+  return { x: strip ? Math.min(Math.max(x, strip.left + STRIP_INSET), strip.right - STRIP_INSET) : x, y: r.top + r.height / 2 };
 }
 
 /** One stack of chips on its way: it starts over its source and slides to its target in whatever is left of its time. */
