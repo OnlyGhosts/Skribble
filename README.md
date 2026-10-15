@@ -149,31 +149,67 @@ verification checklist. In short:
 
 ## Deploy it
 
-### Vercel (recommended)
+Production runs on two hosts. **Vercel** serves the site from its CDN, and the game server runs on
+**one always-on Fly.io machine in London** that holds every room in its memory. Sockets there stay
+open all night: nothing cuts them on a timer and nothing splits a room between instances.
 
-Vercel serves the client from its CDN and runs the game server as one Vercel Function that speaks WebSockets (public beta, available on every plan, needs Fluid compute, which is the default). Function instances come and go, so rooms live in Redis and any instance can serve any player.
+### The game server on Fly.io
 
-1. Push this repository to GitHub and open https://vercel.com/new. **Import** the repository and choose the branch to deploy.
-2. Keep the detected settings. `vercel.json` drives everything: it builds the client with `npm run build:client`, serves `dist/client`, routes `/ws` and `/api/*` to `api/server.ts`, gives that function a 300-second max duration and asks for Fluid compute. WebSockets need Fluid compute: it is on by default for new projects, but on a project created before April 2025 (or where it was switched off) enable it under **Settings → Functions → Fluid Compute**, otherwise `/api/*` works while every `/ws` upgrade is refused.
-3. Add a Redis store: in the project, open **Storage → Marketplace** and create a Redis (the Upstash or Redis Cloud free tier is plenty). Connect it to the project so it injects `REDIS_URL` (some providers call it `KV_URL`; both are read). Without it the function logs a loud warning and falls back to in-memory rooms, which only work while every player happens to hit the same instance.
-4. **Deploy**, then share the URL. Room links look like `https://your-project.vercel.app/scribble/XK4P` (a bare `https://your-project.vercel.app/XK4P` works too: both open the front door with the code filled in).
+1. Create a Fly.io account and add a card (the trial only covers two hours of machine time; the
+   one small machine costs about $2 to $3 a month).
+2. In the [Fly dashboard](https://fly.io/dashboard) pick your organization, open **Tokens**, create
+   a token and add it to this GitHub repository as the Actions secret `FLY_API_TOKEN`.
+3. Run the **Deploy to Fly.io** workflow (Actions tab), or push a server change to `main`. The
+   first run creates the app named in `fly.toml` (`boredgames-io`, so the server is
+   `https://boredgames-io.fly.dev`) and deploys one machine. `/api/health` there answers
+   `{"ok":true,"driver":"memory",...}`.
+
+`fly.toml` keeps exactly one machine and never stops it: rooms live in that process, so do not
+scale it to two without adding a Redis first. The workflow only deploys when `server/`, `shared/`,
+the dependencies, the Dockerfile, `fly.toml` or the workflow change, because a deploy restarts the
+process and ends the rooms in progress. Avoid pushing server changes in the middle of a party.
+
+### The site on Vercel
+
+1. Import the repository at https://vercel.com/new and keep the detected settings: `vercel.json`
+   builds the client into `dist/client` and serves it.
+2. Production builds set `VITE_GAME_SERVER` to the Fly server (the `buildCommand` in `vercel.json`),
+   so the client opens its WebSocket and fetches room previews there. The server's `/api` answers
+   any origin; WebSockets need no CORS.
+3. Preview deployments leave it unset and talk to their own Vercel Function (`api/server.ts`, routed
+   from `/ws` and `/api/*`), so a branch's server changes can be tried before they ship. That
+   function is only good for a quick test: Vercel cuts every WebSocket at the function's max
+   duration (5 minutes on Hobby) and a reconnect can land on another instance, which without a
+   Redis (`REDIS_URL` or `KV_URL` from a Marketplace store) has none of the rooms. That is why
+   production moved to Fly: on Vercel alone a reconnect that landed on the wrong instance dropped
+   the player and left the room waiting for them.
 
 Good to know:
 
-- WebSockets on Vercel Functions are in public beta. A connection is cut when the function reaches its max duration (5 minutes on Hobby, close code 1006). The client reconnects at once and rejoins with its seat token (Scribble resends any strokes drawn while offline); the seat survives ten minutes without a connection and a game short of players holds at its next boundary instead of ending, so the routine cut passes with no more than a flicker of the connection pill (a "Connection lost" toast appears only when a reconnect drags past five seconds). Nothing to configure.
-- The production domain follows the production branch (`main` by default). Change it under **Settings → Git → Production Branch**; every other branch gets a preview URL.
-- Custom domain: once `boredgames.io` is registered, add it under **Settings → Domains** in the Vercel project and create the DNS records Vercel shows at the registrar. Share links use whatever origin the site is served from, so nothing in the code changes.
-- `/api/health` reports `driver: "redis"` and an approximate room count once the store is connected.
-- Adding a game needs no Vercel change: `api/server.ts` bundles whatever the game registries import.
+- Room links use the site's address, for example `https://theboredgames.vercel.app/scribble/XK4P`
+  (a bare `https://theboredgames.vercel.app/XK4P` works too: both open the front door with the code
+  filled in).
+- The production domain follows the production branch (`main`). Change it under **Settings →
+  Environments → Production → Branch Tracking**; every other branch gets a preview URL.
+- Custom domain: once `boredgames.io` is registered, add it under **Settings → Domains** in the
+  Vercel project and create the DNS records Vercel shows at the registrar. Share links use whatever
+  origin the site is served from, so nothing in the code changes.
+- `VITE_GAME_SERVER` is the only link between the two hosts. To move the server, run the Dockerfile
+  anywhere that allows WebSocket upgrades and point the variable at it.
+- Adding a game needs no deploy setup: both the Fly build and `api/server.ts` bundle whatever the
+  game registries import.
 
 ### Alternatives
 
-The app is also one Node process that needs WebSockets, so any container host works. Set `REDIS_URL` if you run more than one instance; a single instance needs nothing.
+The app is also one Node process that serves the client, `/api` and `/ws` together, so any
+container host can run the whole thing on its own. Set `REDIS_URL` if you run more than one
+instance; a single instance needs nothing.
 
-- **Railway.** Create a project from this GitHub repository; Railway detects the Dockerfile. Set the `PORT` variable to `3001` and generate a public domain in the service settings.
-- **Fly.io.** `fly launch --copy-config --yes` then `fly deploy` using the included `fly.toml`. The `deploy-fly.yml` workflow deploys on every push to `main` once you add a `FLY_API_TOKEN` secret and set the repository variable `FLY_DEPLOY_ENABLED` to `true`.
+- **Railway.** Create a project from this GitHub repository; Railway detects the Dockerfile. Set
+  the `PORT` variable to `3001` and generate a public domain in the service settings.
 - **Docker.** `docker build -t bored-games . && docker run -p 3001:3001 bored-games`.
-- **Your own server.** `npm ci && npm run build && PORT=3001 npm start` behind nginx or Caddy with WebSocket upgrades enabled.
+- **Your own server.** `npm ci && npm run build && PORT=3001 npm start` behind nginx or Caddy with
+  WebSocket upgrades enabled.
 
 Share the deployed URL with friends; room links look like `https://your-host/scribble/XK4P`.
 
@@ -241,15 +277,17 @@ server/games/      GAMES, the server registry (index.ts), and one folder per gam
                    the turn/guess/hint reducer and the canvas side store (drawing never goes through
                    the reducer; the driver hands draw/undo/clear to the store). template/ is Click
                    Race, the hidden example game every new game starts from.
-api/               server.ts, the Vercel Function: the same app exported as an http.Server (Vercel
-                   handles the WebSocket upgrade) with the Redis driver and no static files.
+api/               server.ts, the Vercel Function that preview deployments talk to: the same app
+                   exported as an http.Server (Vercel handles the WebSocket upgrade), Redis when a
+                   store is connected, no static files. Production uses the Fly.io machine instead.
 client/src/platform/ React 19 + zustand. game.ts is the client contract (GameClientModule: Screen,
                    SettingsFields, playerBadge/playerMeta/playerClassName, ChatInput, chatPlaceholder,
                    onServerMessage, onWelcome, onRoom, onChat, onLeave) and registry.ts the slot the
                    games are installed into by main.tsx (the platform never imports a game). router.ts
                    maps '/' (the front door), '/:slug/:CODE' and legacy '/:CODE' (the front door with
                    the code filled in) and '/:slug' (redirects to '/') with pushState; store/ holds
-                   the connection, seat, room, chat, toasts and prefs; net/socket.ts is the one
+                   the connection, seat, room, chat, toasts and prefs; net/server.ts says where the
+                   game server is (VITE_GAME_SERVER, else the page's own origin); net/socket.ts is the one
                    WebSocket with auto-reconnect that hands game messages and welcome extras to the
                    room's module; screens/ are Home and Lobby; components/ is the design system
                    (SiteHeader, Wordmark, Mascots, GameGlyph/GameMark, Avatar, AvatarPicker, CodeInput,

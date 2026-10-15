@@ -51,4 +51,22 @@ describe('static client with an SPA fallback', () => {
     expect(await (await fetch(`${baseUrl}/api/health`)).json()).toMatchObject({ ok: true });
     expect(await (await fetch(`${baseUrl}/api/rooms/AB2K`)).json()).toMatchObject({ exists: false });
   });
+
+  it('lets a site on another origin read the API (the client on Vercel, the server on Fly)', async () => {
+    const origin = 'https://theboredgames.vercel.app';
+    const preview = await fetch(`${baseUrl}/api/rooms/AB2K`, { headers: { origin, accept: 'application/json' } });
+    expect(preview.headers.get('access-control-allow-origin')).toBe('*');
+    expect(await preview.json()).toMatchObject({ exists: false });
+
+    const preflight = await fetch(`${baseUrl}/api/rooms/AB2K`, {
+      method: 'OPTIONS',
+      headers: { origin, 'access-control-request-method': 'GET', 'access-control-request-headers': 'accept' },
+    });
+    expect(preflight.status).toBe(204);
+    expect(preflight.headers.get('access-control-allow-origin')).toBe('*');
+    expect(preflight.headers.get('access-control-allow-methods')).toContain('GET');
+
+    // Pages are not part of the API: no CORS header on the app itself.
+    expect((await fetch(`${baseUrl}/skribble`, { headers: { origin } })).headers.get('access-control-allow-origin')).toBeNull();
+  });
 });

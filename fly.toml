@@ -1,6 +1,18 @@
-# Fly.io config: `fly launch --copy-config --yes` then `fly deploy`.
-app = "bored-games"
+# Fly.io config for the game server: ONE always-on machine in London that holds every room in
+# memory and keeps each WebSocket open all night. The site itself stays on Vercel, whose
+# production build points the client here (VITE_GAME_SERVER in vercel.json).
+#
+# One machine, never two: rooms live in this process's memory (no REDIS_URL), so a second machine
+# would split the players of a room between them. The deploy workflow passes --ha=false and
+# scales to one; never `fly scale count 2` without adding a Redis first.
+#
+# Deploys come from .github/workflows/deploy-fly.yml once the FLY_API_TOKEN repository secret
+# exists (the first run creates the app). By hand: `fly deploy --ha=false`. A deploy restarts the
+# process, which ends the rooms in progress, so the workflow only runs for server-side changes.
+app = "boredgames-io"
 primary_region = "lhr"
+# Headroom for a spike instead of an out-of-memory kill, which would end every room.
+swap_size_mb = 256
 
 [build]
   dockerfile = "Dockerfile"
@@ -12,9 +24,18 @@ primary_region = "lhr"
 [http_service]
   internal_port = 3001
   force_https = true
-  auto_stop_machines = "stop"
+  # Always on: a stopped machine drops every room (a party on a break included) and makes the
+  # first player of the evening wait for a cold start.
+  auto_stop_machines = "off"
   auto_start_machines = true
-  min_machines_running = 0
+  min_machines_running = 1
+
+  # Every player holds a WebSocket open all night; Fly's default of 25 connections a machine
+  # would turn a second party away.
+  [http_service.concurrency]
+    type = "connections"
+    soft_limit = 500
+    hard_limit = 1000
 
   [[http_service.checks]]
     interval = "30s"

@@ -1,24 +1,54 @@
-# Deploys to Fly.io on every push to main once the FLY_API_TOKEN repository secret exists.
-# Setup (once): `fly launch --copy-config --no-deploy` locally, then `fly tokens create deploy -x 999999h`
-# and add the token as the FLY_API_TOKEN secret in the repository settings.
+# Deploys the game server to Fly.io: one always-on machine in London (see fly.toml).
+#
+# Runs once the FLY_API_TOKEN repository secret exists: an org token from the Fly dashboard
+# (your organization, then Tokens). The first run creates the app named in fly.toml. Only pushes
+# that change the server deploy: a deploy restarts the process and ends the rooms in progress,
+# and client-only changes ship through Vercel without touching it.
 name: Deploy to Fly.io
 
 on:
   push:
     branches: [main]
+    paths:
+      - 'server/**'
+      - 'shared/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'Dockerfile'
+      - 'fly.toml'
+      - '.github/workflows/deploy-fly.yml'
   workflow_dispatch:
 
 concurrency:
   group: fly-deploy
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    if: ${{ vars.FLY_DEPLOY_ENABLED == 'true' }}
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
     steps:
+      - name: No Fly token yet
+        if: env.FLY_API_TOKEN == ''
+        run: echo "FLY_API_TOKEN is not set, so there is nothing to deploy to."
       - uses: actions/checkout@v4
+        if: env.FLY_API_TOKEN != ''
       - uses: superfly/flyctl-actions/setup-flyctl@master
-      - run: flyctl deploy --remote-only
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        if: env.FLY_API_TOKEN != ''
+      - name: Create the app on the first run
+        if: env.FLY_API_TOKEN != ''
+        run: |
+          app=$(sed -nE 's/^app *= *"([^"]+)".*/\1/p' fly.toml)
+          if flyctl status --app "$app" > /dev/null 2>&1; then
+            echo "$app exists"
+          else
+            flyctl apps create "$app" --org personal
+          fi
+      - name: Deploy one machine
+        if: env.FLY_API_TOKEN != ''
+        run: flyctl deploy --remote-only --ha=false
+      # Rooms live in the machine's memory: a second machine would split them.
+      - name: Keep exactly one machine
+        if: env.FLY_API_TOKEN != ''
+        run: flyctl scale count 1 --yes

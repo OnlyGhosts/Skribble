@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { isGameId, type GameId } from '@shared/platform/games';
 import { ROOM_PREVIEW_PATH, type RoomPreview as WirePreview } from '@shared/platform/protocol';
 import { isValidRoomCode } from '@shared/platform/roomCode';
+import { apiUrl } from '../net/server';
 
 /** The wire `RoomPreview` with safe defaults; the game id tells which game home a bare code belongs to. */
 export type RoomPreview = { exists: false } | { exists: true; gameId: GameId; players: number; maxPlayers: number; inProgress: boolean; joinable: boolean };
@@ -33,7 +34,7 @@ export function parsePreview(v: unknown): RoomPreview | null {
 export async function fetchPreview(code: string, signal?: AbortSignal): Promise<RoomPreview | null> {
   const init: RequestInit = { headers: { accept: 'application/json' } };
   if (signal) init.signal = signal;
-  const res = await fetch(`${ROOM_PREVIEW_PATH}/${encodeURIComponent(code)}`, init);
+  const res = await fetch(apiUrl(`${ROOM_PREVIEW_PATH}/${encodeURIComponent(code)}`), init);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return parsePreview((await res.json()) as unknown);
 }

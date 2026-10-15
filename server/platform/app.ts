@@ -37,6 +37,17 @@ export function createApp(options: AppOptions): App {
   app.disable('x-powered-by');
   app.set('etag', false);
 
+  // The site can be served from another host than this server (Vercel's CDN in front of one Fly.io
+  // machine), so the read-only /api endpoints answer any origin. WebSocket upgrades need no CORS.
+  app.use('/api', (req: Request, res: Response, next: NextFunction) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    if (req.method !== 'OPTIONS') return next();
+    res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'accept, content-type');
+    res.setHeader('Access-Control-Max-Age', '86400');
+    res.status(204).end();
+  });
+
   // Handlers return the driver's promise (if any) so Express 5 routes a rejection to its error handler.
   app.get('/api/health', (_req: Request, res: Response) =>
     after(driver.health(), (health) => {

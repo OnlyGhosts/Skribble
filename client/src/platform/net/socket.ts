@@ -1,7 +1,6 @@
 import {
   CLOSE_REMOVED,
   CLOSE_REPLACED,
-  WS_PATH,
   isPlatformServerMessage,
   isWireMessage,
   type PlatformClientMessage,
@@ -14,6 +13,7 @@ import { platformRoomSounds } from '../lib/platformSounds';
 import { registeredGame } from '../registry';
 import { codeFromLocation } from '../router';
 import { usePlatformStore } from '../store/usePlatformStore';
+import { wsUrl } from './server';
 
 const BACKOFF_MIN_MS = 500;
 const BACKOFF_MAX_MS = 8000;
@@ -38,11 +38,6 @@ const MAX_SANE_RTT_MS = 2_000;
 
 /** Application close codes the server uses; one definition for both sides. */
 export { CLOSE_REMOVED, CLOSE_REPLACED };
-
-export function wsUrl(): string {
-  const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
-  return `${protocol}://${location.host}${WS_PATH}`;
-}
 
 interface Seat {
   code: string;
