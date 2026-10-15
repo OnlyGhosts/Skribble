@@ -1707,7 +1707,7 @@ is the reference for a scrolling column with a canvas and a keys panel.
 
 | Component | Props | Notes |
 | --- | --- | --- |
-| [`SiteHeader`](../client/src/platform/components/SiteHeader.tsx) | `menuActions?: MenuAction[]`, `aside?`, `hero?` | The wordmark links to `/` (inside a room that leaves the room: any navigation away from `/:slug/:CODE` does); the connection pill while the socket is down (nothing while connected) and the settings gear, whose popover lists `menuActions` under the preferences (the lobby's Copy invite link and Leave room); `hero` is the front door's full-width wordmark with the mascots in `aside` perched on its right end |
+| [`SiteHeader`](../client/src/platform/components/SiteHeader.tsx) | `menuActions?: MenuAction[]`, `hero?` | The logo (the two phones as its icon, then the wordmark) links to `/` (inside a room that leaves the room: any navigation away from `/:slug/:CODE` does); the connection pill while the socket is down (nothing while connected) and the settings gear, whose popover lists `menuActions` under the preferences (the lobby's Copy invite link and Leave room); `hero` is the front door's logo filling the column's width under the gear |
 | [`Wordmark`](../client/src/platform/components/Wordmark.tsx) | `className?` | The outlined boredgames.io logo (Poppins Black + Regular paths) inline, accessible name "boredgames.io", "games" in `--color-primary-text` |
 | [`PhoneBored`](../client/src/platform/components/Mascots.tsx) / `PhoneHappy` | `className?` | The two phone characters from the brand pack, decorative (`aria-hidden`); Home and celebrations only |
 | [`GameGlyph`](../client/src/platform/components/GameGlyph.tsx) | `game: GameMeta`, icon props | The game's 24px line glyph (the lobby tiles draw it at 32px) |

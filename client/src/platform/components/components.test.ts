@@ -271,7 +271,7 @@ describe('front door', () => {
     }
   });
 
-  it('has no tagline, sub-line or footer: the wordmark, the mascots, Join a room and Create a room only', () => {
+  it('has no tagline, sub-line or footer: the logo, Join a room and Create a room only', () => {
     const html = renderToString(createElement(Home, { code: null, game: null }));
     // One column as on the brand board: no panel boxes, no "Create a room" heading, no helper line.
     expect(html).not.toContain('Pick the game once you');
@@ -300,20 +300,21 @@ describe('front door', () => {
     const desktop = mediaBlock(css, '(min-width: 768px)');
     expect(desktop.slice(desktop.indexOf('{'))).not.toMatch(/[^-]width:/);
     expect(desktop).not.toContain('grid-template-columns');
+    // On a wide screen the column sits in the middle of the page, top to bottom.
+    expect(desktop).toMatch(/\.home \{[^}]*justify-content: center/);
   });
 
-  it('perches the happy lime phone, then the bored lilac one, on the right end of the wordmark, small and angled', () => {
+  it('shows the phones only as the logo icon, not as a separate decoration beside it', () => {
     const html = renderToString(createElement(Home, { code: null, game: null }));
-    const mascots = html.slice(html.indexOf('home__mascots'));
-    expect(mascots.indexOf('mascot--happy')).toBeLessThan(mascots.indexOf('mascot--bored'));
-    // Inside the wordmark's box, so they sit on it rather than beside it.
-    expect(html.indexOf('home__mascots')).toBeGreaterThan(html.indexOf('data-testid="wordmark"'));
-    expect(html.indexOf('home__mascots')).toBeLessThan(html.indexOf('site-header__actions'));
-    const css = stylesheet('home.css');
-    expect(ruleOf(css, '.home__mascots')).toContain('position: absolute');
-    expect(ruleOf(css, '.home__mascots')).toContain('right: 1%');
-    expect(ruleOf(css, '.home__mascots .mascot--happy')).toContain('rotate(-9deg)');
-    expect(ruleOf(css, '.home__mascots .mascot--bored')).toContain('rotate(7deg)');
+    expect(html).not.toContain('home__mascots');
+    expect(html.match(/class="wordmark__icon"/g)?.length).toBe(1);
+  });
+
+  it('lights a typed box of the room code up lime, as the lobby shows the code', () => {
+    const filled = ruleOf(stylesheet('home.css'), '.home .code-input__box:not(:placeholder-shown)');
+    expect(filled).toContain('background: var(--color-primary)');
+    expect(filled).toContain('color: var(--color-primary-contrast)');
+    expect(ruleOf(stylesheet('home.css'), '.panel__code')).toContain('background: var(--color-primary)');
   });
 
   it('cleans a name the way the handlers want it', () => {
@@ -328,7 +329,8 @@ describe('wordmark and mascots', () => {
     expect(html).toContain('<title');
     expect(html).toContain('boredgames.io</title>');
     expect(html).toContain('role="img"');
-    expect(html.match(/<path /g)?.length).toBe(2);
+    // Two text paths ("bored" + ".io", then "games") after the icon.
+    expect(html.match(/<path [^>]*fill="currentColor"/g)?.length).toBe(2);
     expect(html).toContain('class="wordmark__accent"');
     expect(html).not.toContain('<text');
     expect(html).not.toMatch(/font-family/);
@@ -560,6 +562,13 @@ describe('lobby', () => {
     expect(markup).not.toContain('data-testid="copy-link"');
     expect(markup).not.toContain('data-testid="leave-room"');
     expect(tagWith(markup, 'settings-menu')).toBeTruthy();
+  });
+
+  it('shows the room code on a lime block with ink letters, so it stands out to read aloud', () => {
+    const value = ruleOf(stylesheet('lobby.css'), '.room-card__value');
+    expect(value).toContain('background: var(--color-primary)');
+    expect(value).toContain('color: var(--color-primary-contrast)');
+    expect(value).toContain('align-self: flex-start');
   });
 
   it('lists the players as rows: avatar, name, and a check with Ready on the right', () => {

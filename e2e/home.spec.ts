@@ -90,13 +90,15 @@ test('the front door has exactly two action paths, four visible boxes and no cat
   // The wordmark is outlined vector art with an accessible name, never live text or a controller icon.
   const header = host.page.getByTestId('site-header');
   await expect(header.getByRole('img', { name: 'boredgames.io' })).toBeVisible();
-  await expect(header.locator('svg[data-testid="wordmark"] path')).toHaveCount(2);
+  await expect(header.locator('svg[data-testid="wordmark"] > path')).toHaveCount(2);
   await expect(header.locator('svg[data-testid="wordmark"] text')).toHaveCount(0);
   await expect(header.locator('.brand__mark')).toHaveCount(0);
   // The theme lives in the settings menu behind the gear, not as a header button of its own.
   await expect(header.getByTestId('settings-menu')).toBeVisible();
   await expect(host.page.getByTestId('theme-toggle')).toHaveCount(0);
-  await expect(header.locator('.home__mascots .mascot')).toHaveCount(2);
+  // The two phones are the logo's icon, inside the same SVG, left of the text.
+  await expect(header.locator('svg[data-testid="wordmark"] .wordmark__icon')).toHaveCount(1);
+  await expect(host.page.locator('.home__mascots')).toHaveCount(0);
 
   // No tagline, no sub-line, no footer.
   await expect(host.page.getByText('Less bored')).toHaveCount(0);
@@ -525,17 +527,21 @@ for (const width of [320, 390, 700, 768, 1440]) {
     const gap = (createBtn?.y ?? 0) - ((joinBtn?.y ?? 0) + (joinBtn?.height ?? 0));
     expect(gap, 'Create a room sits right under Join').toBeGreaterThanOrEqual(0);
     expect(gap).toBeLessThanOrEqual(16);
-    // The wordmark fills the column; the mascots perch on its right end, small, overlapping its top a little.
+    // The logo (the phones, then the text) fills the column, above Join a room.
     const mark = await page.getByTestId('site-header').getByTestId('wordmark').boundingBox();
     expect(Math.abs((mark?.width ?? 0) - (joinBtn?.width ?? 0))).toBeLessThanOrEqual(1);
-    const mascots = await page.locator('.home__mascots').boundingBox();
-    expect(mascots?.x ?? 0, 'the mascots stand on the right half of the wordmark').toBeGreaterThanOrEqual((mark?.x ?? 0) + (mark?.width ?? 0) / 2);
-    expect((mascots?.x ?? 0) + (mascots?.width ?? 0)).toBeLessThanOrEqual((mark?.x ?? 0) + (mark?.width ?? 0) + 1);
-    const mascotsBottom = (mascots?.y ?? 0) + (mascots?.height ?? 0);
-    expect(mascotsBottom, 'their feet reach the top of the letters').toBeGreaterThan(mark?.y ?? 0);
-    expect(mascotsBottom, 'and never cover them').toBeLessThanOrEqual((mark?.y ?? 0) + (mark?.height ?? 0) * 0.45);
-    expect(mascots?.height ?? 0, 'small').toBeLessThanOrEqual(120);
-    expect(mascotsBottom, 'the mascots stay above Join a room').toBeLessThanOrEqual(join?.y ?? 0);
+    const icon = await page.getByTestId('site-header').locator('.wordmark__icon').boundingBox();
+    expect(icon?.x ?? -1, 'the icon starts the logo').toBeLessThanOrEqual((mark?.x ?? 0) + (mark?.width ?? 0) * 0.05);
+    expect((icon?.x ?? 0) + (icon?.width ?? 0), 'and stays left of the text').toBeLessThanOrEqual((mark?.x ?? 0) + (mark?.width ?? 0) * 0.2);
+    expect(icon?.height ?? 0, 'about as tall as the letters').toBeGreaterThanOrEqual((mark?.height ?? 0) * 0.8);
+    expect((mark?.y ?? 0) + (mark?.height ?? 0), 'the logo stays above Join a room').toBeLessThanOrEqual(join?.y ?? 0);
+    if (width >= 768) {
+      // On wide screens the column sits in the middle of the page, top to bottom.
+      const top = (await page.getByTestId('site-header').boundingBox())?.y ?? 0;
+      const below = height - ((createBtn?.y ?? 0) + (createBtn?.height ?? 0));
+      expect(top, 'the column is pushed down from the top').toBeGreaterThanOrEqual(100);
+      expect(Math.abs(top - below), 'as much room above the column as below it').toBeLessThanOrEqual(24);
+    }
     if (width < 768) {
       expect((createBtn?.y ?? 0) + (createBtn?.height ?? 0), 'Create a room sits inside the first screen').toBeLessThanOrEqual(height);
     }

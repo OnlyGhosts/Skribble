@@ -7,7 +7,6 @@ import { SITE_NAME } from '@shared/platform/site';
 import { AvatarPicker } from '../components/AvatarPicker';
 import { CodeInput, type CodeInputHandle } from '../components/CodeInput';
 import { AlertIcon, LinkIcon } from '../components/Icons';
-import { MotionLines, PhoneBored, PhoneHappy } from '../components/Mascots';
 import { SiteHeader } from '../components/SiteHeader';
 import { enteredLength, padCode } from '../lib/codeInput';
 import type { JoinErrorCode } from '../lib/format';
@@ -206,16 +205,7 @@ export function Home({ code: linkedCode, game: linkedGame }: Props) {
 
   return (
     <div className="home">
-      <SiteHeader
-        hero
-        aside={
-          <span className="home__mascots" aria-hidden="true">
-            <MotionLines />
-            <PhoneHappy className="mascot--happy" />
-            <PhoneBored className="mascot--bored" />
-          </span>
-        }
-      />
+      <SiteHeader hero />
 
       <main className="home__main">
         <h1 className="sr-only">{SITE_NAME}</h1>

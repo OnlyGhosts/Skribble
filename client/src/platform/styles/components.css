@@ -40,12 +40,12 @@
   color: var(--color-primary-text);
 }
 
-/* ---------- Wordmark (outlined Space Grotesk paths, never live text) ---------- */
+/* ---------- Logo: the two phones as an icon, then the outlined Poppins wordmark (never live text) ---------- */
 .wordmark {
   display: block;
   height: var(--wordmark-height, 24px);
   width: auto;
-  aspect-ratio: 738.8 / 115.8;
+  aspect-ratio: 890.8 / 115.8;
   color: var(--color-text);
   flex: none;
 }
@@ -60,6 +60,11 @@
   align-items: center;
   gap: 10px;
   min-height: 44px;
+}
+
+/* The phone characters drawn on their own (the podium's happy phone). */
+.mascot {
+  display: block;
 }
 
 /* ---------- Buttons ---------- */
@@ -1559,7 +1564,7 @@
   }
 }
 
-/* ---------- Site header: wordmark (24px tall on phones, 30px on desktop), status pill, gear ---------- */
+/* ---------- Site header: logo (24px tall on phones, 30px on desktop), status pill, gear ---------- */
 .site-header {
   display: flex;
   align-items: center;
@@ -1595,10 +1600,7 @@
   }
 }
 
-/*
- * The front door: the status pill and gear on a small row at the top right, then the wordmark
- * filling the column's width with the aside (the mascots) perched on its right end.
- */
+/* The front door: the status pill and gear on a small row at the top right, then the logo filling the column's width. */
 .site-header--hero {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -1611,14 +1613,11 @@
 .site-header--hero .site-header__brand {
   grid-area: brand;
   display: block;
-  position: relative;
 }
 
 .site-header--hero .brand {
   display: block;
   width: 100%;
-  position: relative;
-  z-index: 1;
 }
 
 .site-header--hero .wordmark {

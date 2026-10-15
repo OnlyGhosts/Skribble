@@ -17,56 +17,6 @@
   gap: var(--space-4);
 }
 
-/*
- * The two phones perch on the right end of the wordmark, small and slightly angled, their feet
- * overlapping the top of "games.io" a little. Sizes follow the column width so they keep their
- * place on the wordmark at any width.
- */
-.home__mascots {
-  position: absolute;
-  right: 1%;
-  bottom: 35%;
-  z-index: 2;
-  display: flex;
-  align-items: flex-end;
-  width: 36%;
-  pointer-events: none;
-}
-
-.home__mascots .mascot {
-  width: 41%;
-  height: auto;
-}
-
-.home__mascots .mascot--happy {
-  transform: rotate(-9deg);
-  margin-left: 12%;
-}
-
-.home__mascots .mascot--bored {
-  transform: rotate(7deg) translateY(4%);
-  margin-left: 2%;
-}
-
-.mascot-lines {
-  position: absolute;
-  left: -4%;
-  top: 2%;
-  width: 18%;
-  height: auto;
-}
-
-.mascot {
-  display: block;
-  height: 70px;
-  width: auto;
-}
-
-/* Room above the wordmark for the phones standing on it. */
-.home .site-header--hero .site-header__brand {
-  padding-top: 18%;
-}
-
 /* ---------- Join a room: heading, the four boxes, Join, then Create a room right under it ---------- */
 .home__start {
   display: flex;
@@ -110,6 +60,23 @@
 
 .home .code-input__box:focus {
   border-color: var(--color-primary-text);
+}
+
+/* A typed character lights its box up lime, the same block the lobby shows the code on. */
+.home .code-input__box:not(:placeholder-shown) {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-primary-contrast);
+}
+
+.home .code-input__box:not(:placeholder-shown):focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-bg), 0 0 0 5px var(--color-primary-text);
+}
+
+.home .code-input__box:not(:placeholder-shown)::selection {
+  background: var(--color-primary-contrast);
+  color: var(--color-primary);
 }
 
 .home .code-input.is-invalid .code-input__box {
@@ -192,9 +159,12 @@
 }
 
 .panel__code {
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--color-primary);
+  color: var(--color-primary-contrast);
   font-family: var(--font-mono);
   font-weight: 600;
-  color: var(--color-primary-text);
   letter-spacing: 0.06em;
 }
 
