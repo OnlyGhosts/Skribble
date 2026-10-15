@@ -202,14 +202,16 @@ used by Blackjack and Poker: `TableShell` (the top bar, one row on a phone; the 
 panel under it on a phone and in a left column on a desktop, the chat on the right, the players /
 chat / options sheets), the felt laid out as a stage that never scrolls (`.tbl-felt.tbl-stage`:
 the centre piece row `.tbl-felt__top`, the ribbon, the spotlight, the players, my hand
-`.tbl-stage__mine`; `useTightStage` in `stage.ts` packs it tighter on a short phone or a big
-table), `Deck` and `DiscardTray` (the anchors cards fly from and to), `TableRibbon`, `Spotlight`
+`.tbl-stage__mine`; `useTightStage` in `stage.ts` packs it tighter on a short phone, a shorter
+phone from five other players, and any screen from ten), `Deck` and `DiscardTray` (the anchors cards fly from and to), `TableRibbon`, `Spotlight`
 (centre stage: the hand being played large, whose turn it is with their avatar, the turn clock and
 who is next; the game picks its subject per phase, and the viewer's own hand moves up into it on
 their turn), `PlayersGrid` / `PlayerTile` / `SeatSheet` (every other player as a tile in seat order
 in a grid that fits its space: [`grid.ts`](../client/src/platform/table/grid.ts) steps the tiles
 down from full to compact, small and dense as the table grows and fits the columns to the room
-left, a desktop sets them on a gentle arc; the seat on turn gets the lime ring and the Playing tag,
+left, never narrower than the tier's `minWidth` so names and totals stay whole (a short tile drops
+its second line instead; a narrow small tile wears its total as a badge on its corner), a desktop
+sets them on a gentle arc that flattens as the tiles get smaller; the seat on turn gets the lime ring and the Playing tag,
 a settled seat its outcome's colour, and tapping a tile opens its hand in a sheet),
 `PanelShell` / `PanelLabelRow` / `AmountField` / `PanelMoves` / `MoveButton` (the control panel:
 the status line, the amount with its quick amounts joined to it, the moves always in place and
@@ -222,7 +224,11 @@ typing). The animations run off a timeline planned from two snapshots
 game's own planner, then `cardShown`, `faceDown`, `departure`, `valueAt`, `flightsAt`, `frameAt`...
 to draw it); a welcome (`createEntryFlag`), reduced motion or a backlog over three seconds shows
 the truth at once. Blackjack's [`lib/timeline.ts`](../client/src/games/blackjack/lib/timeline.ts) and
-Poker's [`lib/timeline.ts`](../client/src/games/poker/lib/timeline.ts) are the two planners.
+Poker's [`lib/timeline.ts`](../client/src/games/poker/lib/timeline.ts) are the two planners. A
+planner keeps a whole deal under that backlog however big the table (Blackjack's pace is shared
+with the server in [`shared/games/blackjack/deal.ts`](../shared/games/blackjack/deal.ts), whose
+`dealAllowanceMs` the first turn's clock gets on top, as Poker's `reveal.ts` does for its showdown),
+and a game's sound schedule is cleared when a plan snaps, so no stale card sound plays after it.
 
 ---
 
@@ -1577,7 +1583,9 @@ Redo is the client's: the drawer's own undos go on the store's `redoable` stack 
 draws the newest one again as a fresh stroke through the ordinary draw path (a new id from
 `nextStrokeId()`, so the server and late joiners take it like any other stroke); a new stroke,
 a clear or a resync forgets the stack, and a segmented canvas drops it at a new segment
-(`store.getState().dropRedo()`). Leave `onRedo` out and the toolbar has no redo button.
+(`store.getState().dropRedo()`). Leave `onRedo` out and the toolbar has no redo button. The
+colours are one row that always fits (`Palette`): the board's seven and a More colours swatch that
+opens the rest of the palette (white among them) and the custom picker above the row.
 The renderer, flood fill, the drawing hook, the batching `DrawQueue` with its offline parking and
 the toolbar's 44px phone styles (`canvas.css`) all live there; Scribble's whole opt-in is
 [`client/src/games/skribble/canvas.ts`](../client/src/games/skribble/canvas.ts).
@@ -1736,7 +1744,7 @@ is the reference for a scrolling column with a canvas and a keys panel.
 | [`Wordmark`](../client/src/platform/components/Wordmark.tsx) | `className?` | The outlined boredgames.io logo (Poppins Black + Regular paths) inline, accessible name "boredgames.io", "games" in `--color-primary-text` |
 | [`PhoneBored`](../client/src/platform/components/Mascots.tsx) / `PhoneHappy` | `className?` | The two phone characters from the brand pack, decorative (`aria-hidden`); Home and celebrations only |
 | [`GameGlyph`](../client/src/platform/components/GameGlyph.tsx) | `game: GameMeta`, icon props | The game's 24px line glyph (the lobby tiles draw it at 32px) |
-| [`GameTopBar`](../client/src/platform/components/GameTopBar.tsx) | `meta`, `room`, `isPhone`, `testId`, `className?`, `status`, `statusTestId?` ('round-indicator'), `statusData?`, `clock?`, `players: { label?, open, onOpen }`, `chat?: { open, onOpen }`, `menu: { open, onOpen }`, `extra?`, `actions?`, `middle?`, `below?` | Every game's top bar as on the brand board (`gamebar.css`, `.gbar*`): a back arrow (`game-back`, it asks before leaving: `leave-sheet`, `game-leave-yes`), the game's name large and the status on the right ("Round 2/3"), then `extra`, chat and the options button (a phone) or the connection pill, `actions` (End game) and the gear (a desktop). Below, the player chips (`PlayerChips`: avatar, name, a status badge from your `playerStatus`; the row is the `players-toggle` button and never scrolls, a "+K" chip takes what does not fit) and the timer ring at the end. Leave `chat` out where the chat is already on screen (a desktop column, Scribble's guess feed). Wrap the less important half of the status in `<span className="gbar__more">` and it shows on wider screens only. `TableShell` renders it for the card tables |
+| [`GameTopBar`](../client/src/platform/components/GameTopBar.tsx) | `meta`, `room`, `isPhone`, `testId`, `className?`, `status`, `statusTestId?` ('round-indicator'), `statusData?`, `clock?`, `players: { label?, open, onOpen }`, `chat?: { open, onOpen }`, `menu: { open, onOpen }`, `extra?`, `actions?`, `middle?`, `below?` | Every game's top bar as on the brand board (`gamebar.css`, `.gbar*`): a back arrow (`game-back`, it asks before leaving: `leave-sheet`, `game-leave-yes`), the game's name large and the status on the right ("Round 2/3"), then `extra`, chat and the options button (a phone) or the connection pill, `actions` (End game) and the gear (a desktop). Below, the player chips (`PlayerChips`: avatar, name, a status badge from your `playerStatus`; the row is the `players-toggle` button and never scrolls, a "+K" chip takes what does not fit) and the timer ring at the end. Leave `chat` out where the chat is already on screen (a desktop column, Scribble's guess feed). Wrap the less important half of the status in `<span className="gbar__more">` and it shows on wider screens only; on a phone the status stays on one line beside the whole name, and the part wrapped in `Wide` (`RoundStatus` renders "Round 1/5" that way) gives way on the narrowest ("1/5"). `TableShell` renders it for the card tables |
 | `GameMenuSheet` | `open`, `onClose()`, `children?` | The phone options sheet behind the bar's menu button: theme and sound, your rows (the host's End game), Leave room (`menu-sheet`) |
 | [`ResultPoints`](../client/src/platform/components/RoundResult.tsx) / `ResultNext` / `earnersOf` | `rows`, `label`, `rowTestId?`, `empty` / `noun`, `endsAt`, `paused`, `settling`, `testId` / `players`, `points` | A round or turn result (`results.css`): put them in an `.overlay__card.result-card` after a `.result-kicker` (how it ended, on the game's accent) and a `.result-reveal` (the word, the spy); the points list shows avatar, name, role tag and `+points`; the footer counts down to the next turn, paused or "starting" when the time is up |
 | [`SettingsMenu`](../client/src/platform/components/Preferences.tsx) / `PreferenceRows` | `actions?: MenuAction[]` / none | The gear and its popover (theme, sound effects, then the actions: `{ label, icon, onSelect, testId }`); the rows alone go in a phone options sheet |
