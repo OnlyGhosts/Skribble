@@ -8,6 +8,7 @@
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
 import { renderToString } from 'react-dom/server';
@@ -593,7 +594,7 @@ describe('the spotlight', () => {
     expect(attr(spot, 'data-kind')).toBe('turn');
     expect(attr(spot, 'data-player-id')).toBe('host');
     expect(spot).toContain('tbl-spot--tone-active');
-    expect(html).toContain('tbl-spot__name">Hana</span><span class="tbl-spot__rest">&#x27;s turn<');
+    expect(html).toContain('tbl-spot__name tbl-spot__name--short">Hana</span><span class="tbl-spot__rest">&#x27;s turn<');
     expect(html).toContain('data-testid="spot-next">Next: <!-- -->You<');
     expect(tagsWith(html, 'spot-hand')).toHaveLength(1);
     expect(tagsWith(html, 'my-hands')).toHaveLength(1);
@@ -627,6 +628,35 @@ describe('the spotlight', () => {
     expect(spot.slice(0, spot.indexOf('</section>'))).toMatch(/data-testid="timer"[\s\S]*>–</);
     expect(tagsWith(html, 'dealer-hand')).toHaveLength(1);
     expect(html.indexOf('data-testid="dealer-hand"')).toBeGreaterThan(html.indexOf('data-testid="spotlight"'));
+  });
+
+  it('split hands in the spotlight share its width: each hand knows how many hands and cards there are, and the cards fit (never off the edge)', () => {
+    const mine = acting({
+      turn: { playerId: 'host', handIndex: 1 },
+      players: { ...acting().players, host: { chips: 980, bet: 10, hands: [hand([c('8'), c('3'), c('10')], { total: 21, status: 'stood', fromSplit: true }), hand([c('8'), c('2'), c('5')], { total: 15, status: 'acting', fromSplit: true })], inRound: true, bustedOut: false } },
+    });
+    const html = render(bjRoom(mine), 'host');
+    expect(attr(tagWith(html, 'spotlight'), 'class')).toContain('tbl-spot--stack');
+    expect(tagWith(html, 'my-hands')).toContain('style="--hands:2;--fan:3"');
+    const other = render(bjRoom(mine), 'bob');
+    expect(other).toMatch(/class="bj-spot__hands bj-spot__hands--n2" style="--hands:2;--fan:3"/);
+    // The stylesheet sizes the cards from the spotlight's width: with two hands each gets half,
+    // less 72px for its total over its stake, and every card after the first adds 0.45 of a card.
+    const css = readFileSync(fileURLToPath(new URL('./blackjack.css', import.meta.url)), 'utf8');
+    expect(css).toContain('--fit-w: calc(((100cqw - var(--space-2)) / 2 - 72px) / (1 + 0.45 * (var(--fan, 2) - 1)));');
+    expect(css).toContain('--tbl-w: min(calc(var(--bj-spot-w) * 0.8), var(--fit-w));');
+    // The chrome beside the cards: a 46px column, a 6px gap, the padding and the outline fit the 72px.
+    expect(css).toMatch(/grid-template-columns: 46px auto;/);
+    // Measured on phones (the spotlight body at 320, 360 and 390 wide): three cards each always fit their half.
+    for (const body of [284, 320, 350])
+      for (const fan of [3, 4, 6]) {
+        const fit = ((body - 8) / 2 - 72) / (1 + 0.45 * (fan - 1));
+        const w = Math.min(60 * 0.8, fit);
+        expect(46 + 6 + 8 + 4 + w * (1 + 0.45 * (fan - 1)), `${body}px, ${fan} cards`).toBeLessThanOrEqual((body - 8) / 2);
+      }
+    // My half of a tight top row fits my cards the same way (a 4-card hand used to lose its last card).
+    expect(css).toContain('--fit-w: calc(((100cqw - 24px - (var(--hands, 1) - 1) * var(--space-2)) / var(--hands, 1) - 58px) / (1 + 0.45 * (var(--fan, 2) - 1)));');
+    expect(readFileSync(fileURLToPath(new URL('../../platform/styles/table.css', import.meta.url)), 'utf8')).toMatch(/\.tbl-stage--tight \.tbl-stage__mine \{[^}]*container-type: inline-size;/);
   });
 
   it('after the settle: my outcome in the spotlight in its colour', () => {
@@ -673,6 +703,17 @@ describe('the players grid', () => {
       expect(tagsWith(html, 'seat-total')).toHaveLength(n - 1);
       expect(attr(tagWith(html, 'spotlight'), 'data-player-id')).toBe(`p${n - 1}`);
     }
+  });
+
+  it('a small tile shows one total for split hands (the hand in play), never "21/15" cut off', async () => {
+    const { tileTotal } = await import('./components/Seats');
+    const split = acting({ turn: { playerId: 'bob', handIndex: 1 }, players: { ...acting().players, bob: { chips: 980, bet: 10, hands: [hand([c('10'), c('9'), c('2')], { total: 21, status: 'stood', fromSplit: true }), hand([c('10'), c('5')], { total: 15, status: 'acting', fromSplit: true })], inRound: true, bustedOut: false } } });
+    const hands = tableOf(split)?.hands.bob ?? [];
+    const tl = T.snapTimeline(tableOf(split), NOW);
+    expect(tileTotal('bob', hands, tl, NOW, true, 1)?.text).toBe('21/15');
+    expect(tileTotal('bob', hands, tl, NOW, true, 1, true)?.text).toBe('15');
+    // Off turn: the best hand still standing.
+    expect(tileTotal('bob', hands, tl, NOW, false, 0, true)?.text).toBe('21');
   });
 
   it('marks each seat: on turn, still to act, done, bust, a natural, and the outcome once settled', async () => {

@@ -1,6 +1,7 @@
 import { expect, test, type Browser, type BrowserContext, type Locator, type Page } from '@playwright/test';
 import { createParty, expectReadyCount, joinByCode, readyAll } from './party';
 import { tableBots, type TableBot } from './tableBots';
+import { tilesReadable } from './tableFit';
 
 /**
  * Blackjack the Stake way, between a desktop host and two phones (390x844, touch): no rounds and
@@ -476,12 +477,16 @@ async function nothingScrolls(page: Page, label: string): Promise<void> {
   await expect.poll(read, { message: `${label}: nothing scrolls` }).toEqual({ document: false, main: false, table: false, seats: false, status: false });
 }
 
-/** At every phone size and both desktops: nothing scrolls. The page ends at its own size. */
+/**
+ * At every phone size and both desktops: nothing scrolls, and every tile's total is inside its
+ * tile; a desktop's tiles are never squeezed under 28px. The page ends at its own size.
+ */
 async function fitsEverySize(page: Page, sizes: { width: number; height: number }[], label: string): Promise<void> {
   const own = page.viewportSize();
   for (const size of sizes) {
     await page.setViewportSize(size);
     await nothingScrolls(page, `${label} at ${size.width}x${size.height}`);
+    await tilesReadable(page, `${label} at ${size.width}x${size.height}`, size.width > 760 ? 28 : 0);
   }
   if (own) await page.setViewportSize(own);
 }

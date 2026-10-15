@@ -152,13 +152,67 @@ describe('the players grid', () => {
     }
   });
 
-  it('packs a phone table tight on a short screen or with ten or more others, never a desktop', async () => {
+  it('packs a table tight on a short phone, on a shorter phone from five others, and anywhere (a desktop too) from ten', async () => {
     const { isTight } = await import('./stage');
     expect(isTight(true, true, 1)).toBe(true);
     expect(isTight(true, false, 9)).toBe(false);
+    // 360x740 with five to nine others: the compact tiles used to be squeezed into 60px slivers.
+    expect(isTight(true, false, 5, true)).toBe(true);
+    expect(isTight(true, false, 4, true)).toBe(false);
     expect(isTight(true, false, 10)).toBe(true);
     expect(isTight(true, false, 49)).toBe(true);
-    expect(isTight(false, true, 49)).toBe(false);
+    // A desktop with 23 or 49 others gave its grid 14px tiles under a mostly empty spotlight.
+    expect(isTight(false, false, 23)).toBe(true);
+    expect(isTight(false, false, 49)).toBe(true);
+    expect(isTight(false, true, 9)).toBe(false);
+  });
+
+  it('never spreads tiles narrower than they read: names, totals and the Playing tag stay whole', () => {
+    // Six players on a 360x740 phone, a short grid: five 60px columns read "Har", "Pl"; now never under 64px.
+    const fit = G.fitGrid(5, { width: 326, height: 57 });
+    expect((326 - (fit.cols - 1) * 6) / fit.cols).toBeGreaterThanOrEqual(G.TIER_SHAPES.compact.minWidth);
+    expect(fit.cols).toBeLessThanOrEqual(4);
+    // Every tier, every box: the columns keep the tier's minimum width (one column at the least).
+    for (const wide of [false, true]) {
+      const shapes = wide ? G.WIDE_TIER_SHAPES : G.TIER_SHAPES;
+      for (const n of [3, 5, 8, 12, 23, 30, 49])
+        for (const box of [{ width: 290, height: 40 }, { width: 326, height: 57 }, { width: 356, height: 300 }, { width: 582, height: 90 }, { width: 742, height: 418 }]) {
+          const { cols } = G.fitGrid(n, box, { wide, gap: 4 });
+          const min = shapes[G.tileTier(n)].minWidth;
+          if (cols > 1) expect((box.width - (cols - 1) * 4) / cols, `${n} tiles in ${box.width}x${box.height}${wide ? ' (desktop)' : ''}`).toBeGreaterThanOrEqual(min);
+        }
+    }
+    // A 1280x800 desktop with 49 others: 13 columns of 41px used to leave the tiles 14px tall.
+    expect(G.fitGrid(49, { width: 582, height: 318 }, { wide: true, gap: 8 }).cols).toBeLessThanOrEqual(G.WIDE_TIER_SHAPES.dense.maxCols);
+    expect(G.WIDE_TIER_SHAPES.dense.maxCols).toBeLessThanOrEqual(12);
+  });
+
+  it('keeps a small tile\'s total inside it on the narrowest phones: a badge on its corner, never cut to one digit', () => {
+    const css = readFileSync(join(import.meta.dirname, '../styles/table.css'), 'utf8');
+    const narrow = css.slice(css.indexOf('@container tile (max-width: 56px)'));
+    const block = narrow.slice(0, narrow.indexOf('\n}\n'));
+    expect(block).toMatch(/\.tbl-tile--small \.tbl-tile__total \{\s*position: absolute;\s*top: 1px;\s*right: 1px;/);
+    // The avatar shrinks with a short tile rather than overflow it.
+    expect(css).toMatch(/\.tbl-tile--small \{\s*\/\*[^*]*\*\/\s*--face: min\(24px, max\(16px, calc\(100cqh - 19px\)\)\);/);
+  });
+
+  it('never cuts a short name in the spotlight label: "Ada\'s turn", not "A…\'s turn"', () => {
+    const css = readFileSync(join(import.meta.dirname, '../styles/table.css'), 'utf8');
+    // One rule for the name (a later one used to reset the minimum to 0), and a short name never shrinks.
+    expect(css.match(/\n\.tbl-spot__name \{/g)).toHaveLength(1);
+    expect(css).toMatch(/\n\.tbl-spot__name \{\s*min-width: min\(5ch, 100%\);/);
+    expect(css).toMatch(/\.tbl-spot__name--short \{\s*flex: none;/);
+    const avatar = { color: 1, emoji: 2 };
+    const label = (name: string) => html(createElement(Spotlight, { subject: 't', kind: 'turn', tone: 'active', who: { id: 'p', name, avatar, connected: true }, label: `${name}'s turn`, clock: null }));
+    expect(label('Ada')).toContain('tbl-spot__name tbl-spot__name--short">Ada<');
+    expect(label('Christopher')).toContain('class="tbl-spot__name">Christopher<');
+  });
+
+  it('lifts the ends of a desktop row less as the tiles get smaller (the arc costs height)', () => {
+    const grid = (n: number) => html(createElement(PlayersGrid, { count: n, label: 'Players', wide: true, children: [] }));
+    expect(grid(3)).toContain('--arc:16px');
+    expect(grid(12)).toContain('--arc:8px');
+    expect(grid(30)).toContain('--arc:4px');
   });
 
   it('bows the desktop rows into a gentle arc: the middle lowest, the ends lifted', () => {
@@ -298,7 +352,7 @@ describe('the components', () => {
     );
     expect(out).toMatch(/class="tbl-spot tbl-spot--turn tbl-spot--tone-active tbl-spot--stack" aria-label="Spotlight" data-testid="spotlight" data-subject="turn:p1" data-kind="turn" data-player-id="p1"/);
     // A long name gives way before "'s turn" does.
-    expect(out).toContain('<span class="tbl-spot__name">Pia</span><span class="tbl-spot__rest">&#x27;s turn</span>');
+    expect(out).toContain('<span class="tbl-spot__name tbl-spot__name--short">Pia</span><span class="tbl-spot__rest">&#x27;s turn</span>');
     expect(out).toContain('data-testid="spot-next">Next: <!-- -->Quinn');
     expect(out).toContain('data-table-anchor="seat:p1"');
     expect(out).toContain('data-testid="timer"');

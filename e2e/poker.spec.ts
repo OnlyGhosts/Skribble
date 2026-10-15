@@ -1,5 +1,7 @@
 import { expect, test, type Browser, type BrowserContext, type Locator, type Page } from '@playwright/test';
 import { createParty, expectReadyCount, joinByCode, readyAll } from './party';
+import { tableBots, type TableBot } from './tableBots';
+import { myAreaOnScreen, tilesReadable } from './tableFit';
 
 /**
  * Texas Hold'em on the Stake-style table, between a desktop host and two phones (390x844, touch):
@@ -473,6 +475,78 @@ test('a second game: the desktop shortcuts, the panel at 320x568, and the host e
   const ranks = await host.page.getByTestId('podium-entry').evaluateAll((els) => els.map((el) => Number((el as HTMLElement).dataset.rank)));
   expect(ranks).toEqual([1, 1, 1]);
 });
+
+const PHONES = [PORTRAIT, { width: 360, height: 740 }, SMALL];
+const DESKTOPS = [
+  { width: 1280, height: 800 },
+  { width: 1440, height: 900 },
+];
+
+/**
+ * A Poker table of `size` players (a desktop host, a phone and bots on their own sockets that hold
+ * their turns): at every phone size and both desktops nothing scrolls, my hand is on screen, every
+ * tile's stack is inside its tile, and a desktop's tiles are never squeezed under 28px (a 1280x800
+ * table once pushed my cards off the bottom and its tiles down to 8px).
+ */
+async function bigTable(browser: Browser, base: string, size: number): Promise<void> {
+  const hostCtx = await browser.newContext({ viewport: DESKTOPS[1] });
+  const phoneCtx = await browser.newContext({ viewport: PORTRAIT, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
+  const desk = await hostCtx.newPage();
+  const phone = await phoneCtx.newPage();
+  const errors: string[] = [];
+  for (const p of [desk, phone]) p.on('pageerror', (err) => errors.push(err.message));
+  let bots: TableBot[] = [];
+  try {
+    const code = await createParty(desk, 'Hana', 'poker');
+    await joinByCode(phone, 'Pia', code);
+    await desk.getByTestId('settings-actSeconds').fill('60');
+    await expect(phone.getByTestId('settings-value-actSeconds')).toHaveText('60s');
+    bots = await tableBots(size - 2, code, base, { game: 'poker', hold: true, thinkMs: 50 });
+    await readyAll([phone]);
+    await expectReadyCount(desk, size);
+    await desk.getByTestId('start-game').click();
+    for (const p of [desk, phone]) {
+      await expect(p.getByTestId('poker-screen')).toHaveAttribute('data-phase', 'acting');
+      await expect(p.getByTestId('poker-screen')).toHaveAttribute('data-busy', 'false', { timeout: 20_000 });
+      await expect(p.getByTestId('seat')).toHaveCount(size - 1);
+    }
+    const fits = async (page: Page, sizes: { width: number; height: number }[]) => {
+      const own = page.viewportSize();
+      for (const s of sizes) {
+        const label = `${size} players at ${s.width}x${s.height}`;
+        await page.setViewportSize(s);
+        const scrolls = () =>
+          page.evaluate(() =>
+            ['html', '[data-testid="poker-main"]', '[data-testid="pk-table"]', '[data-testid="seats"]'].filter((sel) => {
+              const el = document.querySelector(sel);
+              return el !== null && (el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight);
+            }),
+          );
+        await expect.poll(scrolls, { message: `${label}: nothing scrolls` }).toEqual([]);
+        await myAreaOnScreen(page, 'my-area', label);
+        await tilesReadable(page, label, s.width > 760 ? 28 : 0);
+      }
+      if (own) await page.setViewportSize(own);
+    };
+    await fits(phone, PHONES);
+    await fits(desk, DESKTOPS);
+    // The seat to act is lit on both pages (its tile, unless it is the page's own seat).
+    const turn = (await desk.getByTestId('poker-screen').getAttribute('data-turn-player')) ?? '';
+    for (const p of [desk, phone]) await expect(p.getByTestId('spotlight')).toHaveAttribute('data-player-id', turn);
+    expect(errors).toEqual([]);
+  } finally {
+    for (const b of bots) b.close();
+    await hostCtx.close();
+    await phoneCtx.close();
+  }
+}
+
+for (const size of [6, 12, 23]) {
+  test(`${size} players: the table never scrolls on a phone or a desktop, my hand stays on screen and every tile reads`, async ({ browser, baseURL }) => {
+    test.setTimeout(120_000);
+    await bigTable(browser, baseURL ?? 'http://localhost:4173', size);
+  });
+}
 
 test('no page errors were raised in any browser', async () => {
   expect(players.flatMap((p) => p.errors)).toEqual([]);

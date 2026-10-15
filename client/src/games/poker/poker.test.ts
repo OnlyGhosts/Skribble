@@ -557,7 +557,7 @@ describe('the screen', () => {
     const pia = render(pkRoom(showdown()), 'bob', false);
     expect(textOf(pia, 'turn-status')).toBe('Hana wins 25 with three of a kind, kings');
     expect(attr(tagWith(pia, 'spotlight'), 'data-player-id')).toBe('host');
-    expect(pia).toContain('tbl-spot__name">Hana</span><span class="tbl-spot__rest"> wins 25<');
+    expect(pia).toContain('tbl-spot__name tbl-spot__name--short">Hana</span><span class="tbl-spot__rest"> wins 25<');
     const host = tagsWith(pia, 'seat').find((t) => attr(t, 'data-player-id') === 'host') ?? '';
     expect(attr(host, 'data-outcome')).toBe('win');
   });
@@ -604,7 +604,7 @@ describe('the spotlight', () => {
     const spot = tagWith(html, 'spotlight');
     expect(attr(spot, 'data-kind')).toBe('turn');
     expect(attr(spot, 'data-player-id')).toBe('carol');
-    expect(html).toContain('tbl-spot__name">Quinn</span><span class="tbl-spot__rest">&#x27;s turn<');
+    expect(html).toContain('tbl-spot__name tbl-spot__name--short">Quinn</span><span class="tbl-spot__rest">&#x27;s turn<');
     expect(attr(tagWith(html, 'spot-stack'), 'data-chips')).toBe('990');
     expect(html).toContain('>BB 10<');
     expect(attr(tagWith(html, 'spot-bet'), 'data-bet')).toBe('10');
@@ -612,6 +612,29 @@ describe('the spotlight', () => {
     expect(tagsWith(html, 'my-area')).toHaveLength(1);
     // The panel names them with their face.
     expect(html).toContain('tbl-panel__status--who');
+  });
+});
+
+describe('the table fits a desktop', () => {
+  it('lays the spotlight in one row and my hand on its side at the bottom, so the players keep the height (no scroll at 1280x800)', () => {
+    // A test render is a desktop (no phone media query matches).
+    const html = render(pkRoom(view({ turn: 'carol' })), 'bob', false);
+    expect(attr(tagWith(html, 'pk-table'), 'class')).toContain('tbl-stage--tight');
+    const css = readFileSync(join(import.meta.dirname, 'poker.css'), 'utf8');
+    // My cards at the bottom used to be the spotlight's size and 230px tall, pushing the grid to 18px.
+    expect(css).toMatch(/\.pk-mine--bottom \{\s*flex-direction: row;/);
+    expect(css).toMatch(/@media \(min-width: 761px\) and \(min-height: 521px\) \{\s*\.pk-table \.pk-mine--bottom \{\s*--pk-mine-w: 56px;/);
+    expect(css).toMatch(/\.pk-table\.tbl-crowd--small,\s*\.pk-table\.tbl-crowd--dense \{\s*--pk-board-w: 52px;\s*--pk-spot-w: 56px;/);
+    expect(css).toMatch(/\.pk-table\.tbl-stage--tight \.tbl-ribbon \{\s*display: none;/);
+  });
+
+  it('keeps the blinds clear of the board and the label clear of the cards on a 320px phone', () => {
+    const css = readFileSync(join(import.meta.dirname, 'poker.css'), 'utf8');
+    const narrow = css.slice(css.indexOf('@media (max-width: 340px)'));
+    // The pot column (about 70px) and five 26px cards fit between the muck and the deck.
+    expect(narrow).toMatch(/--pk-board-w: 26px;/);
+    // The spotlight's chip goes unseen when tight (its line says "Call 20"); it stays in place for the chips to fly to.
+    expect(css).toMatch(/\.tbl-stage--tight \.pk-bet--spot \{\s*position: absolute;\s*opacity: 0;/);
   });
 });
 
