@@ -11,7 +11,8 @@ import { useTableNow } from '../../platform/table/useTableNow';
 import { ControlPanel } from './components/ControlPanel';
 import { EndGameControl } from './components/EndGame';
 import { Table } from './components/Table';
-import { isInHand, isMyTurn, nameOf, useConnected } from './hooks';
+import { isInHand, isMyTurn, nameOf, playerOf, useConnected } from './hooks';
+import { spotlightSubject } from './lib/spotlight';
 import { tableOf } from './lib/table';
 import { wonOnScreen } from './lib/screen';
 import { animating, chipsValue, frameAt, outcomesShown, valueAt } from './lib/timeline';
@@ -22,8 +23,8 @@ const meta = gameById('poker');
 
 /**
  * The Poker table on the platform's table shell, the same flow as Blackjack: the top bar (hand,
- * blinds, the turn clock), the table (pot, board, seats, my hand) and the control panel always in
- * the same place. The cards and chips move by the timeline the store plans from the snapshots;
+ * blinds), the table (pot, board, the spotlight on the player to act with the turn clock, every
+ * other player as a tile, my hand) and the control panel always in the same place. The cards and chips move by the timeline the store plans from the snapshots;
  * the end of a hand stays on the table through the results pause, then the next hand deals.
  */
 export function PokerScreen({ room, meId, isHost }: GameScreenProps<PokerView, PokerSettings>) {
@@ -63,6 +64,12 @@ export function PokerScreen({ room, meId, isHost }: GameScreenProps<PokerView, P
     won: wonOnScreen(frame.table, frame.timeline, meId, now) > 0,
   });
 
+  const clock = <Timer endsAt={playing && !held ? view.endsAt : null} paused={held} warnUnder={view.phase === 'results' ? 0 : 5} tickUnder={myTurn ? 5 : undefined} size="md" />;
+  const subject = spotlightSubject({ view, table: frame.table, outcomesShown: outcomesShown(frame.timeline, now), held, meId });
+  // Someone else's turn: their face beside "Pia's turn" in the panel.
+  const turnPlayer = status.state === 'their-turn' ? playerOf(room, view.turn) : undefined;
+  const panel = turnPlayer ? { ...status, who: turnPlayer.avatar } : status;
+
   return (
     <TableShell
       meta={meta}
@@ -84,14 +91,13 @@ export function PokerScreen({ room, meId, isHost }: GameScreenProps<PokerView, P
       }
       statusTestId="hand-indicator"
       statusData={{ 'data-hand': view.hand, 'data-total': view.totalHands }}
-      clock={<Timer endsAt={playing && !held ? view.endsAt : null} paused={held} warnUnder={view.phase === 'results' ? 0 : 5} tickUnder={myTurn ? 5 : undefined} />}
       room={room}
       players={<PlayerList room={room} meId={meId} isHost={isHost} mode="game" game={game} />}
       sheet={sheet}
       onSheet={openSheet}
       endControl={(variant) => isHost && playing && <EndGameControl variant={variant} />}
-      table={<Table room={room} view={view} meId={meId} frame={frame} live={timeline} now={now} isPhone={isPhone} />}
-      panel={<ControlPanel view={view} meId={meId} balance={valueAt(timeline, chipsValue(meId), seat?.chips ?? 0, now)} status={status} canSend={playing && connected} busy={busy} hotkeys={!isPhone} />}
+      table={<Table room={room} view={view} meId={meId} frame={frame} live={timeline} now={now} isPhone={isPhone} subject={subject} clock={clock} />}
+      panel={<ControlPanel view={view} meId={meId} balance={valueAt(timeline, chipsValue(meId), seat?.chips ?? 0, now)} status={panel} canSend={playing && connected} busy={busy} hotkeys={!isPhone} />}
     />
   );
 }

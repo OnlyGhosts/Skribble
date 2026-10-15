@@ -1,8 +1,11 @@
+import type { ReactNode } from 'react';
 import type { PokerRoomState, PokerView } from '@shared/games/poker/protocol';
 import { ChipFlights } from '../../../platform/table/ChipFlights';
 import { Deck, DiscardTray } from '../../../platform/table/Deck';
+import { tileTier } from '../../../platform/table/grid';
 import { TableRibbon } from '../../../platform/table/Ribbon';
 import { seatRing } from '../hooks';
+import type { PkSubject } from '../lib/spotlight';
 import type { PokerTable } from '../lib/table';
 import { POT_VALUE, flightsAt, valueAt, type Frame, type Timeline } from '../lib/timeline';
 import { RIBBON_TEXT, blindsLabel } from '../lib/text';
@@ -10,6 +13,7 @@ import { Board } from './Board';
 import { MyHand } from './MyHand';
 import { Pot } from './Pot';
 import { Seats } from './Seats';
+import { PkSpotlight } from './Spotlight';
 
 interface Props {
   room: PokerRoomState;
@@ -20,6 +24,9 @@ interface Props {
   live: Timeline;
   now: number;
   isPhone: boolean;
+  subject: PkSubject;
+  /** The turn clock, in the spotlight. */
+  clock: ReactNode;
 }
 
 /** Cards out of the deck for the hand on the table: two a seat and the board. */
@@ -33,25 +40,39 @@ function mucked(table: PokerTable | null): number {
 }
 
 /**
- * The table, the same layout as Blackjack's: the muck top left, the pot top centre, the deck top
- * right, the board across the middle with the ribbon under it, the other seats in a strip, my
- * hand at the bottom. Chips fly over it all.
+ * The table, the same layout as Blackjack's: the muck, the pot over the board and the deck at the
+ * top; the ribbon; the spotlight on the player to act; every other player as a tile round the
+ * table from my left; my hand at the bottom (up in the spotlight on my turn). Chips fly over it all.
  */
-export function Table({ room, view, meId, frame, live, now, isPhone }: Props) {
+export function Table({ room, view, meId, frame, live, now, isPhone, subject, clock }: Props) {
   const { table, timeline, leaving } = frame;
   const others = seatRing(room, view, meId).filter((id) => id !== meId);
   const truth = view.phase === 'acting' ? view.pot : 0;
+  const mineInSpot = (subject.kind === 'turn' || subject.kind === 'result') && subject.mine;
+  const showMine = view.players[meId] !== undefined && !mineInSpot;
+  const crowd = others.length === 0 ? 'none' : tileTier(others.length);
   return (
-    <section className="tbl-felt pk-table" aria-label="Table" data-testid="pk-table" data-hand={table?.hand ?? 0} data-street={table?.street ?? ''} data-settled={Boolean(table?.results)}>
-      <div className="tbl-felt__top">
+    <section
+      className={`tbl-felt tbl-stage pk-table tbl-crowd--${crowd}${showMine ? '' : ' tbl-stage--no-mine'}`}
+      aria-label="Table"
+      data-testid="pk-table"
+      data-hand={table?.hand ?? 0}
+      data-street={table?.street ?? ''}
+      data-settled={Boolean(table?.results)}
+      data-crowd={crowd}
+    >
+      <div className="tbl-felt__top pk-top">
         <DiscardTray discarded={mucked(table)} label="Muck" />
-        <Pot shown={valueAt(live, POT_VALUE, truth, now)} truth={truth} pots={view.phase === 'acting' ? view.pots : []} />
+        <div className="pk-centre">
+          <Pot shown={valueAt(live, POT_VALUE, truth, now)} truth={truth} pots={view.phase === 'acting' ? view.pots : []} />
+          <Board table={table} timeline={timeline} now={now} leaving={leaving} size={isPhone ? 'md' : 'lg'} />
+        </div>
         <Deck remaining={52 - dealt(table)} name="deck" testId="deck" />
       </div>
-      <Board table={table} timeline={timeline} now={now} leaving={leaving} size={isPhone ? 'md' : 'lg'} />
       <TableRibbon main={RIBBON_TEXT} sub={`Blinds ${blindsLabel(view)}`} />
-      <Seats room={room} view={view} ids={others} meId={meId} table={table} timeline={timeline} live={live} now={now} leaving={leaving} />
-      <MyHand view={view} meId={meId} table={table} timeline={timeline} live={live} now={now} leaving={leaving} size={isPhone ? 'lg' : 'xl'} />
+      <PkSpotlight room={room} view={view} meId={meId} subject={subject} table={table} timeline={timeline} live={live} now={now} leaving={leaving} size={isPhone ? 'lg' : 'xl'} clock={clock} />
+      <Seats room={room} view={view} ids={others} meId={meId} table={table} timeline={timeline} live={live} now={now} leaving={leaving} wide={!isPhone} />
+      {showMine && <MyHand view={view} meId={meId} table={table} timeline={timeline} live={live} now={now} leaving={leaving} size={isPhone ? 'lg' : 'xl'} place="bottom" />}
       <ChipFlights flights={flightsAt(live, now)} />
     </section>
   );

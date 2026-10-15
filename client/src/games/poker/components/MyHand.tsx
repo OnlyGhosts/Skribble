@@ -19,6 +19,8 @@ interface Props {
   now: number;
   leaving: boolean;
   size: PlayingCardSize;
+  /** In the spotlight (my turn, my win), or at the bottom of the table. */
+  place: 'spot' | 'bottom';
 }
 
 /** The line under my cards: what I did last, or where I stand in the hand. */
@@ -38,7 +40,7 @@ function myState(view: PokerView, meId: string, myTurn: boolean): string {
  * pill over them, the bet in front of me, the dealer button and my last move. Lit on my turn,
  * outlined in lime when I win, the payout rising out of it.
  */
-export function MyHand({ view, meId, table, timeline, live, now, leaving, size }: Props) {
+export function MyHand({ view, meId, table, timeline, live, now, leaving, size, place }: Props) {
   const seat = view.players[meId];
   const cards = holeOnScreen(table, timeline, meId, meId, now);
   const myTurn = view.phase === 'acting' && view.turn === meId;
@@ -48,13 +50,14 @@ export function MyHand({ view, meId, table, timeline, live, now, leaving, size }
   const hint = up.length === 2 && !leaving ? handHint(up, board) : null;
   const won = wonOnScreen(table, timeline, meId, now);
   const lost = Boolean(table?.results) && outcomesShown(timeline, now) && won === 0 && !folded && cards.length > 0 && !leaving;
-  const tone: Tone = won > 0 ? 'win' : lost ? 'loss' : myTurn ? 'active' : 'neutral';
+  // In the spotlight its own outline says it (my turn, my win).
+  const tone: Tone = place === 'spot' ? 'neutral' : won > 0 ? 'win' : lost ? 'loss' : myTurn ? 'active' : 'neutral';
   const best = winningCards(table, timeline, now);
   const bet = valueAt(live, betValue(meId), seat?.bet ?? 0, now);
   const state = myState(view, meId, myTurn);
   return (
     <section
-      className={`pk-mine ${outlineClass(tone)}${folded ? ' pk-mine--folded' : ''}`}
+      className={`pk-mine pk-mine--${place} ${outlineClass(tone)}${folded ? ' pk-mine--folded' : ''}${place === 'bottom' ? ' tbl-stage__mine' : ''}`}
       aria-label="Your hand"
       data-testid="my-area"
       data-table-anchor={seatAnchor(meId)}

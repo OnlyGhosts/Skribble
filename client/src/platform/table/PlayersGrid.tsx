@@ -101,7 +101,8 @@ function MarkIcon({ mark }: { mark: SeatMark }) {
   }
 }
 
-const OUTLINED: ReadonlySet<SeatMark> = new Set(['win', 'blackjack', 'loss', 'push']);
+/** How a seat's last hand went, once settled: the tile takes the outcome's colour. */
+export type SeatOutcome = 'win' | 'blackjack' | 'loss' | 'push';
 
 type DataAttrs = Record<`data-${string}`, string | number | boolean | undefined>;
 
@@ -116,6 +117,8 @@ interface TileProps {
   turn: boolean;
   line: SeatLine;
   mark: SeatMark;
+  /** The settled outcome, kept on show until the next deal. */
+  outcome?: SeatOutcome | null;
   /** The stack (full tiles only). */
   chips?: number;
   /** The stake in front of the seat. */
@@ -138,17 +141,17 @@ interface TileProps {
 }
 
 /** One player in the grid; how much it shows depends on the tier (table.css lays each tier out). */
-export function PlayerTile({ playerId, name, avatar, connected, count, turn, line, mark, chips, bet, total, dimmed = false, badge, tag, cards, extra, onOpen, data }: TileProps) {
+export function PlayerTile({ playerId, name, avatar, connected, count, turn, line, mark, outcome = null, chips, bet, total, dimmed = false, badge, tag, cards, extra, onOpen, data }: TileProps) {
   const tier: TileTier = tileTier(count);
-  const outcome = OUTLINED.has(mark) ? ` tbl-tile--${mark}` : '';
   return (
     <div
-      className={`tbl-tile tbl-tile--${tier}${turn ? ' tbl-tile--turn' : ''}${dimmed ? ' tbl-tile--dim' : ''}${outcome}`}
+      className={`tbl-tile tbl-tile--${tier}${turn ? ' tbl-tile--turn' : ''}${dimmed ? ' tbl-tile--dim' : ''}${outcome ? ` tbl-tile--${outcome}` : ''}`}
       data-testid="seat"
       data-player-id={playerId}
       data-name={name}
       data-state={line.state}
       data-mark={mark}
+      data-result={outcome ?? undefined}
       data-turn={turn}
       aria-current={turn ? 'true' : undefined}
       {...data}

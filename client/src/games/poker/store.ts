@@ -11,6 +11,8 @@ export type PokerSheet = TableSheet;
 /** Poker's own client state: the open sheet, the raise field, the host's End game confirmation and the table's animation timeline. */
 interface PokerState {
   sheet: PokerSheet | null;
+  /** The player whose seat sheet is open (a tile tapped). */
+  seat: string | null;
   /** What is typed in the raise field; null until touched this turn (the field then shows the minimum). */
   raiseText: string | null;
   /** The host tapped End game once and is asked to confirm. */
@@ -27,6 +29,7 @@ interface PokerState {
 
 interface PokerActions {
   openSheet(sheet: PokerSheet | null): void;
+  openSeat(playerId: string | null): void;
   setRaiseText(text: string | null): void;
   setConfirmEnd(confirm: boolean): void;
   /** The turn moved on: the amount belongs to the move that just passed. */
@@ -38,11 +41,12 @@ interface PokerActions {
 
 export type PokerStore = PokerState & PokerActions;
 
-const INITIAL: PokerState = { sheet: null, raiseText: null, confirmEnd: false, table: null, timeline: EMPTY_TIMELINE, soundTimeline: EMPTY_TIMELINE };
+const INITIAL: PokerState = { sheet: null, seat: null, raiseText: null, confirmEnd: false, table: null, timeline: EMPTY_TIMELINE, soundTimeline: EMPTY_TIMELINE };
 
 export const usePokerStore = create<PokerStore>()((set, get) => ({
   ...INITIAL,
   openSheet: (sheet) => set({ sheet, confirmEnd: false }),
+  openSeat: (seat) => set({ seat }),
   setRaiseText: (raiseText) => set({ raiseText }),
   setConfirmEnd: (confirmEnd) => set({ confirmEnd }),
   newTurn: () => set({ raiseText: null }),

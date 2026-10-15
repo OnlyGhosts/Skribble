@@ -823,8 +823,7 @@
   justify-self: start;
 }
 
-.tbl-tile--compact .tbl-tile__chips,
-.tbl-tile--compact .tbl-tile__line {
+.tbl-tile--compact .tbl-tile__chips {
   display: none;
 }
 
@@ -1248,6 +1247,12 @@
 
   .tbl-ribbon__sub {
     font-size: 0.6rem;
+  }
+
+  .tbl-deck__stack,
+  .tbl-discard__slot {
+    width: 26px;
+    height: 39px;
   }
 }
 

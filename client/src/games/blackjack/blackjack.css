@@ -1,10 +1,11 @@
 /* Blackjack on the platform's card table (platform/styles/table.css): the dealer, the hands and their sizes. */
 
-/* ---------- The table ---------- */
+/* ---------- The table: card sizes per place (every card here is 2:3) ---------- */
 .bj-table {
-  /* Card sizes per place on the table; every card here is 2:3. */
-  --bj-dealer-w: 92px;
-  --bj-mine-w: 100px;
+  --bj-dealer-w: 64px;
+  --bj-spot-w: 84px;
+  --bj-mine-w: 68px;
+  --tbl-mini-w: 30px;
 }
 
 .bj-hand__cards > .playing-card,
@@ -31,6 +32,11 @@
   margin-left: 8px;
 }
 
+/* ---------- The top row: discards, dealer, shoe ---------- */
+.bj-top {
+  align-items: center;
+}
+
 /* ---------- Dealer ---------- */
 .bj-dealer {
   --tbl-w: var(--bj-dealer-w);
@@ -48,6 +54,19 @@
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--color-text-faint);
+}
+
+/* The dealer is in the spotlight: the top row keeps its place, just the label. */
+.bj-dealer--away {
+  justify-content: center;
+  min-height: calc(var(--bj-dealer-w) * 1.5);
+}
+
+.tbl-spot .bj-dealer {
+  --tbl-w: var(--bj-spot-w);
+  grid-column: auto;
+  flex-direction: row;
+  gap: 10px;
 }
 
 /* ---------- Hands ---------- */
@@ -96,6 +115,75 @@
   color: var(--color-text-muted);
 }
 
+/* ---------- The spotlight: the hand being played, large ---------- */
+.bj-spot__hands {
+  --tbl-w: var(--bj-spot-w);
+  display: flex;
+  justify-content: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.bj-spot__hands--n2 {
+  --tbl-w: calc(var(--bj-spot-w) * 0.8);
+}
+
+.bj-spot__hands--n3,
+.bj-spot__hands--n4 {
+  --tbl-w: calc(var(--bj-spot-w) * 0.55);
+}
+
+/* One hand in the spotlight: the spotlight's own outline says it is in play. */
+.bj-spot__hands--n1 > .bj-hand,
+.bj-mine--spot.bj-mine--n1 .bj-hand {
+  border-color: transparent;
+  background: none;
+}
+
+.bj-spot__stake {
+  color: var(--color-text);
+}
+
+/* Who has bet (lit, with the amount) and who we wait for (dimmed). */
+.bj-bets {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px 8px;
+  margin: 0;
+  padding: 2px 0;
+  list-style: none;
+  max-height: 84px;
+  overflow: hidden;
+}
+
+.bj-bets__seat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 34px;
+  opacity: 0.5;
+}
+
+.bj-bets__seat.is-placed {
+  opacity: 1;
+}
+
+.bj-bets__amount {
+  font-size: 0.66rem;
+  font-weight: 700;
+  color: var(--color-text-faint);
+  line-height: 1;
+}
+
+.bj-bets__more {
+  align-self: center;
+  font-weight: 700;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
 /* ---------- My hands ---------- */
 .bj-mine {
   --tbl-w: var(--bj-mine-w);
@@ -106,13 +194,15 @@
   min-width: 0;
 }
 
+.bj-mine--spot {
+  --bj-mine-w: var(--bj-spot-w);
+}
+
 .bj-mine__hands {
   display: flex;
   justify-content: safe center;
   gap: var(--space-2);
   max-width: 100%;
-  overflow-x: auto;
-  scrollbar-width: none;
   padding-top: 20px;
   margin-top: -20px;
 }
@@ -123,7 +213,7 @@
 
 .bj-mine--n3,
 .bj-mine--n4 {
-  --tbl-w: 46px;
+  --tbl-w: calc(var(--bj-mine-w) * 0.55);
 }
 
 .bj-mine--n3 .bj-hand,
@@ -134,7 +224,6 @@
 .bj-mine__empty {
   display: flex;
   justify-content: center;
-  padding-top: 36px;
 }
 
 .bj-mine__bet {
@@ -146,7 +235,7 @@
   color: var(--color-text-muted);
 }
 
-/* ---------- A hand in a seat of the strip ---------- */
+/* ---------- A hand in miniature, on a tile ---------- */
 .bj-hand--mini {
   flex-direction: row-reverse;
   align-items: center;
@@ -155,8 +244,12 @@
   border-width: 1.5px;
 }
 
+.bj-hand--mini .bj-hand__cards {
+  min-height: 0;
+}
+
 .bj-hand--mini .bj-hand__cards > .tbl-card + .tbl-card {
-  margin-left: calc(var(--tbl-w) * -0.36);
+  margin-left: calc(var(--tbl-w) * -0.4);
 }
 
 .bj-hand--mini .bj-hand__top {
@@ -168,6 +261,35 @@
   min-width: 26px;
   padding: 0 5px;
   font-size: 0.68rem;
+}
+
+/* ---------- A seat's sheet ---------- */
+.bj-seat-detail {
+  --tbl-w: 56px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.bj-seat-detail__line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  font-weight: 700;
+}
+
+.bj-seat-detail__hands {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-2);
+  padding-top: 20px;
+}
+
+.bj-seat-detail__none {
+  margin: 0;
+  color: var(--color-text-muted);
 }
 
 /* ---------- End game (host) ---------- */
@@ -264,82 +386,189 @@
 
 @media (max-width: 1100px) {
   .bj-table {
-    --bj-dealer-w: 72px;
-    --bj-mine-w: 72px;
+    --bj-dealer-w: 56px;
+    --bj-spot-w: 72px;
+    --bj-mine-w: 60px;
   }
 }
 
+/* A big table: the dealer and my hands give the players room first. */
+.bj-table.tbl-crowd--small {
+  --bj-dealer-w: 52px;
+  --bj-mine-w: 56px;
+}
+
+.bj-table.tbl-crowd--dense {
+  --bj-dealer-w: 44px;
+  --bj-mine-w: 48px;
+  --bj-spot-w: 72px;
+}
+
+/* ---------- Phones: the hands lie on their side (total, cards, stake in a row) to save height ---------- */
 @media (max-width: 760px), (min-aspect-ratio: 3/2) and (max-height: 520px) {
   .bj-table {
-    --bj-dealer-w: 56px;
-    --bj-mine-w: 62px;
+    --bj-dealer-w: 40px;
+    --bj-spot-w: 60px;
+    --bj-mine-w: 50px;
+    --tbl-mini-w: 22px;
   }
-}
 
-/* Short phones (an SE, a phone with the browser bars out): smaller cards so the table fits over the panel. */
-@media (max-width: 760px) and (max-height: 760px) {
-  .bj-table {
-    --bj-dealer-w: 48px;
-    --bj-mine-w: 54px;
-  }
-}
-
-/* Short phones and phones on their side: compact cards, hands lying on their side. */
-@media (max-width: 760px) and (max-height: 620px), (min-aspect-ratio: 3/2) and (max-height: 520px) {
-  .bj-table {
+  .bj-table.tbl-crowd--small {
     --bj-dealer-w: 36px;
     --bj-mine-w: 44px;
   }
 
-  .bj-hand {
-    padding: 3px;
+  .bj-table.tbl-crowd--dense {
+    --bj-dealer-w: 32px;
+    --bj-mine-w: 40px;
+    --bj-spot-w: 54px;
   }
 
-  /* One or two hands lie on their side here: the total beside the cards rather than over them. */
   .bj-dealer,
   .bj-mine--n1 .bj-hand,
-  .bj-mine--n2 .bj-hand {
+  .bj-mine--n2 .bj-hand,
+  .bj-spot__hands--n1 .bj-hand,
+  .bj-spot__hands--n2 .bj-hand {
     flex-direction: row;
   }
 
-  .bj-mine--n3,
-  .bj-mine--n4 {
-    --tbl-w: 38px;
+  .bj-hand {
+    padding: 3px 6px;
+  }
+
+  .bj-mine__hands {
+    padding-top: 0;
+    margin-top: 0;
+  }
+
+  .bj-mine--bottom {
+    flex-direction: row;
+    justify-content: center;
+    gap: 8px;
   }
 
   .bj-mine--n3 .bj-hand__foot,
-  .bj-mine--n4 .bj-hand__foot {
+  .bj-mine--n4 .bj-hand__foot,
+  .bj-spot__hands--n3 .bj-hand__foot,
+  .bj-spot__hands--n4 .bj-hand__foot {
     display: none;
   }
 
   .bj-mine--n3 .bj-hand,
-  .bj-mine--n4 .bj-hand {
+  .bj-mine--n4 .bj-hand,
+  .bj-spot__hands--n3 .bj-hand,
+  .bj-spot__hands--n4 .bj-hand {
     gap: 2px;
   }
 
-  .bj-mine--n3 .bj-hand__top,
-  .bj-mine--n4 .bj-hand__top {
-    min-height: 18px;
-  }
-
   .bj-mine--n3 .tbl-pill,
-  .bj-mine--n4 .tbl-pill {
+  .bj-mine--n4 .tbl-pill,
+  .bj-spot__hands--n3 .tbl-pill,
+  .bj-spot__hands--n4 .tbl-pill {
     height: 18px;
     min-width: 26px;
     padding: 0 5px;
     font-size: 0.68rem;
   }
 
-  .bj-mine__hands {
-    padding-top: 14px;
-    margin-top: -14px;
-  }
-
-  .bj-mine__empty {
-    padding-top: 0;
-  }
-
   .bj-hand__foot {
     min-height: 0;
+  }
+
+  .bj-table .tbl-ribbon__sub {
+    display: none;
+  }
+}
+
+/* Shorter phones (360x740 and the like): smaller cards all round. */
+@media (max-width: 760px) and (max-height: 760px) {
+  .bj-table {
+    --bj-dealer-w: 34px;
+    --bj-spot-w: 50px;
+    --bj-mine-w: 42px;
+  }
+
+  .bj-table.tbl-crowd--small,
+  .bj-table.tbl-crowd--dense {
+    --bj-dealer-w: 30px;
+    --bj-mine-w: 36px;
+    --bj-spot-w: 46px;
+  }
+
+  .bj-table .tbl-ribbon {
+    display: none;
+  }
+}
+
+/*
+ * Short phones (an SE, a phone on its side): the dealer and my hands share the top row, a
+ * head-to-head, so the spotlight and the players keep the height.
+ */
+@media (max-width: 760px) and (max-height: 680px), (min-aspect-ratio: 3/2) and (max-height: 520px) {
+  .bj-table {
+    --bj-dealer-w: 30px;
+    --bj-spot-w: 42px;
+    --bj-mine-w: 30px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr);
+    grid-template-areas: 'top mine' 'spot spot' 'seats seats';
+    column-gap: 6px;
+  }
+
+  .bj-table.tbl-stage--no-mine {
+    grid-template-areas: 'top top' 'spot spot' 'seats seats';
+  }
+
+  .bj-table.tbl-crowd--small,
+  .bj-table.tbl-crowd--dense {
+    --bj-dealer-w: 26px;
+    --bj-mine-w: 26px;
+    --bj-spot-w: 36px;
+  }
+
+  .bj-table .tbl-felt__top {
+    gap: 4px;
+  }
+
+  .bj-table .tbl-deck__stack,
+  .bj-table .tbl-discard__slot {
+    width: 20px;
+    height: 30px;
+  }
+
+  .bj-table .tbl-deck__count {
+    font-size: 0.6rem;
+  }
+
+  .bj-mine--bottom {
+    gap: 4px;
+  }
+
+  .bj-mine--bottom .bj-hand {
+    padding: 2px 4px;
+    gap: 4px;
+  }
+
+  .bj-dealer {
+    gap: 4px;
+  }
+
+  .bj-table .tbl-pill {
+    height: 20px;
+    min-width: 28px;
+    padding: 0 6px;
+    font-size: 0.72rem;
+  }
+
+  .bj-table .tbl-spot {
+    padding: 3px 8px 5px;
+  }
+
+  .bj-table .tbl-spot__label {
+    font-size: 1.05rem;
+  }
+
+  .bj-bets {
+    max-height: 40px;
   }
 }

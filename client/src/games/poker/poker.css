@@ -5,11 +5,80 @@
   grid-template-columns: 340px minmax(0, 1fr) 300px;
 }
 
-/* ---------- The table ---------- */
+/* ---------- The table: card sizes per place (every card here is 2:3) ---------- */
 .pk-table {
-  /* Card sizes per place on the table; every card here is 2:3. */
-  --pk-board-w: 76px;
-  --pk-mine-w: 96px;
+  --pk-board-w: 64px;
+  --pk-spot-w: 72px;
+  --pk-mine-w: 72px;
+  --tbl-mini-w: 30px;
+}
+
+/* The top row: the muck, the pot over the board, the deck. */
+.pk-top {
+  align-items: center;
+}
+
+.pk-centre {
+  grid-column: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* ---------- The spotlight: the player to act, their cards and their bet ---------- */
+.pk-spot__cards {
+  --tbl-w: var(--pk-spot-w);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.pk-spot__cards > .tbl-card + .tbl-card {
+  margin-left: calc(var(--tbl-w) * -0.25);
+}
+
+.pk-bet--spot {
+  margin-left: 10px;
+  font-size: 0.85rem;
+}
+
+.pk-spot__stack {
+  color: var(--color-text);
+}
+
+.pk-spot__action {
+  color: var(--color-text);
+}
+
+.pk-mine--spot {
+  --pk-mine-w: var(--pk-spot-w);
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+/* ---------- A seat's sheet ---------- */
+.pk-seat-detail {
+  --tbl-w: 56px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.pk-seat-detail__line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  font-weight: 700;
+}
+
+.pk-seat-detail__cards {
+  display: flex;
+  gap: 8px;
 }
 
 .pk-board > .playing-card,
@@ -21,7 +90,6 @@
 
 /* ---------- The pot, over the board ---------- */
 .pk-pot {
-  grid-column: 2;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -92,10 +160,6 @@
   font-size: 0.72rem;
 }
 
-.tbl-seat__cards > .pk-bet {
-  margin-left: 6px;
-}
-
 .pk-bet .chip-count {
   padding: 0 6px 0 3px;
   border-radius: var(--radius-pill);
@@ -103,33 +167,21 @@
   border: 1px solid var(--color-border);
 }
 
-/* ---------- The other seats ---------- */
-.pk .tbl-seat {
-  position: relative;
-}
-
-.pk .tbl-seat__cards > .tbl-card + .tbl-card {
+/* ---------- The other seats: the hole cards on a full tile overlap a little ---------- */
+.pk .tbl-tile__cards > .tbl-card + .tbl-card {
   margin-left: calc(var(--tbl-w) * -0.3);
 }
 
-.pk-seat--win {
-  border: 2px solid var(--color-primary-text);
-  padding: 5px 7px;
-}
-
-/*
- * The payout rises inside the seat (the strip scrolls, so nothing may stick out of it), anchored
- * to the seat's right edge on a chip of the seat's surface, so a wide amount never covers the cards.
- */
-.pk .tbl-seat .tbl-payout {
+/* The payout rises inside the tile (the grid clips anything that sticks out), on its right edge. */
+.pk .tbl-tile .tbl-payout {
   left: auto;
   right: 6px;
-  bottom: 6px;
-  z-index: 1;
+  bottom: 4px;
+  z-index: 2;
   padding: 0 6px;
   border-radius: var(--radius-pill);
   background: var(--color-surface-2);
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   animation-name: pk-seat-rise;
 }
 
@@ -298,55 +350,23 @@
   }
 
   .pk-table {
-    --pk-board-w: 62px;
-    --pk-mine-w: 80px;
+    --pk-board-w: 56px;
+    --pk-spot-w: 62px;
+    --pk-mine-w: 62px;
   }
 }
 
+/* ---------- Phones: my hand on its side (cards, then what they make and my bet) to save height ---------- */
 @media (max-width: 760px), (min-aspect-ratio: 3/2) and (max-height: 520px) {
   .pk-table {
-    --pk-board-w: 52px;
-    --pk-mine-w: 70px;
-  }
-
-  .pk-pot__pill {
-    height: 28px;
-  }
-}
-
-/* Short phones (an SE, a phone with the browser bars out): smaller cards so the table fits over the panel. */
-@media (max-width: 760px) and (max-height: 760px) {
-  .pk-table {
     --pk-board-w: 44px;
-    --pk-mine-w: 56px;
-  }
-}
-
-/* Short phones and phones on their side: compact cards, my hand on its side. */
-@media (max-width: 760px) and (max-height: 620px), (min-aspect-ratio: 3/2) and (max-height: 520px) {
-  .pk-table {
-    --pk-board-w: 36px;
-    --pk-mine-w: 42px;
-    gap: 4px;
+    --pk-spot-w: 48px;
+    --pk-mine-w: 50px;
+    --tbl-mini-w: 22px;
   }
 
   .pk-pot__pill {
-    height: 24px;
-    padding: 0 10px;
-  }
-
-  /* Side pots stay on show as one compact line. */
-  .pk-pot__sides {
-    flex-wrap: nowrap;
-    max-width: 100%;
-    overflow: hidden;
-    gap: 6px;
-    font-size: 0.6rem;
-    line-height: 1.1;
-  }
-
-  .pk-board {
-    gap: 4px;
+    height: 26px;
   }
 
   .pk-mine {
@@ -368,10 +388,90 @@
   }
 
   .pk-mine__top .tbl-pill {
+    height: 22px;
+    line-height: 20px;
+    font-size: 0.75rem;
+    max-width: 150px;
+  }
+
+  .pk-table .tbl-ribbon__sub {
+    display: none;
+  }
+}
+
+/* Shorter phones (360x740 and the like): smaller cards all round, the ribbon gone. */
+@media (max-width: 760px) and (max-height: 760px) {
+  .pk-table {
+    --pk-board-w: 38px;
+    --pk-spot-w: 40px;
+    --pk-mine-w: 42px;
+  }
+
+  .pk-table .tbl-ribbon {
+    display: none;
+  }
+}
+
+/* Short phones and phones on their side: the pot beside the board, compact cards everywhere. */
+@media (max-width: 760px) and (max-height: 680px), (min-aspect-ratio: 3/2) and (max-height: 520px) {
+  .pk-table {
+    --pk-board-w: 30px;
+    --pk-spot-w: 30px;
+    --pk-mine-w: 32px;
+    gap: 4px;
+  }
+
+  .pk-centre {
+    flex-direction: row;
+    gap: 6px;
+  }
+
+  .pk-pot__pill {
+    height: 24px;
+    padding: 0 8px;
+  }
+
+  /* Side pots stay on show as one compact line. */
+  .pk-pot__sides {
+    flex-wrap: nowrap;
+    max-width: 100%;
+    overflow: hidden;
+    gap: 6px;
+    font-size: 0.6rem;
+    line-height: 1.1;
+  }
+
+  .pk-board {
+    gap: 3px;
+  }
+
+  .pk-table .tbl-deck__stack,
+  .pk-table .tbl-discard__slot {
+    width: 20px;
+    height: 30px;
+  }
+
+  .pk-table .tbl-deck__count {
+    font-size: 0.6rem;
+  }
+
+  .pk-mine {
+    padding: 2px 8px;
+  }
+
+  .pk-mine__top .tbl-pill {
     height: 20px;
     line-height: 18px;
     font-size: 0.72rem;
     max-width: 130px;
+  }
+
+  .pk-table .tbl-spot {
+    padding: 3px 8px 5px;
+  }
+
+  .pk-table .tbl-spot__label {
+    font-size: 1.05rem;
   }
 }
 

@@ -202,6 +202,8 @@
 
 /* ---------- Compact: one row (a card table on a phone), the players as a button with the count ---------- */
 .gbar__count {
+  display: inline-flex;
+  align-items: center;
   width: auto;
   min-width: 44px;
   gap: 4px;

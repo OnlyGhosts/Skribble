@@ -31,7 +31,7 @@ export interface TierShape {
 
 export const TIER_SHAPES: Record<TileTier, TierShape> = {
   full: { width: 168, height: 96, cols: [1, 4], maxCols: 4 },
-  compact: { width: 124, height: 56, cols: [3, 5], maxCols: 5 },
+  compact: { width: 116, height: 56, cols: [3, 5], maxCols: 5 },
   small: { width: 70, height: 50, cols: [4, 6], maxCols: 10 },
   dense: { width: 46, height: 30, cols: [6, 8], maxCols: 14 },
 };

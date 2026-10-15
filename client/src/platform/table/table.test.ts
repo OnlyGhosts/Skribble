@@ -2,7 +2,7 @@
  * The card-table pieces Blackjack and Poker share: the animation queue (planning from a previous
  * timeline, the discards before a new table, the backlog snap, shown numbers stepping to the
  * truth, departures, marks, flights), the desktop shortcuts, and the components (the panel shell,
- * the amount field, the moves, the seat strip, the deck, the ribbon, the outcome pieces, a card
+ * the amount field, the moves, the players grid and its tiles, the spotlight, the deck, the ribbon, the outcome pieces, a card
  * turning over, the chips in the air and the screen shell). Runs in node through react-dom/server.
  */
 import { readFileSync, readdirSync } from 'node:fs';
@@ -19,7 +19,9 @@ const T = await import('./timeline');
 const { hotkeyOf, typingIn } = await import('../lib/hotkeys');
 const { AmountField } = await import('./AmountField');
 const { MoveButton, PanelLabelRow, PanelMoves, PanelShell, releaseClickedButton } = await import('./ControlPanel');
-const { MiniSeat, SeatStrip, scrollStrip } = await import('./SeatStrip');
+const { PlayerTile, PlayersGrid } = await import('./PlayersGrid');
+const { Spotlight } = await import('./Spotlight');
+const G = await import('./grid');
 const { Deck, DiscardTray } = await import('./Deck');
 const { TableRibbon } = await import('./Ribbon');
 const { PayoutFloat, TotalPill, outlineClass } = await import('./Outcome');
@@ -116,24 +118,43 @@ describe('the animation queue', () => {
   });
 });
 
-describe('the seat strip scroll', () => {
-  it('glides to the turn seat, and jumps there under reduced motion', () => {
-    const g = globalThis as { CSS?: { escape(s: string): string } };
-    g.CSS ??= { escape: (s: string) => s };
-    const calls: ScrollToOptions[] = [];
-    const seat = { offsetLeft: 400, offsetWidth: 100 };
-    const list = { clientWidth: 300, scrollTo: (o: ScrollToOptions) => void calls.push(o), querySelector: <E extends Element>(sel: string) => (sel.includes('pia') ? (seat as unknown as E) : null) };
-    scrollStrip(list, 'pia', false, false);
-    scrollStrip(list, 'pia', false, true);
-    scrollStrip(list, undefined, false, true);
-    scrollStrip(list, 'me', true, true);
-    scrollStrip(list, 'me', false, true);
-    expect(calls).toEqual([
-      { left: 300, behavior: 'smooth' },
-      { left: 300, behavior: 'auto' },
-      { left: 0, behavior: 'auto' },
-      { left: 0, behavior: 'auto' },
-    ]);
+describe('the players grid', () => {
+  it('steps the tiles down in tiers as the table grows: full to 4 others, compact to 9, small to 23, dense beyond', () => {
+    const tiers = [1, 4, 5, 9, 10, 23, 24, 49].map((n) => G.tileTier(n));
+    expect(tiers).toEqual(['full', 'full', 'compact', 'compact', 'small', 'small', 'dense', 'dense']);
+  });
+
+  it('starts from the tier\'s usual columns before the grid is measured (and on the server render)', () => {
+    expect([1, 2, 3, 4].map((n) => G.fitGrid(n, null).cols)).toEqual([1, 2, 3, 4]);
+    // Compact: two rows. Small: 4 to 6 columns. Dense: 6 to 8.
+    expect([5, 6, 7, 9].map((n) => G.fitGrid(n, null).cols)).toEqual([3, 3, 4, 5]);
+    expect([10, 12, 13, 18, 23].map((n) => G.fitGrid(n, null).cols)).toEqual([4, 4, 5, 6, 6]);
+    expect([24, 36, 42, 49].map((n) => G.fitGrid(n, null).cols)).toEqual([6, 6, 7, 8]);
+    expect(G.fitGrid(49, null)).toEqual({ cols: 8, rows: 7 });
+  });
+
+  it('fits the columns to the space: tiles at their natural size keep the usual shape, a short grid spreads wider', () => {
+    // Room to spare: the usual shape.
+    expect(G.fitGrid(6, { width: 374, height: 200 })).toEqual({ cols: 3, rows: 2 });
+    expect(G.fitGrid(12, { width: 374, height: 170 }, { gap: 4 })).toEqual({ cols: 4, rows: 3 });
+    // Two others share one row however tall the grid is.
+    expect(G.fitGrid(2, { width: 374, height: 400 }).cols).toBe(2);
+    // A short grid: 49 small chips spread to more columns rather than shrink to nothing.
+    const short = G.fitGrid(49, { width: 304, height: 90 }, { gap: 4 });
+    expect(short.cols).toBeGreaterThan(8);
+    expect(short.cols * short.rows).toBeGreaterThanOrEqual(49);
+    expect(G.tileScale(49, short.cols, { width: 304, height: 90 }, G.TIER_SHAPES.dense, 4)).toBeGreaterThan(G.tileScale(49, 8, { width: 304, height: 90 }, G.TIER_SHAPES.dense, 4));
+    // Every fit holds every tile.
+    for (const n of [1, 3, 5, 8, 11, 17, 23, 24, 31, 49]) {
+      const fit = G.fitGrid(n, { width: 340, height: 140 }, { gap: 4 });
+      expect(fit.cols * fit.rows, `${n} tiles`).toBeGreaterThanOrEqual(n);
+      expect((fit.cols - 1) * fit.rows, `${n} tiles, no empty row`).toBeLessThan(n + fit.rows);
+    }
+  });
+
+  it('bows the desktop rows into a gentle arc: the middle lowest, the ends lifted', () => {
+    expect([0, 1, 2, 3, 4].map((c) => G.arcLift(c, 5))).toEqual([1, 0.25, 0, 0.25, 1]);
+    expect(G.arcLift(0, 1)).toBe(0);
   });
 });
 
@@ -214,25 +235,68 @@ describe('the components', () => {
     expect(off).toMatch(/disabled=""[^>]*data-testid="max"/);
   });
 
-  it('the seat strip: a mini seat with its line, the turn lit, a dimmed seat, a badge and data for the tests', () => {
+  it('the players grid: tiles in seat order with the tier and columns on the grid, the turn ringed and tagged, a dimmed seat, a badge and data for the tests', () => {
     const avatar = { color: 1, emoji: 2 };
+    const tile = (id: string, name: string, extra: Record<string, unknown>) =>
+      createElement(PlayerTile, { key: id, playerId: id, name, avatar, connected: true, count: 2, turn: false, line: { state: 'waiting', text: 'Waiting', tone: 'quiet' }, mark: 'waiting', ...extra });
     const out = html(
-      createElement(SeatStrip, {
-        turnId: 'p1',
+      createElement(PlayersGrid, {
+        count: 2,
         label: 'Other players',
         children: [
-        createElement(MiniSeat, { key: 'p1', playerId: 'p1', name: 'Pia', avatar, connected: true, chips: 980, line: { state: 'turn', text: 'Thinking', tone: 'turn' }, turn: true, badge: createElement('b', { key: 'd' }, 'D'), data: { 'data-bet': 20 } }),
-        createElement(MiniSeat, { key: 'p2', playerId: 'p2', name: 'Quinn', avatar, connected: false, chips: 0, line: { state: 'out', text: 'Out', tone: 'bad' }, turn: false, dimmed: true }),
+          tile('p1', 'Pia', { chips: 980, turn: true, line: { state: 'turn', text: 'Thinking', tone: 'turn' }, mark: 'turn', badge: createElement('b', { key: 'd' }, 'D'), data: { 'data-bet': 20 }, onOpen: noop }),
+          tile('p2', 'Quinn', { connected: false, chips: 0, line: { state: 'out', text: 'Out', tone: 'bad' }, mark: 'out', dimmed: true }),
         ],
       }),
     );
-    expect(out).toMatch(/<ul class="tbl-seats" aria-label="Other players" data-testid="seats">/);
-    expect(out).toMatch(/class="tbl-seat tbl-seat--turn"[^>]*data-player-id="p1"[^>]*data-turn="true" aria-current="true" data-bet="20"/);
-    expect(out).toContain('tbl-seat__name-row');
-    expect(out).toContain('tbl-seat__line--turn');
-    expect(out).toMatch(/class="tbl-seat tbl-seat--dim"[^>]*data-player-id="p2"/);
+    expect(out).toMatch(/<ul class="tbl-grid tbl-grid--full"[^>]*aria-label="Other players" data-testid="seats" data-tier="full" data-cols="2" data-count="2">/);
+    expect(out.match(/class="tbl-grid__cell"/g)).toHaveLength(2);
+    expect(out).toMatch(/class="tbl-tile tbl-tile--full tbl-tile--turn"[^>]*data-player-id="p1"[^>]*data-turn="true" aria-current="true" data-bet="20"/);
+    expect(out).toContain('data-testid="seat-playing">Playing<');
+    expect(out).toContain('tbl-tile__line--turn');
+    expect(out).toMatch(/class="tbl-tile tbl-tile--full tbl-tile--dim"[^>]*data-player-id="p2"/);
     expect(out).toContain('data-table-anchor="seat:p1"');
     expect(out).toContain('avatar--dimmed');
+    // Only a tile with a sheet to open is a button.
+    expect(out.match(/data-testid="seat-open"/g)).toHaveLength(1);
+    expect(out).toContain('aria-label="Pia: Thinking. Show details"');
+  });
+
+  it('a tile shows its cards only while the table is small, and an outcome outlines it once settled', () => {
+    const avatar = { color: 1, emoji: 2 };
+    const props = { playerId: 'p1', name: 'Pia', avatar, connected: true, turn: false, line: { state: 'settled', text: 'Win +40', tone: 'strong' as const }, mark: 'win' as const, outcome: 'win' as const, total: { text: '20', tone: 'win' as const }, cards: createElement('i', null, 'cards') };
+    expect(html(createElement(PlayerTile, { ...props, count: 3 }))).toContain('<i>cards</i>');
+    const many = html(createElement(PlayerTile, { ...props, count: 12 }));
+    expect(many).not.toContain('<i>cards</i>');
+    expect(many).toContain('tbl-tile--small tbl-tile--win');
+    expect(many).toContain('data-testid="seat-total"');
+    expect(html(createElement(PlayerTile, { ...props, count: 30 }))).toContain('tbl-tile--dense');
+  });
+
+  it('the spotlight: whose turn it is with their avatar, the label, who is next and the clock, the hand under them', () => {
+    const avatar = { color: 1, emoji: 2 };
+    const out = html(
+      createElement(Spotlight, {
+        subject: 'turn:p1',
+        kind: 'turn',
+        tone: 'active',
+        who: { id: 'p1', name: 'Pia', avatar, connected: true },
+        label: "Pia's turn",
+        next: 'Quinn',
+        clock: createElement('span', { 'data-testid': 'timer' }),
+        children: createElement('i', null, 'hand'),
+      }),
+    );
+    expect(out).toMatch(/class="tbl-spot tbl-spot--turn tbl-spot--tone-active" aria-label="Spotlight" data-testid="spotlight" data-subject="turn:p1" data-kind="turn" data-player-id="p1"/);
+    expect(out).toContain('Pia&#x27;s turn');
+    expect(out).toContain('data-testid="spot-next">Next: <!-- -->Quinn');
+    expect(out).toContain('data-table-anchor="seat:p1"');
+    expect(out).toContain('data-testid="timer"');
+    expect(out).toContain('<i>hand</i>');
+    // Nothing to follow: no body, no avatar.
+    const idle = html(createElement(Spotlight, { subject: 'idle', kind: 'idle', tone: 'neutral', label: 'Game over', clock: null }));
+    expect(idle).not.toContain('tbl-spot__body');
+    expect(idle).not.toContain('avatar');
   });
 
   it('the deck and the discards, the ribbon, the pill, the outline and the payout', () => {
