@@ -457,7 +457,11 @@
   .bj-table.tbl-crowd--dense {
     --bj-dealer-w: 32px;
     --bj-mine-w: 40px;
-    --bj-spot-w: 54px;
+    --bj-spot-w: 48px;
+  }
+
+  .bj-table.tbl-crowd--small {
+    --bj-spot-w: 48px;
   }
 
   .bj-table.tbl-crowd--small .tbl-ribbon,
