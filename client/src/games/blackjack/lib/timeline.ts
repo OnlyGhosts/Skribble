@@ -5,7 +5,6 @@
  * plan and the tests can check it without a browser.
  */
 import {
-  DEAL_GAP_MS,
   DEAL_MS,
   FLIP_MS,
   MOVE_MS,
@@ -19,19 +18,14 @@ import {
   type Frame as TableFrame,
   type Timeline as TableTimeline,
 } from '../../../platform/table/timeline';
+import { dealGapMs } from '@shared/games/blackjack/deal';
 import { dealOrder, dealerKey, seatCards, type TableModel } from './table';
 
 export { DEAL_GAP_MS, DEAL_MS, DISCARD_MS, FLIP_MS, MAX_BACKLOG_MS, MOVE_MS, OUTCOME_HOLD_MS, animating, cardMotion, cardShown, frameAt, landed, nextEvent } from '../../../platform/table/timeline';
 
 export const DEALER_GAP_MS = 500;
-/** A big table's deal speeds up so it takes about this long, but a card never follows the last closer than MIN_DEAL_GAP_MS. */
-export const BIG_DEAL_MS = 3000;
-export const MIN_DEAL_GAP_MS = 60;
-
-/** The beat between two cards dealt in one go: a dealer's pace, quicker at a big table. */
-export function dealGapMs(cards: number): number {
-  return Math.max(MIN_DEAL_GAP_MS, Math.min(DEAL_GAP_MS, Math.floor(BIG_DEAL_MS / Math.max(1, cards))));
-}
+/** The deal's pace is shared with the server, which gives the first turn the time the deal takes to show. */
+export { BIG_DEAL_MS, MIN_DEAL_GAP_MS, dealGapMs } from '@shared/games/blackjack/deal';
 /** The beat between the dealer's last card and the outcomes. */
 export const OUTCOME_DELAY_MS = 150;
 /** A pause after the deal before a peeked dealer blackjack turns over. */

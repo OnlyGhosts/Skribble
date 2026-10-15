@@ -22,6 +22,11 @@ export const TABLE_FILES = {
 /** What each kind of moment sounds like; leave one out for silence. Each runs at its moment. */
 export interface TimelineSounds {
   arrival?(key: string): void;
+  /**
+   * The least time, in ms, from the last card sound to this card's: a card closer than that lands
+   * without one (a big table's quick deal is a riffle, not a roar). None by default.
+   */
+  arrivalGapMs?(key: string): number;
   flip?(key: string): void;
   departure?(key: string): void;
   flight?(flight: Flight): void;
@@ -38,8 +43,15 @@ function fresh(next: Record<string, number>, prev: Record<string, number>, same:
 export function scheduleTimelineSounds<T>(schedule: SoundSchedule, prev: Timeline<T>, next: Timeline<T>, sounds: TimelineSounds): void {
   if (next === prev) return;
   const same = next.id !== null && next.id === prev.id;
-  const { arrival, flip, departure, flight } = sounds;
-  if (arrival) for (const [key, at] of fresh(next.arrivals, prev.arrivals, same)) schedule.at(at, () => arrival(key));
+  const { arrival, arrivalGapMs, flip, departure, flight } = sounds;
+  if (arrival) {
+    let last = -Infinity;
+    for (const [key, at] of fresh(next.arrivals, prev.arrivals, same).sort((a, b) => a[1] - b[1])) {
+      if (arrivalGapMs && at - last < arrivalGapMs(key)) continue;
+      last = at;
+      schedule.at(at, () => arrival(key));
+    }
+  }
   if (flip) for (const [key, at] of fresh(next.flips, prev.flips, same)) schedule.at(at, () => flip(key));
   if (departure) for (const [key, at] of fresh(next.departures, prev.departures, same)) schedule.at(at, () => departure(key));
   if (flight) {

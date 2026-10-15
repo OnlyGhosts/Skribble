@@ -14,7 +14,8 @@ vi.useFakeTimers();
 
 const { ONLOOKER_VOLUME } = await import('../../platform/lib/sound');
 const { blackjackSounds } = await import('./sounds');
-const { clearBlackjackSounds, playBlackjackSounds } = await import('./sfx');
+const { CARD_SOUND_GAP_MS, clearBlackjackSounds, playBlackjackSounds } = await import('./sfx');
+const { BLACKJACK_DEAL, dealAllowanceMs } = await import('@shared/games/blackjack/deal');
 const { useBlackjackStore } = await import('./store');
 const T = await import('./lib/timeline');
 
@@ -225,24 +226,67 @@ describe('the blackjack sting', () => {
 });
 
 describe('a big table', () => {
-  it('deals fifty seats one card at a time: every card has its sound and none land on top of each other', () => {
-    const ids = Array.from({ length: 50 }, (_, i) => `p${i}`);
-    const players = Object.fromEntries(ids.map((id) => [id, seat([])]));
-    const betting = view({ order: ids, players });
-    seed(betting);
-    const deal = view({
+  it('shares its deal timings with the server, which starts the first turn once the deal has landed', () => {
+    expect(BLACKJACK_DEAL).toEqual({ deal: T.DEAL_MS, dealGap: T.DEAL_GAP_MS, discard: T.DISCARD_MS });
+  });
+
+  const ids = Array.from({ length: 50 }, (_, i) => `p${i}`);
+  const fifty = (hands: (id: string) => HandView[], over: Partial<BlackjackView> = {}): BlackjackView =>
+    view({
       phase: 'acting',
       order: ids,
       turn: { playerId: 'p0', handIndex: 0 },
       dealer: { cards: [c('10H')], holeHidden: true, total: 10, soft: false, blackjack: false },
-      players: Object.fromEntries(ids.map((id) => [id, seat([hand(['9S', '7D'])])])),
+      players: Object.fromEntries(ids.map((id) => [id, seat(hands(id))])),
+      ...over,
     });
+
+  it('deals fifty seats in under the animation backlog: a riffle of card sounds, mine always heard, none on top of each other', () => {
+    const betting = view({ order: ids, players: Object.fromEntries(ids.map((id) => [id, seat([])])) });
+    seed(betting);
+    const deal = fifty(() => [hand(['9S', '7D'])]);
+    const start = Date.now();
     const tl = step(betting, deal, 'p0');
     vi.advanceTimersByTime(60_000);
     const deals = at('deal');
-    expect(deals).toHaveLength(102);
-    // The deal speeds up at a big table but never past the card sound's own cooldown.
+    // The whole deal is as long as the server allows for it (no last round to clear here), and under the backlog.
+    expect(tl.endsAt - start).toBe(dealAllowanceMs(50) - T.DISCARD_MS);
+    expect(tl.endsAt - start).toBeLessThan(T.MAX_BACKLOG_MS);
+    // One card sound every CARD_SOUND_GAP_MS or so through the deal, from the first card to the last.
+    const cardsAt = Object.values(tl.arrivals).sort((a, b) => a - b);
+    expect(deals[0]).toBe(cardsAt[0]);
+    expect(deals.length).toBeGreaterThan((cardsAt[cardsAt.length - 1] - cardsAt[0]) / CARD_SOUND_GAP_MS / 2);
     for (let i = 1; i < deals.length; i++) expect(deals[i] - deals[i - 1]).toBeGreaterThanOrEqual(blackjackSounds.sounds.deal.cooldownMs ?? 0);
-    expect(tl.endsAt - Date.now() + 60_000).toBeLessThan(8000);
+    // My two cards always sound, in full.
+    expect(played.filter(([name, , volume]) => name === 'deal' && volume === 1).map(([, time]) => time)).toEqual([tl.arrivals['p0/0/0/9S'], tl.arrivals['p0/0/1/7D']]);
+  });
+
+  it('a snapshot mid-deal keeps the deal playing and gives the new card its sound after it; a snap drops the old plan\'s sounds', () => {
+    const betting = view({ order: ids, players: Object.fromEntries(ids.map((id) => [id, seat([])])) });
+    seed(betting);
+    const deal = fifty(() => [hand(['9S', '7D'])]);
+    const dealTl = step(betting, deal, 'p1');
+    vi.advanceTimersByTime(500);
+    // p0 (on a reduced-motion phone, never held busy) hits while the deal still plays.
+    const hit = fifty((id) => [hand(id === 'p0' ? ['9S', '7D', '2C'] : ['9S', '7D'], id === 'p0' ? { status: 'acting' } : {})]);
+    played = [];
+    const hitTl = step(deal, hit, 'p1');
+    expect(hitTl.arrivals['p0/0/2/2C']).toBeGreaterThanOrEqual(dealTl.endsAt);
+    vi.advanceTimersByTime(60_000);
+    expect(at('deal')).toContain(hitTl.arrivals['p0/0/2/2C']);
+    expect(Math.max(...at('deal'))).toBe(hitTl.arrivals['p0/0/2/2C']);
+
+    // A snap (here: a backlog grown past the limit) drops every sound the dropped plan still had to play.
+    seed(betting);
+    step(betting, deal, 'p1');
+    vi.advanceTimersByTime(100);
+    played = [];
+    const before = useBlackjackStore.getState().soundTimeline;
+    const snapped = { ...before, endsAt: Date.now() + T.MAX_BACKLOG_MS + 1000 };
+    useBlackjackStore.setState({ soundTimeline: snapped, timeline: snapped });
+    const snapTl = step(deal, hit, 'p1');
+    expect(snapTl.endsAt).toBeLessThanOrEqual(Date.now());
+    vi.advanceTimersByTime(60_000);
+    expect(at('deal')).toEqual([]);
   });
 });

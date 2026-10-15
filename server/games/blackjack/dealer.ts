@@ -7,8 +7,9 @@ import { adjustChips, autoStatus, draw, nameOf, snapshot, systemMessage, type Gx
 /**
  * Hands the play to the next hand waiting, one at a time like a table: seats in order, each seat's
  * hands left to right. A hand that needs no decision is settled on the way; none left means the dealer.
+ * `allowanceMs` lengthens the clock while the client still shows what led here (the deal).
  */
-export function nextHand(gx: Gx): void {
+export function nextHand(gx: Gx, allowanceMs = 0): void {
   const { data, ctx } = gx;
   for (const id of data.order) {
     const seat = data.seats[id];
@@ -21,7 +22,7 @@ export function nextHand(gx: Gx): void {
         continue;
       }
       hand.status = 'acting';
-      data.phase = { kind: 'acting', playerId: id, handIndex: index, endsAt: ctx.now + ctx.settings.actSeconds * 1000 };
+      data.phase = { kind: 'acting', playerId: id, handIndex: index, endsAt: ctx.now + allowanceMs + ctx.settings.actSeconds * 1000 };
       return snapshot(gx);
     }
   }

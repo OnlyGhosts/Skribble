@@ -14,6 +14,9 @@ import { blackjackSounds as sfx } from './sounds';
 
 const schedule = createSoundSchedule();
 
+/** A big table's deal is quicker than a card sound: one every CARD_SOUND_GAP_MS, mine down to the sound's own cooldown. */
+export const CARD_SOUND_GAP_MS = 60;
+
 export function clearBlackjackSounds(): void {
   schedule.clear();
 }
@@ -68,9 +71,14 @@ export function playBlackjackSounds({ view, prevView, table, prevTable, before, 
   const grew = Object.keys(view.players).filter((id) => staked(view, id) > (sameRound ? staked(prevView, id) : 0));
   if (grew.length > 0) sfx.play('bet', { volume: me !== null && grew.includes(me) ? 1 : ONLOOKER_VOLUME });
 
+  // The table snapped to the truth (a backlog too long to play): the sounds of the plan it dropped go with it.
+  const now = Date.now();
+  if (timeline !== before && before.endsAt > now && timeline.endsAt <= now) schedule.clear();
   if (timeline !== before && timeline.discard && timeline.discard !== before.discard) schedule.at(timeline.discard.from, () => sfx.play('sweep'));
+  const mine = (key: string) => me !== null && key.startsWith(`${me}/`);
   scheduleTimelineSounds(schedule, before, timeline, {
     arrival: (key) => sfx.play(timeline.moved[key] ? 'slide' : 'deal', { volume: cardVolume(key, me) }),
+    arrivalGapMs: (key) => (timeline.moved[key] ? 0 : mine(key) ? (sfx.sounds.deal.cooldownMs ?? 0) : CARD_SOUND_GAP_MS),
     flip: () => sfx.play('flip'),
   });
 
@@ -84,11 +92,11 @@ export function playBlackjackSounds({ view, prevView, table, prevTable, before, 
     if (bust.playerId === me) schedule.at(landedAt(timeline, me, bust.index, bust.hand), () => sfx.play('bust'));
   }
 
-  const mine = table.hands[me] ?? [];
+  const myHands = table.hands[me] ?? [];
   const at = outcomesAt(timeline);
-  if (table.settled && mine.length > 0 && at !== null && at !== outcomesAt(before)) {
-    const net = mine.reduce((sum, h) => sum + (h.payout ?? 0) - h.bet, 0);
+  if (table.settled && myHands.length > 0 && at !== null && at !== outcomesAt(before)) {
+    const net = myHands.reduce((sum, h) => sum + (h.payout ?? 0) - h.bet, 0);
     if (net > 0) schedule.at(at, () => sfx.play('collect'));
-    else if (net === 0 && mine.some((h) => h.outcome === 'push')) schedule.at(at, () => sfx.play('push'));
+    else if (net === 0 && myHands.some((h) => h.outcome === 'push')) schedule.at(at, () => sfx.play('push'));
   }
 }

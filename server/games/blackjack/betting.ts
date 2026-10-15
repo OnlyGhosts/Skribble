@@ -1,5 +1,6 @@
 /** Betting and the deal: stakes, the betting clock, the cards in table order and the dealer's peek. */
 import { dealerPeeks, isNatural } from '../../../shared/games/blackjack/cards.js';
+import { dealAllowanceMs } from '../../../shared/games/blackjack/deal.js';
 import { settleRound, nextHand } from './dealer.js';
 import { awaitFirstBet, beginRound, waitingForFirstBet } from './round.js';
 import { adjustChips, draw, fail, nameOf, settledStatus, snapshot, systemMessage, type Gx, type HandData } from './state.js';
@@ -75,5 +76,6 @@ function deal(gx: Gx): void {
     systemMessage(gx, 'The dealer has blackjack.');
     return settleRound(gx, true);
   }
-  nextHand(gx);
+  // The first turn's clock starts once the deal has landed on the players' screens.
+  nextHand(gx, dealAllowanceMs(data.order.length));
 }
