@@ -48,15 +48,15 @@ export function fillRound(gx: Gx): void {
 }
 
 /**
- * Straight after a settle the table stays on show for the dealer's reveal (`revealMs`), then
- * BLACKJACK_RESULTS_MS more: before the next round's bets open, or before the podium.
+ * Straight after a settle the table stays on show for the dealer's reveal (`revealMs`). Then the
+ * next round's bets open at once, the settled hands still on show until the deal; or, when the
+ * game is over, the final table stays BLACKJACK_RESULTS_MS more before the podium.
  */
 export function afterSettle(gx: Gx, revealMs: number): void {
   const { data, ctx } = gx;
   // Nobody left to see it: back to the lobby at once.
   if (ctx.players.length < MIN_PLAYERS) return beginRound(gx);
-  const endsAt = ctx.now + revealMs + BLACKJACK_RESULTS_MS;
-  data.phase = gameIsOver(gx) ? { kind: 'ending', endsAt } : { kind: 'results', endsAt };
+  data.phase = gameIsOver(gx) ? { kind: 'ending', endsAt: ctx.now + revealMs + BLACKJACK_RESULTS_MS } : { kind: 'results', endsAt: ctx.now + revealMs };
   snapshot(gx);
 }
 

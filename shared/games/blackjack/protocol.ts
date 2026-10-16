@@ -24,9 +24,9 @@ export const BLACKJACK_SETTINGS_LIMITS = {
 } as const;
 
 /**
- * How long a settled table stays up, on top of the dealer's reveal: before the next round's bets
- * open, and before the podium. Nothing else at the table runs on a clock: the bets and the turns
- * wait for the players.
+ * How long the final table stays up, on top of the dealer's reveal, before the podium. Between
+ * rounds the bets open as soon as the reveal is over. Nothing else at the table runs on a clock:
+ * the bets and the turns wait for the players.
  */
 export const BLACKJACK_RESULTS_MS = 5000;
 
@@ -94,12 +94,12 @@ export type BlackjackServerMessage = never;
 // ---------------------------------------------------------------------------
 
 /**
- * `results` keeps a settled table on show (the dealer's reveal, then BLACKJACK_RESULTS_MS), then
- * `betting` opens (the table stays on show in `lastRound` until the deal). Betting has no clock:
+ * `results` keeps a settled table on show for the dealer's reveal, then `betting` opens at once
+ * (the table stays on show in `lastRound` until the deal). Betting has no clock:
  * the cards go out once every connected seat with chips has bet or sat out, or when the host
  * deals. `acting` is one hand at a time, also unclocked (a disconnected player's hand stands at
  * once, and the host may skip an idle one), `held` waits for a player still in the game to
- * reconnect, `ending` keeps the final table on show for the same pause before the podium.
+ * reconnect, `ending` keeps the final table on show for the reveal and BLACKJACK_RESULTS_MS before the podium.
  */
 export type BlackjackPhase = 'betting' | 'acting' | 'results' | 'held' | 'ending' | 'gameOver';
 

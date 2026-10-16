@@ -745,9 +745,9 @@ stack is left or the host taps End game) sets `hostEnd`; the cross-game suites s
 clock has run, where they would otherwise wait for the game to end on its own.
 
 Blackjack has no clocks at all but the settled table's: after every settle the `results` phase
-keeps the table up for the dealer's reveal and `BLACKJACK_RESULTS_MS` (5 seconds, no setting)
-before the next round's bets open, and the final table does the same in `ending` before the
-podium. The bets wait for the players: the cards go out once every connected seat with chips has
+keeps the table up for the dealer's reveal only, then the next round's bets open at once (the
+settled hands stay on show until the next deal), and the final table stays up in `ending` for the
+reveal and `BLACKJACK_RESULTS_MS` (5 seconds, no setting) before the podium. The bets wait for the players: the cards go out once every connected seat with chips has
 bet or tapped Sit out, a player who is away never holds up the deal (they sit the hand out), and
 the host's Deal now deals to whoever has bet. With no bet down nothing is dealt (a newcomer who
 came in behind a stake that has since left is seated then), and the table holds once nobody

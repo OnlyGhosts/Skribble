@@ -47,7 +47,7 @@ export interface SeatData {
 export type PhaseData =
   | { kind: 'betting' }
   | { kind: 'acting'; playerId: string; handIndex: number }
-  /** The settled table stays on show until endsAt (the dealer's reveal, then BLACKJACK_RESULTS_MS); then the next round's bets open. */
+  /** The settled table stays on show until endsAt (the dealer's reveal); then the next round's bets open. */
   | { kind: 'results'; endsAt: number }
   /** The next round waits for a player still in the game to reconnect; resumeAt is the settle once one is back. */
   | { kind: 'held'; resumeAt: number | null }

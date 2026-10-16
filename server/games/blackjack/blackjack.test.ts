@@ -486,16 +486,16 @@ describe('Blackjack: the deal and the moves', () => {
     expect(chatTexts(stood)).toEqual(['The dealer stands on 17.', 'Alice wins 15, Bob loses 10.']);
     const reveal = revealAllowanceMs(3);
     expect(reveal).toBe(1700);
-    // The settled table stays up for the reveal and the fixed results pause, then the next bets open.
+    // The settled table stays up for the dealer's reveal only, then the next bets open at once.
     expect(view(s)).toMatchObject({ phase: 'results', round: 1, turn: null, order: [], waitingFor: [] });
-    expect(nextDeadline(s.data)).toBe(s.now + reveal + RESULTS_MS);
+    expect(nextDeadline(s.data)).toBe(s.now + reveal);
     expect(controls(s, alice)).toEqual(NO_CONTROLS);
     expect(errorsOf(act(s, alice, { t: 'bet', amount: 10 }))).toEqual(['You cannot bet right now.']);
-    expect(tick(s, reveal + RESULTS_MS - 1)).toEqual([]);
+    expect(tick(s, reveal - 1)).toEqual([]);
     expect(view(s).phase).toBe('results');
-    s.now -= reveal + RESULTS_MS - 1;
+    s.now -= reveal - 1;
     expect(chatTexts(nextRound(s))).toEqual(['Round 2: place your bets!']);
-    s.now -= reveal + RESULTS_MS;
+    s.now -= reveal;
     expect(view(s)).toMatchObject({ phase: 'betting', round: 2, turn: null, order: [alice, bob], waitingFor: [alice, bob] });
     // The seats and the dealer are cleared; the settled table lives in lastRound.
     expect(view(s).dealer).toEqual({ cards: [], holeHidden: true, total: 0, soft: false, blackjack: false });
@@ -1117,7 +1117,7 @@ describe('Blackjack: the dealer', () => {
 });
 
 describe('Blackjack: rounds', () => {
-  it('shows a settled table for the fixed pause, then opens the next betting, unclocked, with the last table on show until the deal', () => {
+  it("shows a settled table for the dealer's reveal only, then opens the next betting, unclocked, with the last table on show until the deal", () => {
     const s = table();
     const [alice, bob] = startGame(s, ['Alice', 'Bob']);
     rig(s, '10S', '5H', '9D', '6H', '6C', '7S', '2C');
@@ -1125,11 +1125,11 @@ describe('Blackjack: rounds', () => {
     act(s, alice, { t: 'stand' });
     const settled = act(s, bob, { t: 'stand' });
     expect(chatTexts(settled)).toEqual(['The dealer stands on 18.', 'Alice loses 10, Bob loses 10.']);
-    // One card drawn after the hole card: 1200 + 500 ms for the reveal, then the fixed pause.
+    // One card drawn after the hole card: 1200 + 500 ms for the reveal, and no wait after it.
     const settledAt = s.now;
-    expect(data(s).phase).toEqual({ kind: 'results', endsAt: settledAt + 1700 + RESULTS_MS });
+    expect(data(s).phase).toEqual({ kind: 'results', endsAt: settledAt + 1700 });
     expect(chatTexts(nextRound(s))).toEqual(['Round 2: place your bets!']);
-    expect(s.now).toBe(settledAt + 1700 + RESULTS_MS);
+    expect(s.now).toBe(settledAt + 1700);
     expect(view(s)).toMatchObject({ phase: 'betting', round: 2, order: [alice, bob], waitingFor: [alice, bob] });
     expect(nextDeadline(s.data)).toBeNull();
     expect(view(s).dealer).toEqual({ cards: [], holeHidden: true, total: 0, soft: false, blackjack: false });
@@ -1304,7 +1304,7 @@ describe('Blackjack: rounds', () => {
       for (let guard = 0; guard < 50 && game.phase.kind === 'acting'; guard++) {
         game = blackjackModule.handle(ctx, game, { type: 'message', playerId: game.phase.playerId, msg: { t: 'hit' } }).data;
       }
-      // Every round settles, shows its table for the fixed pause, then opens the next one's betting: no round is counted twice.
+      // Every round settles, shows its table for the dealer's reveal, then opens the next one's betting: no round is counted twice.
       if (game.phase.kind !== 'results') throw new Error(`no results pause but ${game.phase.kind}`);
       ctx.now = game.phase.endsAt;
       game = blackjackModule.handle(ctx, game, { type: 'tick' }).data;
