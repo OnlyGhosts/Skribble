@@ -1,6 +1,6 @@
 import { avatarSchema, type Avatar } from '@shared/platform/avatar';
 import { NAME_MAX_LENGTH, RECONNECT_GRACE_MS } from '@shared/platform/constants';
-import { isGameId } from '@shared/platform/games';
+import { upgradeGameId } from '@shared/platform/games';
 import { SESSION_STORAGE_KEY, type StoredSession } from '@shared/platform/protocol';
 
 export type Theme = 'light' | 'dark';
@@ -103,8 +103,10 @@ export function loadSession(): StoredSession | null {
   const v = readJson('session', SESSION_STORAGE_KEY);
   if (!isRecord(v)) return null;
   if (typeof v.code !== 'string' || typeof v.token !== 'string' || typeof v.playerId !== 'string') return null;
-  if (typeof v.gameId !== 'string' || !isGameId(v.gameId)) return null;
-  return { code: v.code, gameId: v.gameId, token: v.token, playerId: v.playerId };
+  // A session saved before a game's rename carries its former id: it reads as the current one.
+  const gameId = typeof v.gameId === 'string' ? upgradeGameId(v.gameId) : null;
+  if (gameId === null) return null;
+  return { code: v.code, gameId, token: v.token, playerId: v.playerId };
 }
 
 export function saveSession(session: StoredSession): void {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { isGameId, type GameId } from '@shared/platform/games';
+import { upgradeGameId, type GameId } from '@shared/platform/games';
 import { ROOM_PREVIEW_PATH, type RoomPreview as WirePreview } from '@shared/platform/protocol';
 import { isValidRoomCode } from '@shared/platform/roomCode';
 import { apiUrl } from '../net/server';
@@ -20,10 +20,12 @@ export function parsePreview(v: unknown): RoomPreview | null {
   const o = v as Partial<Record<keyof Extract<WirePreview, { exists: true }>, unknown>>;
   if (typeof o.exists !== 'boolean') return null;
   if (!o.exists) return { exists: false };
-  if (typeof o.gameId !== 'string' || !isGameId(o.gameId)) return null;
+  // A server still on the deploy before a game rename names the game by its former id.
+  const gameId = typeof o.gameId === 'string' ? upgradeGameId(o.gameId) : null;
+  if (gameId === null) return null;
   return {
     exists: true,
-    gameId: o.gameId,
+    gameId,
     players: typeof o.players === 'number' ? o.players : 0,
     maxPlayers: typeof o.maxPlayers === 'number' ? o.maxPlayers : 0,
     inProgress: o.inProgress === true,

@@ -20,7 +20,7 @@ function manager(rng?: () => number, maxRooms?: number): { rooms: RoomManager; t
   return { rooms, transport };
 }
 
-function create(rooms: RoomManager, name: string, connectionId: string, gameId: GameId = 'skribble'): { room: Room; playerId: string } {
+function create(rooms: RoomManager, name: string, connectionId: string, gameId: GameId = 'scribble'): { room: Room; playerId: string } {
   const result = rooms.createRoom(gameId, name, AVATAR, connectionId);
   if (!result.ok) throw new Error(`createRoom failed: ${result.code}`);
   return result;
@@ -31,7 +31,7 @@ describe('RoomManager', () => {
     const { rooms, transport } = manager();
     const codes = new Set<string>();
     for (let i = 0; i < 200; i++) {
-      const { room, playerId } = create(rooms, `P${i}`, `c${i}`, i % 2 === 0 ? 'skribble' : 'template');
+      const { room, playerId } = create(rooms, `P${i}`, `c${i}`, i % 2 === 0 ? 'scribble' : 'template');
       expect(room.code).toHaveLength(ROOM_CODE_LENGTH);
       expect(isValidRoomCode(room.code)).toBe(true);
       expect(room.hostPlayerId).toBe(playerId);
@@ -110,7 +110,7 @@ describe('RoomManager', () => {
     create(rooms, 'B', 'b');
     create(rooms, 'C', 'c');
     expect(rooms.isAtCapacity).toBe(true);
-    const refused = rooms.createRoom('skribble', 'D', AVATAR, 'd');
+    const refused = rooms.createRoom('scribble', 'D', AVATAR, 'd');
     expect(refused).toMatchObject({ ok: false, code: 'RATE_LIMITED' });
     expect(rooms.stats()).toEqual({ rooms: 3, players: 3 });
 

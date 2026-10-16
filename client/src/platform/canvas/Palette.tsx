@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { PALETTE } from '@shared/games/skribble/constants';
+import { PALETTE } from '@shared/games/scribble/constants';
 import { PlusIcon } from './Icons';
 
 /** The colours always on show (the board's row: black, red, orange, yellow, green, blue, purple). */

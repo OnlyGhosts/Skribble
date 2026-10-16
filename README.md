@@ -169,6 +169,18 @@ scale it to two without adding a Redis first. The workflow only deploys when `se
 the dependencies, the Dockerfile, `fly.toml` or the workflow change, because a deploy restarts the
 process and ends the rooms in progress. Avoid pushing server changes in the middle of a party.
 
+A push to `main` that changes `server/` or `shared/` starts this workflow and the Vercel build at
+the same time, and nothing orders the two; Vercel usually finishes first. So a change to what the
+two sides send each other has to work both ways round, and the site should go live before the
+server or with it, never long after. A game rename is the example: the new client reads a game's
+former id (`formerIds` in `shared/platform/games.ts`) in snapshots and previews from the old server,
+and the new server accepts it from old clients. Until the server is redeployed, creating a room of
+the renamed game or switching to it fails with an error toast. A tab still running the old client
+cannot read the new id at all: in a room of that game the page goes blank, and reloading only
+helps once Vercel serves the new client. For the Scribble rename (`'skribble'` became
+`'scribble'`), check that the Vercel production deployment is live by the time the Fly workflow
+ends, and promote it by hand if it is not, so that window stays short.
+
 ### The site on Vercel
 
 1. Import the repository at https://vercel.com/new and keep the detected settings: `vercel.json`
@@ -273,7 +285,7 @@ server/platform/   Node + ws + express. engine/ is the pure platform reducer: Pl
                    every instance delivers to its own sockets). connection.ts validates platform
                    messages with zod, rate-limits chat and game messages and heartbeats sockets;
                    app.ts is the express + ws factory both entry points share.
-server/games/      GAMES, the server registry (index.ts), and one folder per game. skribble/ holds
+server/games/      GAMES, the server registry (index.ts), and one folder per game. scribble/ holds
                    the turn/guess/hint reducer and the canvas side store (drawing never goes through
                    the reducer; the driver hands draw/undo/clear to the store). template/ is Click
                    Race, the hidden example game every new game starts from.
@@ -300,7 +312,7 @@ client/src/platform/ React 19 + zustand. game.ts is the client contract (GameCli
 branding/          The brand pack: brief, guide, landing spec, tokens, mascots, references and the
                    outlined logo files (logo/).
 client/src/games/  GAMES, the client registry (index.ts), and one folder per game: its module, store,
-                   screen, components and stylesheet. skribble/ wires up the platform canvas and keeps
+                   screen, components and stylesheet. scribble/ wires up the platform canvas and keeps
                    the type-into-the-blanks guess bar; quipgame/ and spygame/ their screens and
                    components; template/ is Click Race.
 e2e/               Playwright specs. One browser, several contexts, real server.
@@ -351,7 +363,7 @@ keeps their own seat.
 | Custom words | none | up to 500; "custom only" needs at least 10 |
 
 No game has a timing setting: every clock is a named constant in the game's shared protocol
-(Scribble's turn is 80 seconds, `SKRIBBLE_DRAW_SECONDS`), so a timing changes in one place.
+(Scribble's turn is 80 seconds, `SCRIBBLE_DRAW_SECONDS`), so a timing changes in one place.
 
 | Click Race | Default | Range |
 | --- | --- | --- |
@@ -361,5 +373,5 @@ No game has a timing setting: every clock is a named constant in the game's shar
 ## Limits and ideas
 
 - Without Redis, rooms are in memory: restart the server and they are gone. With Redis they survive restarts and instance churn, but there is still no matchmaking, no accounts and no history. Fine for friends, not for a public service.
-- Scribble is English only for now; adding a language is a word list in `shared/games/skribble/words/` plus one entry in `LANGUAGES` in `shared/games/skribble/protocol.ts`.
+- Scribble is English only for now; adding a language is a word list in `shared/games/scribble/words/` plus one entry in `LANGUAGES` in `shared/games/scribble/protocol.ts`.
 - No public rooms or matchmaking by design: this is for playing with people you know.

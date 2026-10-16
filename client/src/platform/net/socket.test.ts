@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { PlatformClientMessage, PlatformServerMessage, WireMessage } from '@shared/platform/protocol';
+import type { PlatformClientMessage, PlatformServerMessage, RoomState, WireMessage } from '@shared/platform/protocol';
 import type { AnyGameClientModule } from '../game';
 import { fireEvent, installBrowserGlobals, installFakeStorage, setLocation, setVisibility } from '../../test/env';
 
@@ -69,7 +69,7 @@ class FakeWebSocket {
 vi.stubGlobal('WebSocket', FakeWebSocket);
 
 const { GameSocket, PING_INTERVAL_MS, PONG_TIMEOUT_MS, PROBE_TIMEOUT_MS, LONG_LIVED_MS, SLOW_RECONNECT_MS, CLOSE_REPLACED } = await import('./socket');
-const { SEAT_KEY_PREFIX, loadSeat, saveSeat } = await import('../lib/storage');
+const { SEAT_KEY_PREFIX, loadSeat, loadSession, saveSeat } = await import('../lib/storage');
 const { usePlatformStore } = await import('../store/usePlatformStore');
 const { registerGames } = await import('../registry');
 const { chatLine, registryOf, resetStore, room, welcome } = await import('../../test/fixtures');
@@ -449,6 +449,23 @@ describe('game module hooks', () => {
 
     ws.receive({ t: 'draw', ops: [] });
     expect(hooks.onServerMessage).toHaveBeenCalledWith({ t: 'draw', ops: [] });
+  });
+
+  it('reads a former game id in welcomes and snapshots from a server on the deploy before a rename', () => {
+    const hooks = spyModule();
+    const { ws } = startSocket();
+    // 'skribble' is Scribble's pre-rename id: a server not yet redeployed still sends it.
+    const legacy = (overrides: Partial<RoomState> = {}) => ({ ...room(overrides), gameId: 'skribble' }) as unknown as RoomState;
+    ws.receive(welcome('bob', legacy(), 'tok-1', { canvas: [] }));
+    expect(usePlatformStore.getState().room?.gameId).toBe('scribble');
+    expect(loadSession()?.gameId).toBe('scribble');
+    expect(hooks.onWelcome).toHaveBeenCalledWith({ canvas: [] });
+    expect(hooks.onRoom.mock.calls[0][0].gameId).toBe('scribble');
+
+    ws.receive({ t: 'room', room: legacy({ phase: 'playing', serverTime: Date.now() + 1 }) });
+    expect(usePlatformStore.getState().room).toMatchObject({ gameId: 'scribble', phase: 'playing' });
+    expect(hooks.onRoom).toHaveBeenCalledTimes(2);
+    expect(hooks.onRoom.mock.calls[1][0].gameId).toBe('scribble');
   });
 
   it('drops game messages that arrive after leaving and calls onLeave once', () => {

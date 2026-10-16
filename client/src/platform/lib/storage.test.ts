@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { RECONNECT_GRACE_MS } from '@shared/platform/constants';
-import type { StoredSession } from '@shared/platform/protocol';
+import { SESSION_STORAGE_KEY, type StoredSession } from '@shared/platform/protocol';
 import { installBrowserGlobals, installFakeStorage } from '../../test/env';
 
 installBrowserGlobals();
@@ -10,7 +10,7 @@ const { local, session } = installFakeStorage();
 const { clearSeat, isSeatFresh, loadSeat, loadSession, saveSeat, saveSession, seatToResume, SEAT_KEY_PREFIX } = await import('./storage');
 
 const NOW = 1_700_000_000_000;
-const sessionFor = (code: string, token = `tok-${code}`): StoredSession => ({ code, gameId: 'skribble', token, playerId: 'p1' });
+const sessionFor = (code: string, token = `tok-${code}`): StoredSession => ({ code, gameId: 'scribble', token, playerId: 'p1' });
 
 beforeEach(() => {
   local.clear();
@@ -68,5 +68,13 @@ describe('seatToResume', () => {
     saveSession(sessionFor('ABCD'));
     expect(loadSession()).toEqual(sessionFor('ABCD'));
     expect(local.length).toBe(0);
+  });
+
+  it('reads a session saved before the Scribble rename under the current id', () => {
+    // 'skribble' is Scribble's pre-rename id: a tab open across the deploy saved it.
+    session.setItem(SESSION_STORAGE_KEY, JSON.stringify({ code: 'ABCD', gameId: 'skribble', token: 'tok-ABCD', playerId: 'p1' }));
+    expect(loadSession()).toEqual(sessionFor('ABCD'));
+    session.setItem(SESSION_STORAGE_KEY, JSON.stringify({ code: 'ABCD', gameId: 'chess', token: 'tok-ABCD', playerId: 'p1' }));
+    expect(loadSession()).toBeNull();
   });
 });

@@ -305,7 +305,7 @@ describe('start seating', () => {
 
 describe('the hold counts participants only', () => {
   it('reports the connected participants against the seats needed, spectators aside', () => {
-    const s = sim('skribble');
+    const s = sim('scribble');
     const [alice, bob, carol, dave] = seat(s, ['Alice', 'Bob', 'Carol', 'Dave']);
     s.platform(carol, { t: 'sitOut', sitOut: true });
     s.platform(dave, { t: 'sitOut', sitOut: true });
@@ -358,5 +358,20 @@ describe('joining between games', () => {
     s.apply({ type: 'join', name: 'Bob', avatar: AVATAR, connectionId: 'b' });
     expect(s.data.players.find((p) => p.name === 'Bob')).toMatchObject({ participating: false, ready: false });
     expect(s.data).toMatchObject({ phase: 'ended', podium });
+  });
+});
+
+describe('rooms stored before the Scribble rename', () => {
+  it('load under the current id, as stored otherwise, and the game plays on', () => {
+    const s = sim('scribble');
+    const [alice] = startGame(s, ['Alice', 'Bob', 'Carol']);
+    // 'skribble' is Scribble's pre-rename id: rooms stored before the deploy carry it.
+    const legacy = { ...structuredClone(s.data), gameId: 'skribble' } as unknown as PlatformRoomData;
+    expect(upgradeRoomData(legacy)).toEqual(s.data);
+    expect(legacy.gameId).toBe('skribble');
+    expect(viewFor(legacy, alice, s.now)).toEqual(viewFor(s.data, alice, s.now));
+    const played = applyAction(legacy, { type: 'tick' }, ctxAt(s.now + 60 * 60_000, new Ids()));
+    expect(played.data.gameId).toBe('scribble');
+    expect(['playing', 'ended']).toContain(played.data.phase);
   });
 });

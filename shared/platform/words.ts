@@ -1,5 +1,5 @@
 /**
- * Word helpers any word game shares: the mask guessers see (Skribble's hints) and the parser for a
+ * Word helpers any word game shares: the mask guessers see (Scribble's hints) and the parser for a
  * host-typed word list. Content packs stay with the games that own them.
  */
 

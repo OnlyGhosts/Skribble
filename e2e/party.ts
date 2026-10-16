@@ -1,7 +1,7 @@
 import { expect, type Page } from '@playwright/test';
 import { GAME_LIST } from '../shared/platform/games';
 
-/** The slug a new party starts on: the first live game (Scribble, whose internal id stays 'skribble'). */
+/** The slug a new party starts on: the first live game (Scribble). */
 export const FIRST_LIVE_SLUG = (GAME_LIST.find((g) => g.status === 'live') ?? GAME_LIST[0]).slug;
 
 /**

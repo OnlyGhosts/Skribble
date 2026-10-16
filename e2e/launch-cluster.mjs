@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Starts what the multi-instance e2e spec needs: a throw-away redis-server and two Skribble
+ * Starts what the multi-instance e2e spec needs: a throw-away redis-server and two Scribble
  * instances (PORT 4181 and 4182) sharing it through REDIS_URL. Playwright runs this as a
  * webServer command and kills it afterwards; every child goes down with it.
  */

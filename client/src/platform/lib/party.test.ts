@@ -26,7 +26,7 @@ describe('ready-up', () => {
   });
 
   it('lets the host start once the game has enough ready players', () => {
-    expect(canStart(lobby(), gameById('skribble'))).toBe(true); // 2 ready, needs 2
+    expect(canStart(lobby(), gameById('scribble'))).toBe(true); // 2 ready, needs 2
     expect(canStart(lobby(), gameById('spygame'))).toBe(false); // needs 3
     const hostOut = room({ players: [player('host', { sittingOut: true }), player('bob', { joinOrder: 1 })] });
     expect(readyPlayers(hostOut)).toEqual([]);
@@ -34,13 +34,13 @@ describe('ready-up', () => {
   });
 
   it('labels a game by its seat range', () => {
-    expect(playerCountLabel(gameById('skribble'))).toBe('2+ players');
-    expect(playerCountLabel({ ...gameById('skribble'), maxPlayers: 6 })).toBe('2 to 6 players');
+    expect(playerCountLabel(gameById('scribble'))).toBe('2+ players');
+    expect(playerCountLabel({ ...gameById('scribble'), maxPlayers: 6 })).toBe('2 to 6 players');
     expect(playerCountLabel(gameById('poker'))).toBe('2 to 23 players');
     // No seat cap for the big-party games: everyone in the room plays.
     expect(playerCountLabel(gameById('blackjack'))).toBe('1+ players');
     expect(playerCountLabel(gameById('quipgame'))).toBe('3+ players');
-    expect(playerCountLabel({ ...gameById('skribble'), minPlayers: 4, maxPlayers: 4 })).toBe('4 players');
+    expect(playerCountLabel({ ...gameById('scribble'), minPlayers: 4, maxPlayers: 4 })).toBe('4 players');
     expect(listNames(['Alice', 'Bob', 'Carol'])).toBe('Alice, Bob and Carol');
     expect(listNames(['Alice'])).toBe('Alice');
   });

@@ -1,11 +1,11 @@
 /** An in-memory `SocketLike` for driver and connection tests: records what the server sent. */
 import { EventEmitter } from 'node:events';
-import type { SkribbleServerMessage, SkribbleSettings, SkribbleView } from '../../../shared/games/skribble/protocol.js';
+import type { ScribbleServerMessage, ScribbleSettings, ScribbleView } from '../../../shared/games/scribble/protocol.js';
 import type { PlatformServerMessage } from '../../../shared/platform/protocol.js';
 import type { SocketLike } from './types.js';
 
-/** Every message a test may see: platform messages with Skribble's view, and Skribble's own stream. */
-export type AnyServerMessage = PlatformServerMessage<SkribbleView, SkribbleSettings> | SkribbleServerMessage;
+/** Every message a test may see: platform messages with Scribble's view, and Scribble's own stream. */
+export type AnyServerMessage = PlatformServerMessage<ScribbleView, ScribbleSettings> | ScribbleServerMessage;
 export type AnyServerMessageOf<T extends AnyServerMessage['t']> = Extract<AnyServerMessage, { t: T }>;
 
 export class FakeSocket extends EventEmitter implements SocketLike {

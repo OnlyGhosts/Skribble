@@ -69,7 +69,7 @@ export function createApp(options: AppOptions): App {
     const clientDir = options.clientDir ?? path.resolve(process.cwd(), 'dist/client');
     if (existsSync(path.join(clientDir, 'index.html'))) {
       app.use(express.static(clientDir, { index: 'index.html', maxAge: '1h' }));
-      // SPA fallback so share links such as https://host/skribble/XK4P load the app.
+      // SPA fallback so share links such as https://host/scribble/XK4P load the app.
       app.use((req: Request, res: Response, next: NextFunction) => {
         if (req.method !== 'GET' && req.method !== 'HEAD') return next();
         if (req.path.startsWith('/api') || wsPaths.some((p) => req.path.startsWith(p))) return next();

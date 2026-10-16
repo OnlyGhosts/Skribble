@@ -8,13 +8,13 @@ import { soundBanks, type AnySoundBank } from '../platform/lib/sound';
 import { blackjackSounds } from './blackjack/sounds';
 import { pokerSounds } from './poker/sounds';
 import { quipgameSounds } from './quipgame/sounds';
-import { skribbleSounds } from './skribble/sounds';
+import { scribbleSounds } from './scribble/sounds';
 import { spygameSounds } from './spygame/sounds';
 
 /** All the sound files together stay under this many bytes. */
 export const SOUND_BUDGET_BYTES = 800 * 1024;
 
-export const GAME_SOUND_BANKS: readonly AnySoundBank[] = [skribbleSounds, quipgameSounds, spygameSounds, blackjackSounds, pokerSounds];
+export const GAME_SOUND_BANKS: readonly AnySoundBank[] = [scribbleSounds, quipgameSounds, spygameSounds, blackjackSounds, pokerSounds];
 
 /** Every bank, the platform's and the cues' included. */
 export function allSoundBanks(): AnySoundBank[] {

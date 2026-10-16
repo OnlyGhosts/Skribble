@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { SkribbleData } from '../../games/skribble/state.js';
+import type { ScribbleData } from '../../games/scribble/state.js';
 import type { Action } from './actions.js';
 import { applyAction } from './reduce.js';
 import type { PlatformRoomData } from './state.js';
@@ -74,7 +74,7 @@ describe('nextDeadline', () => {
       expectAgreement(s);
       s.now = nextDeadline(s.data) ?? s.now;
       s.tick();
-      steps.push(s.data.game ? (s.data.game as SkribbleData).phase.kind : s.data.phase);
+      steps.push(s.data.game ? (s.data.game as ScribbleData).phase.kind : s.data.phase);
     }
     expect(steps).toEqual(['turnEnd', 'lobby']);
     expectAgreement(s); // nothing left but the lobby: null
@@ -88,21 +88,21 @@ describe('nextDeadline', () => {
     const [alice, bob] = startGame(s, ['Alice', 'Bob'], { rounds: 3 });
     s.game(alice, { t: 'chooseWord', index: 0 });
     s.platform(bob, { t: 'chat', text: 'apple' });
-    expect((s.data.game as SkribbleData).phase.kind).toBe('turnEnd');
+    expect((s.data.game as ScribbleData).phase.kind).toBe('turnEnd');
     s.apply({ type: 'connectionClosed', playerId: bob });
     s.now = nextDeadline(s.data) ?? s.now; // the summary ends while Bob is in grace
     s.tick();
-    expect((s.data.game as SkribbleData).phase).toMatchObject({ kind: 'turnEnd', held: true });
+    expect((s.data.game as ScribbleData).phase).toMatchObject({ kind: 'turnEnd', held: true });
     expect(pendingDeadlines(s.data).map((d) => d.kind)).toEqual(['reconnectExpiry']);
     expectAgreement(s);
 
     // A newcomer only watches, so the hold goes on; Bob coming back ends it.
     const join: Action = { type: 'join', name: 'Carol', avatar: AVATAR, connectionId: 'c' };
     s.apply(join);
-    expect((s.data.game as SkribbleData).phase).toMatchObject({ kind: 'turnEnd', held: true });
+    expect((s.data.game as ScribbleData).phase).toMatchObject({ kind: 'turnEnd', held: true });
     expectAgreement(s);
     s.apply({ type: 'rejoin', token: s.data.players.find((p) => p.id === bob)?.token ?? '', connectionId: 'b2' });
-    expect((s.data.game as SkribbleData).phase.kind).toBe('choosing');
+    expect((s.data.game as ScribbleData).phase.kind).toBe('choosing');
     expectAgreement(s);
     expect(s.now).toBeGreaterThan(START);
   });

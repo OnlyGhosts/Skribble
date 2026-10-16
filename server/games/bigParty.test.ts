@@ -13,14 +13,14 @@ import type { PokerView } from '../../shared/games/poker/protocol.js';
 import { moduleFor } from '../platform/engine/module.js';
 import type { PokerData } from './poker/module.js';
 import type { QuipgameData } from './quipgame/module.js';
-import type { SkribbleData } from './skribble/state.js';
+import type { ScribbleData } from './scribble/state.js';
 import type { SpygameData } from './spygame/module.js';
 
 type LiveGameId = Exclude<GameId, 'template'>;
 
 /** The players each game dealt into its first round or hand, read from its own state. */
 const DEALT_IN: Record<LiveGameId, (game: unknown) => string[]> = {
-  skribble: (g) => (g as SkribbleData).turnQueue,
+  scribble: (g) => (g as ScribbleData).turnQueue,
   spygame: (g) => (g as SpygameData).current.playerIds,
   quipgame: (g) => (g as QuipgameData).roundPlayers,
   blackjack: (g) => Object.keys((g as BlackjackData).seats),

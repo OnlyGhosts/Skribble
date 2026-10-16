@@ -1,19 +1,19 @@
-/** The platform's canvas side store, driven through Skribble's policy (the drawer draws during their turn). */
+/** The platform's canvas side store, driven through Scribble's policy (the drawer draws during their turn). */
 import { describe, expect, it } from 'vitest';
 import { MAX_ACTIONS_PER_TURN, MAX_POINTS_PER_STROKE, type CanvasClientMessage, type DrawOp } from '../../../shared/platform/canvas.js';
-import { skribbleCanvasPolicy } from '../../games/skribble/canvas.js';
-import type { SkribbleData } from '../../games/skribble/state.js';
+import { scribbleCanvasPolicy } from '../../games/scribble/canvas.js';
+import type { ScribbleData } from '../../games/scribble/state.js';
 import type { SideRoom } from '../game.js';
 import { MemoryStorage, type GameStorage } from '../storage.js';
 import { CanvasHistory, CanvasStore, admitOp, createCanvasStore, emptyCounts, replayOps } from './canvas.js';
 
-const newStore = (storage: GameStorage): CanvasStore<SkribbleData, CanvasClientMessage> => new CanvasStore(storage, skribbleCanvasPolicy);
+const newStore = (storage: GameStorage): CanvasStore<ScribbleData, CanvasClientMessage> => new CanvasStore(storage, scribbleCanvasPolicy);
 
 const start = (id: number): DrawOp => ({ k: 'start', id, tool: 'brush', color: '#ff0000', size: 6, x: 10, y: 20 });
 const move = (id: number, n = 2): DrawOp => ({ k: 'move', id, pts: new Array<number>(n).fill(1) });
 
-function room(canvasId = 'canvas-1', drawerId = 'alice', endsAt = 10_000): SideRoom<SkribbleData> {
-  const game: SkribbleData = {
+function room(canvasId = 'canvas-1', drawerId = 'alice', endsAt = 10_000): SideRoom<ScribbleData> {
+  const game: ScribbleData = {
     phase: { kind: 'drawing' },
     turn: { drawerId, choices: [], word: 'apple', startedAt: 0, endsAt, revealOrder: [], revealAt: [], revealed: [], correct: 0, guesserIds: [], guessed: [drawerId], points: {}, ratings: {} },
     canvasId,
@@ -122,7 +122,7 @@ describe('CanvasStore over MemoryStorage', () => {
       reset: (code, seq, stamp) => inner.reset(code, seq, stamp),
       drop: (code) => inner.drop(code),
     };
-    const store = createCanvasStore<SkribbleData, CanvasClientMessage>(skribbleCanvasPolicy)(flaky);
+    const store = createCanvasStore<ScribbleData, CanvasClientMessage>(scribbleCanvasPolicy)(flaky);
     inner.reset('ABCD', null, 'canvas-1');
     const out = await store.handleMessage(room(), 'alice', { t: 'draw', ops: [start(1)] }, 0);
     expect(out).toMatchObject({ ok: true, seq: 2 });

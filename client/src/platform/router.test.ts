@@ -14,7 +14,7 @@ describe('parseRoute', () => {
 
   it('sends a bare game slug (the old per-game landing page) to the redirect', () => {
     const route = parseRoute('/scribble');
-    expect(route.kind === 'game' && route.game.id).toBe('skribble');
+    expect(route.kind === 'game' && route.game.id).toBe('scribble');
     expect(routeCode(route)).toBeNull();
     const hidden = parseRoute('/template/');
     expect(hidden.kind === 'game' && hidden.game.id).toBe('template');
@@ -60,16 +60,17 @@ describe('parseRoute', () => {
   });
 
   it('builds the in-room path, which is also the invite link', () => {
-    // The drawing game is shown as Scribble; its internal id stays 'skribble'.
-    expect(roomPath('skribble', 'AB2K')).toBe('/scribble/AB2K');
+    expect(roomPath('scribble', 'AB2K')).toBe('/scribble/AB2K');
     expect(roomPath('template', 'AB2K')).toBe('/template/AB2K');
   });
 });
 
+// 'skribble' below is Scribble's pre-rename slug: links shared before the rename keep working.
 describe('links from before the Scribble rename', () => {
   it('rewrites the former slug to the current one and leaves every other path alone', () => {
     expect(canonicalPath('/skribble/AB2K')).toBe('/scribble/AB2K');
     expect(canonicalPath('/Skribble/ab2k')).toBe('/scribble/ab2k');
+    expect(canonicalPath('/Skribble')).toBe('/scribble');
     expect(canonicalPath('/skribble')).toBe('/scribble');
     expect(canonicalPath('/scribble/AB2K')).toBe('/scribble/AB2K');
     expect(canonicalPath('/spygame/AB2K')).toBe('/spygame/AB2K');
@@ -81,6 +82,13 @@ describe('links from before the Scribble rename', () => {
     expect(parseRoute('/skribble/ab2k')).toEqual({ kind: 'home', code: 'AB2K', game: null });
     const bare = parseRoute('/skribble');
     expect(bare.kind === 'game' && bare.game.slug).toBe('scribble');
+  });
+
+  it('starts the party on the renamed game from an old ?game= link', () => {
+    for (const search of ['?game=skribble', '?game=Skribble', '?game=scribble']) {
+      const route = parseRoute('/', search);
+      expect(route.kind === 'home' && route.game?.id, search).toBe('scribble');
+    }
   });
 
   it('replaces the address bar (no new history entry) when an old link is opened', () => {

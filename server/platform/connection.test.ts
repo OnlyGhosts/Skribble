@@ -37,7 +37,7 @@ function world(): World {
 
 /** Creates a room on `host` and joins `guest`; returns the code. */
 function pair(w: World, host: FakeSocket, guest: FakeSocket): string {
-  host.receive({ t: 'create', gameId: 'skribble', name: 'Alice', avatar: AVATAR });
+  host.receive({ t: 'create', gameId: 'scribble', name: 'Alice', avatar: AVATAR });
   const code = host.last('welcome').room.code;
   guest.receive({ t: 'join', code, name: 'Bob', avatar: AVATAR });
   // The guest readies up so the host's start seats them (the host is ready by pressing start).
@@ -141,7 +141,7 @@ describe('handleConnection', () => {
   it('rate-limits room creation and joining per socket and refuses creates at the room cap', () => {
     const w = world();
     const flooder = w.connect();
-    for (let i = 0; i < ROOM_RATE_LIMIT_COUNT * 4; i++) flooder.receive({ t: 'create', gameId: 'skribble', name: 'Mallory', avatar: AVATAR });
+    for (let i = 0; i < ROOM_RATE_LIMIT_COUNT * 4; i++) flooder.receive({ t: 'create', gameId: 'scribble', name: 'Mallory', avatar: AVATAR });
     expect(flooder.ofType('welcome')).toHaveLength(ROOM_RATE_LIMIT_COUNT);
     expect(flooder.errors()).toEqual(new Array<string>(ROOM_RATE_LIMIT_COUNT * 3).fill('RATE_LIMITED'));
     // Only the latest room is occupied; the abandoned ones wait for their TTL but count against the cap.
@@ -164,8 +164,8 @@ describe('handleConnection', () => {
     const b = new FakeSocket();
     handleConnection(a, { driver: cappedDriver, clock: { now: () => Date.now() } });
     handleConnection(b, { driver: cappedDriver, clock: { now: () => Date.now() } });
-    a.receive({ t: 'create', gameId: 'skribble', name: 'Alice', avatar: AVATAR });
-    b.receive({ t: 'create', gameId: 'skribble', name: 'Bob', avatar: AVATAR });
+    a.receive({ t: 'create', gameId: 'scribble', name: 'Alice', avatar: AVATAR });
+    b.receive({ t: 'create', gameId: 'scribble', name: 'Bob', avatar: AVATAR });
     expect(a.ofType('welcome')).toHaveLength(1);
     expect(b.ofType('welcome')).toHaveLength(0);
     expect(b.last('error')).toMatchObject({ code: 'RATE_LIMITED', message: expect.stringMatching(/too many rooms/) });
@@ -243,14 +243,14 @@ describe('handleConnection', () => {
 
     host.receive({ t: 'leave' });
     expect(w.rooms.stats().players).toBe(0);
-    host.receive({ t: 'create', gameId: 'skribble', name: 'Alice', avatar: AVATAR });
+    host.receive({ t: 'create', gameId: 'scribble', name: 'Alice', avatar: AVATAR });
     expect(host.ofType('welcome')).toHaveLength(2);
     expect(w.rooms.stats()).toEqual({ rooms: 2, players: 1 });
     host.receive({ t: 'chat', text: 'new room' });
     expect(host.errors()).toEqual([]);
   });
 
-  it('runs a Click Race room next to Skribble rooms, codes shared across games', () => {
+  it('runs a Click Race room next to Scribble rooms, codes shared across games', () => {
     const w = world();
     const host = w.connect();
     const guest = w.connect();
@@ -272,11 +272,25 @@ describe('handleConnection', () => {
     for (let i = 0; i < 10; i++) guest.receive({ t: 'click' });
     expect(host.last('room').room.phase).toBe('ended');
     expect(host.last('room').room.podium?.[0]).toMatchObject({ playerId: guest.last('welcome').playerId, score: 100, rank: 1 });
-    // A Skribble room created meanwhile lives in the same code space.
+    // A Scribble room created meanwhile lives in the same code space.
     const other = w.connect();
-    other.receive({ t: 'create', gameId: 'skribble', name: 'Zed', avatar: AVATAR });
+    other.receive({ t: 'create', gameId: 'scribble', name: 'Zed', avatar: AVATAR });
     expect(other.last('welcome').room.code).not.toBe(welcome.room.code);
     expect(w.rooms.stats()).toEqual({ rooms: 2, players: 3 });
+  });
+
+  it('reads the pre-rename id of Scribble, sent by a client loaded before the rename, as the current one', () => {
+    const w = world();
+    const host = w.connect();
+    // 'skribble' is Scribble's pre-rename id: a client loaded before the deploy still sends it.
+    host.receive({ t: 'create', gameId: 'skribble', name: 'Alice', avatar: AVATAR });
+    expect(host.errors()).toEqual([]);
+    expect(host.last('welcome').room.gameId).toBe('scribble');
+    host.receive({ t: 'selectGame', gameId: 'template' });
+    expect(host.last('room').room.gameId).toBe('template');
+    host.receive({ t: 'selectGame', gameId: 'skribble' });
+    expect(host.errors()).toEqual([]);
+    expect(host.last('room').room.gameId).toBe('scribble');
   });
 
   it('leaves the previous room when creating or joining another', () => {
@@ -284,7 +298,7 @@ describe('handleConnection', () => {
     const host = w.connect();
     const guest = w.connect();
     pair(w, host, guest);
-    guest.receive({ t: 'create', gameId: 'skribble', name: 'Bob', avatar: AVATAR });
+    guest.receive({ t: 'create', gameId: 'scribble', name: 'Bob', avatar: AVATAR });
     expect(host.last('chat').message.text).toBe('Bob left');
     expect(w.rooms.stats()).toEqual({ rooms: 2, players: 2 });
   });

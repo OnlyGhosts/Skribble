@@ -1,11 +1,11 @@
 /** Room-level test harness: a memory Room over a FakeTransport, for either game, driven by fake timers. */
 import { expect } from 'vitest';
-import { isSkribbleWelcomeExtra, type CanvasAction, type SkribbleClientMessage, type SkribblePhase, type SkribblePlayerView, type SkribbleView } from '../../../shared/games/skribble/protocol.js';
+import { isScribbleWelcomeExtra, type CanvasAction, type ScribbleClientMessage, type ScribblePhase, type ScribblePlayerView, type ScribbleView } from '../../../shared/games/scribble/protocol.js';
 import type { TemplateClientMessage, TemplateView } from '../../../shared/games/template/protocol.js';
 import type { Avatar } from '../../../shared/platform/avatar.js';
 import type { GameId } from '../../../shared/platform/games.js';
 import { isPlatformMessageType } from '../../../shared/platform/protocol.js';
-import { createSkribbleCanvasStore } from '../../games/skribble/canvas.js';
+import { createScribbleCanvasStore } from '../../games/scribble/canvas.js';
 import { GAME_TEST_FIXTURES, TEST_WORDS, enoughNames } from '../../games/testFixtures.js';
 import type { PlatformPlayerData } from '../engine/state.js';
 import { MemoryStorage } from '../storage.js';
@@ -69,7 +69,7 @@ export { TEST_WORDS };
 
 export const AVATAR: Avatar = { color: 0, emoji: 0 };
 
-type Inbound = PlatformRoomMessage | SkribbleClientMessage | TemplateClientMessage;
+type Inbound = PlatformRoomMessage | ScribbleClientMessage | TemplateClientMessage;
 
 export interface Harness {
   room: Room;
@@ -81,9 +81,9 @@ export interface Harness {
   player: (playerId: string) => PlatformPlayerData;
   score: (playerId: string) => number;
   token: (playerId: string) => string;
-  /** Skribble's per-player turn state as the spectator view shows it. */
-  turnState: (playerId: string) => SkribblePlayerView;
-  /** The Skribble canvas as a joiner would receive it. */
+  /** Scribble's per-player turn state as the spectator view shows it. */
+  turnState: (playerId: string) => ScribblePlayerView;
+  /** The Scribble canvas as a joiner would receive it. */
   canvas: () => CanvasAction[];
   /** The canvas a player received in their last welcome. */
   welcomeCanvas: (playerId: string) => CanvasAction[];
@@ -99,7 +99,7 @@ export function createHarness(opts: { gameId?: GameId; rng?: Rng; code?: string;
   const storage = new MemoryStorage();
   const emptied: Room[] = [];
   const code = opts.code ?? 'ABCD';
-  const room = new Room(code, opts.gameId ?? 'skribble', {
+  const room = new Room(code, opts.gameId ?? 'scribble', {
     transport,
     storage,
     clock: { now: () => Date.now() },
@@ -107,7 +107,7 @@ export function createHarness(opts: { gameId?: GameId; rng?: Rng; code?: string;
     onEmpty: (r) => emptied.push(r),
     ...opts.deps,
   });
-  const canvasStore = createSkribbleCanvasStore(storage);
+  const canvasStore = createScribbleCanvasStore(storage);
   const player = (id: string): PlatformPlayerData => {
     const p = room.getPlayer(id);
     if (!p) throw new Error(`no player ${id}`);
@@ -130,7 +130,7 @@ export function createHarness(opts: { gameId?: GameId; rng?: Rng; code?: string;
     score: (id) => player(id).score,
     token: (id) => room.getPlayer(id)?.token ?? '',
     turnState(id) {
-      const state = skribbleView(room);
+      const state = scribbleView(room);
       return state.players[id] ?? { guessedThisTurn: false, turnPoints: 0 };
     },
     canvas() {
@@ -140,17 +140,17 @@ export function createHarness(opts: { gameId?: GameId; rng?: Rng; code?: string;
     },
     welcomeCanvas(id) {
       const extra = transport.last(id, 'welcome').extra;
-      if (!isSkribbleWelcomeExtra(extra)) throw new Error('welcome without a canvas');
+      if (!isScribbleWelcomeExtra(extra)) throw new Error('welcome without a canvas');
       return extra.canvas;
     },
   };
   return h;
 }
 
-export function skribbleView(room: Room): SkribbleView {
+export function scribbleView(room: Room): ScribbleView {
   const game = room.getState(null).game;
   if (!game) throw new Error('no game running');
-  return game as SkribbleView;
+  return game as ScribbleView;
 }
 
 export function templateView(room: Room): TemplateView {
@@ -159,17 +159,17 @@ export function templateView(room: Room): TemplateView {
   return game as TemplateView;
 }
 
-/** Skribble's phase as `recipient` sees it (null for the spectator view). */
-export function phaseOf(room: Room, recipient: string | null = null): SkribblePhase {
+/** Scribble's phase as `recipient` sees it (null for the spectator view). */
+export function phaseOf(room: Room, recipient: string | null = null): ScribblePhase {
   const game = room.getState(recipient).game;
   if (!game) throw new Error('no game running');
-  return (game as SkribbleView).phase;
+  return (game as ScribbleView).phase;
 }
 
-export function expectPhase<K extends SkribblePhase['kind']>(room: Room, kind: K, recipient: string | null = null): Extract<SkribblePhase, { kind: K }> {
+export function expectPhase<K extends ScribblePhase['kind']>(room: Room, kind: K, recipient: string | null = null): Extract<ScribblePhase, { kind: K }> {
   const phase = phaseOf(room, recipient);
   expect(phase.kind).toBe(kind);
-  return phase as Extract<SkribblePhase, { kind: K }>;
+  return phase as Extract<ScribblePhase, { kind: K }>;
 }
 
 /** Every listed player readies up for the next game. */

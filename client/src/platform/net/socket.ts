@@ -5,9 +5,11 @@ import {
   isWireMessage,
   type PlatformClientMessage,
   type PlatformServerMessage,
+  type RoomState,
   type StoredSession,
   type WireMessage,
 } from '@shared/platform/protocol';
+import { upgradeGameId } from '@shared/platform/games';
 import { SEAT_REFRESH_MS, clearSeat, clearSession, loadSession, saveSeat, saveSession, seatToResume } from '../lib/storage';
 import { platformRoomSounds } from '../lib/platformSounds';
 import { registeredGame } from '../registry';
@@ -42,6 +44,16 @@ export { CLOSE_REMOVED, CLOSE_REPLACED };
 interface Seat {
   code: string;
   token: string;
+}
+
+/**
+ * A snapshot whose game id is current. A server still on the deploy before a game rename sends the
+ * game's former id (Scribble's 'skribble'), which this bundle has no module or metadata for.
+ */
+function withCurrentGameId<M extends { room: RoomState }>(msg: M): M {
+  const gameId = upgradeGameId(msg.room.gameId);
+  if (gameId === null || gameId === msg.room.gameId) return msg;
+  return { ...msg, room: { ...msg.room, gameId } };
 }
 
 /**
@@ -248,7 +260,8 @@ export class GameSocket {
     registeredGame(room.gameId)?.onServerMessage?.(msg);
   }
 
-  private handle(msg: PlatformServerMessage): void {
+  private handle(received: PlatformServerMessage): void {
+    const msg = received.t === 'welcome' || received.t === 'room' ? withCurrentGameId(received) : received;
     const store = usePlatformStore.getState();
     switch (msg.t) {
       case 'welcome': {

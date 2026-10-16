@@ -23,7 +23,7 @@ const players: Player[] = [];
 let host: Player;
 let guest: Player;
 let phone: Player;
-let skribbleCode = '';
+let scribbleCode = '';
 
 async function newPlayer(browser: Browser, name: string, options: Parameters<Browser['newContext']>[0] = {}): Promise<Player> {
   const context = await browser.newContext(options);
@@ -66,7 +66,7 @@ async function paste(page: Page, text: string): Promise<void> {
 }
 
 function unknownCode(): string {
-  return skribbleCode === 'ZZZZ' ? 'YYYY' : 'ZZZZ';
+  return scribbleCode === 'ZZZZ' ? 'YYYY' : 'ZZZZ';
 }
 
 test.beforeAll(async ({ browser }) => {
@@ -226,6 +226,7 @@ test('pasting a code, or a whole invite link, fills the four boxes', async () =>
   expect(await focusedBox(page)).toBe('code-input-3');
   await expect(page.getByTestId('code-hint')).toHaveCount(0);
 
+  // An invite link from before the rename ('skribble' is Scribble's pre-rename slug) pastes the same way.
   await paste(page, 'https://boredgames.io/skribble/ab2k');
   expect(await boxes(page)).toEqual(['A', 'B', '2', 'K']);
   await paste(page, `${page.url().replace(/\/$/, '')}/${unknownCode()}`);
@@ -251,21 +252,21 @@ test('create → "Who’s playing?" → the lobby, where picking a game comes fi
   await host.page.getByTestId('home-continue').click();
 
   // A real room on the first live game, the picker at the top of the lobby, the host already able to switch.
-  skribbleCode = (await host.page.getByTestId('room-code').textContent())?.replace(/\s+/g, '') ?? '';
-  expect(skribbleCode).toMatch(/^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{4}$/);
-  await expect(host.page).toHaveURL(new RegExp(`/scribble/${skribbleCode}$`));
-  await expect(host.page).toHaveTitle(`boredgames.io · ${skribbleCode}`);
+  scribbleCode = (await host.page.getByTestId('room-code').textContent())?.replace(/\s+/g, '') ?? '';
+  expect(scribbleCode).toMatch(/^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{4}$/);
+  await expect(host.page).toHaveURL(new RegExp(`/scribble/${scribbleCode}$`));
+  await expect(host.page).toHaveTitle(`boredgames.io · ${scribbleCode}`);
   await expect(host.page.getByTestId('site-header').getByRole('img', { name: 'boredgames.io' })).toBeVisible();
   const picker = host.page.getByTestId('game-picker');
-  await expect(picker).toHaveAttribute('data-game', 'skribble');
+  await expect(picker).toHaveAttribute('data-game', 'scribble');
   await expect(host.page.getByRole('heading', { name: 'Pick a game' })).toHaveCount(1);
   await expect(picker.locator('button[data-testid="game-tile"]')).toHaveCount(5);
   // The compact room bar comes first, then the picker.
   await expect(host.page.locator('.lobby > section').first()).toHaveAttribute('data-testid', 'room-bar');
-  await expect(host.page.getByTestId('room-bar').getByTestId('room-code')).toHaveText(skribbleCode);
-  await expect(picker.locator('[data-testid="game-tile"][data-game="skribble"]')).toContainText('Scribble');
+  await expect(host.page.getByTestId('room-bar').getByTestId('room-code')).toHaveText(scribbleCode);
+  await expect(picker.locator('[data-testid="game-tile"][data-game="scribble"]')).toContainText('Scribble');
   await expect(picker.locator('[data-testid="game-tile"] svg[data-glyph]')).toHaveCount(5);
-  expect(await (await host.page.request.get(`/api/rooms/${skribbleCode}`)).json()).toMatchObject({ exists: true, players: 1, gameId: 'skribble' });
+  expect(await (await host.page.request.get(`/api/rooms/${scribbleCode}`)).json()).toMatchObject({ exists: true, players: 1, gameId: 'scribble' });
   await expect(host.page.locator(`[data-testid="player-item"][data-name="${host.name}"]`)).toBeVisible();
   await expect(host.page.getByTestId('start-game')).toBeDisabled();
 
@@ -283,8 +284,8 @@ test('create → "Who’s playing?" → the lobby, where picking a game comes fi
       return preview.exists && preview.players === 1 ? shown : '';
     })
     .not.toBe('');
-  skribbleCode = (await host.page.getByTestId('room-code').textContent())?.replace(/\s+/g, '') ?? '';
-  await expect(host.page).toHaveURL(new RegExp(`/scribble/${skribbleCode}$`));
+  scribbleCode = (await host.page.getByTestId('room-code').textContent())?.replace(/\s+/g, '') ?? '';
+  await expect(host.page).toHaveURL(new RegExp(`/scribble/${scribbleCode}$`));
 });
 
 test('a second browser joins the real room by code; an unknown code is refused with the code kept and the first box focused', async () => {
@@ -302,13 +303,13 @@ test('a second browser joins the real room by code; an unknown code is refused w
 
   // Editing the code clears the error; the real code joins (the name is saved now, so no step).
   await page.getByTestId('code-input-0').click();
-  await page.keyboard.type(skribbleCode, { delay: 20 });
+  await page.keyboard.type(scribbleCode, { delay: 20 });
   await expect(page.getByTestId('join-error')).toHaveCount(0);
   await expect(page.getByTestId('room-preview')).toContainText(/1 player in the party · Scribble/);
   await page.getByTestId('home-join').click();
   await expect(page.getByTestId('name-step')).toHaveCount(0);
-  await expect(page.getByTestId('room-code')).toHaveText(skribbleCode);
-  await expect(page).toHaveURL(new RegExp(`/scribble/${skribbleCode}$`));
+  await expect(page.getByTestId('room-code')).toHaveText(scribbleCode);
+  await expect(page).toHaveURL(new RegExp(`/scribble/${scribbleCode}$`));
   await expect(host.page.getByTestId('player-item')).toHaveCount(2);
   await expect(page.getByTestId('game-picker-note')).toHaveText(`${host.name} picks the game`);
   // Copying the invite link is in the gear's menu, next to Leave room.
@@ -326,40 +327,41 @@ test('Back and the wordmark link leave the room and land on the front door', asy
   await expect(guest.page.getByTestId('room-code')).toHaveCount(0);
   await expect(host.page.getByTestId('player-item')).toHaveCount(1);
 
-  await joinByLink(guest.page, guest.name, `/scribble/${skribbleCode}`, skribbleCode);
+  await joinByLink(guest.page, guest.name, `/scribble/${scribbleCode}`, scribbleCode);
   await expect(host.page.getByTestId('player-item')).toHaveCount(2);
   await guest.page.getByTestId('brand-link').click();
   await expect(guest.page).toHaveURL(/\/$/);
   await expect(guest.page).toHaveTitle('boredgames.io');
   await expect(guest.page.getByTestId('create-panel')).toBeVisible();
   await expect(host.page.getByTestId('player-item')).toHaveCount(1);
-  expect(await (await guest.page.request.get(`/api/rooms/${skribbleCode}`)).json()).toMatchObject({ exists: true, players: 1 });
+  expect(await (await guest.page.request.get(`/api/rooms/${scribbleCode}`)).json()).toMatchObject({ exists: true, players: 1 });
 });
 
 test('deep links fill the boxes and focus Join room; the old per-game pages and unknown pages come home', async () => {
   // '/:slug/:CODE' (the invite link)
-  await phone.page.goto(`/scribble/${skribbleCode}`);
-  expect(await boxes(phone.page)).toEqual(skribbleCode.split(''));
+  await phone.page.goto(`/scribble/${scribbleCode}`);
+  expect(await boxes(phone.page)).toEqual(scribbleCode.split(''));
   await expect(phone.page.getByTestId('home-join')).toBeFocused();
-  // An invite from before the rename ('/skribble/CODE') still works: the address bar is rewritten in place.
-  await phone.page.goto(`/skribble/${skribbleCode}`);
-  await expect(phone.page).toHaveURL(new RegExp(`/scribble/${skribbleCode}$`));
-  expect(await boxes(phone.page)).toEqual(skribbleCode.split(''));
+  // An invite from before the rename ('skribble' is Scribble's pre-rename slug) still works: the address bar is rewritten in place.
+  await phone.page.goto(`/skribble/${scribbleCode}`);
+  await expect(phone.page).toHaveURL(new RegExp(`/scribble/${scribbleCode}$`));
+  expect(await boxes(phone.page)).toEqual(scribbleCode.split(''));
   await expect(phone.page.getByTestId('home-join')).toBeFocused();
   await expect(phone.page.getByTestId('room-code')).toHaveCount(0);
   // the slug is informational: a link for another game of the same room fills the same boxes
-  await phone.page.goto(`/spygame/${skribbleCode}`);
-  expect(await boxes(phone.page)).toEqual(skribbleCode.split(''));
+  await phone.page.goto(`/spygame/${scribbleCode}`);
+  expect(await boxes(phone.page)).toEqual(scribbleCode.split(''));
   // legacy '/:CODE' and '/?room='
-  await phone.page.goto(`/${skribbleCode.toLowerCase()}`);
-  expect(await boxes(phone.page)).toEqual(skribbleCode.split(''));
+  await phone.page.goto(`/${scribbleCode.toLowerCase()}`);
+  expect(await boxes(phone.page)).toEqual(scribbleCode.split(''));
   await expect(phone.page.getByTestId('home-join')).toBeFocused();
-  await phone.page.goto(`/?room=${skribbleCode}`);
-  expect(await boxes(phone.page)).toEqual(skribbleCode.split(''));
+  await phone.page.goto(`/?room=${scribbleCode}`);
+  expect(await boxes(phone.page)).toEqual(scribbleCode.split(''));
 
   // '/:slug' redirects to '/', with empty boxes and both panels.
   await phone.page.goto('/scribble');
   await expect(phone.page).toHaveURL(/\/$/);
+  // Scribble's pre-rename slug too.
   await phone.page.goto('/skribble');
   await expect(phone.page).toHaveURL(/\/$/);
   await expect(phone.page.getByTestId('create-panel')).toBeVisible();
@@ -373,7 +375,7 @@ test('deep links fill the boxes and focus Join room; the old per-game pages and 
   await expect(phone.page).toHaveURL(/\/$/);
   await expect(phone.page.getByTestId('join-panel')).toBeVisible();
   // So do the pages of games the site no longer has, with or without a room code (never read as the code 'HANG').
-  for (const path of ['/hangman', `/battleships/${skribbleCode}`]) {
+  for (const path of ['/hangman', `/battleships/${scribbleCode}`]) {
     await phone.page.goto(path);
     await expect(phone.page.getByTestId('toast')).toContainText(/does not exist/i);
     await expect(phone.page).toHaveURL(/\/$/);
@@ -381,7 +383,7 @@ test('deep links fill the boxes and focus Join room; the old per-game pages and 
   }
 
   // Enter on a filled deep link joins (the phone has no saved name yet: the step shows).
-  await joinByLink(phone.page, phone.name, `/${skribbleCode}`, skribbleCode);
+  await joinByLink(phone.page, phone.name, `/${scribbleCode}`, scribbleCode);
   await expect(host.page.getByTestId('player-item')).toHaveCount(2);
   await leaveLobby(phone.page);
   await expect(phone.page).toHaveURL(/\/$/);

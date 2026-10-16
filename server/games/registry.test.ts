@@ -29,7 +29,7 @@ describe('server game registry', () => {
       const module = GAMES[id];
       if (module.sideMessages) expect(typeof module.createSideStore, id).toBe('function');
     }
-    expect([...(GAMES.skribble.sideMessages ?? [])].sort()).toEqual(['clear', 'draw', 'undo']);
+    expect([...(GAMES.scribble.sideMessages ?? [])].sort()).toEqual(['clear', 'draw', 'undo']);
     expect(GAMES.template.sideMessages).toBeUndefined();
   });
 });

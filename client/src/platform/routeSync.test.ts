@@ -20,7 +20,7 @@ function goBackTo(pathname: string): void {
 }
 
 /** Enters a room the way the socket and useUrlSync do: welcome, then the address bar mirrors the room. */
-function enterRoom(gameId: 'skribble' | 'template' = 'skribble'): void {
+function enterRoom(gameId: 'scribble' | 'template' = 'scribble'): void {
   state().handleServerMessage(welcome('bob', room({ gameId })));
   navigate(`/${gameId}/ABCD`);
 }

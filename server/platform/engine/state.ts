@@ -7,7 +7,7 @@
  * tick next. The running game's own state sits in `game`, opaque to the platform.
  */
 import type { Avatar } from '../../../shared/platform/avatar.js';
-import { gameById, type GameId } from '../../../shared/platform/games.js';
+import { gameById, upgradeGameId, type GameId } from '../../../shared/platform/games.js';
 import type { ChatMessage, PodiumEntry, RoomPhase } from '../../../shared/platform/protocol.js';
 import { defaultPlatformSettings, upgradeContentMode, type PlatformSettings } from '../../../shared/platform/settings.js';
 import { moduleFor } from './module.js';
@@ -85,9 +85,12 @@ export const MAX_KICKED_TOKENS = 50;
  * every seat as playing, and a settings record from before content modes, or from when 'cheeky'
  * was a mode, reads as a family room (the games index their content packs by it, so it must
  * always name a mode that exists). A game's settings stored before a field was added take its
- * default; retired fields stay, harmlessly, since nothing reads them.
+ * default; retired fields stay, harmlessly, since nothing reads them. A room stored under a game's
+ * former id (Scribble's rooms from before its rename) loads under the current one.
  */
-export function upgradeRoomData(data: PlatformRoomData): PlatformRoomData {
+export function upgradeRoomData(stored: PlatformRoomData): PlatformRoomData {
+  const gameId = upgradeGameId(stored.gameId) ?? stored.gameId;
+  const data = gameId === stored.gameId ? stored : { ...stored, gameId };
   const players = data.players as Array<Partial<PlatformPlayerData> & PlatformPlayerData>;
   const settings = data.settings as Partial<RoomSettingsData> & Record<string, unknown>;
   const playersCurrent = players.every((p) => typeof p.ready === 'boolean' && typeof p.sittingOut === 'boolean' && typeof p.participating === 'boolean');

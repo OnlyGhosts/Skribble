@@ -1,10 +1,10 @@
 import type { Redis } from 'ioredis';
-import { isGameId, type GameId } from '../../../shared/platform/games.js';
+import { upgradeGameId, type GameId } from '../../../shared/platform/games.js';
 import type { Action, ActionResult, Ctx } from '../engine/actions.js';
 import type { Effect } from '../engine/effects.js';
 import { findPlayer } from '../engine/players.js';
 import { applyAction } from '../engine/reduce.js';
-import { createRoomData, type PlatformRoomData } from '../engine/state.js';
+import { createRoomData, upgradeRoomData, type PlatformRoomData } from '../engine/state.js';
 import { STAMP_FIELD } from '../storage.js';
 import { CasScript, retryCas } from './redisCas.js';
 import { ROOM_KEY_PATTERN, ROOM_TTL_MS, presenceKey, roomChannel, roomKey, sideHashKey, sideListKey, sideSeqKey, type RoomChannelMessage } from './redisKeys.js';
@@ -15,12 +15,13 @@ const MAX_SCAN_ITERATIONS = 50;
 
 /**
  * The room a key holds, or null when it is missing or holds a game the site no longer runs: such a
- * room reads as gone everywhere (preview, join, rejoin, ticks) until its TTL clears the key.
+ * room reads as gone everywhere (preview, join, rejoin, ticks) until its TTL clears the key. A room
+ * stored before a game's rename loads, upgraded, under the game's current id.
  */
 function parseRoom(raw: string | null): PlatformRoomData | null {
   if (raw === null) return null;
   const data = JSON.parse(raw) as PlatformRoomData;
-  return isGameId(data.gameId) ? data : null;
+  return upgradeGameId(data.gameId) === null ? null : upgradeRoomData(data);
 }
 
 /**

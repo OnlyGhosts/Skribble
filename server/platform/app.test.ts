@@ -31,12 +31,13 @@ afterAll(async () => {
 
 describe('static client with an SPA fallback', () => {
   it('serves index.html for every app route, even from a checkout under a dot-directory', async () => {
-    for (const route of ['/', '/skribble', '/template/AB2K', '/AB2K']) {
+    // '/skribble/AB2K' is an invite from before the Scribble rename (its pre-rename slug): the app rewrites it.
+    for (const route of ['/', '/scribble', '/skribble/AB2K', '/template/AB2K', '/AB2K']) {
       const res = await fetch(`${baseUrl}${route}`);
       expect(res.status, route).toBe(200);
       expect(await res.text(), route).toBe(INDEX_HTML);
     }
-    expect((await fetch(`${baseUrl}/skribble`)).headers.get('cache-control')).toBe('no-cache');
+    expect((await fetch(`${baseUrl}/scribble`)).headers.get('cache-control')).toBe('no-cache');
   });
 
   it('serves assets as files and answers 404 for a missing asset or API path', async () => {
@@ -67,6 +68,6 @@ describe('static client with an SPA fallback', () => {
     expect(preflight.headers.get('access-control-allow-methods')).toContain('GET');
 
     // Pages are not part of the API: no CORS header on the app itself.
-    expect((await fetch(`${baseUrl}/skribble`, { headers: { origin } })).headers.get('access-control-allow-origin')).toBeNull();
+    expect((await fetch(`${baseUrl}/scribble`, { headers: { origin } })).headers.get('access-control-allow-origin')).toBeNull();
   });
 });

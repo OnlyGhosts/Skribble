@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { DRAWER_DISCONNECT_GRACE_MS, TURN_END_SECONDS } from '../../../shared/games/skribble/constants.js';
+import { DRAWER_DISCONNECT_GRACE_MS, TURN_END_SECONDS } from '../../../shared/games/scribble/constants.js';
 import { GAME_IDS } from '../../../shared/platform/games.js';
-import type { SkribbleData } from '../../games/skribble/state.js';
+import type { ScribbleData } from '../../games/scribble/state.js';
 import { createRoomData, type PlatformRoomData } from './state.js';
 import { AVATAR, START, sim, startGame } from './testHarness.js';
 
@@ -40,7 +40,7 @@ describe.each(GAME_IDS)('room data serialisation (%s)', (gameId) => {
   });
 });
 
-describe('room data serialisation (skribble)', () => {
+describe('room data serialisation (scribble)', () => {
   it('survives JSON at every point of a game, including grace periods, votes and chat', () => {
     const s = sim();
     const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol', 'Dave']);
@@ -51,14 +51,14 @@ describe('room data serialisation (skribble)', () => {
     s.game(carol, { t: 'rate', value: 'like' });
     s.platform(bob, { t: 'voteKick', playerId: carol });
     s.apply({ type: 'connectionClosed', playerId: alice, connectionId: 'conn-Alice' });
-    expect((s.data.game as SkribbleData).grace.drawerGoneAt).not.toBeNull();
+    expect((s.data.game as ScribbleData).grace.drawerGoneAt).not.toBeNull();
     expect(s.data.players.find((p) => p.id === alice)?.disconnectedAt).toBe(s.now);
     expect(s.data.votes).toHaveLength(1);
     expect(roundTrip(s.data)).toStrictEqual(s.data);
 
     s.advance(DRAWER_DISCONNECT_GRACE_MS);
     s.tick();
-    expect((s.data.game as SkribbleData).phase.kind).toBe('turnEnd');
+    expect((s.data.game as ScribbleData).phase.kind).toBe('turnEnd');
     expect(roundTrip(s.data)).toStrictEqual(s.data);
 
     s.advance(TURN_END_SECONDS * 1000);

@@ -252,7 +252,7 @@ describe('front door', () => {
   });
 
   it('starts a new party on the first live game of the registry', () => {
-    expect(initialGame().id).toBe('skribble');
+    expect(initialGame().id).toBe('scribble');
     expect(initialGame().status).toBe('live');
     expect(initialGame(gameById('template')).id).toBe('template');
   });
@@ -979,7 +979,7 @@ describe('player chips', () => {
 
   it("use the game's own status when it has one", () => {
     const r = room({ phase: 'playing' });
-    const game = { meta: gameById('skribble'), Screen: () => null, playerStatus: () => ({ label: 'Drawing', icon: null, tone: 'active' as const }) };
+    const game = { meta: gameById('scribble'), Screen: () => null, playerStatus: () => ({ label: 'Drawing', icon: null, tone: 'active' as const }) };
     expect(chipStatus(r, player('host'), game).label).toBe('Drawing');
     expect(chipStatus(r, player('host', { connected: false }), game).label).toBe('Away');
     expect(chipStatus(r, player('host'), null).label).toBe('Ready');

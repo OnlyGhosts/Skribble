@@ -2,7 +2,7 @@ import { expect, test, type Browser, type BrowserContext, type Page, type WebSoc
 import { createParty, joinByCode, readyAll } from './party';
 
 /**
- * Phones that go dark must not end the game. Part one (Skribble, two players): a guesser's link
+ * Phones that go dark must not end the game. Part one (Scribble, two players): a guesser's link
  * drops for a while; the game holds at the next turn boundary instead of falling back to the
  * lobby, the other player sees the waiting overlay, and the comeback restores the seat, name and
  * score. Then the same player's tab is discarded and reopened: localStorage brings the seat back
@@ -102,10 +102,10 @@ async function sendGuess(page: Page, text: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Part one: Skribble, a dropped link and a discarded tab
+// Part one: Scribble, a dropped link and a discarded tab
 // ---------------------------------------------------------------------------
 
-test.describe('Skribble keeps going through a dropped link and a discarded tab', () => {
+test.describe('Scribble keeps going through a dropped link and a discarded tab', () => {
   let host: Player;
   let guest: Player;
   const links = new Map<Player, Link>();

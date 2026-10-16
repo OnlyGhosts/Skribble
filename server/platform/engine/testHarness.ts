@@ -41,7 +41,7 @@ export interface Sim {
   playerId(name: string): string;
 }
 
-export function sim(gameId: GameId = 'skribble', code = 'ABCD', now = START, rng: () => number = () => 0): Sim {
+export function sim(gameId: GameId = 'scribble', code = 'ABCD', now = START, rng: () => number = () => 0): Sim {
   const ids = new Ids();
   const s: Sim = {
     data: createRoomData(code, gameId, now),

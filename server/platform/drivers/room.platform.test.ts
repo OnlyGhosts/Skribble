@@ -921,17 +921,17 @@ describe('platform room: seat limits and spectators (Click Race)', () => {
   });
 
   it('hands the game its participants and spectators, and aborts only when the participating seats drop below the minimum', () => {
-    const h = createHarness({ gameId: 'skribble' });
+    const h = createHarness({ gameId: 'scribble' });
     const alice = h.join('Alice');
     const bob = h.join('Bob');
     const carol = h.join('Carol');
-    h.send(alice, { t: 'updateSettings', settings: GAME_TEST_FIXTURES.skribble.settings });
+    h.send(alice, { t: 'updateSettings', settings: GAME_TEST_FIXTURES.scribble.settings });
     readyUp(h, [bob]);
     h.send(alice, { t: 'start' });
     expect(h.room.phase).toBe('playing');
     const view = h.room.getState(carol);
     expect(view.players.map((p) => [p.id, p.participating])).toEqual([[alice, true], [bob, true], [carol, false]]);
-    // Skribble's per-player view covers the participants only; the spectator still gets the snapshot.
+    // Scribble's per-player view covers the participants only; the spectator still gets the snapshot.
     expect(Object.keys((view.game as { players: Record<string, unknown> }).players).sort()).toEqual([alice, bob].sort());
     // A spectator leaving never ends the game; a participant leaving below the minimum does.
     h.room.leave(carol);
@@ -980,8 +980,8 @@ describe('platform room: the end of a game', () => {
     expect(h.room.playerCount).toBe(3);
   });
 
-  it('keeps the guesser whose guess closes the last Skribble turn seated on the podium', () => {
-    const h = createHarness({ gameId: 'skribble' });
+  it('keeps the guesser whose guess closes the last Scribble turn seated on the podium', () => {
+    const h = createHarness({ gameId: 'scribble' });
     const [alice, bob] = startGame(h, ['Alice', 'Bob']);
     // Turn 1: Alice draws, Bob guesses; turn 2: Bob draws, Alice's guess is the last of the game.
     h.send(alice, { t: 'chooseWord', index: 0 });

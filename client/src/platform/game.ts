@@ -45,20 +45,20 @@ export interface GameClientModule<V = unknown, S = Record<string, unknown>> {
   sounds?: AnySoundBank;
   /** Extra rows inside the lobby settings panel, under the platform fields. */
   SettingsFields?: ComponentType<SettingsFieldsProps<S>>;
-  /** A small badge in the corner of the player's avatar (Skribble: pencil / check). */
+  /** A small badge in the corner of the player's avatar (Scribble: pencil / check). */
   playerBadge?(room: RoomState<V, S>, player: PlayerPublic): ReactNode;
-  /** Extra text next to the score in the player list (Skribble: "+120" this turn). */
+  /** Extra text next to the score in the player list (Scribble: "+120" this turn). */
   playerMeta?(room: RoomState<V, S>, player: PlayerPublic): ReactNode;
   /**
    * The player's chip status in the top bar; null falls back to the platform's ("Ready", or
    * "Watching" / "Away" for players sitting the game out or offline, which the platform decides).
    */
   playerStatus?(room: RoomState<V, S>, player: PlayerPublic): PlayerStatus | null;
-  /** Extra class for the player's row (Skribble: the green "guessed" tint). */
+  /** Extra class for the player's row (Scribble: the green "guessed" tint). */
   playerClassName?(room: RoomState<V, S>, player: PlayerPublic): string | undefined;
   /** A server message that is not a platform message; return true when handled. */
   onServerMessage?(msg: WireMessage): boolean;
-  /** `welcome.extra`, the game's bootstrap (Skribble: the canvas history). The room is already in the store. */
+  /** `welcome.extra`, the game's bootstrap (Scribble: the canvas history). The room is already in the store. */
   onWelcome?(extra: unknown): void;
   /** Every snapshot, welcome included; `prev` is null when this one enters the room. */
   onRoom?(room: RoomState<V, S>, prev: RoomState<V, S> | null): void;

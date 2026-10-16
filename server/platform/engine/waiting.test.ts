@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import { RECONNECT_GRACE_MS } from '../../../shared/platform/constants.js';
 import { GAME_IDS, gameById } from '../../../shared/platform/games.js';
-import type { SkribbleData } from '../../games/skribble/state.js';
+import type { ScribbleData } from '../../games/scribble/state.js';
 import { GAME_TEST_FIXTURES } from '../../games/testFixtures.js';
 import { applyGameResult } from './delegate.js';
 import type { Cx } from './messaging.js';
@@ -126,7 +126,7 @@ describe('the waiting effect', () => {
     disconnect(s, bob);
     s.now = nextDeadline(s.data) ?? s.now;
     s.tick();
-    expect((s.data.game as SkribbleData).phase).toMatchObject({ kind: 'turnEnd', held: true });
+    expect((s.data.game as ScribbleData).phase).toMatchObject({ kind: 'turnEnd', held: true });
     expect(gameDeadline(s.data)).toBeNull();
     expect(pendingDeadlines(s.data)).toEqual([{ kind: 'reconnectExpiry', at: dropAt + RECONNECT_GRACE_MS, playerId: bob }]);
     expect(viewFor(s.data, alice, s.now).waiting).toEqual({ reason: 'players', missing: [bob], needed: 2, connected: 1 });

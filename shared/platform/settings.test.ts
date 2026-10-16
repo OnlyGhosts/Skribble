@@ -14,9 +14,9 @@ describe('platform settings', () => {
   });
 
   it('derives room defaults and a seat limit per game', () => {
-    expect(defaultPlatformSettings(gameById('skribble'))).toEqual({ contentMode: 'family' });
-    expect(seatLimit(gameById('skribble'))).toBe(ROOM_HARD_CAP);
-    expect(seatLimit({ ...gameById('skribble'), maxPlayers: 6 })).toBe(6);
+    expect(defaultPlatformSettings(gameById('scribble'))).toEqual({ contentMode: 'family' });
+    expect(seatLimit(gameById('scribble'))).toBe(ROOM_HARD_CAP);
+    expect(seatLimit({ ...gameById('scribble'), maxPlayers: 6 })).toBe(6);
   });
 
   it('labels every content mode', () => {

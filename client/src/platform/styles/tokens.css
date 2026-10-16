@@ -85,7 +85,7 @@
   --chat-guessed-fg: #d4c8f5;
 
   /* Per-game accents: icon plates and decorations only, always with ink on top; labels stay neutral. */
-  --game-skribble: #a699d5;
+  --game-scribble: #a699d5;
   --game-spygame: #86cdba;
   --game-quipgame: #f1c777;
   --game-blackjack: #86d9a3;

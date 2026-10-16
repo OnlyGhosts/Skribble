@@ -25,7 +25,7 @@ export interface GameTestFixture {
 export const TEST_WORDS = ['apple', 'banana', 'cherry', 'dragon', 'eagle', 'falcon', 'guitar', 'hammer', 'island', 'jacket'];
 
 export const GAME_TEST_FIXTURES: Readonly<Record<GameId, GameTestFixture>> = {
-  skribble: {
+  scribble: {
     settings: { customWords: TEST_WORDS, customWordsOnly: true, rounds: 1, hints: 2, wordChoices: 3 },
     longSettings: { rounds: 10 },
     validMessage: { t: 'chooseWord', index: 0 },

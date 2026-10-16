@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { BRUSH_SIZES } from '@shared/games/skribble/constants';
+import { BRUSH_SIZES } from '@shared/games/scribble/constants';
 import { BucketIcon, EraserIcon, PencilIcon, RedoIcon, TrashIcon, UndoIcon } from './Icons';
 import { Palette } from './Palette';
 import type { DrawTool, DrawingSettings } from './useDrawing';

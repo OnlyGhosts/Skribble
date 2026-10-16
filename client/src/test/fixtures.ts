@@ -1,4 +1,4 @@
-import { DEFAULT_SKRIBBLE_SETTINGS } from '@shared/games/skribble/protocol';
+import { DEFAULT_SCRIBBLE_SETTINGS } from '@shared/games/scribble/protocol';
 import { GAME_IDS, type GameId } from '@shared/platform/games';
 import type { ChatMessage, PlayerPublic, RoomState, WelcomeMessage } from '@shared/platform/protocol';
 import type { AnyGameClientModule } from '../platform/game';
@@ -27,13 +27,13 @@ export function player(id: string, overrides: Partial<PlayerPublic> = {}): Playe
   };
 }
 
-/** A Skribble lobby by default; `game` carries a game view for in-game states. */
+/** A Scribble lobby by default; `game` carries a game view for in-game states. */
 export function room(overrides: Partial<RoomState> = {}): RoomState {
   return {
     code: 'ABCD',
-    gameId: 'skribble',
+    gameId: 'scribble',
     hostId: 'host',
-    settings: { contentMode: 'family', ...DEFAULT_SKRIBBLE_SETTINGS },
+    settings: { contentMode: 'family', ...DEFAULT_SCRIBBLE_SETTINGS },
     players: [player('host'), player('bob', { joinOrder: 1 })],
     phase: 'lobby',
     podium: null,

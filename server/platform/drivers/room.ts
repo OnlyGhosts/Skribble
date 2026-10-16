@@ -260,7 +260,7 @@ export class Room {
   }
 
   // ---------------------------------------------------------------------------
-  // Side store (Skribble's canvas): never touches the engine
+  // Side store (Scribble's canvas): never touches the engine
   // ---------------------------------------------------------------------------
 
   private sideRoom(): SideRoom<unknown> {

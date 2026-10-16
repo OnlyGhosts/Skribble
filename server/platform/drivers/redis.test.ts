@@ -2,13 +2,13 @@ import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { connect, createServer } from 'node:net';
 import { Redis } from 'ioredis';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { CHOOSE_TIME_SECONDS, MAX_ACTIONS_PER_TURN, MAX_POINTS_PER_STROKE } from '../../../shared/games/skribble/constants.js';
-import { isSkribbleWelcomeExtra, type CanvasAction, type DrawOp, type SkribbleClientMessage } from '../../../shared/games/skribble/protocol.js';
+import { CHOOSE_TIME_SECONDS, MAX_ACTIONS_PER_TURN, MAX_POINTS_PER_STROKE } from '../../../shared/games/scribble/constants.js';
+import { isScribbleWelcomeExtra, type CanvasAction, type DrawOp, type ScribbleClientMessage } from '../../../shared/games/scribble/protocol.js';
 import type { TemplateClientMessage } from '../../../shared/games/template/protocol.js';
 import { EMPTY_ROOM_TTL_MS } from '../../../shared/platform/constants.js';
 import { CLOSE_REPLACED } from '../../../shared/platform/protocol.js';
 import { CanvasHistory } from '../sideStores/canvas.js';
-import type { SkribbleData } from '../../games/skribble/state.js';
+import type { ScribbleData } from '../../games/scribble/state.js';
 import { handleConnection } from '../connection.js';
 import type { PlatformRoomData } from '../engine/state.js';
 import { productionCtx, systemClock } from '../transport.js';
@@ -21,16 +21,16 @@ import { AVATAR, TEST_WORDS, toInbound } from './testUtils.js';
 import type { PlatformRoomMessage, Seat } from './types.js';
 
 /** Wraps a platform or game message the way the connection layer would. */
-const msg = (m: PlatformRoomMessage | SkribbleClientMessage | TemplateClientMessage): ReturnType<typeof toInbound> => toInbound(m);
+const msg = (m: PlatformRoomMessage | ScribbleClientMessage | TemplateClientMessage): ReturnType<typeof toInbound> => toInbound(m);
 
 function canvasOf(welcome: AnyServerMessageOf<'welcome'>): CanvasAction[] {
-  if (!isSkribbleWelcomeExtra(welcome.extra)) throw new Error('welcome without a canvas');
+  if (!isScribbleWelcomeExtra(welcome.extra)) throw new Error('welcome without a canvas');
   return welcome.extra.canvas;
 }
 
-function skribble(data: PlatformRoomData): SkribbleData {
+function scribble(data: PlatformRoomData): ScribbleData {
   if (!data.game) throw new Error('no game running');
-  return data.game as SkribbleData;
+  return data.game as ScribbleData;
 }
 
 /**
@@ -102,7 +102,7 @@ describe.skipIf(!hasRedisServer)('RedisDriver across two instances', () => {
     return { ws, seat: result.seat, connectionId, token: ws.last('welcome').token, driver };
   }
 
-  async function create(driver: RedisDriver, name: string, gameId: 'skribble' | 'template' = 'skribble'): Promise<Client> {
+  async function create(driver: RedisDriver, name: string, gameId: 'scribble' | 'template' = 'scribble'): Promise<Client> {
     const ws = new FakeSocket();
     const connectionId = `conn-${name}-${++connections}`;
     driver.register(connectionId, ws);
@@ -175,7 +175,7 @@ describe.skipIf(!hasRedisServer)('RedisDriver across two instances', () => {
     await vi.waitFor(() => expect(host.ws.chats()).toContainEqual({ kind: 'chat', text: 'hello from B' }), WAIT);
     expect(guest.ws.chats()).toContainEqual({ kind: 'chat', text: 'hello from B' });
 
-    expect(await a.preview(code)).toMatchObject({ exists: true, code, gameId: 'skribble', players: 2, inProgress: false, joinable: true });
+    expect(await a.preview(code)).toMatchObject({ exists: true, code, gameId: 'scribble', players: 2, inProgress: false, joinable: true });
     expect(await b.health()).toEqual({ driver: 'redis', rooms: 1, approximate: false });
     expect(a.holds(host.seat, host.connectionId)).toBe(true);
     expect(b.holds(host.seat, host.connectionId)).toBe(false);
@@ -398,7 +398,7 @@ describe.skipIf(!hasRedisServer)('RedisDriver across two instances', () => {
       await a.handle(host.seat, msg({ t: 'undo' }));
       memory.undo();
     }
-    expect(await admin.hgetall(sideHashKey(code))).toEqual({ stamp: skribble(await stored(code)).canvasId, actions: '0', points: '0' });
+    expect(await admin.hgetall(sideHashKey(code))).toEqual({ stamp: scribble(await stored(code)).canvasId, actions: '0', points: '0' });
     expect(await admin.llen(sideListKey(code))).toBe(0);
   }, 20_000);
 
@@ -432,7 +432,7 @@ describe.skipIf(!hasRedisServer)('RedisDriver across two instances', () => {
     const a = instance();
     const ws = new FakeSocket();
     handleConnection(ws, { driver: a });
-    ws.receive({ t: 'create', gameId: 'skribble', name: 'Alice', avatar: AVATAR });
+    ws.receive({ t: 'create', gameId: 'scribble', name: 'Alice', avatar: AVATAR });
     // The tab closes before Redis has answered the create: the seat must still end up disconnected.
     ws.close();
     await vi.waitFor(async () => expect(await admin.keys('room:????')).toHaveLength(1), WAIT);
@@ -476,7 +476,7 @@ describe.skipIf(!hasRedisServer)('RedisDriver across two instances', () => {
     await vi.waitFor(() => expect(guest.ws.ofType('draw')).toHaveLength(1), WAIT);
     const late = await join(b, code, 'Carol');
     expect(canvasOf(late.ws.last('welcome'))).toHaveLength(1);
-    const stamp = skribble(await stored(code)).canvasId;
+    const stamp = scribble(await stored(code)).canvasId;
     const seq = Number(await admin.get(sideSeqKey(code)));
     const draw = (ops: DrawOp[], overrides: Partial<Extract<RoomChannelMessage, { kind: 'side' }>>): Promise<number> => {
       const message: RoomChannelMessage = { kind: 'side', seq, stamp, sends: [{ to: { except: [host.seat.playerId] }, msg: { t: 'draw', ops } }], ...overrides };
@@ -502,7 +502,7 @@ describe.skipIf(!hasRedisServer)('RedisDriver across two instances', () => {
     const b = instance();
     const { host, guest, code } = await pair(a, b);
     await startAndChoose(host, guest);
-    const stamp = skribble(await stored(code)).canvasId;
+    const stamp = scribble(await stored(code)).canvasId;
     // Another instance committed a turn change this instance has not seen yet: the canvas now belongs to a later turn.
     await admin.hset(sideHashKey(code), 'stamp', 'later-canvas');
     await a.handle(host.seat, msg({ t: 'draw', ops: [stroke(1)] }));
@@ -563,11 +563,52 @@ describe.skipIf(!hasRedisServer)('RedisDriver across two instances', () => {
     // A new room that draws the same code replaces it, side store and all.
     const carol = await create(b, 'Carol');
     expect(carol.seat.code).toBe(code);
-    expect(carol.ws.last('welcome').room.gameId).toBe('skribble');
+    expect(carol.ws.last('welcome').room.gameId).toBe('scribble');
     expect(carol.ws.last('welcome').room.players.map((p) => p.name)).toEqual(['Carol']);
     expect(await admin.llen(sideListKey(code))).toBe(0);
     expect(await admin.hget(sideHashKey(code), 'stamp')).toBe('');
-    expect(await a.preview(code)).toMatchObject({ exists: true, gameId: 'skribble', players: 1 });
+    expect(await a.preview(code)).toMatchObject({ exists: true, gameId: 'scribble', players: 1 });
+    expect(logs).toEqual([]);
+  });
+
+  it('loads a room stored before the Scribble rename under the current id, side store and all', async () => {
+    const a = instance({ rng: () => 0 });
+    const host = await create(a, 'Alice');
+    const code = host.seat.code;
+    // 'skribble' is Scribble's pre-rename id: rooms stored before the deploy carry it.
+    await admin.set(roomKey(code), JSON.stringify({ ...(await stored(code)), gameId: 'skribble' }), 'PX', 60_000);
+    await admin.rpush(sideListKey(code), JSON.stringify([stroke(1)]));
+
+    const b = instance({ rng: () => 0 });
+    expect(await b.preview(code)).toMatchObject({ exists: true, gameId: 'scribble', players: 1 });
+    const back = await rejoin(b, code, host.token, 'Alice');
+    expect(back.ws.last('welcome').room.gameId).toBe('scribble');
+    const guest = await join(b, code, 'Bob');
+    expect(guest.ws.last('welcome').room).toMatchObject({ gameId: 'scribble', settings: { rounds: expect.any(Number) } });
+    // The next write stores the current id; the side store was kept, not reset as for a removed game.
+    expect((await stored(code)).gameId).toBe('scribble');
+    expect(await admin.llen(sideListKey(code))).toBe(1);
+    expect(logs).toEqual([]);
+  });
+
+  it('upgrades a published snapshot under the pre-rename id of Scribble (an older deploy mid-switch) instead of dropping the room', async () => {
+    const a = instance();
+    const b = instance();
+    const { host, guest, code } = await pair(a, b);
+    // What an instance of the older deploy publishes: 'skribble' is Scribble's pre-rename id.
+    const before = await stored(code);
+    const data = { ...before, gameId: 'skribble', version: before.version + 1 } as unknown as PlatformRoomData;
+    const legacy = { kind: 'effects', version: data.version, data, effects: [] } as unknown as RoomChannelMessage;
+    await admin.publish(roomChannel(code), JSON.stringify(legacy));
+    await settle();
+
+    expect(host.ws.errors()).toEqual([]);
+    expect(guest.ws.errors()).toEqual([]);
+    expect(a.holds(host.seat, host.connectionId)).toBe(true);
+    expect(b.holds(guest.seat, guest.connectionId)).toBe(true);
+    await b.handle(guest.seat, msg({ t: 'ready', ready: false }));
+    await vi.waitFor(() => expect(host.ws.last('room').room.players.find((p) => p.id === guest.seat.playerId)?.ready).toBe(false), WAIT);
+    expect(host.ws.last('room').room.gameId).toBe('scribble');
     expect(logs).toEqual([]);
   });
 
@@ -607,9 +648,9 @@ describe.skipIf(!hasRedisServer)('RedisDriver across two instances', () => {
 
     const fresh = instance();
     const back = await rejoin(fresh, code, host.token, 'Alice');
-    expect(back.ws.last('welcome').room.gameId).toBe('skribble');
-    // Still Skribble while the game runs; the preview says so too.
-    expect(await b.preview(code)).toMatchObject({ gameId: 'skribble', inProgress: true });
+    expect(back.ws.last('welcome').room.gameId).toBe('scribble');
+    // Still Scribble while the game runs; the preview says so too.
+    expect(await b.preview(code)).toMatchObject({ gameId: 'scribble', inProgress: true });
   });
 
   it('runs a party through the lobby: ready across instances, a game switch everyone sees, a start that seats only the ready', async () => {
@@ -720,7 +761,7 @@ describe.skipIf(!hasRedisServer || !hasRedisCli)('RedisRooms compare-and-set', (
       60_000,
     );
     try {
-      const created = await rooms.dispatch('CAS1', { type: 'create', gameId: 'skribble', name: 'Alice', avatar: AVATAR, connectionId: 'c1' }, { createIfMissing: 'skribble' });
+      const created = await rooms.dispatch('CAS1', { type: 'create', gameId: 'scribble', name: 'Alice', avatar: AVATAR, connectionId: 'c1' }, { createIfMissing: 'scribble' });
       if (!created.ok || !created.result.ok || created.result.playerId === null) throw new Error('create failed');
       const hostId = created.result.playerId;
       const clientId = await redis.client('ID');

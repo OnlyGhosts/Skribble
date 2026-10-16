@@ -1,7 +1,7 @@
 /**
  * The shared drawing canvas: the streaming op format, the history format late joiners replay,
  * the caps that bound a canvas and the three side messages (`draw`, `undo`, `clear`) any game
- * with a canvas accepts. Skribble was the first user; a game opts in by including these messages
+ * with a canvas accepts. Scribble was the first user; a game opts in by including these messages
  * in its client schema, declaring `CANVAS_SIDE_MESSAGE_TYPES` as its `sideMessages` and creating
  * the platform's canvas side store (server/platform/sideStores/canvas.ts) with its own policy.
  */

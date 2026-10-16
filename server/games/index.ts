@@ -4,12 +4,12 @@ import type { AnyGameServerModule } from '../platform/game.js';
 import { blackjackModule } from './blackjack/module.js';
 import { pokerModule } from './poker/module.js';
 import { quipgameModule } from './quipgame/module.js';
-import { skribbleModule } from './skribble/module.js';
+import { scribbleModule } from './scribble/module.js';
 import { spygameModule } from './spygame/module.js';
 import { templateModule } from './template/module.js';
 
 export const GAMES: Readonly<Record<GameId, AnyGameServerModule>> = {
-  skribble: skribbleModule,
+  scribble: scribbleModule,
   spygame: spygameModule,
   quipgame: quipgameModule,
   blackjack: blackjackModule,

@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { parseCustomWords } from '@shared/games/skribble/protocol';
+import { parseCustomWords } from '@shared/games/scribble/protocol';
 import { parseCustomPrompts, splitCustomPrompts } from '@shared/games/quipgame/protocol';
 import { splitWordList } from '@shared/platform/words';
 import { WORD_FILE_MAX_BYTES, looksLikeText, mergeWordFile, wordFileProblem, wordFileSummary } from './wordFile';
 
 const WORDS = { one: 'word', many: 'words' };
-const SKRIBBLE = { split: splitWordList, parse: parseCustomWords };
+const SCRIBBLE = { split: splitWordList, parse: parseCustomWords };
 const QUIP = { split: splitCustomPrompts, parse: parseCustomPrompts };
 
 describe('a word list from a .txt file', () => {
@@ -22,7 +22,7 @@ describe('a word list from a .txt file', () => {
   });
 
   it('splits the file the way typed words are split and adds only what is new, after what is there', () => {
-    const merged = mergeWordFile('cat, dog', 'Dog\nhot   dog, fish\n\n  bird  \r\n', SKRIBBLE);
+    const merged = mergeWordFile('cat, dog', 'Dog\nhot   dog, fish\n\n  bird  \r\n', SCRIBBLE);
     expect(merged.text).toBe('cat\ndog\nhot dog\nfish\nbird');
     expect(merged).toMatchObject({ added: 3, repeats: 1, tooLong: 0, overLimit: 0 });
     expect(wordFileSummary(merged, WORDS)).toBe('Added 3 words. Left out 1 repeat.');
@@ -30,7 +30,7 @@ describe('a word list from a .txt file', () => {
 
   it('counts repeats inside the file and too-long words among what it left out', () => {
     const long = 'x'.repeat(40);
-    const merged = mergeWordFile('', `Dog, hot dog, fish, bird, bird\n${long}`, SKRIBBLE);
+    const merged = mergeWordFile('', `Dog, hot dog, fish, bird, bird\n${long}`, SCRIBBLE);
     expect(merged.text).toBe('Dog\nhot dog\nfish\nbird');
     expect(merged).toMatchObject({ added: 4, repeats: 1, tooLong: 1, overLimit: 0 });
     expect(wordFileSummary(merged, WORDS)).toBe('Added 4 words. Left out 1 repeat and 1 too long.');
@@ -39,7 +39,7 @@ describe('a word list from a .txt file', () => {
   it('applies the list limit and says how many did not fit', () => {
     const typed = 'a1, a2, a3, a4, a5';
     const many = Array.from({ length: 600 }, (_, i) => `word${i}`).join('\n');
-    const merged = mergeWordFile(typed, many, SKRIBBLE);
+    const merged = mergeWordFile(typed, many, SCRIBBLE);
     expect(merged.text.split('\n')).toHaveLength(500);
     expect(merged).toMatchObject({ added: 495, repeats: 0, tooLong: 0, overLimit: 105 });
     expect(wordFileSummary(merged, WORDS)).toBe('Added 495 words. Left out 105 over the limit.');
@@ -48,10 +48,10 @@ describe('a word list from a .txt file', () => {
   });
 
   it('says so when a file adds nothing', () => {
-    const merged = mergeWordFile('cat', 'cat\nCAT', SKRIBBLE);
+    const merged = mergeWordFile('cat', 'cat\nCAT', SCRIBBLE);
     expect(merged).toEqual({ text: 'cat', added: 0, repeats: 2, tooLong: 0, overLimit: 0 });
     expect(wordFileSummary(merged, WORDS)).toBe('No new words in that file. Left out 2 repeats.');
-    expect(wordFileSummary(mergeWordFile('', '', SKRIBBLE), WORDS)).toBe('No new words in that file.');
+    expect(wordFileSummary(mergeWordFile('', '', SCRIBBLE), WORDS)).toBe('No new words in that file.');
     expect(wordFileSummary({ text: 'a', added: 1, repeats: 2, tooLong: 1, overLimit: 3 }, WORDS)).toBe('Added 1 word. Left out 2 repeats, 1 too long and 3 over the limit.');
   });
 

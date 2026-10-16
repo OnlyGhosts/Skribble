@@ -4,12 +4,12 @@ import type { AnyGameClientModule } from '../platform/game';
 import { blackjackClient } from './blackjack/module';
 import { pokerClient } from './poker/module';
 import { quipgameClient } from './quipgame/module';
-import { skribbleClient } from './skribble/module';
+import { scribbleClient } from './scribble/module';
 import { spygameClient } from './spygame/module';
 import { templateClient } from './template/module';
 
 export const GAMES: Readonly<Record<GameId, AnyGameClientModule>> = {
-  skribble: skribbleClient,
+  scribble: scribbleClient,
   quipgame: quipgameClient,
   spygame: spygameClient,
   blackjack: blackjackClient,

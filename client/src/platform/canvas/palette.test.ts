@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { createElement } from 'react';
 import { renderToString } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { PALETTE } from '@shared/games/skribble/constants';
+import { PALETTE } from '@shared/games/scribble/constants';
 import { MORE_COLOURS, Palette, QUICK_COLOURS } from './Palette';
 
 const css = readFileSync(fileURLToPath(new URL('./canvas.css', import.meta.url)), 'utf8');

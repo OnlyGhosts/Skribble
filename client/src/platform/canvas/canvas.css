@@ -1,7 +1,7 @@
 /*
  * The shared drawing canvas: the stage that fits the 4:3 canvas, and the drawer's toolbar. Games
  * import this through platform/canvas (GameCanvas); a game's own stylesheet loads after it and
- * may override the layout (Skribble's phone columns do).
+ * may override the layout (Scribble's phone columns do).
  */
 /* ---------- Toolbar: segmented groups on one row, the swatches on the next ---------- */
 .toolbar {

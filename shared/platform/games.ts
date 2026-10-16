@@ -2,7 +2,7 @@
  * The game registry: every game the site offers, in library order. Adding a game means adding a
  * GameId, a GameMeta entry here, a server module (server/games) and a client module (client/src/games).
  */
-export type GameId = 'skribble' | 'spygame' | 'quipgame' | 'blackjack' | 'poker' | 'template';
+export type GameId = 'scribble' | 'spygame' | 'quipgame' | 'blackjack' | 'poker' | 'template';
 
 export type GameStatus = 'live' | 'soon' | 'hidden';
 
@@ -12,6 +12,11 @@ export interface GameMeta {
   slug: string;
   /** Slugs the game used before a rename: old links on them redirect to `slug` (same rules as `slug`). */
   formerSlugs?: readonly string[];
+  /**
+   * Ids the game had before a rename. Clients loaded before it, rooms stored before it and sessions
+   * saved before it still carry them; `upgradeGameId` reads each as `id`.
+   */
+  formerIds?: readonly string[];
   name: string;
   /** The rules in a few short lines (plain copy, no taglines). */
   howToPlay: string[];
@@ -33,9 +38,11 @@ export interface GameMeta {
 
 export const GAME_LIST: readonly GameMeta[] = [
   {
-    id: 'skribble',
+    id: 'scribble',
     slug: 'scribble',
+    // The pre-rename slug and id: old links, old clients, stored rooms and saved sessions carry them.
     formerSlugs: ['skribble'],
+    formerIds: ['skribble'],
     name: 'Scribble',
     howToPlay: [
       'Everyone takes turns drawing a word of their choice.',
@@ -164,6 +171,16 @@ export function isGameSlug(s: string): boolean {
 
 export function isGameId(s: string): s is GameId {
   return BY_ID.has(s as GameId);
+}
+
+const BY_FORMER_ID = new Map<string, GameId>(GAME_LIST.flatMap((g) => (g.formerIds ?? []).map((id) => [id, g.id] as const)));
+
+/**
+ * The current id for a game id from the wire or from storage: a current id as it is, a former one
+ * (from before a rename) as the id it became, anything else null.
+ */
+export function upgradeGameId(id: string): GameId | null {
+  return isGameId(id) ? id : (BY_FORMER_ID.get(id) ?? null);
 }
 
 export const GAME_IDS: readonly GameId[] = GAME_LIST.map((g) => g.id);

@@ -7,7 +7,8 @@
  * never four characters long and a lone segment is a code only when it has exactly four letters and
  * digits, so a single segment is always one or the other, and a longer unknown word (a removed
  * game's old page) never reads as the code made of its first letters. A game's former slug (from
- * before a rename, '/skribble/CODE') is rewritten in place to the current one.
+ * before a rename, '/skribble/CODE' for Scribble) is rewritten in place to the current one, and
+ * '?game=' accepts it too.
  */
 import { create } from 'zustand';
 import { gameByFormerSlug, gameById, gameBySlug, type GameId, type GameMeta } from '@shared/platform/games';
@@ -41,6 +42,11 @@ export function canonicalPath(pathname: string): string {
   return renamed ? `/${renamed.slug}${match[2]}` : pathname;
 }
 
+/** The game a current or former slug names. */
+function gameForSlug(slug: string): GameMeta | null {
+  return gameBySlug(slug) ?? gameByFormerSlug(slug) ?? null;
+}
+
 export function parseRoute(rawPathname: string, search = ''): Route {
   const pathname = canonicalPath(rawPathname);
   const segments = pathname.split('/').filter(Boolean);
@@ -48,7 +54,7 @@ export function parseRoute(rawPathname: string, search = ''): Route {
     const query = new URLSearchParams(search);
     const fromQuery = query.get('room');
     const gameSlug = query.get('game');
-    return { kind: 'home', code: fromQuery ? asCode(fromQuery) : null, game: gameSlug ? (gameBySlug(gameSlug.toLowerCase()) ?? null) : null };
+    return { kind: 'home', code: fromQuery ? asCode(fromQuery) : null, game: gameSlug ? gameForSlug(gameSlug.toLowerCase()) : null };
   }
   const game = gameBySlug(segments[0].toLowerCase());
   if (game) {

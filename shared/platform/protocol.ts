@@ -9,7 +9,7 @@
  */
 import { z } from 'zod';
 import { avatarSchema, type Avatar } from './avatar.js';
-import type { GameId } from './games.js';
+import { upgradeGameId, type GameId } from './games.js';
 import { CHAT_MAX_LENGTH, NAME_MAX_LENGTH, NAME_MIN_LENGTH } from './constants.js';
 import type { PlatformSettings } from './settings.js';
 
@@ -91,7 +91,7 @@ export interface RoomState<V = unknown, S = Record<string, unknown>> {
 export type ChatKind =
   | 'chat' // a player's message
   | 'system' // joins, leaves, host changes, kicks, game announcements
-  | 'guessed' // a message only a subset sees (Skribble: players who already solved the word)
+  | 'guessed' // a message only a subset sees (Scribble: players who already solved the word)
   | 'correct' // "Alice guessed the word!"
   | 'close' // a private nudge ("'aple' is close!")
   | 'hint' // "The word was: apple"
@@ -112,7 +112,14 @@ export interface ChatMessage {
 // Client → Server (platform messages)
 // ---------------------------------------------------------------------------
 
-export const gameIdSchema = z.enum(['skribble', 'spygame', 'quipgame', 'blackjack', 'poker', 'template']);
+/**
+ * A game id on the wire. A former id (from before a rename, such as Scribble's 'skribble', sent by a
+ * client loaded before the deploy) parses as the current one.
+ */
+export const gameIdSchema = z.preprocess(
+  (v) => (typeof v === 'string' ? (upgradeGameId(v) ?? v) : v),
+  z.enum(['scribble', 'spygame', 'quipgame', 'blackjack', 'poker', 'template']),
+);
 
 export const platformClientMessageSchema = z.discriminatedUnion('t', [
   z.object({ t: z.literal('create'), gameId: gameIdSchema, name: nameSchema, avatar: avatarSchema }),
@@ -184,7 +191,7 @@ export interface WelcomeMessage<V = unknown, S = Record<string, unknown>> {
   token: string;
   room: RoomState<V, S>;
   chat: ChatMessage[];
-  /** Game bootstrap (Skribble: the canvas history). Absent for games without one. */
+  /** Game bootstrap (Scribble: the canvas history). Absent for games without one. */
   extra?: unknown;
 }
 

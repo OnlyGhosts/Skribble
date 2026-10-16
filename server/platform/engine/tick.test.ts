@@ -1,26 +1,26 @@
 import { describe, expect, it } from 'vitest';
-import { CHOOSE_TIME_SECONDS, DRAWER_DISCONNECT_GRACE_MS, TURN_END_SECONDS } from '../../../shared/games/skribble/constants.js';
-import { hintRevealOrder, maskWord } from '../../../shared/games/skribble/hints.js';
-import { SKRIBBLE_DRAW_SECONDS, type SkribblePhase, type SkribbleView } from '../../../shared/games/skribble/protocol.js';
+import { CHOOSE_TIME_SECONDS, DRAWER_DISCONNECT_GRACE_MS, TURN_END_SECONDS } from '../../../shared/games/scribble/constants.js';
+import { hintRevealOrder, maskWord } from '../../../shared/games/scribble/hints.js';
+import { SCRIBBLE_DRAW_SECONDS, type ScribblePhase, type ScribbleView } from '../../../shared/games/scribble/protocol.js';
 import { EMPTY_ROOM_TTL_MS, RECONNECT_GRACE_MS } from '../../../shared/platform/constants.js';
 import type { PlatformServerMessageOf } from '../../../shared/platform/protocol.js';
-import { canDraw, type SkribbleData } from '../../games/skribble/state.js';
+import { canDraw, type ScribbleData } from '../../games/scribble/state.js';
 import type { Effect } from './effects.js';
 import { applyAction } from './reduce.js';
 import { nextDeadline, pendingDeadlines } from './time.js';
 import { Ids, START, chatTexts, ctxAt, sim, startGame } from './testHarness.js';
 import { viewFor } from './view.js';
 
-/** The Skribble phases a player saw, in order, from the snapshot effects. */
-function phasesSeen(effects: Effect[], playerId: string): SkribblePhase[] {
+/** The Scribble phases a player saw, in order, from the snapshot effects. */
+function phasesSeen(effects: Effect[], playerId: string): ScribblePhase[] {
   return effects
     .filter((e): e is Extract<Effect, { type: 'send' }> => e.type === 'send' && Array.isArray(e.to) && e.to.includes(playerId))
     .map((e) => e.msg)
     .filter((m): m is PlatformServerMessageOf<'room'> => m.t === 'room')
-    .flatMap((m) => (m.room.game ? [(m.room.game as SkribbleView).phase] : []));
+    .flatMap((m) => (m.room.game ? [(m.room.game as ScribbleView).phase] : []));
 }
 
-const game = (s: { data: { game: unknown } }): SkribbleData => s.data.game as SkribbleData;
+const game = (s: { data: { game: unknown } }): ScribbleData => s.data.game as ScribbleData;
 
 describe('tick', () => {
   it('catches up through a whole turn in one call, firing each deadline at its own time', () => {
@@ -29,7 +29,7 @@ describe('tick', () => {
     expect(game(s).phase).toEqual({ kind: 'choosing', endsAt: START + CHOOSE_TIME_SECONDS * 1000 });
 
     const chooseAt = START + CHOOSE_TIME_SECONDS * 1000;
-    const drawEndAt = chooseAt + SKRIBBLE_DRAW_SECONDS * 1000;
+    const drawEndAt = chooseAt + SCRIBBLE_DRAW_SECONDS * 1000;
     const turnEndAt = drawEndAt + TURN_END_SECONDS * 1000;
     s.now = turnEndAt + 1234;
     const effects = s.tick();
@@ -71,14 +71,14 @@ describe('tick', () => {
     s.game(alice, { t: 'chooseWord', index: 0 });
     expect(canDraw(game(s), alice, s.now)).toBe(true);
     expect(canDraw(game(s), bob, s.now)).toBe(false);
-    expect(canDraw(game(s), alice, s.now + SKRIBBLE_DRAW_SECONDS * 1000)).toBe(false);
+    expect(canDraw(game(s), alice, s.now + SCRIBBLE_DRAW_SECONDS * 1000)).toBe(false);
 
     // A dropped socket schedules nothing of the platform's own beyond the seat expiry: the turn runs its course.
     const dropAt = s.now;
     s.apply({ type: 'connectionClosed', playerId: bob, connectionId: 'conn-Bob' });
     expect(s.data.phase).toBe('playing');
     expect(pendingDeadlines(s.data).map((d) => d.kind)).toEqual(['game', 'reconnectExpiry']);
-    s.now = dropAt + SKRIBBLE_DRAW_SECONDS * 1000;
+    s.now = dropAt + SCRIBBLE_DRAW_SECONDS * 1000;
     s.tick();
     expect(game(s).phase).toMatchObject({ kind: 'turnEnd', reason: 'timeUp', held: false });
 

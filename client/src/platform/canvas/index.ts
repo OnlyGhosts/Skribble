@@ -1,6 +1,6 @@
 /**
  * The platform's shared drawing canvas, for any game where someone draws and everyone watches
- * (Skribble today). The wire format lives in shared/platform/canvas.ts; this is the client half.
+ * (Scribble today). The wire format lives in shared/platform/canvas.ts; this is the client half.
  *
  * A game wires it up in three steps:
  *

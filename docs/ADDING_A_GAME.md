@@ -43,12 +43,16 @@ they need about each game from the registries and that record.
 | E2E | a `test(...)` in `e2e/` | One whole game through the real server |
 
 The two existing games are the reference: [`template`](../server/games/template/module.ts) (Click
-Race, the hidden copy base) and [`skribble`](../server/games/skribble/module.ts) (the full-size
+Race, the hidden copy base) and [`scribble`](../server/games/scribble/module.ts) (the full-size
 game with the advanced side-store path).
 
-The drawing game is shown as **Scribble** (name, `/scribble/` links; old `/skribble/` links redirect)
-but its internal id stays `'skribble'`, as do its folders, CSS classes and test ids: stored rooms in
-Redis carry the id, so renaming it would break live rooms.
+The drawing game's id is now `'scribble'`, like its name, its `/scribble/` links, its folders, CSS
+classes and test ids. Before the rename it was `'skribble'`, and that id is still accepted wherever it
+can come from: a client loaded before the deploy may send it (`gameIdSchema` reads it as
+`'scribble'`), a room stored in Redis may carry it (`upgradeRoomData` loads it as `'scribble'`), a
+saved session may name it, and old `/skribble/` and `?game=skribble` links redirect. Renaming a game
+works the same way: list its old id in `formerIds` and its old slug in `formerSlugs` in its `GameMeta`
+([`shared/platform/games.ts`](../shared/platform/games.ts)), and `upgradeGameId` does the rest.
 
 Import conventions: files under `shared/`, `server/` and `api/` use relative imports **with the
 `.js` extension** (`'../../platform/game.js'`), because `api/server.ts` is compiled by Vercel
@@ -125,7 +129,7 @@ a shared pure helper: Quip Game's prompt tiers (`promptsForContentMode` in
 [`shared/games/quipgame/prompts.ts`](../shared/games/quipgame/prompts.ts): family = clean,
 unhinged = cheeky + unhinged), Scribble's words (`wordPoolForMode` /
 `buildWordPool(lang, custom, customOnly, mode)` in
-[`shared/games/skribble/words/index.ts`](../shared/games/skribble/words/index.ts), which any word
+[`shared/games/scribble/words/index.ts`](../shared/games/scribble/words/index.ts), which any word
 game may reuse) and The Spy Game's locations (`locationsForMode` in
 [`shared/games/spygame/locations.ts`](../shared/games/spygame/locations.ts), with the tiers in
 `locationTiers.ts` and generated tiles for every tier). A game never ships its own content switch;
@@ -275,7 +279,7 @@ and a game's sound schedule is cleared when a plan snaps, so no stale card sound
 [`shared/platform/games.ts`](../shared/platform/games.ts)
 
 ```ts
-export type GameId = 'skribble' | 'template';
+export type GameId = 'scribble' | 'template';
 export type GameStatus = 'live' | 'soon' | 'hidden';
 
 export interface GameMeta {
@@ -289,6 +293,8 @@ export interface GameMeta {
   maxPlayers: number | null;
   /** Slugs the game used before a rename: old links on them redirect to `slug`. */
   formerSlugs?: readonly string[];
+  /** Ids the game had before a rename: old clients, stored rooms and saved sessions read as `id` (`upgradeGameId`). */
+  formerIds?: readonly string[];
   /** The game's 24px line glyph: SVG path data for a 24x24 viewBox, drawn with a 1.8px round stroke in currentColor. */
   glyph: string;
   /** Accent colour (#rrggbb), the same as `--game-<id>` in tokens.css: icon plates and decorations, always with ink on top. */
@@ -572,9 +578,9 @@ export interface GameClientModule<V = unknown, S = Record<string, unknown>> {
   sounds?: AnySoundBank;
   /** Extra rows inside the lobby settings panel, under the platform fields. */
   SettingsFields?: ComponentType<SettingsFieldsProps<S>>;
-  /** A small badge in the corner of the player's avatar (Skribble: pencil / check). */
+  /** A small badge in the corner of the player's avatar (Scribble: pencil / check). */
   playerBadge?(room: RoomState<V, S>, player: PlayerPublic): ReactNode;
-  /** Extra text next to the score in the player list (Skribble: "+120" this turn). */
+  /** Extra text next to the score in the player list (Scribble: "+120" this turn). */
   playerMeta?(room: RoomState<V, S>, player: PlayerPublic): ReactNode;
   /**
    * The player's chip status in the top bar ({ label, icon, tone }: "Drawing", "Guessed", "Out",
@@ -582,11 +588,11 @@ export interface GameClientModule<V = unknown, S = Record<string, unknown>> {
    * platform decides before asking you).
    */
   playerStatus?(room: RoomState<V, S>, player: PlayerPublic): PlayerStatus | null;
-  /** Extra class for the player's row (Skribble: the green "guessed" tint). */
+  /** Extra class for the player's row (Scribble: the green "guessed" tint). */
   playerClassName?(room: RoomState<V, S>, player: PlayerPublic): string | undefined;
   /** A server message that is not a platform message; return true when handled. */
   onServerMessage?(msg: WireMessage): boolean;
-  /** `welcome.extra`, the game's bootstrap (Skribble: the canvas history). The room is already in the store. */
+  /** `welcome.extra`, the game's bootstrap (Scribble: the canvas history). The room is already in the store. */
   onWelcome?(extra: unknown): void;
   /** Every snapshot, welcome included; `prev` is null when this one enters the room. */
   onRoom?(room: RoomState<V, S>, prev: RoomState<V, S> | null): void;
@@ -624,7 +630,7 @@ inbound message:
   clears, so the seat is still yours if something must be flushed.
 
 Game-specific client state belongs in the game's own zustand store
-(`client/src/games/<id>/store.ts`, see Scribble's [`store.ts`](../client/src/games/skribble/store.ts)),
+(`client/src/games/<id>/store.ts`, see Scribble's [`store.ts`](../client/src/games/scribble/store.ts)),
 never in the platform store.
 
 ---
@@ -667,7 +673,7 @@ same record plus your `settings.defaults`; it should pass for a new game without
    `patchSchema` must accept `{}`, and both must strip platform fields (`{ contentMode: 'unhinged' }`
    parses to `{}`), which a `z.object(...)` does by default. Content lives behind
    `settings.contentMode`, never behind a per-game switch. A timing is never a setting: each clock
-   is one named, commented constant in the game's shared protocol (`SKRIBBLE_DRAW_SECONDS`,
+   is one named, commented constant in the game's shared protocol (`SCRIBBLE_DRAW_SECONDS`,
    `POKER_ACT_SECONDS`, `QUIPGAME_WRITE_SECONDS`, `SPYGAME_ROUND_MINUTES`...), so it changes in one
    place. Click Race's time limit, in the hidden test game, is the one exception. Retiring a
    setting needs no migration: a stored room keeps the old key, unread, and the `z.object`
@@ -688,7 +694,7 @@ replace throughout.
 [`shared/platform/games.ts`](../shared/platform/games.ts): add the id and a `GameMeta` in picker order.
 
 ```ts
-export type GameId = 'skribble' | 'template' | 'wordle';
+export type GameId = 'scribble' | 'template' | 'wordle';
 
 // inside GAME_LIST
 {
@@ -705,10 +711,14 @@ export type GameId = 'skribble' | 'template' | 'wordle';
 },
 ```
 
-[`shared/platform/protocol.ts`](../shared/platform/protocol.ts): add the id to the wire schema.
+[`shared/platform/protocol.ts`](../shared/platform/protocol.ts): add the id to the wire schema
+(the enum inside `gameIdSchema`; the preprocess in front of it reads a former id as the current one).
 
 ```ts
-export const gameIdSchema = z.enum(['skribble', 'template', 'wordle']);
+export const gameIdSchema = z.preprocess(
+  (v) => (typeof v === 'string' ? (upgradeGameId(v) ?? v) : v),
+  z.enum(['scribble', 'template', 'wordle']),
+);
 ```
 
 `npm run typecheck` now fails wherever a full `Record<GameId, ...>` is built, until steps 3 and 4
@@ -742,7 +752,7 @@ Register it in [`server/games/index.ts`](../server/games/index.ts):
 import { wordleModule } from './wordle/module.js';
 
 export const GAMES: Readonly<Record<GameId, AnyGameServerModule>> = {
-  skribble: skribbleModule,
+  scribble: scribbleModule,
   template: templateModule,
   wordle: wordleModule,
 };
@@ -820,7 +830,7 @@ Register it in [`client/src/games/index.ts`](../client/src/games/index.ts):
 import { wordleClient } from './wordle/module';
 
 export const GAMES: Readonly<Record<GameId, AnyGameClientModule>> = {
-  skribble: skribbleClient,
+  scribble: scribbleClient,
   template: templateClient,
   wordle: wordleClient,
 };
@@ -842,7 +852,7 @@ Style rules that keep the look consistent (details in section 8):
   Every game screen opens with the platform's `GameTopBar` (section 8.3), never a header of its own.
 - Sends go through `socket.send({ t: 'guess', word })` from `client/src/platform/net/socket.ts`;
   wrap them in a small `actions.ts` once there are several (see Scribble's
-  [`actions.ts`](../client/src/games/skribble/actions.ts)).
+  [`actions.ts`](../client/src/games/scribble/actions.ts)).
 
 Unit tests for client modules live next to them (`client/src/games/wordle/wordle.test.ts`) and
 run in node; copy [`template.test.ts`](../client/src/games/template/template.test.ts) (section 6.8).
@@ -855,7 +865,7 @@ from [`client/src/test/fixtures.ts`](../client/src/test/fixtures.ts), call
 render components with `renderToString(createElement(...))` to assert on markup. Assert on
 attributes (`data-testid`, `data-*`, `aria-label`) rather than on text: `renderToString` separates
 adjacent text nodes with `<!-- -->`, so `Round {a} of {b}` does not contain `Round 2 of 3` (a
-template string does). [`skribble.test.ts`](../client/src/games/skribble/skribble.test.ts) shows
+template string does). [`scribble.test.ts`](../client/src/games/scribble/scribble.test.ts) shows
 the store, hooks and offline-queue side of a bigger module.
 
 ### Step 5: end-to-end test
@@ -1605,9 +1615,9 @@ export const myModule = { /* ... */ sideMessages: CANVAS_SIDE_MESSAGE_TYPES, cre
 Then, in your reducer, mint a fresh `canvasId` with `ctx.newId()` whenever the canvas must be
 emptied and emit `{ type: 'side', name: 'reset', payload: { stamp: canvasId } }` plus
 `{ type: 'send', to: 'all', msg: { t: 'clear' } }` (see `resetCanvas` in
-[`server/games/skribble/turns.ts`](../server/games/skribble/turns.ts)). Scribble's whole opt-in is
-[`server/games/skribble/canvas.ts`](../server/games/skribble/canvas.ts): `skribbleCanvasPolicy`
-and `createSkribbleCanvasStore`. The store is tested over `MemoryStorage` in
+[`server/games/scribble/turns.ts`](../server/games/scribble/turns.ts)). Scribble's whole opt-in is
+[`server/games/scribble/canvas.ts`](../server/games/scribble/canvas.ts): `scribbleCanvasPolicy`
+and `createScribbleCanvasStore`. The store is tested over `MemoryStorage` in
 [`server/platform/sideStores/canvas.test.ts`](../server/platform/sideStores/canvas.test.ts) and
 across two Redis instances in `drivers/redis.test.ts`.
 
@@ -1626,7 +1636,7 @@ board's seven and a More colours swatch that opens the rest of the palette (whit
 and the custom picker above the row.
 The renderer, flood fill, the drawing hook, the batching `DrawQueue` with its offline parking and
 the toolbar's 44px phone styles (`canvas.css`) all live there; Scribble's whole opt-in is
-[`client/src/games/skribble/canvas.ts`](../client/src/games/skribble/canvas.ts).
+[`client/src/games/scribble/canvas.ts`](../client/src/games/scribble/canvas.ts).
 
 ### 7.2 Writing a side store of your own
 
@@ -1768,7 +1778,7 @@ The game top bar (`.gbar*`) is the platform's `gamebar.css` and the round result
 its `results.css`. The type-into-the-blanks guess bar (`.guess-*`, `.gtile*`) is the platform's `guess.css`, rendered
 by `GuessTiles`; playing cards, chip counts and the chip setting (`.playing-card*`, `.chip-count*`,
 `.chips-setting*`) are `cards.css`; the card-table kit (`.tbl*`) is `table.css`; the canvas and its toolbar (`.canvas-*`, `.toolbar*`) are the platform canvas's
-`canvas.css`. Game-specific classes live in the game's stylesheet; Scribble's `skribble.css` owns
+`canvas.css`. Game-specific classes live in the game's stylesheet; Scribble's `scribble.css` owns
 `.word*`, `.tile*`, `.rating*`, `.overlay` (its in-canvas overlay position), and the whole `.game`
 layout, which is a good reference for a non-scrolling phone game.
 
@@ -1803,7 +1813,7 @@ layout, which is a good reference for a non-scrolling phone game.
 | [`BottomSheet`](../client/src/platform/components/BottomSheet.tsx) | `open`, `title`, `onClose()`, `children`, `testId`, `className?` | Phone sheet with focus trap and Escape; `${testId}-close`, `${testId}-backdrop` |
 | [`PodiumOverlay`](../client/src/platform/components/PodiumOverlay.tsx) | `room`, `isHost` | Rendered by the shell on `'ended'`; you never render it. The small happy phone (96px at most), "Alice wins!" and the points, the top three on small lime / lilac / graphite blocks (`podium-step`), every player in order (`podium-entry` with `data-rank`), Ready / Sit this one out, the host's Play again / Back to lobby and a brief confetti |
 | [`Toasts`](../client/src/platform/components/Toasts.tsx), [`ConnectionPill`](../client/src/platform/components/ConnectionPill.tsx) | none | Toasts is rendered once by the shell; add toasts with `usePlatformStore.getState().addToast(kind, text)` (errors stay until dismissed); the pill renders nothing while connected |
-| [`Icons`](../client/src/platform/components/Icons.tsx) | `Icon({ paths, size?, ...svg })` (1.8px round stroke) plus `DiceIcon`, `CrownIcon`, `CheckIcon`, `CopyIcon`, `ShareIcon`, `ChatIcon`, `GearIcon`, `AlertIcon`, `LinkIcon`, `CloseIcon`, `UsersIcon`, `ChevronIcon`, `LogoutIcon`, `PlayIcon`, `KickIcon`, `SparkIcon`, `EditIcon`, `SendIcon`, `UploadIcon`, `MoreIcon`, `MoonIcon`, `BackIcon` | Build game icons from the `Icon` primitive (24×24 stroke paths), as Scribble's [`Icons.tsx`](../client/src/games/skribble/components/Icons.tsx) does |
+| [`Icons`](../client/src/platform/components/Icons.tsx) | `Icon({ paths, size?, ...svg })` (1.8px round stroke) plus `DiceIcon`, `CrownIcon`, `CheckIcon`, `CopyIcon`, `ShareIcon`, `ChatIcon`, `GearIcon`, `AlertIcon`, `LinkIcon`, `CloseIcon`, `UsersIcon`, `ChevronIcon`, `LogoutIcon`, `PlayIcon`, `KickIcon`, `SparkIcon`, `EditIcon`, `SendIcon`, `UploadIcon`, `MoreIcon`, `MoonIcon`, `BackIcon` | Build game icons from the `Icon` primitive (24×24 stroke paths), as Scribble's [`Icons.tsx`](../client/src/games/scribble/components/Icons.tsx) does |
 
 ### 8.4 Mobile layout rules
 
@@ -1893,7 +1903,7 @@ From [`store/usePlatformStore.ts`](../client/src/platform/store/usePlatformStore
 [`store/selectors.ts`](../client/src/platform/store/selectors.ts):
 
 ```ts
-usePlatformStore((s) => s.room)        // RoomState | null (cast to your RoomState<V,S> inside your module, as Skribble's hooks.ts does)
+usePlatformStore((s) => s.room)        // RoomState | null (cast to your RoomState<V,S> inside your module, as Scribble's hooks.ts does)
 usePlatformStore((s) => s.playerId)    // string | null
 usePlatformStore((s) => s.connection)  // 'connecting' | 'connected' | 'reconnecting'
 usePlatformStore((s) => s.clockOffset) // serverTime - Date.now()

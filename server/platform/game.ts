@@ -193,7 +193,7 @@ export function withDraft<D, SMsg>(data: D, fn: (draft: D, effects: GameEffect<S
 }
 
 // ---------------------------------------------------------------------------
-// Side stores (advanced path, Skribble's canvas today)
+// Side stores (advanced path, Scribble's canvas today)
 // ---------------------------------------------------------------------------
 
 /** What the room looks like to a side store: the platform's record with the game's data inside. */
@@ -220,7 +220,7 @@ export type SideOutcome<SMsg> =
  * A per-room store the driver consults for `sideMessages`, outside the reducer. It is built once
  * per driver over the platform's GameStorage, so one implementation serves memory and Redis.
  * Every change has a sequence number; the stamp ties the store to the game's current round of
- * data (Skribble: the canvas id) so writes authorised against stale data are refused.
+ * data (Scribble: the canvas id) so writes authorised against stale data are refused.
  */
 export interface GameSideStore<D, CMsg, SMsg> {
   /** The stamp the store must carry for `room`'s current game data ('' when none). */

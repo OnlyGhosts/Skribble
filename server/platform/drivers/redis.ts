@@ -1,6 +1,6 @@
 import { Redis, type RedisOptions } from 'ioredis';
 import type { Avatar } from '../../../shared/platform/avatar.js';
-import { isGameId, type GameId } from '../../../shared/platform/games.js';
+import { upgradeGameId, type GameId } from '../../../shared/platform/games.js';
 import { CLOSE_REPLACED, isWireMessage, type RoomPreview, type WireMessage } from '../../../shared/platform/protocol.js';
 import { generateRoomCode, isValidRoomCode, normalizeRoomCode, roomCodeHint } from '../../../shared/platform/roomCode.js';
 import type { Action } from '../engine/actions.js';
@@ -8,7 +8,7 @@ import { resolveRecipients } from '../engine/effects.js';
 import { moduleFor } from '../engine/module.js';
 import { connectedIds, findPlayer, platformPlayers } from '../engine/players.js';
 import { applyAction } from '../engine/reduce.js';
-import type { PlatformRoomData } from '../engine/state.js';
+import { upgradeRoomData, type PlatformRoomData } from '../engine/state.js';
 import { nextDeadline } from '../engine/time.js';
 import { previewOf, viewFor } from '../engine/view.js';
 import { SIDE_RESYNC_DEBOUNCE_MS, type AnyGameSideStore, type SideRoom } from '../game.js';
@@ -320,7 +320,7 @@ export class RedisDriver implements GameDriver {
   }
 
   // ---------------------------------------------------------------------------
-  // Side stores (Skribble's canvas): changes never touch the engine
+  // Side stores (Scribble's canvas): changes never touch the engine
   // ---------------------------------------------------------------------------
 
   private sideStore(gameId: GameId): AnyGameSideStore | null {
@@ -385,9 +385,10 @@ export class RedisDriver implements GameDriver {
   private async apply(local: LocalRoom, msg: RoomChannelMessage): Promise<void> {
     if (this.locals.get(local.code) !== local) return;
     // A snapshot of a game the site no longer runs (an instance of an older deploy still serving the
-    // room) reads as gone, like such a stored room: its view would only break the clients here.
-    if (msg.kind === 'effects' && !isGameId(msg.data.gameId)) return this.roomGone(local.code);
-    if (msg.kind === 'effects') return this.applyEffects(local, msg);
+    // room) reads as gone, like such a stored room: its view would only break the clients here. One
+    // under a game's former id (from before a rename) is upgraded like a stored room.
+    if (msg.kind === 'effects' && upgradeGameId(msg.data.gameId) === null) return this.roomGone(local.code);
+    if (msg.kind === 'effects') return this.applyEffects(local, { ...msg, data: upgradeRoomData(msg.data) });
     if (!local.data) return;
     const connected = new Set(this.localConnected(local));
     for (const send of msg.sends) {
