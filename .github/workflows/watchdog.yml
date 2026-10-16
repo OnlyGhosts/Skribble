@@ -1,0 +1,78 @@
+# Watches the game server on Fly.io and brings it back by itself.
+#
+# Every 5 minutes (GitHub's shortest schedule; a run can start a few minutes late) it asks
+# /api/health. If three tries over about a minute all fail, it runs the "Deploy to Fly.io"
+# workflow, which replaces a machine Fly can no longer reach (what took the site down on
+# 16 October 2026), waits for the server to answer again, then fails on purpose so GitHub emails
+# the repository owner that it happened. It starts at most one redeploy in any 15 minutes.
+#
+# Free: Actions minutes cost nothing on a public repository. GitHub pauses schedules in a public
+# repository after 60 days without activity; any push turns it back on.
+name: Game server watchdog
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: watchdog
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      HEALTH_URL: https://boredgames-io.fly.dev/api/health
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Ask the server how it is
+        id: check
+        run: |
+          for attempt in 1 2 3; do
+            if curl -fsS --max-time 10 "$HEALTH_URL" | grep -q '"ok":true'; then
+              echo "Healthy on attempt $attempt."
+              echo "down=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "No healthy answer on attempt $attempt."
+            [ "$attempt" = 3 ] || sleep 20
+          done
+          echo "down=true" >> "$GITHUB_OUTPUT"
+
+      - name: Redeploy, unless a deploy started in the last 15 minutes
+        if: steps.check.outputs.down == 'true'
+        run: |
+          since=$(date -u -d '15 minutes ago' +%Y-%m-%dT%H:%M:%SZ)
+          recent=$(gh run list --workflow deploy-fly.yml --limit 5 --json createdAt --jq "[.[] | select(.createdAt > \"$since\")] | length")
+          if [ "$recent" != "0" ]; then
+            echo "A deploy started in the last 15 minutes; leaving it to finish."
+          else
+            gh workflow run deploy-fly.yml --ref main
+            echo "Started a redeploy."
+          fi
+
+      - name: Wait for the server to answer again
+        if: steps.check.outputs.down == 'true'
+        run: |
+          for i in $(seq 1 40); do
+            if curl -fsS --max-time 10 "$HEALTH_URL" | grep -q '"ok":true'; then
+              echo "The server is back."
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "::error::The game server is still not answering 10 minutes after the redeploy."
+          exit 1
+
+      - name: Report the outage
+        if: steps.check.outputs.down == 'true'
+        run: |
+          echo "::error::The game server stopped answering and was redeployed automatically. It is back now. Details: https://fly.io/apps/boredgames-io/monitoring"
+          exit 1
