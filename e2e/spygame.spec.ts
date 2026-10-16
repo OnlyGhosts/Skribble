@@ -1,11 +1,11 @@
 import { expect, test, type Browser, type BrowserContext, type Locator, type Page } from '@playwright/test';
-import { createParty, enterNameIfAsked, gameNameWhole, readyAll } from './party';
+import { closeResults, createParty, enterNameIfAsked, gameNameWhole, readyAll } from './party';
 
 /**
  * A whole two-round Spy Game between a desktop host and two phones (390x844, touch): roles, the
  * shared location, the spy's grid (three columns of eight on a phone, every place in view), a
  * wrong guess, a failed vote, a passed vote, the reveal, a correct guess in round two and the
- * podium. Serial: the tests build on each other.
+ * results in the lobby. Serial: the tests build on each other.
  */
 test.describe.configure({ mode: 'serial' });
 
@@ -328,7 +328,8 @@ test('the other agent accuses the spy, the vote passes and the reveal shows spyC
     await expect(clock(p)).toHaveAttribute('data-paused', 'reveal');
   }
   await expect(host.page.getByTestId('spygame-next-round')).toBeVisible();
-  await expect(host.page.getByTestId('spygame-end-game')).toBeVisible();
+  // Ending the game is the top bar's (or the options sheet's), not the reveal's.
+  await expect(host.page.getByTestId('spygame-end-game')).toHaveCount(0);
   for (const p of phones()) {
     await expect(p.page.getByTestId('reveal-countdown')).toContainText('Next round in');
     await expect(p.page.getByTestId('spygame-next-round')).toHaveCount(0);
@@ -337,7 +338,7 @@ test('the other agent accuses the spy, the vote passes and the reveal shows spyC
   await expect(host.page.getByTestId('spygame-reveal')).toContainText(spy.name);
 });
 
-test('the host starts round two; the spy guesses right for +4; the podium lists three players', async () => {
+test('the host starts round two; the spy guesses right for +4; the results list three players', async () => {
   await host.page.getByTestId('spygame-next-round').click();
   for (const p of players) {
     await expect(p.page.locator('[data-testid="spygame-screen"][data-phase="playing"]')).toBeVisible();
@@ -371,10 +372,9 @@ test('the host starts round two; the spy guesses right for +4; the podium lists 
   for (const p of players) {
     const end = p.page.getByTestId('overlay-game-end');
     await expect(end).toBeVisible();
-    await expect(end.getByTestId('podium-entry')).toHaveCount(3);
+    await expect(end.getByTestId('results-entry')).toHaveCount(3);
   }
-  await expect(host.page.getByTestId('back-to-lobby')).toBeVisible();
-  await host.page.getByTestId('back-to-lobby').click();
+  for (const p of players) await closeResults(p.page);
   for (const p of players) await expect(p.page.getByTestId('room-code')).toHaveText(roomCode);
   await readyAll([pia.page, quinn.page]);
   await expect(host.page.getByTestId('start-game')).toBeEnabled();

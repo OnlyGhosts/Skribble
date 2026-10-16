@@ -1,6 +1,6 @@
 /**
  * The contract between the platform and a game. A game module is a pure reducer plus a view:
- * the platform owns seats, hosts, chat, kicks, reconnects, scores, the podium and the clock;
+ * the platform owns seats, hosts, chat, kicks, reconnects, scores, the results and the clock;
  * the module decides what happens inside a running game.
  *
  * Type parameters: S = the game's settings, D = its JSON-safe state, V = its per-recipient
@@ -8,7 +8,7 @@
  */
 import type { z } from 'zod';
 import type { GameMeta } from '../../shared/platform/games.js';
-import type { ChatKind } from '../../shared/platform/protocol.js';
+import type { ChatKind, RoomPhase } from '../../shared/platform/protocol.js';
 import type { PlatformSettings } from '../../shared/platform/settings.js';
 import type { MaybePromise } from './drivers/types.js';
 import { deepEqual } from './json.js';
@@ -19,7 +19,17 @@ export interface PlatformPlayer {
   id: string;
   name: string;
   joinOrder: number;
+  /**
+   * The seat's socket is up. A socket that dropped only moments ago still counts (the game hears
+   * of the drop AWAY_NOTICE_MS later, with 'playerDisconnected'), so a blink never costs a turn.
+   */
   connected: boolean;
+  /**
+   * Connected, but the phone has sent nothing for IDLE_AFTER_MS (asleep, frozen, in the
+   * background). The platform tells the game nothing more: a game may let the others act for an
+   * idle player it is waiting on. Absent means false.
+   */
+  idle?: boolean;
   score: number;
 }
 
@@ -76,6 +86,8 @@ export type GameEvent<CMsg> =
    * A socket dropped / a disconnected player rejoined. The seat (and score) survives for
    * RECONNECT_GRACE_MS, and the platform never abandons a game over a disconnect alone: a game
    * that cannot go on without the player holds at its next boundary (see the 'waiting' effect).
+   * A drop is reported AWAY_NOTICE_MS after it happens, and not at all when the player is back
+   * by then (nor is that return reported).
    */
   | { type: 'playerDisconnected'; playerId: string }
   | { type: 'playerReconnected'; playerId: string }
@@ -99,16 +111,20 @@ export type GameEffect<SMsg> =
   /** An error for one player (a refused move, say). */
   | { type: 'error'; playerId: string; code: 'NOT_ALLOWED' | 'INVALID_MESSAGE'; message: string }
   | { type: 'score'; playerId: string; delta: number }
-  /** The game is over: the platform computes the podium and moves the room to 'ended'. */
+  /** The game is over: the platform ranks the players and takes the room back to the lobby with the results. */
   | { type: 'gameOver' }
-  /** Abandon the game and return everyone to the lobby. */
+  /**
+   * The game cannot go on (too few players): the platform ranks the players on the scores so far
+   * and takes the room back to the lobby, where the results say why (`reason`, a short line).
+   */
   | { type: 'abort'; reason: string }
   /**
    * The game is holding at a boundary until the players in `missing` (seated, disconnected) come
    * back; the platform shows it as RoomState.waiting. Emit it again when the list changes and
-   * `null` when the game goes on; abort, gameOver and the lobby clear it by themselves.
+   * `null` when the game goes on; abort, gameOver and the lobby clear it by themselves. `until`
+   * (epoch ms): when the game stops waiting and goes on without them (shown as a countdown).
    */
-  | { type: 'waiting'; missing: string[] | null }
+  | { type: 'waiting'; missing: string[] | null; until?: number }
   /**
    * For games with a side store: 'reset' empties it and stamps it with `payload.stamp`
    * (see GameSideStore). Other names are reserved.
@@ -165,10 +181,17 @@ export interface GameServerModule<S = unknown, D = unknown, V = unknown, CMsg = 
    */
   queuesSeats?: boolean;
   /**
-   * Whether a participant goes on the podium. A game that queues seats leaves off a player it
+   * Whether a participant goes in the results. A game that queues seats leaves off a player it
    * never dealt in (they would rank last having never played). Everyone by default.
    */
   ranks?(data: D, playerId: string): boolean;
+  /**
+   * The host's End game (the platform's `endGame`, host only, while playing). Emit the last score
+   * effects and `gameOver` to end at once, or note it and end at the game's own next boundary
+   * (Blackjack finishes the hand in play; RoomState.endRequested shows it meanwhile). Without
+   * it the platform ends the game at once on the scores as they stand.
+   */
+  end?(ctx: GameCtx<S>, data: D): GameResult<D, SMsg>;
 }
 
 /** The erased module type the registry and the engine work with. */
@@ -199,7 +222,7 @@ export function withDraft<D, SMsg>(data: D, fn: (draft: D, effects: GameEffect<S
 /** What the room looks like to a side store: the platform's record with the game's data inside. */
 export interface SideRoom<D> {
   code: string;
-  phase: 'lobby' | 'playing' | 'ended';
+  phase: RoomPhase;
   game: D | null;
   players: PlatformPlayer[];
 }

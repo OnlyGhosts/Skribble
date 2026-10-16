@@ -1,6 +1,7 @@
 import type { Avatar } from '@shared/platform/avatar';
 import type { GameId } from '@shared/platform/games';
 import { friendlyError } from '../lib/format';
+import { heldSeat } from '../lib/storage';
 import { usePlatformStore, type JoinRequest } from '../store/usePlatformStore';
 import { socket } from './socket';
 
@@ -16,7 +17,7 @@ function submitJoin(request: JoinRequest): void {
   store.beginJoin(request);
   if (socket.isOpen()) {
     store.setPendingJoin(null);
-    socket.send(request);
+    sendJoin(request);
   }
   if (joinTimer !== null) clearTimeout(joinTimer);
   joinTimer = setTimeout(() => {
@@ -28,11 +29,20 @@ function submitJoin(request: JoinRequest): void {
   }, JOIN_TIMEOUT_MS);
 }
 
+/** A join for a room whose seat this phone still holds goes back into that seat (falling back to the join). */
+export function sendJoin(request: JoinRequest): void {
+  const seat = request.t === 'join' ? heldSeat(request.code, Date.now()) : null;
+  if (!seat || !socket.resumeOrJoin(seat, request)) socket.send(request);
+}
+
 export function createRoom(gameId: GameId, name: string, avatar: Avatar): void {
   submitJoin({ t: 'create', gameId, name, avatar });
 }
 
-/** Codes are one namespace across games: the server tells us which game the room runs. */
+/**
+ * Codes are one namespace across games: the server tells us which game the room runs. A code
+ * whose seat this phone still holds puts the player back in it.
+ */
 export function joinRoom(code: string, name: string, avatar: Avatar): void {
   submitJoin({ t: 'join', code, name, avatar });
 }
@@ -72,12 +82,12 @@ export function selectGame(gameId: GameId): void {
   socket.send({ t: 'selectGame', gameId });
 }
 
-/** Lobby and podium: ready for the next game (or not). */
+/** Lobby: ready for the next game (or not). */
 export function setReady(ready: boolean): void {
   socket.send({ t: 'ready', ready });
 }
 
-/** Lobby and podium: sit the next game out while staying in the party (or come back in). */
+/** Lobby: sit the next game out while staying in the party (or come back in). */
 export function setSitOut(sitOut: boolean): void {
   socket.send({ t: 'sitOut', sitOut });
 }
@@ -103,13 +113,7 @@ export function voteKick(playerId: string): void {
   socket.send({ t: 'voteKick', playerId });
 }
 
-export function returnToLobby(): void {
-  socket.send({ t: 'returnToLobby' });
-}
-
-/** Host only, from the podium: back to the lobby with the host already ready, so one more tap starts the next game. */
-export function playAgain(): void {
-  usePlatformStore.getState().setPlayAgainPending(true);
-  socket.send({ t: 'returnToLobby' });
-  socket.send({ t: 'ready', ready: true });
+/** Host only, while a game runs: ends it for everyone (at once, or after the hand in play where the game says so). */
+export function endGame(): void {
+  socket.send({ t: 'endGame' });
 }

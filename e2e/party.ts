@@ -88,10 +88,35 @@ export async function leaveLobby(page: Page): Promise<void> {
   await page.getByTestId('leave-room').click();
 }
 
-/** Leaves from a game screen: the top bar's back arrow, then Leave party in the confirmation. */
+/** Leaves from a game screen: the top bar's back arrow, then Leave room in the confirmation. */
 export async function leaveGame(page: Page): Promise<void> {
   await page.getByTestId('game-back').click();
   await page.getByTestId('game-leave-yes').click();
+}
+
+/**
+ * The host's End game: on a phone through the options sheet, on a desktop the top bar's button;
+ * either way the confirm step's End game.
+ */
+export async function endGameAsHost(page: Page): Promise<void> {
+  const menu = page.getByTestId('game-menu');
+  if (await menu.isVisible()) await menu.click();
+  await page.getByTestId('end-game').click();
+  await expect(page.getByTestId('end-game-confirm')).toContainText('End the game for everyone?');
+  await page.getByTestId('end-game-yes').click();
+}
+
+/** The results popup is up over the lobby (the room's code under it). */
+export async function expectResults(page: Page): Promise<void> {
+  await expect(page.getByTestId('overlay-game-end')).toBeVisible();
+  await expect(page.getByTestId('room-code')).toBeAttached();
+}
+
+/** Closes the results with Back to the room: the player is in the lobby, ready to play again. */
+export async function closeResults(page: Page): Promise<void> {
+  await page.getByTestId('results-done').click();
+  await expect(page.getByTestId('overlay-game-end')).toHaveCount(0);
+  await expect(page.getByTestId('room-code')).toBeVisible();
 }
 
 /**

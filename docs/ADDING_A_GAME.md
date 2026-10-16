@@ -6,7 +6,7 @@ embedded verbatim from the repository so you can copy it line for line.
 
 The one-sentence model: **a game is a pure reducer on the server plus a React screen on the
 client; the platform owns everything else.** Rooms, codes, seats, tokens, reconnects, the host,
-the lobby, settings, notices, scores, the podium, kicks, Redis, routing, the lobby's game picker and the
+the lobby, settings, notices, scores, the end of a game and its results, kicks, Redis, routing, the lobby's game picker and the
 design system are already built. You write what happens *inside* a running game.
 
 Contents
@@ -81,15 +81,15 @@ role handed back on rejoin ([`server/platform/engine/seats.ts`](../server/platfo
 game in the lobby (`selectGame`; the game settings reset to the new game's defaults, the platform
 settings and everyone's ready flags carry over, a system line says "Host switched the party to
 <game>"), everyone readies up (`ready`) or sits the next game out (`sitOut`, which clears ready
-and persists until the player changes it; both accepted in the lobby and on the podium), and the
+and persists until the player changes it; both accepted in the lobby only), and the
 host starts. The lobby screen (only the host sees the settings and the game grid; everyone else
 sees the next game, the players and their own buttons), the room code card at its top (code, Copy,
 Share; Copy invite link and Leave room in the gear menu), the logo centred at the top on a phone,
 the profile editor, the platform setting `contentMode` (`'family' |
 'unhinged'`, [`shared/platform/settings.ts`](../shared/platform/settings.ts)), validation of
 settings patches (platform schema merged with your game's `patchSchema`), the start rule, scores
-reset to 0 on start, and `returnToLobby` after a game ends (the host's "play again" too) are all
-in [`server/platform/engine/lobby.ts`](../server/platform/engine/lobby.ts).
+reset to 0 on start, the host's End game (`endGame`) and the way back to the lobby with the
+results after a game ends are all in [`server/platform/engine/lobby.ts`](../server/platform/engine/lobby.ts).
 
 **Who plays.** `start` needs at least `meta.minPlayers` *ready* players: connected, `ready` and
 not `sittingOut` (the host counts as ready by pressing start unless they sit out). Every ready
@@ -108,8 +108,9 @@ spectators (`GameCtx.spectators`). Spectators get snapshots and chat, but their 
 refused with `NOT_ALLOWED` before your module sees them, and they neither vote-kick nor count
 towards a vote-kick majority while a game runs. The one exception is the host's own controls: a
 module lists the message types the host may send while sitting out in `hostMessages` (Spy Game:
-`nextRound` and `endGame`, Quip Game: `next`, Blackjack: `endGame`, `dealNow` and `skip`, which
-the players may also send while the table waits on the host), and
+`nextRound`, Quip Game: `next`, Poker: `next`, Blackjack: `dealNow` and `skip`, which the players
+may also send while the table waits on the host; End game is the platform's `endGame`, which the
+host sends whether they play or not), and
 those reach `handle` whoever the host is (so a game names a host who watches from
 `GameCtx.spectators` too). Only the room's cap (`ROOM_HARD_CAP`) turns a newcomer away, mid-game
 or not; the front door's preview says a running game can be joined to watch. A room stored with
@@ -117,23 +118,29 @@ the retired `allowMidGameJoin` switch loads and ignores it.
 
 **Content modes.** `settings.contentMode` is the room's single switch for what the packs contain:
 `family` is clean, `unhinged` is adults only (it plays the rude-but-harmless "cheeky" tiers and the
-explicit "unhinged" ones together; there is no middle mode, and a room stored with the retired
-`'cheeky'` mode loads as `family`). The unhinged tiers are written at party-card level: explicit
-sex, drink and drugs, bodily fluids, death and family shame, British wording. The hard lines hold
-for every tier: no slurs, no jokes aimed at a group (race, ethnicity, nationality, religion,
-disability, sexuality, gender identity), nothing sexual involving anyone under 18, no real private
-people. A game that reads it sets `contentModes: true` in its `GameMeta`, which is what makes the
-lobby offer the choice (Scribble, The Spy Game and Quip Game do; for the others the setting is
-hidden but kept). Such a game reads it from `ctx.settings.contentMode` and picks its content with
-a shared pure helper: Quip Game's prompt tiers (`promptsForContentMode` in
+explicit "unhinged" ones together, and never the clean family pack; there is no middle mode, and a
+room stored with the retired `'cheeky'` mode loads as `family`). The unhinged tiers are written at
+party-card level: explicit sex, drink and drugs, bodily fluids, death and family shame, British
+wording. The hard lines hold for every tier: no slurs, no jokes aimed at a group (race, ethnicity,
+nationality, religion, disability, sexuality, gender identity), nothing sexual involving anyone
+under 18, no real private people. A game that reads it sets `contentModes: true` in its
+`GameMeta`, which is what makes the lobby offer the choice (Scribble, The Spy Game and Quip Game
+do; for the others the setting is hidden but kept). Such a game reads it from
+`ctx.settings.contentMode` and picks its content with a shared pure helper: Quip Game's prompt
+tiers (`promptsForContentMode` in
 [`shared/games/quipgame/prompts.ts`](../shared/games/quipgame/prompts.ts): family = clean,
 unhinged = cheeky + unhinged), Scribble's words (`wordPoolForMode` /
 `buildWordPool(lang, custom, customOnly, mode)` in
-[`shared/games/scribble/words/index.ts`](../shared/games/scribble/words/index.ts), which any word
-game may reuse) and The Spy Game's locations (`locationsForMode` in
-[`shared/games/spygame/locations.ts`](../shared/games/spygame/locations.ts), with the tiers in
-`locationTiers.ts` and generated tiles for every tier). A game never ships its own content switch;
-it reads the room's mode.
+[`shared/games/scribble/words/index.ts`](../shared/games/scribble/words/index.ts): family = the
+language list, unhinged = the cheeky and unhinged word tiers only, custom words merged into either;
+any word game may reuse it) and The Spy Game's locations (`locationsForMode` in
+[`shared/games/spygame/locations.ts`](../shared/games/spygame/locations.ts): family = the family
+pack, unhinged = the cheeky and unhinged tiers in `locationTiers.ts` only, with generated tiles for
+every tier). An Unhinged pool must be big enough on its own: tests hold Scribble's adult words to
+at least 480 (so a long game keeps offering fresh choices) and the Spy Game's adult places to at
+least 70 (a round shows 24), and keep the family and adult packs disjoint (Spy names compared
+letters only, Scribble words with plurals and spacing folded). A game never ships its own content
+switch; it reads the room's mode.
 
 **Chat lines, without a chat.** There is no general chat on screen anywhere.
 The wire still carries chat lines, because typed input can be a game's mechanic: Scribble's
@@ -143,13 +150,30 @@ history for late joiners (`CHAT_HISTORY_LENGTH` = 60) and system lines for joins
 start and game over (Scribble's feed shows the ones from its own game). Every chat line is offered
 to the running game first (a `'chat'` event) so a game can treat it as input. An event a player
 needs to know about and the screen does not show (a new host, a vote-kick tally, "Not enough
-players", an `abort` reason; Blackjack's "Pia is away and stands.", Poker's "Blinds up", The Spy
+players"; Blackjack's "Pia is away and stands.", Poker's "Blinds up", The Spy
 Game's failed vote) goes out as a `'notice'` line: every client shows it as a toast.
 
-**Scores and podium.** Players carry a `score`; your game adds to it with `score` effects. When
-the game emits `gameOver` the platform ranks the participants (ties share a rank), stores
-`RoomState.podium`, sends a system line naming the winner, moves the room to `phase: 'ended'` and the client
-shows the `PodiumOverlay` with the host's Back-to-lobby button.
+**Scores and the end of a game.** Players carry a `score`; your game adds to it with `score`
+effects. However a game ends (it finishes on its own with `gameOver`, the host's End game, or too
+few players are left: a leave, a kick, a seat expiry or an `abort`), the platform ranks the
+participants (ties share a rank) into `RoomState.results` (`{ id, gameId, reason, entries }`, each
+entry with the player's name and avatar so it reads right after they leave; `reason` is
+`'finished'`, `'host'` or `'players'`), sends a system line naming the winner (none when too few
+were left) and takes the room straight back to `phase: 'lobby'`: nobody is held on a podium. Every
+phone that took part or watched the game end shows the `ResultsPopup` over the lobby once
+(a reload or a reconnect still shows it until closed; a newcomer never sees it); closing it (Back
+to the room, the X, Escape, a tap beside it on a desktop) leaves the player in the lobby. The
+results stay in the lobby until the next game starts. A room stored on the retired `'ended'` phase
+loads as a lobby carrying its podium as the results.
+
+**End game and Leave room.** Every game's top bar and options sheet carry them; a game adds
+nothing. The host's End game (the platform message `endGame`, host only, while playing; behind a
+confirm step that says what happens) ends the game for everyone at once, on the scores so far, or
+at the game's own next boundary when its module has an `end` hook (Blackjack finishes the hand in
+play; `RoomState.endRequested` is true meanwhile and the button reads "Ending soon"). Leave room
+(behind its confirm step) takes out only the player who leaves; the game goes on for everyone
+else (`playerLeft`) unless too few are left, when it ends with the results. The leaving player
+lands on the front door.
 
 **Kicks and vote-kicks.** Host kick, majority vote-kick (a majority of the other connected
 players in the game, at least two of them, never a single voter; in the lobby every connected
@@ -202,7 +226,7 @@ from one deck with no burn cards, so its table seats 23, two hole cards each and
 and anyone beyond that, ready at the start or joining later, watches, `waitingForSeat` in their view,
 until a seat frees up, first come first seated: the module sets `queuesSeats`, so the platform makes
 every ready player a participant and Poker's queue seats them; `ranks` keeps a player who never got
-a seat off the podium). On the client the cards are drawn by
+a seat out of the results). On the client the cards are drawn by
 [`PlayingCard`](../client/src/platform/components/PlayingCard.tsx) (`sm` / `md` / `lg` / `xl`; a face is a
 big bold rank at the top left with one big suit under it; `null` is face down, every back the
 boredgames back drawn in `cards.css`: a cream border, a lime field with a fine ink lattice and the
@@ -329,8 +353,9 @@ Platform messages are flat and fixed ([`shared/platform/protocol.ts`](../shared/
 - client to server: `create { gameId, name, avatar }`, `join { code, name, avatar }`,
   `rejoin { code, token }`, `leave`, `ping`, `updateSettings { settings }` (one flat patch of
   platform and game fields), `updateProfile { name?, avatar? }`, `selectGame { gameId }` (host,
-  lobby only), `ready { ready }` and `sitOut { sitOut }` (lobby and podium), `start`,
-  `chat { text }`, `kick { playerId }`, `voteKick { playerId }`, `returnToLobby`.
+  lobby only), `ready { ready }` and `sitOut { sitOut }` (lobby only), `start`,
+  `chat { text }`, `kick { playerId }`, `voteKick { playerId }`, `endGame` (host only, while
+  playing; a second tap, or one after the end, changes nothing).
 - server to client: `welcome { playerId, token, room, chat, extra? }`, `room { room }`,
   `chat { message }`, `error { code, message }`, `kicked { reason }`, `pong { serverTime }`.
 
@@ -349,8 +374,9 @@ export interface RoomState<V = unknown, S = Record<string, unknown>> {
   hostId: string;
   settings: PlatformSettings & S;   // flat: { contentMode, ...your fields }
   players: PlayerPublic[];          // { id, name, avatar, score, isHost, connected, joinOrder, ready, sittingOut, participating }
-  phase: 'lobby' | 'playing' | 'ended';
-  podium: PodiumEntry[] | null;     // { playerId, score, rank }, set by the platform on gameOver
+  phase: 'lobby' | 'playing';
+  results: GameResults | null;      // the last game's standings, in the lobby until the next start
+  endRequested: boolean;            // the host's End game waits for the game's next boundary
   game: V | null;                   // your view; null in the lobby
   serverTime: number;
 }
@@ -376,7 +402,14 @@ Your `shared/games/<id>/protocol.ts` declares, with zod where it is validated:
 
 ```ts
 /** What a game may know about a seated player. Names and scores are the platform's; per-game state lives in D. */
-export interface PlatformPlayer { id: string; name: string; joinOrder: number; connected: boolean; score: number; }
+export interface PlatformPlayer {
+  id: string; name: string; joinOrder: number;
+  /** The socket is up, or dropped too recently (AWAY_NOTICE_MS) for the game to have heard of it. */
+  connected: boolean;
+  /** Connected, but silent for IDLE_AFTER_MS (asleep, frozen, in the background). Absent means false. */
+  idle?: boolean;
+  score: number;
+}
 
 /** A seated player who sits this game out (or has not readied up): in the room, never in the game. */
 export interface PlatformSpectator { id: string; name: string; connected: boolean; }
@@ -415,6 +448,8 @@ export type GameEvent<CMsg> =
    * A socket dropped / a disconnected player rejoined. The seat (and score) survives for
    * RECONNECT_GRACE_MS, and the platform never abandons a game over a disconnect alone: a game
    * that cannot go on without the player holds at its next boundary (see the 'waiting' effect).
+   * A drop is reported AWAY_NOTICE_MS after it happens, and not at all when the player is back
+   * by then (nor is that return reported).
    */
   | { type: 'playerDisconnected'; playerId: string }
   | { type: 'playerReconnected'; playerId: string }
@@ -438,16 +473,17 @@ export type GameEffect<SMsg> =
   /** An error for one player (a refused move, say). */
   | { type: 'error'; playerId: string; code: 'NOT_ALLOWED' | 'INVALID_MESSAGE'; message: string }
   | { type: 'score'; playerId: string; delta: number }
-  /** The game is over: the platform computes the podium and moves the room to 'ended'. */
+  /** The game is over: the platform ranks the players and takes the room back to the lobby with the results. */
   | { type: 'gameOver' }
-  /** Abandon the game and return everyone to the lobby. */
+  /** The game cannot go on (too few players): the results on the scores so far, `reason` a system line. */
   | { type: 'abort'; reason: string }
   /**
    * The game is holding at a boundary until the players in `missing` (seated, disconnected) come
    * back; the platform shows it as RoomState.waiting. Emit it again when the list changes and
-   * `null` when the game goes on; abort, gameOver and the lobby clear it by themselves.
+   * `null` when the game goes on; abort, gameOver and the lobby clear it by themselves. `until`
+   * (epoch ms): when the game stops waiting and goes on without them (shown as a countdown).
    */
-  | { type: 'waiting'; missing: string[] | null }
+  | { type: 'waiting'; missing: string[] | null; until?: number }
   /** For games with a side store: 'reset' empties it and stamps it with `payload.stamp`. */
   | { type: 'side'; name: 'reset'; payload?: { stamp: string } };
 
@@ -485,8 +521,14 @@ export interface GameServerModule<S = unknown, D = unknown, V = unknown, CMsg = 
   hostMessages?: ReadonlySet<string>;
   /** The game seats `meta.maxPlayers` at a time itself and queues the rest in join order: every ready player starts as a participant. */
   queuesSeats?: boolean;
-  /** Whether a participant goes on the podium (a queued player who never got a seat does not). Everyone by default. */
+  /** Whether a participant goes in the results (a queued player who never got a seat does not). Everyone by default. */
   ranks?(data: D, playerId: string): boolean;
+  /**
+   * The host's End game: emit the last score effects and `gameOver` to end at once, or note it and
+   * end at the game's own next boundary (Blackjack). Without it the platform ends the game at once
+   * on the scores as they stand.
+   */
+  end?(ctx: GameCtx<S>, data: D): GameResult<D, SMsg>;
 }
 
 /** Builds a settings spec from a zod object schema. */
@@ -510,10 +552,10 @@ messages. The registry erases them to `AnyGameServerModule`.
 | `chat` | A `ChatMessage` with a fresh id. `to: 'all'` or `{ except }` is stored in the history (cap 60) and broadcast; an explicit id list is private, sent only to connected players and never stored. `playerId` without `name` fills the name in. `kind` is one of `ChatKind = 'chat' \| 'system' \| 'guessed' \| 'correct' \| 'close' \| 'hint'` (`CHAT_KINDS` in [`shared/platform/protocol.ts`](../shared/platform/protocol.ts)); the chat styles each kind and prints the name for `chat` and `guessed` lines. Any game may use any kind. |
 | `chatHandled` | Marks the triggering `'chat'` event as consumed: the platform does not broadcast the player's line. Only meaningful while handling a `'chat'` event. |
 | `error` | `{ t: 'error', code, message }` to that player (if connected). |
-| `score` | `player.score += delta`. **No snapshot is sent for you**; add one (or end the game) so the player list updates. Negative deltas are allowed and totals are not clamped: the podium prints `-50 pts` as it is. |
-| `gameOver` | Ignored unless the room is `'playing'`. Clears any `waiting` state, builds the podium from the participants (score desc, then join order; rank = 1 + number of players with a higher score; spectators are not ranked), sets `phase: 'ended'`, posts "Game over! Alice wins with 100 points." (or a tie line), broadcasts a snapshot. After this `nextDeadline` is no longer consulted and `handle` is not called again; game messages are refused. |
-| `abort` | Posts `reason` as a system line, then `resetToLobby`: phase `'lobby'`, `podium` and `game` null, any `waiting` state cleared, votes cleared, every score reset to 0 and `participating` to false (ready and sit-out flags survive), the side store reset (when the module has one), a snapshot. **Any effects after `abort` in the same list are skipped.** |
-| `waiting` | Stores `missing` as the room's hold. Every later snapshot carries `RoomState.waiting = { reason: 'players', missing, needed: meta.minPlayers, connected }` with the live connected count, `missing` narrowed to players still seated and disconnected; `missing: null` clears it, as do `abort`, `gameOver` and the return to the lobby. **No snapshot is sent for you**; add one so everyone sees the hold (a tick carries none). A holding game returns `null` from `nextDeadline` while too few are connected (only the seat expiries are pending then); once enough are back it waits a short settle (`RESUME_SETTLE_MS`, restarted by every further reconnect) before going on, so a group whose sockets were all cut at once is seated together rather than from the first one back. See `server/games/waiting.ts` for the shared helpers the three games use. |
+| `score` | `player.score += delta`. **No snapshot is sent for you**; add one (or end the game) so the player list updates. Negative deltas are allowed and totals are not clamped: the results print `-50 pts` as it is. |
+| `gameOver` | Ignored unless the room is `'playing'`. Builds `results` from the participants (score desc, then join order; rank = 1 + number of players with a higher score; spectators are not ranked; `reason` `'host'` after the host's End game, `'finished'` otherwise), posts "Game over! Alice wins with 100 points." (or a tie line), then goes back to the lobby: phase `'lobby'`, `game` null, any `waiting` state cleared, votes cleared, every score reset to 0 and `participating` to false (ready and sit-out flags survive), the side store reset (when the module has one), a snapshot. After this `nextDeadline` is no longer consulted and `handle` is not called again; game messages are refused. **Any effects after it in the same list are skipped.** |
+| `abort` | Posts `reason` as a system line, then ends the game like `gameOver` with `reason: 'players'` (the standings where it stopped, nobody crowned: the line is just "Game over!"). Use it when too few players are left to go on. **Any effects after `abort` in the same list are skipped.** |
+| `waiting` | Stores `missing` as the room's hold. Every later snapshot carries `RoomState.waiting = { reason: 'players', missing, needed: meta.minPlayers, connected, until? }` with the live connected count, `missing` narrowed to players still seated and disconnected, and `until` when the effect gave one (the card then counts down to it: "If they are not back in 1:30, the game goes on without them."; the count of connected players shows only while it is below `needed`); `missing: null` clears it, as do `abort`, `gameOver` and the return to the lobby. The host's card has Remove <name> for each missing player. **No snapshot is sent for you**; add one so everyone sees the hold (a tick carries none). A holding game returns `null` from `nextDeadline` while too few are connected (only the seat expiries are pending then); once enough are back it waits a short settle (`RESUME_SETTLE_MS`, restarted by every further reconnect) before going on, so a group whose sockets were all cut at once is seated together rather than from the first one back. See `server/games/waiting.ts` for the shared helpers the three games use. |
 | `side` | Forwarded to the driver, which resets the side store with the given stamp (section 7). |
 
 Around your module the platform also does: the "sit this one out" lines and a system line "The
@@ -534,11 +576,15 @@ is exactly the set of participants: ready, not sitting out, connected, within th
   snapshots are all they need, and your game state never changes for them.
 - `playerLeft`: after the removal (leave, kick, vote-kick or grace expiry) of a participant or a
   spectator (check `ctx.players` if you care which). Not delivered when the room became empty, or
-  when the departure already dropped the participants below `minPlayers` (the platform aborted
-  the game first).
+  when the departure already dropped the participants below `minPlayers` (the platform ended
+  the game first, with the results).
 - `playerDisconnected` / `playerReconnected`: a socket dropped / a disconnected player rejoined
-  (a socket merely replaced by a reload on the same seat does not fire `playerReconnected`). A
-  disconnected player **stays in `ctx.players`** with `connected: false` until the reconnect grace
+  (a socket merely replaced by a reload on the same seat does not fire `playerReconnected`). Phones
+  blink off and on (a tunnel, a Wi-Fi hand-over), so the game hears of a drop only
+  `AWAY_NOTICE_MS` (4 s) after it: until then `ctx.players` still shows the player connected
+  (everyone else's screen already shows them away), and a player back within that time was never
+  gone as far as the game knows (no event either way). A disconnected player **stays in
+  `ctx.players`** with `connected: false` until the reconnect grace
   (10 min) runs out, so anything that picks a player (the next one to act, a random holder) must
   filter on `connected`; the template never picks and so never shows this. The platform never
   abandons a game over a disconnect: if yours needs `meta.minPlayers` connected to go on, hold at
@@ -547,6 +593,25 @@ is exactly the set of participants: ready, not sitting out, connected, within th
   `playerLeft`, when the seat you wait for empties). A newcomer never ends a hold: they watch.
 - `tick`: `nextDeadline(data) <= now`. `ctx.now` is the deadline's own time while the platform
   catches up on several overdue deadlines, so chained deadlines stay anchored.
+- There is no idle event: a connection that has sent nothing for `IDLE_AFTER_MS` (90 s; a live
+  page pings every 20 s) shows `idle: true` on its `PlatformPlayer` and `PlayerPublic`, and the
+  platform sends everyone a snapshot. A game without clocks may let the others act for an idle
+  player it waits on (Blackjack shows the seat away and lets anyone Skip or Deal now for it);
+  the platform never plays for anyone.
+
+**Moves that a second tap must not repeat.** A phone on a weak link sends a move, sees nothing
+change for a moment and taps again, so the same move can arrive twice. Give each move what it acts
+on, as the player's screen had it (Blackjack's `{ round, handIndex, cards }`, Poker's
+`{ hand, move }` with the number of the latest move on the table), and **ignore without a word**
+(no `error` effect, no state change) a move whose target no longer matches: the player meant the
+first one. Keep `error` effects for real rule breaks ("You cannot double this hand."). On the
+client, hold every control from the tap until the snapshot that answers it (or a few seconds, an
+`onError`, a welcome), and show the tapped control pressed (`MoveButton`'s `sent`). Separately,
+every room message the socket sends carries a client sequence number (`cs`), and the room applies
+each number once (it skips any number at or below the highest it has applied), so the platform
+can resend what a dead socket swallowed after the rejoin; a game needs nothing for that. To keep
+the numbers in order, a room message sent while the rejoin is in flight waits for the welcome, and
+the resend goes out first, paced to the server's per-socket limits (`client/src/platform/net/pacer.ts`).
 
 **Views.** `view(data, viewerId, ctx)` is called once per recipient for every snapshot, with the
 viewer's id when they are seated and `null` for spectators (the HTTP preview, tests). Hide
@@ -572,7 +637,7 @@ export interface SettingsFieldsProps<S = Record<string, unknown>> {
 
 export interface GameClientModule<V = unknown, S = Record<string, unknown>> {
   meta: GameMeta;
-  /** Rendered while the room is 'playing' or 'ended' (the platform adds the podium overlay for 'ended'). */
+  /** Rendered while the room is 'playing'; a finished game's results show over the lobby. */
   Screen: ComponentType<GameScreenProps<V, S>>;
   /** The game's sound effects; the platform starts loading them when the game screen mounts. */
   sounds?: AnySoundBank;
@@ -598,8 +663,12 @@ export interface GameClientModule<V = unknown, S = Record<string, unknown>> {
   onRoom?(room: RoomState<V, S>, prev: RoomState<V, S> | null): void;
   /** A freshly appended chat line (history from a welcome does not count): Scribble's guesses and the game's lines. */
   onChat?(message: ChatMessage): void;
+  /** The room refused something while we are in it (a move against the rules): a game holding its controls for an answer lets go. */
+  onError?(code: ErrorCode, message: string): void;
   /** The room is being left (leave, kick, seat lost): drop local game state, flush what must still go out. */
   onLeave?(): void;
+  /** What the host's End game does right now, under "End the game for everyone?" ("It ends after the hand in play."); null: the default. */
+  endGameNote?(room: RoomState<V, S>): string | null;
 }
 
 export type AnyGameClientModule = GameClientModule<unknown, Record<string, unknown>>;
@@ -608,8 +677,9 @@ export function defineGameClient<V, S extends Record<string, unknown>>(module: G
 ```
 
 Only `meta` and `Screen` are required. The platform's shell ([`client/src/App.tsx`](../client/src/App.tsx))
-renders `Lobby` while `phase === 'lobby'`, your `Screen` (keyed by room code) while `'playing'`
-or `'ended'`, and the `PodiumOverlay` on top of it while `'ended'`. The player list applies your
+renders `Lobby` while `phase === 'lobby'` (with the `ResultsPopup` over it once a game ended) and
+your `Screen` (keyed by room code) while `'playing'`, with the `WaitingOverlay` over it during a
+hold. Your top bar and options sheet carry End game and Leave room by themselves. The player list applies your
 `playerBadge` / `playerMeta` / `playerClassName` only in game mode and while `room.game !== null`;
 the top bar's player chips ask `playerStatus` for every connected player taking part (one word
 and an icon at `CHIP_ICON` size from `PlayerChips.tsx`; tone `active` for "their move now",
@@ -766,18 +836,18 @@ wordle: {
   settings: { rounds: 1 },                 // applied by startGame before 'start': deterministic and short
   longSettings: { rounds: 10 },            // the longest game the settings allow (ideally still running 10 min in)
   validMessage: { t: 'guess', word: 'crane' },  // accepted from the host right after 'start'
-  // hostEnd: { t: 'endGame' },               // only for a game that never ends on its own clock: the host's message that ends it
+  // endsByHost: true,                         // only for a game that never ends on its own clock: the suites end it with End game
 },
 ```
 
 A game that runs until the players decide it (Blackjack has no rounds setting and plays until one
-stack is left or the host taps End game) sets `hostEnd`; the cross-game suites send it once the
-clock has run, where they would otherwise wait for the game to end on its own.
+stack is left or the host taps End game) sets `endsByHost`; the cross-game suites send the host's
+`endGame` once the clock has run, where they would otherwise wait for the game to end on its own.
 
 Blackjack has no clocks at all but the settled table's: after every settle the `results` phase
 keeps the table up for the dealer's reveal only, then the next round's bets open at once (the
 settled hands stay on show until the next deal), and the final table stays up in `ending` for the
-reveal and `BLACKJACK_RESULTS_MS` (5 seconds, no setting) before the podium. The bets wait for the players: the cards go out once every connected seat with chips has
+reveal and `BLACKJACK_RESULTS_MS` (5 seconds, no setting) before the results. The bets wait for the players: the cards go out once every connected seat with chips has
 bet or tapped Sit out, a player who is away never holds up the deal (they sit the hand out), and
 the host's Deal now deals to whoever has bet. With no bet down nothing is dealt, and the table
 holds once nobody connected is left to bet. Everyone ready at the start is seated with the
@@ -806,7 +876,8 @@ s.game(alice, { t: 'guess', word: 'crane' });              // a game message; re
 s.platform(bob, { t: 'chat', text: 'hi' });                // a platform message
 s.apply({ type: 'join', name: 'Carol', avatar: AVATAR, connectionId: 'c' });
 s.now += 30_000; s.tick();                                 // advance the clock, fire due deadlines
-s.data.phase; s.data.podium; s.data.players[0].score;      // the engine state
+s.data.phase; s.data.results; s.data.players[0].score;     // the engine state (standings(s): the results as { playerId, score, rank })
+endGame(s, host);                                          // the host's End game
 viewFor(s.data, alice, s.now).game;                        // a recipient's view
 nextDeadline(s.data);                                      // the merged platform + game deadline
 chatTexts(effects);                                        // chat lines in a set of effects
@@ -876,8 +947,10 @@ Add a `test(...)` to a spec in `e2e/` (or a new `e2e/wordle.spec.ts` with the sa
 the lobby, with the party started on your game through `/?game=wordle`), `joinByLink(page, name,
 `/wordle/<CODE>`, code)` in a second context, adjust a setting through `settings-<id>`, click
 `start-game`, drive your screen through its own `data-testid`s, then assert the `overlay-game-end`
-podium (`podium-entry` with `data-rank`), `back-to-lobby` for the host and `room-code` again
-afterwards. The Click Race test in `home.spec.ts` ("the hidden template game plays a whole Click
+results over the lobby (`results-entry` with `data-rank`, `room-code` under it) and close them
+(`closeResults(page)`: Back to the room). The host's End game is `endGameAsHost(page)` and the
+cross-game flow (End game in every game, leaving mid-game, leaving below the minimum) is
+[`e2e/flow.spec.ts`](../e2e/flow.spec.ts). The Click Race test in `home.spec.ts` ("the hidden template game plays a whole Click
 Race between two players") is exactly this and is the one to copy. Keep the "no page errors"
 assertion pattern.
 
@@ -894,7 +967,10 @@ The platform test ids you will use: `home-create`, `home-join`, `code-input-0..3
 `settings-value-<id>` (a slider's value, host only), `settings-<id>`, `settings-panel` (host
 only), `start-game`, `start-hint`, `waiting-for-host`, `sitout-toggle`, `edit-profile`,
 `leave-room`, `timer`
-(with `data-seconds`), `overlay-game-end`, `podium-entry`, `back-to-lobby`, `podium-leave`,
+(with `data-seconds`), `overlay-game-end`, `results-entry` (with `data-rank`, `data-name`,
+`data-score`), `results-headline`, `results-place`, `results-reason`, `results-done`,
+`results-close`, `end-game`, `end-game-confirm`, `end-game-yes`, `end-game-requested`,
+`game-leave-confirm`, `game-leave-yes`, `menu-sheet`,
 `toast`, `connection-status` (with `data-status`; only rendered while the socket is not
 connected), `settings-menu`, `site-header`, `brand-link`, `wordmark`.
 
@@ -923,7 +999,7 @@ client module needs no `onServerMessage`.
 /**
  * Click Race: the template game. Copy this file for a new game and replace the settings,
  * messages and view. Everything a game needs on the wire lives here; the platform handles rooms,
- * seats, chat, scores and the podium.
+ * seats, chat, scores and the results.
  */
 import { z } from 'zod';
 import type { RoomState } from '../../platform/protocol.js';
@@ -967,7 +1043,8 @@ export type TemplateRoomState = RoomState<TemplateView, TemplateSettings>;
 The reducer. Note what it does **not** do: it never reads a clock (`ctx.now`), never mutates
 `data` (every change spreads into a new object), returns the input object untouched for events it
 ignores, and only emits `snapshot`, `score` and `gameOver`. `finish` emits the scores and then
-`gameOver`; the platform builds the podium from the resulting scores. `view` copies `clicks` so a
+`gameOver`; the platform builds the results from the resulting scores. Its `end` hook lets the
+host's End game score the clicks so far, as the clock running out would. `view` copies `clicks` so a
 snapshot never shares an object with the state.
 
 ```ts
@@ -975,7 +1052,7 @@ snapshot never shares an object with the state.
  * Click Race: the template game module. Copy this folder to start a new game. A module is a pure
  * reducer: `start` builds the initial state, `handle` folds one event into it and returns the
  * next state plus effects, `nextDeadline` tells the platform when to tick, `view` renders what
- * one player may see. The platform owns everything else (seats, chat, scores, podium, lobby).
+ * one player may see. The platform owns everything else (seats, chat, scores, results, lobby).
  */
 import {
   DEFAULT_TEMPLATE_SETTINGS,
@@ -1028,7 +1105,7 @@ function click(ctx: GameCtx<TemplateSettings>, data: TemplateData, playerId: str
   return { data: next, effects: [{ type: 'snapshot', to: 'all' }] };
 }
 
-/** Ends the race: the winner (if any) takes the bonus, everyone else scores their clicks; the platform builds the podium. */
+/** Ends the race: the winner (if any) takes the bonus, everyone else scores their clicks; the platform builds the results. */
 function finish(ctx: GameCtx<TemplateSettings>, data: TemplateData, winnerId: string | null): Result {
   const effects: Effect[] = [];
   for (const p of ctx.players) {
@@ -1055,6 +1132,8 @@ export const templateModule: GameServerModule<TemplateSettings, TemplateData, Te
   handle,
   nextDeadline,
   view,
+  // The host's End game scores the clicks so far, as the clock running out would.
+  end: (ctx, data) => (data.over ? { data, effects: [] } : finish(ctx, data, null)),
 };
 ```
 
@@ -1073,7 +1152,7 @@ import { defaultPlatformSettings } from '../../../shared/platform/settings.js';
 import type { Effect } from '../../platform/engine/effects.js';
 import { nextDeadline } from '../../platform/engine/time.js';
 import { viewFor } from '../../platform/engine/view.js';
-import { AVATAR, START, chatTexts, errorsOf, sim, startGame } from '../../platform/engine/testHarness.js';
+import { AVATAR, START, chatTexts, endGame, errorsOf, sim, standings, startGame } from '../../platform/engine/testHarness.js';
 import { templateModule, type TemplateData } from './module.js';
 
 const view = (s: { data: Parameters<typeof viewFor>[0]; now: number }, viewer: string | null = null): TemplateView => {
@@ -1114,9 +1193,9 @@ describe('Click Race', () => {
     for (let i = 0; i < 9; i++) s.game(alice, { t: 'click' });
     expect(s.data.phase).toBe('playing');
     const effects = s.game(alice, { t: 'click' });
-    expect(s.data.phase).toBe('ended');
-    expect(view(s)).toMatchObject({ winnerId: alice, clicks: { [alice]: 10, [bob]: 4 } });
-    expect(s.data.podium).toEqual([
+    expect(s.data.phase).toBe('lobby');
+    expect(s.data.game).toBeNull();
+    expect(standings(s)).toEqual([
       { playerId: alice, score: 100, rank: 1 },
       { playerId: bob, score: 4, rank: 2 },
     ]);
@@ -1133,12 +1212,30 @@ describe('Click Race', () => {
     for (let i = 0; i < 5; i++) s.game(bob, { t: 'click' });
     s.now += 15_000;
     s.tick();
-    expect(s.data.phase).toBe('ended');
-    expect(view(s).winnerId).toBeNull();
-    expect(s.data.podium).toEqual([
+    expect(s.data.phase).toBe('lobby');
+    expect(s.data.results?.reason).toBe('finished');
+    expect(standings(s)).toEqual([
       { playerId: bob, score: 5, rank: 1 },
       { playerId: alice, score: 0, rank: 2 },
     ]);
+  });
+
+  it('lets the host end the race early: everyone scores their clicks so far, as at the time limit', () => {
+    const s = sim('template');
+    const [alice, bob] = startGame(s, ['Alice', 'Bob'], { targetClicks: 100 });
+    for (let i = 0; i < 3; i++) s.game(bob, { t: 'click' });
+    s.game(alice, { t: 'click' });
+    expect(errorsOf(endGame(s, bob))).toEqual(['Only the host can do that.']);
+    expect(s.data.phase).toBe('playing');
+    const effects = endGame(s, alice);
+    expect(chatTexts(effects)).toEqual(['Game over! Bob wins with 3 points.']);
+    expect(s.data).toMatchObject({ phase: 'lobby', game: null, results: { reason: 'host', gameId: 'template' } });
+    expect(standings(s)).toEqual([
+      { playerId: bob, score: 3, rank: 1 },
+      { playerId: alice, score: 1, rank: 2 },
+    ]);
+    // A second tap, after the game ended, changes nothing and says nothing.
+    expect(endGame(s, alice)).toEqual([]);
   });
 
   it('lets a mid-game joiner watch without a tally or a click of their own', () => {
@@ -1175,7 +1272,7 @@ The smallest possible client module: `meta`, `Screen`, `SettingsFields`, its sty
 ```tsx
 /**
  * Click Race: the template client module. Copy this folder for a new game. The platform renders
- * the front door, the room, players and the podium; a module only needs a Screen (and,
+ * the front door, the room, players and the results; a module only needs a Screen (and,
  * optionally, settings rows and the hooks listed in platform/game.ts).
  */
 import type { TemplateSettings, TemplateView } from '@shared/games/template/protocol';
@@ -1198,8 +1295,9 @@ The screen gets `{ room, meId, isHost }`. It reads the view from `room.game` and
 settings from `room.settings` (typed through `GameScreenProps<TemplateView, TemplateSettings>`),
 sends `{ t: 'click' }` straight through the socket, and composes platform components: the
 `GameTopBar` every game uses (back arrow, name and round and options, then the player
-chips and the clock; its `GameMenuSheet` holds the theme, sound and Leave), `Timer`, `Avatar`, `PlayerList` in a `BottomSheet`.
-The podium is not its concern. Every interactive element carries a `data-testid` for the e2e test.
+chips and the clock, End game for the host on a desktop; its `GameMenuSheet` holds the theme,
+sound, End game and Leave room), `Timer`, `Avatar`, `PlayerList` in a `BottomSheet`.
+The end of the game is not its concern. Every interactive element carries a `data-testid` for the e2e test.
 
 ```tsx
 import { useState } from 'react';
@@ -1219,7 +1317,7 @@ import { useActiveGame } from '../../platform/store/selectors';
 const meta = gameById('template');
 
 /**
- * One big button, a live ranking and the clock. The platform draws the podium when the race ends.
+ * One big button, a live ranking and the clock. The platform shows the results when the race ends.
  * A player sitting this one out watches: their button is off and the standings list racers only.
  */
 export function ClickRaceScreen({ room, meId, isHost }: GameScreenProps<TemplateView, TemplateSettings>) {
@@ -1546,11 +1644,15 @@ describe('Click Race screen', () => {
     expect(racer).not.toContain('data-testid="race-spectating"');
   });
 
-  it('disables the button once the race ended (the platform shows the podium over it)', () => {
-    const state = race({ phase: 'ended', podium: [{ playerId: 'host', score: 100, rank: 1 }] });
+  it('lets the host end the race from the top bar, which nobody else has', () => {
+    const state = race();
     usePlatformStore.getState().handleServerMessage(welcome('host', state));
-    const html = renderToString(createElement(templateClient.Screen, { room: state, meId: 'host', isHost: true }));
-    expect(tagWith(html, 'click-button')).toContain('disabled');
+    const host = renderToString(createElement(templateClient.Screen, { room: state, meId: 'host', isHost: true }));
+    expect(tagWith(host, 'end-game')).toContain('gbar-end');
+    expect(host).toContain('End game</button>');
+    usePlatformStore.getState().handleServerMessage(welcome('bob', state));
+    const guest = renderToString(createElement(templateClient.Screen, { room: state, meId: 'bob', isHost: false }));
+    expect(guest).not.toContain('data-testid="end-game"');
   });
 });
 
@@ -1649,7 +1751,7 @@ sideMessages?: ReadonlySet<string>;                         // message types the
 createSideStore?(storage: GameStorage): GameSideStore<D, CMsg, SMsg>;
 
 /** What the room looks like to a side store: the platform's record with the game's data inside (players = the participants). */
-export interface SideRoom<D> { code: string; phase: 'lobby' | 'playing' | 'ended'; game: D | null; players: PlatformPlayer[]; }
+export interface SideRoom<D> { code: string; phase: 'lobby' | 'playing'; game: D | null; players: PlatformPlayer[]; }
 
 export type SideOutcome<SMsg> =
   | { ok: true; seq: number; sends: Array<{ to: Recipients; msg: SMsg }>; resync?: string }
@@ -1704,8 +1806,8 @@ How it flows:
 4. **Stamps.** The reducer mints a new id for each "round" of side data (Scribble: `canvasId` via
    `ctx.newId()`) and emits `{ type: 'side', name: 'reset', payload: { stamp } }`; the driver
    empties the store and stamps it. `handleMessage` compares `stamp(room)` with the stored stamp and
-   refuses writes authorised against stale data. Platform-level lobby transitions (abort, return to
-   lobby, empty room, a game switch away from the game) reset the store with stamp `''`
+   refuses writes authorised against stale data. Platform-level lobby transitions (every end of a
+   game, empty room, a game switch away from the game) reset the store with stamp `''`
    automatically when the module has `createSideStore`.
 5. **Welcome.** The driver completes every `welcome` with `extra` from `store.welcomeExtra`
    (the canvas store: `{ canvas: CanvasAction[] }`). Games without a side store have `extra` undefined.
@@ -1767,12 +1869,12 @@ light theme swaps the `-text` variants for darker cuts while the fills stay lime
 | Buttons | `.btn` (48px, 8px corners, Inter 600) with `.btn--primary` (lime, ink text: the one loud action on a screen), `.btn--secondary` (1.5px strong outline), `.btn--ghost` (no border), `.btn--danger` (danger-soft fill, danger border), sizes `.btn--lg` / `.btn--sm` / `.btn--xs`, `.btn--block`, `.btn--choice` (big option buttons); `.icon-btn`, `.icon-btn--sm`; `.segmented`; `.switch` |
 | Text inputs | `.input`, `.input--lg`, `.input.is-invalid`, `.textarea`, `.field`, `.field__label`, `.field__hint`, `.field__error`, `.field__ok` |
 | Badges | `.pill`, `.pill--accent`, `.banner`, `.banner--info`, `.banner--invite`, `.spinner`, `.ellipsis` (animated dots) |
-| Overlays | `.overlay__card`, `.overlay__card--wide`, `.overlay__kicker`, `.overlay__title`, `.overlay__hint`, `.overlay__footer` (the podium uses these; a game's own in-screen overlay can too); a round result adds `.result-card`, `.result-kicker`, `.result-reveal*`, `.result-points*`, `.result-next` from `results.css` |
+| Overlays | `.overlay__card`, `.overlay__card--wide`, `.overlay__kicker`, `.overlay__title`, `.overlay__hint`, `.overlay__footer` (the results use these; a game's own in-screen overlay can too); a round result adds `.result-card`, `.result-kicker`, `.result-reveal*`, `.result-points*`, `.result-next` from `results.css` |
 | Player list | `.player-list`, `.player`, `.player--me`, `.player--offline`, `.player--guessed`, `.player__avatar`, `.player__badge`, `.player__badge--drawer`, `.player__badge--guessed`, `.player__rank`, `.player__name`, `.player__meta`, `.player__score`, `.player__turn-points` |
 | Timer | `.timer`, `.timer--lg`, `.timer--md`, `.timer--urgent` (the last 5 seconds), `.timer--long` (m:ss), `.timer__track`, `.timer__arc` |
 | Sheets and toasts | `.sheet*`, `.menu-sheet*` (a phone options sheet: `.menu-sheet__row`, `.menu-sheet__label`, `.menu-sheet__leave`), `.toasts`, `.toast` with `.toast--success/warning/error` (an `info` toast uses the base style) |
 | Header | `.site-header`, `.site-header__actions`, `.brand` (the wordmark link), `.wordmark` (24px tall on phones, 30px on desktop, via `--wordmark-height`), `.wordmark__accent`, `.conn-pill` (only while the socket is down), `.settings-menu`, `.pref-row` |
-| Misc | `.avatar--sm/md/lg/xl`, `.swatch`, `.emoji-choice`, `.code-input`, `.range`, `.toggle`, `.setting*`, `.podium*`, `.hide-mobile`, `.sr-only` |
+| Misc | `.avatar--sm/md/lg/xl`, `.face-img`, `.swatch`, `.emoji-choice`, `.code-input`, `.range`, `.toggle`, `.setting*`, `.podium*` (the results' top three), `.results*`, `.exit-action*`, `.exit-confirm*`, `.btn--danger-solid`, `.hide-mobile`, `.sr-only` |
 
 The game top bar (`.gbar*`) is the platform's `gamebar.css` and the round results (`.result-*`)
 its `results.css`. The type-into-the-blanks guess bar (`.guess-*`, `.gtile*`) is the platform's `guess.css`, rendered
@@ -1790,13 +1892,13 @@ layout, which is a good reference for a non-scrolling phone game.
 | [`Wordmark`](../client/src/platform/components/Wordmark.tsx) | `className?` | The outlined boredgames.io logo (Poppins Black + Regular paths) inline, accessible name "boredgames.io", "games" in `--color-primary-text` |
 | [`PhoneBored`](../client/src/platform/components/Mascots.tsx) / `PhoneHappy` | `className?` | The two phone characters from `branding/mascots/boredgames-mascots.svg`, each cropped to itself, decorative (`aria-hidden`); the logo draws `BoredArt` and `HappyArt` together; celebrations only |
 | [`GameGlyph`](../client/src/platform/components/GameGlyph.tsx) | `game: GameMeta`, icon props | The game's 24px line glyph (the lobby tiles draw it at 32px) |
-| [`GameTopBar`](../client/src/platform/components/GameTopBar.tsx) | `meta`, `room`, `isPhone`, `testId`, `className?`, `status`, `statusTestId?` ('round-indicator'), `statusData?`, `clock?`, `players: { label?, open, onOpen }`, `menu: { open, onOpen }`, `actions?`, `middle?`, `below?`, `compact?` | Every game's top bar as on the brand board (`gamebar.css`, `.gbar*`): a back arrow (`game-back`, it asks before leaving: `leave-sheet`, `game-leave-yes`), the game's name large and the status on the right ("Round 2/3"), then the options button (a phone) or the connection pill, `actions` (End game) and the gear (a desktop). Below, the player chips (`PlayerChips`: avatar, name, a status badge from your `playerStatus`; the row is the `players-toggle` button and never scrolls, a "+K" chip takes what does not fit) and the timer ring at the end. Wrap the less important half of the status in `<span className="gbar__more">` and it shows on wider screens only; on a phone the status stays on one line beside the whole name, and the part wrapped in `Wide` (`RoundStatus` renders "Round 1/5" that way) gives way on the narrowest ("1/5"). `TableShell` renders it for the card tables. `compact` packs it into one row (a phone's card table, The Spy Game on a phone): the chips give way to a players button with the count, and a `clock` sits small in the row, the game's name giving way to it on a phone |
-| `GameMenuSheet` | `open`, `onClose()`, `children?` | The phone options sheet behind the bar's menu button: theme and sound, your rows (the host's End game), Leave room (`menu-sheet`) |
+| [`GameTopBar`](../client/src/platform/components/GameTopBar.tsx) | `meta`, `room`, `isPhone`, `testId`, `className?`, `status`, `statusTestId?` ('round-indicator'), `statusData?`, `clock?`, `players: { label?, open, onOpen }`, `menu: { open, onOpen }`, `middle?`, `below?`, `compact?` | Every game's top bar as on the brand board (`gamebar.css`, `.gbar*`): a back arrow (`game-back`, it asks before leaving: `leave-sheet`, `game-leave-confirm`, `game-leave-yes`), the game's name large and the status on the right ("Round 2/3"), then the options button (a phone) or the connection pill, the host's End game (`end-game`, outlined in the danger colour; it asks first in `end-sheet`, with your `endGameNote`; "Ending soon" once asked for a later end) and the gear, whose menu also holds End game and Leave room (a desktop). Below, the player chips (`PlayerChips`: avatar, name, a status badge from your `playerStatus`; the row is the `players-toggle` button and never scrolls, a "+K" chip takes what does not fit) and the timer ring at the end. Wrap the less important half of the status in `<span className="gbar__more">` and it shows on wider screens only; on a phone the status stays on one line beside the whole name, and the part wrapped in `Wide` (`RoundStatus` renders "Round 1/5" that way) gives way on the narrowest ("1/5"). `TableShell` renders it for the card tables. `compact` packs it into one row (a phone's card table, The Spy Game on a phone): the chips give way to a players button with the count, and a `clock` sits small in the row, the game's name giving way to it on a phone |
+| `GameMenuSheet` | `open`, `onClose()`, `children?` | The phone options sheet behind the bar's menu button (`menu-sheet`): theme and sound, your rows, then the ways out as tall rows (`ExitActions` in `GameExit.tsx`): End game for the host in the danger colour ("Ends it for everyone"), Leave room ("Only you leave"); each opens its confirm step in the sheet ("End the game for everyone?" with what it does; "Leave the room?" with whether the game goes on) |
 | [`ResultPoints`](../client/src/platform/components/RoundResult.tsx) / `ResultNext` / `earnersOf` | `rows`, `label`, `rowTestId?`, `empty` / `noun`, `endsAt`, `paused`, `settling`, `testId` / `players`, `points` | A round or turn result (`results.css`): put them in an `.overlay__card.result-card` after a `.result-kicker` (how it ended, on the game's accent) and a `.result-reveal` (the word, the spy); the points list shows avatar, name, role tag and `+points`; the footer counts down to the next turn, paused or "starting" when the time is up |
 | [`SettingsMenu`](../client/src/platform/components/Preferences.tsx) / `PreferenceRows` | `actions?: MenuAction[]` / none | The gear and its popover (theme, sound effects, then the actions: `{ label, icon, onSelect, testId }`); the rows alone go in a phone options sheet |
-| [`ReadyControls`](../client/src/platform/components/ReadyControls.tsx) | `me`, `context: 'lobby' \| 'podium'`, `extra?` | Not ready: a big "I'm ready" over a row of equal secondary buttons, "Sit this one out" first and `extra` after it (the room's "Change my look", which opens the profile editor in a sheet); ready: "You're ready" (tap to undo) over the same row; sitting out: "Count me in" (back in and ready in one tap) and the hint, `extra` still in the row; the host: only the row in the lobby (Start says they are in), "You start the game" on the podium |
-| [`Avatar`](../client/src/platform/components/Avatar.tsx) | `avatar`, `size?: 'sm' \| 'md' \| 'lg' \| 'xl'`, `dimmed?`, `className?` | Dim disconnected players |
-| [`AvatarPicker`](../client/src/platform/components/AvatarPicker.tsx) | `value`, `onChange(next)`, `compact?` | Used by the front door's "Who's playing?" step and the lobby |
+| [`ReadyControls`](../client/src/platform/components/ReadyControls.tsx) | `me`, `extra?` | Not ready: a big "I'm ready" over a row of equal secondary buttons, "Sit this one out" first and `extra` after it (the room's "Change my look", which opens the profile editor in a sheet); ready: "You're ready" (tap to undo) over the same row; sitting out: "Count me in" (back in and ready in one tap) and the hint, `extra` still in the row; the host: only the row (Start says they are in) |
+| [`Avatar`](../client/src/platform/components/Avatar.tsx) | `avatar`, `size?: 'sm' \| 'md' \| 'lg' \| 'xl'`, `dimmed?`, `className?`, `label?` | The player's colour with their face, a bundled Fluent Emoji picture (lazy-loaded; the emoji itself if it fails to load) sized by the circle's font size, so a rule like `.my-seat .avatar { width: 30px; height: 30px; font-size: 17px; }` resizes both. Silent (`aria-hidden`) by default, since the name sits beside it; pass `label` where nothing else names it. Dim disconnected players. `FaceImage` draws a face alone |
+| [`AvatarPicker`](../client/src/platform/components/AvatarPicker.tsx) | `value`, `onChange(next)`, `compact?` | Used by the front door's "Who's playing?" step and the lobby: the 50 faces in 5 or 10 equal columns and the 12 colours in 4, 6 or 12, by the width it has (container queries) |
 | [`CodeInput`](../client/src/platform/components/CodeInput.tsx) | `value`, `onChange(code)`, `onSubmit()`, `onInvalidChar()`, `disabled?`, `invalid?`, `autoFocus?`, `labelledBy?`, `describedBy?`, `ref?: Ref<CodeInputHandle>` | The 4-box code field (A/B/C/D placeholders, uppercase, auto-advance, Backspace, arrows, paste of a code or an invite link, Enter submits, never auto-submits); `ref.focus(i)` moves to a box |
 | [`PlayerList`](../client/src/platform/components/PlayerList.tsx) | `room`, `meId: string \| null`, `isHost`, `mode: 'lobby' \| 'game'`, `game: AnyGameClientModule \| null` | Game mode ranks by score and shows kick / vote-kick; pass `useActiveGame()` as `game` to get your badges |
 | [`SettingsPanel`](../client/src/platform/components/SettingsPanel.tsx) | `room`, `game` | Platform rows then your `SettingsFields`; the lobby renders it for the host only |
@@ -1811,7 +1913,7 @@ layout, which is a good reference for a non-scrolling phone game.
 | [`GuessTiles`](../client/src/platform/components/GuessTiles.tsx) | `mask`, `draft`, `onDraftChange(draft)`, `onSubmit(text): boolean`, `canSend` | Type into the blanks of a masked word (layout in [`lib/wordMask.ts`](../client/src/platform/lib/wordMask.ts)); Scribble's guess bar; test ids `guess-input`, `guess-send` |
 | [`Timer`](../client/src/platform/components/Timer.tsx) | `endsAt: number \| null \| undefined`, `warnUnder?` (10), `tickUnder?`, `size?: 'md' \| 'lg'`, `paused?`, `settling?` | Server-clock countdown in a ring whose lime arc empties toward the deadline (the length is the time left when this client first saw the deadline; reduced motion steps it once a second); plain seconds up to 99, m:ss beyond; the danger colour in the last 5 seconds (never with `warnUnder` 0); `tickUnder` plays a tick cue for the final seconds |
 | [`BottomSheet`](../client/src/platform/components/BottomSheet.tsx) | `open`, `title`, `onClose()`, `children`, `testId`, `className?` | Phone sheet with focus trap and Escape; `${testId}-close`, `${testId}-backdrop` |
-| [`PodiumOverlay`](../client/src/platform/components/PodiumOverlay.tsx) | `room`, `isHost` | Rendered by the shell on `'ended'`; you never render it. The small happy phone (96px at most), "Alice wins!" and the points, the top three on small lime / lilac / graphite blocks (`podium-step`), every player in order (`podium-entry` with `data-rank`), Ready / Sit this one out, the host's Play again / Back to lobby and a brief confetti |
+| [`ResultsPopup`](../client/src/platform/components/ResultsPopup.tsx) | `results`, `meId`, `onClose()` | Rendered by the shell over the lobby once a game ended (the store's `results`); you never render it. The small happy phone (96px at most), "Scribble · Game over", "Alice wins!" and the points, where you came, why it ended early (`results-reason`), the top three on small lime / lilac / graphite blocks (`results-step`), every player in order (`results-entry` with `data-rank`) and a brief confetti; a game cut short by too few players crowns nobody. Back to the room, the X, Escape or (a desktop) a tap beside it closes it for good |
 | [`Toasts`](../client/src/platform/components/Toasts.tsx), [`ConnectionPill`](../client/src/platform/components/ConnectionPill.tsx) | none | Toasts is rendered once by the shell; add toasts with `usePlatformStore.getState().addToast(kind, text)` (errors stay until dismissed); the pill renders nothing while connected |
 | [`Icons`](../client/src/platform/components/Icons.tsx) | `Icon({ paths, size?, ...svg })` (1.8px round stroke) plus `DiceIcon`, `CrownIcon`, `CheckIcon`, `CopyIcon`, `ShareIcon`, `ChatIcon`, `GearIcon`, `AlertIcon`, `LinkIcon`, `CloseIcon`, `UsersIcon`, `ChevronIcon`, `LogoutIcon`, `PlayIcon`, `KickIcon`, `SparkIcon`, `EditIcon`, `SendIcon`, `UploadIcon`, `MoreIcon`, `MoonIcon`, `BackIcon` | Build game icons from the `Icon` primitive (24×24 stroke paths), as Scribble's [`Icons.tsx`](../client/src/games/scribble/components/Icons.tsx) does |
 
@@ -1893,10 +1995,14 @@ From [`client/src/platform/net/socket.ts`](../client/src/platform/net/socket.ts)
 [`net/actions.ts`](../client/src/platform/net/actions.ts):
 
 ```ts
-socket.send(msg: PlatformClientMessage | WireMessage): boolean;   // false when the socket is closed
+// false when the socket is closed (nothing is queued). A room message is numbered and kept until the
+// next welcome says it arrived, then sent again if it did not; { keep: false } opts out (a stream
+// with its own recovery, like the canvas ops).
+socket.send(msg: PlatformClientMessage | WireMessage, opts?: { keep?: boolean }): boolean;
 socket.isOpen(): boolean;
-leaveRoom(); sendChat(text); updateSettings(patch); startGame(); kickPlayer(id); voteKick(id); returnToLobby();
-// Party actions (platform messages `selectGame`, `ready`, `sitOut`) are the lobby's and the podium's; a game never sends them.
+leaveRoom(); sendChat(text); updateSettings(patch); startGame(); kickPlayer(id); voteKick(id); endGame();
+// Party actions (platform messages `selectGame`, `ready`, `sitOut`) are the lobby's; a game never sends them,
+// and End game is the top bar's and the options sheet's.
 ```
 
 From [`store/usePlatformStore.ts`](../client/src/platform/store/usePlatformStore.ts) and
@@ -1944,8 +2050,10 @@ Run from the repository root; everything is green at HEAD.
    targets, as `home.spec.ts` does for the front door and `mobile.spec.ts` for Scribble.
 6. Manual pass: two browser tabs (or a phone on the same network via `npm run dev`), reload one
    mid-game (the seat survives, the view comes back from the snapshot and `welcome.extra`), let a
-   player leave mid-game, join mid-game with the code (you watch, then play the next game), kick someone, finish a game and return to
-   the lobby, and one run with `REDIS_URL` pointing at a local Redis.
+   player leave mid-game (the game goes on; below the minimum it ends with the results), join
+   mid-game with the code (you watch, then play the next game), kick someone, end a game with
+   the host's End game and let one finish on its own (both land in the lobby with the results),
+   and one run with `REDIS_URL` pointing at a local Redis.
 7. Hygiene: no `Date.now` / `Math.random` / timers in `server/games/<id>/`, `.js` extensions on
    relative imports in `shared/` and `server/`, comments only where the logic is not obvious,
    small modules.
@@ -1966,9 +2074,16 @@ Run from the repository root; everything is green at HEAD.
   and the settings hooks guard on it.
 - **`score` does not snapshot.** Follow it with `{ type: 'snapshot', to: 'all' }` unless the same
   effect list ends the game.
-- **Effects after `abort` are dropped**, and `gameOver` is ignored unless the room is `'playing'`.
-- **Scores reset to 0** on `start` and on every return to the lobby; the podium is the only
-  record of a finished game.
+- **Effects after `abort` or `gameOver` are dropped**, and `gameOver` is ignored unless the room is `'playing'`.
+- **Scores reset to 0** on `start` and on every return to the lobby; `RoomState.results` is the
+  only record of a finished game.
+- **Nothing on screen may depend on a chat line.** There is no chat: a hold a player can end must
+  show the platform's waiting card (`waiting` effect), and anything a game waits on needs a clock,
+  a button or an `until` so nobody is stuck (The Spy Game's away spy: the waiting card with
+  Remove, and the round ends without them after `SPYGAME_SPY_AWAY_SECONDS`). The waiting card
+  covers the whole game screen, so never raise it over a control whose own clock keeps running:
+  pause that clock too, or let it finish first (a vote running when the spy drops ends before the
+  hold comes up).
 - **Settings patches** are validated as a whole: one invalid field rejects the patch with
   `INVALID_MESSAGE` ("Invalid settings at <path>: <message>"); unknown keys are stripped (so a
   room stored with a retired key such as `maxPlayers` or Quip Game's old `cheeky` still loads);
@@ -1997,13 +2112,21 @@ Run from the repository root; everything is green at HEAD.
   snapshot to the end of the game; give spectators a read-only view (no controls, one line saying
   they are watching and play the next game).
 - **Rate limits**: 60 game messages per second per socket are accepted, the rest dropped
-  silently; chat is 6 per 4 s with a `RATE_LIMITED` error; room create/join 5 per 10 s.
+  silently; every other platform room message (ready, sit out, settings, profile, kicks, votes,
+  start, the game picker) 20 per 2 s, the rest dropped silently; chat is 6 per 4 s with a
+  `RATE_LIMITED` error; room create/join 5 per 10 s.
+- **Snapshots are paced**: each socket gets at most one room snapshot every 50 ms (the newest;
+  snapshots of one action collapse to its last), always after the messages sent before it, and a
+  socket that stops reading is cut off once 2 MB are waiting for it. Never rely on seeing every
+  intermediate snapshot: plan animations from whichever two you get.
+- **Refusals are notes, not alarms**: a `NOT_ALLOWED` shows the server's own message as a short
+  toast that closes itself; write those messages for players ("It is not your turn.").
 - **Message size**: 64 KB per WebSocket frame (`MAX_WS_MESSAGE_BYTES`).
 - **`welcome.extra` is `undefined`** without a side store; `onWelcome` still fires.
 - **Document titles** are the platform's: "boredgames.io" (the front door), "boredgames.io · CODE"
   (in a room).
 - **Storage keys** (`boredgames.name`, `boredgames.avatar`, `boredgames.prefs`, session
-  `boredgames.session`) belong to the platform; a game that needs to remember something per device
+  `boredgames.session` and `boredgames.resultsSeen`) belong to the platform; a game that needs to remember something per device
   uses its own prefixed key and wraps every access in try/catch like
   [`lib/storage.ts`](../client/src/platform/lib/storage.ts).
 - **Negative scores** are legal (`{ type: 'score', delta: -50 }`) and shown as `-50 pts`; clamp in

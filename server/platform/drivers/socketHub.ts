@@ -1,11 +1,15 @@
 import { CLOSE_REPLACED } from '../../../shared/platform/protocol.js';
 import type { Transport } from '../transport.js';
-import { sendTo, type OutboundMessage, type SocketLike } from './types.js';
+import { Outbound } from './outbound.js';
+import type { OutboundMessage, SocketLike } from './types.js';
 
 /** Maps player seats to live sockets in one process. The in-memory driver's `Transport`. */
 export class SocketHub implements Transport {
   private readonly sockets = new Map<string, { ws: SocketLike; playerId: string | null }>();
   private readonly byPlayer = new Map<string, string>();
+
+  /** `outbound` paces what each socket is sent (snapshots coalesced); by default every message goes straight out. */
+  constructor(private readonly outbound: Outbound = new Outbound(0)) {}
 
   register(connectionId: string, ws: SocketLike): void {
     this.sockets.set(connectionId, { ws, playerId: null });
@@ -41,7 +45,7 @@ export class SocketHub implements Transport {
   send(playerId: string, msg: OutboundMessage): void {
     const connectionId = this.byPlayer.get(playerId);
     const entry = connectionId !== undefined ? this.sockets.get(connectionId) : undefined;
-    if (entry) sendTo(entry.ws, msg);
+    if (entry) this.outbound.send(entry.ws, msg);
   }
 
   close(playerId: string, code: number, reason: string): void {

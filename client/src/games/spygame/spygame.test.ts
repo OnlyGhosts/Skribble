@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createElement } from 'react';
 import { renderToString } from 'react-dom/server';
-import { SPY_LOCATIONS } from '@shared/games/spygame/locations';
+import { ALL_SPY_LOCATIONS, SPY_LOCATIONS, locationById, locationsForMode } from '@shared/games/spygame/locations';
 import type { SpygameRoomState, SpygameView } from '@shared/games/spygame/protocol';
 import { installBrowserGlobals, setLocation } from '../../test/env';
 
@@ -79,6 +79,8 @@ function tagsWith(html: string, testId: string): string[] {
 }
 
 const attr = (tag: string, name: string): string | undefined => tag.match(new RegExp(`${name}="([^"]*)"`))?.[1];
+/** A name as react-dom/server prints it ("B&B" and "Lads'" come out escaped). */
+const escapeHtml = (text: string): string => text.replace(/&/g, '&amp;').replace(/'/g, '&#x27;');
 
 /** Feeds a snapshot the way the socket does: store first, then the module hook. */
 function snapshot(state: SpygameRoomState): void {
@@ -128,6 +130,27 @@ describe('the screen per role', () => {
     expect(tiles.filter((t) => t.includes('disabled'))).toHaveLength(1);
     expect(tagsWith(html, 'accuse-row').every((r) => attr(r, 'data-state') === 'readonly' && r.startsWith('<div'))).toBe(true);
     expect(attr(tagWith(html, 'spygame-wrong-guess'), 'data-guesses-left')).toBe('1');
+  });
+
+  it('draws every Unhinged place in the agent grid and the spy grid, by id, with its picture', () => {
+    const adult = locationsForMode('unhinged').map((l) => l.id);
+    // Every adult place, 24 at a time (the last batch topped up from the start), as the agent's reference and the spy's guesses.
+    for (let start = 0; start < adult.length; start += 24) {
+      const batch = adult.slice(start, start + 24);
+      const candidates = [...batch, ...adult.slice(0, 24 - batch.length)];
+      const real = candidates[0];
+      const settings = { contentMode: 'unhinged' as const, rounds: 2 };
+      const agent = render(spyRoom(view({ candidates, locationId: real }), { settings }), 'bob');
+      const tiles = tagsWith(agent, 'candidate-tile');
+      expect(tiles.map((t) => attr(t, 'data-location-id'))).toEqual(candidates);
+      expect(attr(tagWith(agent, 'spygame-location'), 'data-location-id')).toBe(real);
+      const spy = render(spyRoom(view({ candidates, role: 'spy', locationId: null }), { settings }), 'host');
+      expect(tagsWith(spy, 'guess-tile').map((t) => attr(t, 'data-location-id'))).toEqual(candidates);
+      for (const id of candidates) {
+        expect(locationImage(id), id).not.toBeNull();
+        expect(spy).toContain(escapeHtml(locationById(id)?.name ?? '?'));
+      }
+    }
   });
 
   it('tells a player away at the deal they join the next round, and shows the reference grid without a tick', () => {
@@ -259,7 +282,7 @@ describe('the reveal', () => {
       meId,
     );
 
-  it('names the spy and the location with the points, Next round and Back to lobby for the host, a countdown for the rest', () => {
+  it('names the spy and the location with the points, Next round for the host (End game is in the top bar), a countdown for the rest', () => {
     const host = reveal('host');
     expect(attr(tagWith(host, 'spygame-reveal'), 'data-outcome')).toBe('spyCaught');
     expect(attr(tagWith(host, 'reveal-spy'), 'data-player-id')).toBe('host');
@@ -269,7 +292,7 @@ describe('the reveal', () => {
       ['carol', '1'],
     ]);
     expect(tagWith(host, 'spygame-next-round')).toBeTruthy();
-    expect(tagWith(host, 'spygame-end-game')).toBeTruthy();
+    expect(host).not.toContain('data-testid="spygame-end-game"');
     expect(host).not.toContain('data-testid="reveal-countdown"');
     const guest = reveal('bob');
     expect(tagWith(guest, 'reveal-countdown')).toBeTruthy();
@@ -470,9 +493,9 @@ describe('the stylesheet', () => {
 });
 
 describe('location tiles', () => {
-  it('has a generated svg for every location in the pack and resolves it', () => {
+  it('has a generated svg for every location of every tier and resolves it', () => {
     const dir = fileURLToPath(new URL('./assets/locations', import.meta.url));
-    for (const l of SPY_LOCATIONS) {
+    for (const l of ALL_SPY_LOCATIONS) {
       expect(existsSync(join(dir, `${l.id}.svg`)), `${l.id}.svg`).toBe(true);
       expect(locationImage(l.id), l.id).toMatch(/\.svg|^data:image\/svg/);
     }

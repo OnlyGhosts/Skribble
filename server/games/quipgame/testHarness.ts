@@ -19,7 +19,7 @@ export const token = (s: Sim, id: string): string => s.data.players.find((p) => 
 export const nameOf = (s: Sim, id: string): string => s.data.players.find((p) => p.id === id)?.name ?? '?';
 
 export const disconnect = (s: Sim, id: string): void => {
-  s.apply({ type: 'connectionClosed', playerId: id, connectionId: `conn-${nameOf(s, id)}` });
+  s.drop(id, `conn-${nameOf(s, id)}`);
 };
 export const reconnect = (s: Sim, id: string): void => {
   s.apply({ type: 'rejoin', token: token(s, id), connectionId: `conn-${nameOf(s, id)}-2` });
@@ -88,7 +88,7 @@ export function castVotes(s: Sim, choices: QuipgameChoice[]): Effect[] {
 /** Plays every matchup of the current round: everyone votes A, the host skips each result. */
 export function playRound(s: Sim, host: string): void {
   const round = data(s).round;
-  while (data(s).round === round && s.data.phase === 'playing' && data(s).phase !== 'finalWriting' && data(s).phase !== 'waiting') {
+  while (s.data.phase === 'playing' && data(s).round === round && data(s).phase !== 'finalWriting' && data(s).phase !== 'waiting') {
     if (data(s).phase === 'voting') castVotes(s, voters(s).map(() => 'a'));
     if (data(s).phase === 'result') s.game(host, { t: 'next' });
   }

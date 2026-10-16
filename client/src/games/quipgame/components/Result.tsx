@@ -35,7 +35,7 @@ interface FooterProps {
   view: QuipgameView;
   isHost: boolean;
   label: string;
-  /** False once the game has ended: the platform's podium is up and nothing counts down any more. */
+  /** False once the game has ended: the room is back in the lobby and nothing counts down any more. */
   playing: boolean;
   /** The platform holds here for missing players (the host cannot skip either; the server says so through canSkip). */
   holding?: boolean;

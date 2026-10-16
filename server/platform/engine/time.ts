@@ -4,11 +4,13 @@ import type { PlatformRoomData } from './state.js';
 
 export type Deadline =
   | { kind: 'game'; at: number }
+  | { kind: 'awayNotice'; at: number; playerId: string }
   | { kind: 'reconnectExpiry'; at: number; playerId: string }
   | { kind: 'emptyRoom'; at: number };
 
 /**
- * Every pending deadline, in tie-break order: the game's own deadline first, then seat expiries
+ * Every pending deadline, in tie-break order: the game's own deadline first, then the game's
+ * notices of dropped sockets (join order, AWAY_NOTICE_MS after the drop), then seat expiries
  * (join order, RECONNECT_GRACE_MS after the disconnect), then the empty-room TTL. `nextDue` fires
  * equal timestamps in this order. A game holding for disconnected players schedules nothing of
  * its own, so only the seat expiries remain pending then.
@@ -17,6 +19,10 @@ export function pendingDeadlines(data: PlatformRoomData): Deadline[] {
   const out: Deadline[] = [];
   const gameAt = gameDeadline(data);
   if (gameAt !== null) out.push({ kind: 'game', at: gameAt });
+  for (const p of data.players) {
+    const at = p.awayNoticeAt ?? null;
+    if (!p.connected && at !== null) out.push({ kind: 'awayNotice', at, playerId: p.id });
+  }
   for (const p of data.players) {
     if (!p.connected && p.disconnectedAt !== null) {
       out.push({ kind: 'reconnectExpiry', at: p.disconnectedAt + RECONNECT_GRACE_MS, playerId: p.id });

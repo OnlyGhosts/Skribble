@@ -1,10 +1,10 @@
 /** Runs the room's game module and folds its effects into the platform's state and effect list. */
 import { isWireMessage, type WireMessage } from '../../../shared/platform/protocol.js';
 import type { GameCtx, GameEffect, GameEvent, GameResult } from '../game.js';
-import { broadcastSnapshot, fail, noticeMessage, pushChat, snapshotTo, type Cx } from './messaging.js';
+import { broadcastSnapshot, fail, pushChat, snapshotTo, systemMessage, type Cx } from './messaging.js';
 import { moduleFor } from './module.js';
 import { findPlayer, platformPlayers, platformSpectators } from './players.js';
-import { finishGame, resetToLobby } from './lobby.js';
+import { finishGame } from './lobby.js';
 
 export function gameCtx(cx: Cx): GameCtx<unknown> {
   return {
@@ -35,7 +35,7 @@ export function applyGameResult(cx: Cx, result: GameResult<unknown, unknown>): A
   cx.data.game = result.data;
   const applied: Applied = { chatHandled: false, snapshotted: false };
   for (const effect of result.effects) {
-    if (cx.data.phase === 'lobby') break; // an 'abort' ends the game; nothing after it applies
+    if (cx.data.phase === 'lobby') break; // the game ended ('gameOver', 'abort'); nothing after it applies
     applyEffect(cx, effect, applied);
   }
   return applied;
@@ -68,14 +68,16 @@ function applyEffect(cx: Cx, effect: GameEffect<unknown>, applied: Applied): voi
       return;
     }
     case 'gameOver':
-      if (cx.data.phase === 'playing') finishGame(cx);
+      finishGame(cx);
       return;
     case 'abort':
-      noticeMessage(cx, effect.reason);
-      resetToLobby(cx);
+      // The results say why; the line stays in the history.
+      systemMessage(cx, effect.reason);
+      finishGame(cx, 'players');
       return;
     case 'waiting':
       cx.data.waiting = effect.missing === null ? null : [...effect.missing];
+      cx.data.waitingUntil = effect.missing === null ? null : (effect.until ?? null);
       return;
     case 'side':
       cx.effects.push({ type: 'side', name: effect.name, stamp: effect.payload?.stamp ?? '' });

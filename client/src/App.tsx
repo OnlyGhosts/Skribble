@@ -1,13 +1,14 @@
 import { useEffect } from 'react';
 import type { RoomState } from '@shared/platform/protocol';
 import { SITE_NAME } from '@shared/platform/site';
-import { PodiumOverlay } from './platform/components/PodiumOverlay';
 import { ReconnectingBanner } from './platform/components/ReconnectingBanner';
+import { ResultsPopup } from './platform/components/ResultsPopup';
 import { Toasts } from './platform/components/Toasts';
 import { WaitingOverlay } from './platform/components/WaitingOverlay';
 import { loadPlatformSoundsAfterGesture } from './platform/lib/platformSounds';
 import { setSoundEnabled, unlockAudio, type AnySoundBank } from './platform/lib/sound';
 import { DEFAULT_THEME } from './platform/lib/storage';
+import { useLive } from './platform/lib/useLive';
 import { useViewport } from './platform/lib/useViewport';
 import { wakeLock } from './platform/lib/wakeLock';
 import { socket } from './platform/net/socket';
@@ -61,7 +62,7 @@ function useSound(): void {
   }, []);
 }
 
-/** Keeps the screen awake while in a room (lobby, playing, ended): a locked phone drops its socket and misses its turn. */
+/** Keeps the screen awake while in a room (lobby or playing): a locked phone drops its socket and misses its turn. */
 function useWakeLock(inRoom: boolean): void {
   useEffect(() => {
     if (!inRoom) return;
@@ -94,20 +95,28 @@ function useGameSounds(bank: AnySoundBank | undefined, onScreen: boolean): void 
   }, [bank, onScreen]);
 }
 
-/** Inside a room: the platform lobby, or the game's own screen with the platform podium once it ended. */
-function RoomScreen({ room }: { room: RoomState }) {
-  const meId = usePlatformStore((s) => s.playerId);
-  const isHost = usePlatformStore(selectIsHost);
+/** Inside a room: the platform lobby (with the last game's results over it, once), or the game's own screen. */
+export function RoomScreen({ room }: { room: RoomState }) {
+  const meId = useLive(usePlatformStore, (s) => s.playerId);
+  const isHost = useLive(usePlatformStore, selectIsHost);
+  const results = useLive(usePlatformStore, (s) => s.results);
+  const closeResults = usePlatformStore((s) => s.closeResults);
   const game = registeredGame(room.gameId);
   useGameSounds(game?.sounds, room.phase !== 'lobby');
   if (!game) return null;
-  if (room.phase === 'lobby') return <Lobby room={room} game={game} />;
+  if (room.phase === 'lobby') {
+    return (
+      <>
+        <Lobby room={room} game={game} />
+        {results && <ResultsPopup key={results.id} results={results} meId={meId} onClose={closeResults} />}
+      </>
+    );
+  }
   const Screen = game.Screen;
   return (
     <>
       <Screen key={room.code} room={room} meId={meId ?? ''} isHost={isHost} />
-      {room.phase === 'playing' && room.waiting && <WaitingOverlay room={room} waiting={room.waiting} isHost={isHost} meId={meId} />}
-      {room.phase === 'ended' && <PodiumOverlay room={room} meId={meId} isHost={isHost} />}
+      {room.waiting && <WaitingOverlay room={room} waiting={room.waiting} isHost={isHost} meId={meId} />}
       <ReconnectingBanner />
     </>
   );

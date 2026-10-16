@@ -8,7 +8,7 @@
  */
 import type { Avatar } from '../../../shared/platform/avatar.js';
 import { gameById, upgradeGameId, type GameId } from '../../../shared/platform/games.js';
-import type { ChatMessage, PodiumEntry, RoomPhase } from '../../../shared/platform/protocol.js';
+import type { ChatMessage, GameResults, RoomPhase } from '../../../shared/platform/protocol.js';
 import { defaultPlatformSettings, upgradeContentMode, type PlatformSettings } from '../../../shared/platform/settings.js';
 import { moduleFor } from './module.js';
 
@@ -28,12 +28,22 @@ export interface PlatformPlayerData {
   connectedAt: number;
   /** Epoch ms of the disconnect that started the reconnect grace; null while connected. */
   disconnectedAt: number | null;
-  /** Lobby and ended phases: readied up for the next game. Reset to false when a game starts. */
+  /** Lobby only: readied up for the next game. Reset to false when a game starts. */
   ready: boolean;
   /** Chose to sit the next game out; persists across games until the player changes it. */
   sittingOut: boolean;
-  /** In the running game (or the one that just ended); false in the lobby. */
+  /** In the running game; false in the lobby. */
   participating: boolean;
+  /**
+   * While the socket is down: when the running game hears of it (AWAY_NOTICE_MS after the drop).
+   * Until then the game still counts the player as connected; null once it knows or while
+   * connected. Absent in rooms stored before it existed.
+   */
+  awayNoticeAt?: number | null;
+  /** Connected but silent for IDLE_AFTER_MS (the connection layer tells the room). Absent means false. */
+  idle?: boolean;
+  /** The highest client sequence number applied for this seat (see CLIENT_SEQ_KEY). Absent means 0. */
+  lastSeq?: number;
 }
 
 export interface GraceDeadlines {
@@ -65,11 +75,16 @@ export interface PlatformRoomData {
   /** Tokens of kicked players (capped): a kicked player's rejoin is refused with a clear message. */
   kickedTokens: string[];
   phase: RoomPhase;
-  podium: PodiumEntry[] | null;
+  /** The last game's final standings, kept in the lobby until the next game starts; null otherwise. */
+  results: GameResults | null;
+  /** The host's End game is in (the game ends at its next boundary); false otherwise. Absent in older rooms. */
+  endRequested?: boolean;
   /** The game module's state (its `D`); null in the lobby. */
   game: unknown;
   /** Ids of the disconnected players a holding game waits for (its last 'waiting' effect); null while it runs. */
   waiting: string[] | null;
+  /** When the holding game goes on without them (the effect's `until`); null or absent when it waits for good. */
+  waitingUntil?: number | null;
   /** Public chat history (capped at CHAT_HISTORY_LENGTH), replayed to joiners. */
   chat: ChatMessage[];
   nextChatId: number;
@@ -90,7 +105,7 @@ export const MAX_KICKED_TOKENS = 50;
  */
 export function upgradeRoomData(stored: PlatformRoomData): PlatformRoomData {
   const gameId = upgradeGameId(stored.gameId) ?? stored.gameId;
-  const data = gameId === stored.gameId ? stored : { ...stored, gameId };
+  const data = upgradeEndedPhase(gameId === stored.gameId ? stored : { ...stored, gameId });
   const players = data.players as Array<Partial<PlatformPlayerData> & PlatformPlayerData>;
   const settings = data.settings as Partial<RoomSettingsData> & Record<string, unknown>;
   const playersCurrent = players.every((p) => typeof p.ready === 'boolean' && typeof p.sittingOut === 'boolean' && typeof p.participating === 'boolean');
@@ -106,6 +121,39 @@ export function upgradeRoomData(stored: PlatformRoomData): PlatformRoomData {
       sittingOut: p.sittingOut ?? false,
       participating: p.participating ?? data.phase !== 'lobby',
     })),
+  };
+}
+
+/** A room as stored before the results lived in the lobby: a podium phase, a `podium` list. */
+type LegacyRoomData = Omit<PlatformRoomData, 'phase' | 'results'> & {
+  phase: RoomPhase | 'ended';
+  results?: GameResults | null;
+  podium?: Array<{ playerId: string; score: number; rank: number }> | null;
+};
+
+/**
+ * A room stored on the old podium phase loads as a lobby carrying that podium as its results
+ * (everyone is between games either way); the old `podium` field of any other room is dropped.
+ */
+function upgradeEndedPhase(stored: PlatformRoomData): PlatformRoomData {
+  const legacy = stored as LegacyRoomData;
+  if (legacy.phase !== 'ended' && legacy.results !== undefined && !('podium' in legacy)) return stored;
+  const { podium, ...rest } = legacy;
+  if (legacy.phase !== 'ended') return { ...rest, phase: legacy.phase, results: legacy.results ?? null };
+  const entries = (podium ?? []).flatMap((e) => {
+    const p = legacy.players.find((x) => x.id === e.playerId);
+    return p ? [{ playerId: p.id, name: p.name, avatar: { ...p.avatar }, score: e.score, rank: e.rank }] : [];
+  });
+  return {
+    ...rest,
+    phase: 'lobby',
+    game: null,
+    waiting: null,
+    waitingUntil: null,
+    votes: [],
+    endRequested: false,
+    results: { id: `stored-${legacy.version}`, gameId: legacy.gameId, reason: 'finished', entries },
+    players: legacy.players.map((p) => ({ ...p, score: 0, participating: false })),
   };
 }
 
@@ -132,9 +180,11 @@ export function createRoomData(code: string, gameId: GameId, now: number): Platf
     players: [],
     kickedTokens: [],
     phase: 'lobby',
-    podium: null,
+    results: null,
+    endRequested: false,
     game: null,
     waiting: null,
+    waitingUntil: null,
     chat: [],
     nextChatId: 1,
     votes: [],

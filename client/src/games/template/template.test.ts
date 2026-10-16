@@ -71,11 +71,15 @@ describe('Click Race screen', () => {
     expect(racer).not.toContain('data-testid="race-spectating"');
   });
 
-  it('disables the button once the race ended (the platform shows the podium over it)', () => {
-    const state = race({ phase: 'ended', podium: [{ playerId: 'host', score: 100, rank: 1 }] });
+  it('lets the host end the race from the top bar, which nobody else has', () => {
+    const state = race();
     usePlatformStore.getState().handleServerMessage(welcome('host', state));
-    const html = renderToString(createElement(templateClient.Screen, { room: state, meId: 'host', isHost: true }));
-    expect(tagWith(html, 'click-button')).toContain('disabled');
+    const host = renderToString(createElement(templateClient.Screen, { room: state, meId: 'host', isHost: true }));
+    expect(tagWith(host, 'end-game')).toContain('gbar-end');
+    expect(host).toContain('End game</button>');
+    usePlatformStore.getState().handleServerMessage(welcome('bob', state));
+    const guest = renderToString(createElement(templateClient.Screen, { room: state, meId: 'bob', isHost: false }));
+    expect(guest).not.toContain('data-testid="end-game"');
   });
 });
 

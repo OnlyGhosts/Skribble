@@ -32,21 +32,43 @@ export interface PlayerPublic {
   connected: boolean;
   /** Seat order (0-based, never reused within a room); games use it as their turn order. */
   joinOrder: number;
-  /** Lobby and ended phases: the player has readied up for the next game. */
+  /** Lobby only: the player has readied up for the next game. */
   ready: boolean;
   /** The player chose to sit the next game out; they stay in the party as a spectator. */
   sittingOut: boolean;
   /** True while this player is in the running game (ready, not sitting out, within the game's seat limit). A mid-game joiner watches. */
   participating: boolean;
+  /** Connected, but the phone has sent nothing for IDLE_AFTER_MS: it is asleep, frozen or in the background. */
+  idle?: boolean;
 }
 
-export type RoomPhase = 'lobby' | 'playing' | 'ended';
+/** A room is in its lobby between games and 'playing' while one runs; a finished game goes straight back to the lobby. */
+export type RoomPhase = 'lobby' | 'playing';
 
-export interface PodiumEntry {
+/** One player's line in a finished game's standings, kept whole so it reads right after they leave. */
+export interface ResultEntry {
   playerId: string;
+  name: string;
+  avatar: Avatar;
   score: number;
   /** 1-based; tied scores share a rank. */
   rank: number;
+}
+
+/** How a game came to an end: on its own, by the host's End game, or with too few players left. */
+export type GameEndReason = 'finished' | 'host' | 'players';
+
+/**
+ * The final standings of the last game, carried by the lobby until the next game starts, so a
+ * phone that missed the moment (a reload, a reconnect, a late tab) can still show them once.
+ */
+export interface GameResults {
+  /** Unique per finished game: a phone shows each one once. */
+  id: string;
+  gameId: GameId;
+  reason: GameEndReason;
+  /** Best first; spectators are not ranked. */
+  entries: ResultEntry[];
 }
 
 /**
@@ -65,6 +87,8 @@ export interface WaitingState {
   /** Connected players required to continue. */
   needed: number;
   connected: number;
+  /** Server epoch ms when the game stops waiting and goes on without them; absent when it waits until they are back or removed. */
+  until?: number;
 }
 
 export interface RoomState<V = unknown, S = Record<string, unknown>> {
@@ -74,8 +98,10 @@ export interface RoomState<V = unknown, S = Record<string, unknown>> {
   settings: PlatformSettings & S;
   players: PlayerPublic[];
   phase: RoomPhase;
-  /** Final standings once the game ended; null otherwise. */
-  podium: PodiumEntry[] | null;
+  /** The last game's final standings, in the lobby until the next game starts; null otherwise. */
+  results: GameResults | null;
+  /** The host asked to end the running game and it is finishing its hand in play (Blackjack). */
+  endRequested: boolean;
   game: V | null;
   /** Set while the game is paused waiting for disconnected players; null otherwise. */
   waiting?: WaitingState | null;
@@ -138,9 +164,9 @@ export const platformClientMessageSchema = z.discriminatedUnion('t', [
   /** Host only, lobby only, needs the game's minPlayers connected. */
   /** Host only, lobby only: switch the party to another game (game settings reset to that game's defaults). */
   z.object({ t: z.literal('selectGame'), gameId: gameIdSchema }),
-  /** Lobby and ended phases. */
+  /** Lobby only. */
   z.object({ t: z.literal('ready'), ready: z.boolean() }),
-  /** Lobby and ended phases: sit the next game out (or come back in). */
+  /** Lobby only: sit the next game out (or come back in). */
   z.object({ t: z.literal('sitOut'), sitOut: z.boolean() }),
   z.object({ t: z.literal('start') }),
   z.object({ t: z.literal('chat'), text: z.string().min(1).max(CHAT_MAX_LENGTH) }),
@@ -148,8 +174,11 @@ export const platformClientMessageSchema = z.discriminatedUnion('t', [
   z.object({ t: z.literal('kick'), playerId: z.string().max(64) }),
   /** Any player; a majority of the other connected players kicks. */
   z.object({ t: z.literal('voteKick'), playerId: z.string().max(64) }),
-  /** Host only, once the game ended. */
-  z.object({ t: z.literal('returnToLobby') }),
+  /**
+   * Host only, while a game runs: end it for everyone. The game ends at once, or at its own next
+   * boundary (Blackjack finishes the hand in play), and everyone gets the results in the lobby.
+   */
+  z.object({ t: z.literal('endGame') }),
 ]);
 
 export type PlatformClientMessage = z.infer<typeof platformClientMessageSchema>;
@@ -159,6 +188,20 @@ export const PLATFORM_CLIENT_MESSAGE_TYPES: ReadonlySet<string> = new Set(platfo
 
 export function isPlatformMessageType(t: string): t is PlatformClientMessage['t'] {
   return PLATFORM_CLIENT_MESSAGE_TYPES.has(t);
+}
+
+/**
+ * Every room message (platform or game) may carry a client sequence number under this key: a
+ * positive integer that grows with each message the seat sends. The room applies a message only
+ * when its number is above the last one it applied for the seat, so a message resent after a
+ * reconnect is never applied twice. Messages without one are always applied.
+ */
+export const CLIENT_SEQ_KEY = 'cs';
+
+/** The client sequence number a raw message carries, or undefined when it has none (or a bad one). */
+export function clientSeqOf(msg: WireMessage): number | undefined {
+  const cs = msg[CLIENT_SEQ_KEY];
+  return typeof cs === 'number' && Number.isSafeInteger(cs) && cs > 0 ? cs : undefined;
 }
 
 /** Any wire message: an object with a string discriminator. Game messages are validated by the game. */
@@ -193,6 +236,11 @@ export interface WelcomeMessage<V = unknown, S = Record<string, unknown>> {
   chat: ChatMessage[];
   /** Game bootstrap (Scribble: the canvas history). Absent for games without one. */
   extra?: unknown;
+  /**
+   * The highest client sequence number (`cs`) the room has applied for this seat: a client that
+   * kept unconfirmed messages through an outage resends only the ones above it.
+   */
+  seq?: number;
 }
 
 export type PlatformServerMessage<V = unknown, S = Record<string, unknown>> =

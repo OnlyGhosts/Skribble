@@ -19,7 +19,7 @@ export function seatPlayer(gx: Gx, playerId: string): void {
 export function beginHand(gx: Gx): void {
   const { data, ctx } = gx;
   if (ctx.players.length < MIN_PLAYERS) {
-    gx.effects.push({ type: 'abort', reason: 'Not enough players. Back to the lobby.' });
+    gx.effects.push({ type: 'abort', reason: 'Not enough players to go on.' });
     return;
   }
   // Seats of players who left are cleared at the boundary (their chips in a hand went to its pots).
@@ -28,7 +28,7 @@ export function beginHand(gx: Gx): void {
   if (stacked.length < MIN_PLAYERS) {
     // Too few stacks because a player walked off with theirs: nobody won the table.
     if (data.stackLeft) {
-      gx.effects.push({ type: 'abort', reason: 'Not enough players with chips. Back to the lobby.' });
+      gx.effects.push({ type: 'abort', reason: 'Not enough players with chips to go on.' });
       return;
     }
     if (stacked.length === 1) systemMessage(gx, `${stacked[0].name} has all the chips!`);
@@ -69,17 +69,18 @@ export function beginHand(gx: Gx): void {
 }
 
 /** The host skips the results. */
-export function next(gx: Gx, playerId: string): void {
+export function next(gx: Gx, playerId: string, hand?: number): void {
+  // A second tap after the first one dealt the next hand: nothing to do, nothing to say.
+  if (hand !== undefined && (hand !== gx.data.hand || gx.data.phase.kind !== 'results')) return;
   if (playerId !== gx.ctx.hostId) return fail(gx, playerId, 'Only the host can skip ahead.');
   if (gx.data.phase.kind !== 'results' || gx.data.phase.held) return fail(gx, playerId, 'There is no result to skip.');
   beginHand(gx);
 }
 
-/** The host ends the game now; a hand in progress is void and every stake goes back to its owner. */
-export function endGame(gx: Gx, playerId: string): void {
+/** The host's End game (the platform's, through the module's `end`): now; a hand in progress is void and every stake goes back to its owner. */
+export function endGame(gx: Gx): void {
   const { data, ctx } = gx;
-  if (playerId !== ctx.hostId) return fail(gx, playerId, 'Only the host can end the game.');
-  if (data.phase.kind === 'gameOver') return fail(gx, playerId, 'The game is over already.');
+  if (data.phase.kind === 'gameOver') return;
   if (data.phase.kind === 'acting') {
     for (const id of data.order) {
       const seat = data.seats[id];
@@ -88,7 +89,7 @@ export function endGame(gx: Gx, playerId: string): void {
       seat.committed = 0;
     }
     data.toAct = [];
-    noticeMessage(gx, `${nameOf(ctx, playerId)} ended the game. The hand is void and every stake goes back.`);
+    noticeMessage(gx, `${nameOf(ctx, ctx.hostId)} ended the game. The hand is void and every stake goes back.`);
   } else if (data.phase.held) gx.effects.push(resumeEffect());
   finishGame(gx);
 }

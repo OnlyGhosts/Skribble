@@ -1,5 +1,6 @@
 /** The play passing from hand to hand, the dealer's turn and the settle that sends the table to `lastRound`. */
-import { dealerShouldHit, handTotal, revealAllowanceMs, settleHand } from '../../../shared/games/blackjack/cards.js';
+import { dealerShouldHit, handTotal, settleHand } from '../../../shared/games/blackjack/cards.js';
+import { revealAllowanceMs } from '../../../shared/games/blackjack/deal.js';
 import type { HandOutcome, HandStatus } from '../../../shared/games/blackjack/protocol.js';
 import { afterSettle } from './round.js';
 import { adjustChips, autoStatus, draw, isConnected, nameOf, noticeMessage, snapshot, systemMessage, type Gx, type SettledHand } from './state.js';
@@ -57,7 +58,9 @@ const STATUS_OF: Record<HandOutcome, HandStatus> = { win: 'won', blackjack: 'bla
 
 /**
  * Pays every hand against the dealer's cards, puts out whoever has no chips left, moves the
- * table to `lastRound` (cleared from the seats) and goes on to the next round or the end.
+ * table to `lastRound` (cleared from the seats) and goes on to the next round or the end. The
+ * table stays on show as long as the phones take to show this event's cards and then the
+ * dealer's reveal, so the next bets open the moment the outcomes are up.
  */
 export function settleRound(gx: Gx, peeked: boolean): void {
   const { data, ctx } = gx;
@@ -84,7 +87,7 @@ export function settleRound(gx: Gx, peeked: boolean): void {
   }
   if (lines.length > 0) systemMessage(gx, `${lines.join(', ')}.`);
   for (const id of out) systemMessage(gx, `${nameOf(ctx, id)} is out of chips.`);
-  const reveal = revealAllowanceMs(data.dealer.length);
+  const reveal = (gx.leadMs ?? 0) + revealAllowanceMs(data.dealer.length);
   data.lastRound = { round: data.round, order: [...data.order], dealer: data.dealer, hands: settled, peeked, revealEndsAt: ctx.now + reveal };
   data.order = [];
   data.dealer = [];

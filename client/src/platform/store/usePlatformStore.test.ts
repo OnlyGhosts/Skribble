@@ -1,9 +1,12 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { installBrowserGlobals, setLocation } from '../../test/env';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { GameResults } from '@shared/platform/protocol';
+import { installBrowserGlobals, installFakeStorage, setLocation } from '../../test/env';
 
 installBrowserGlobals();
+const storage = installFakeStorage();
 
-const { usePlatformStore } = await import('./usePlatformStore');
+const { ERROR_TOAST_MS, TOAST_MS, usePlatformStore } = await import('./usePlatformStore');
+const { loadResultsSeen, loadResultsShown } = await import('../lib/storage');
 const { registerGames } = await import('../registry');
 const { chatLine, registryOf, resetStore, room, welcome } = await import('../../test/fixtures');
 
@@ -12,6 +15,40 @@ const state = () => usePlatformStore.getState();
 beforeEach(() => {
   resetStore();
   setLocation('/');
+});
+
+describe('the results popup across a reload', () => {
+  const results: GameResults = { id: 'r1', gameId: 'scribble', reason: 'host', entries: [{ playerId: 'host', name: 'Host', avatar: { color: 0, emoji: 0 }, score: 3, rank: 1 }] };
+  const lobby = room({ phase: 'lobby', results });
+  /** A reloaded tab: no room in memory, only what this tab's sessionStorage kept. */
+  const reload = () => usePlatformStore.setState({ room: null, playerId: null, results: null, resultsSeen: loadResultsSeen(), resultsShown: loadResultsShown() });
+
+  beforeEach(() => storage.session.clear());
+
+  it('comes back for someone who only watched the game, until they close it', () => {
+    state().handleServerMessage(welcome('dave', room({ phase: 'playing' })));
+    state().handleServerMessage({ t: 'room', room: lobby });
+    expect(state().results?.id).toBe('r1');
+    reload();
+    state().handleServerMessage(welcome('dave', lobby));
+    expect(state().results?.id).toBe('r1');
+    state().closeResults();
+    reload();
+    state().handleServerMessage(welcome('dave', lobby));
+    expect(state().results).toBeNull();
+  });
+
+  it('is not brought back to a newcomer, nor after leaving the room', () => {
+    reload();
+    state().handleServerMessage(welcome('newt', lobby));
+    expect(state().results).toBeNull();
+    state().handleServerMessage(welcome('dave', room({ phase: 'playing' })));
+    state().handleServerMessage({ t: 'room', room: lobby });
+    state().resetRoom();
+    reload();
+    state().handleServerMessage(welcome('dave', lobby));
+    expect(state().results).toBeNull();
+  });
 });
 
 describe('messages after leaving', () => {
@@ -116,8 +153,41 @@ describe('join errors', () => {
     state().handleServerMessage({ t: 'error', code: 'ROOM_FULL', message: 'full' });
     expect(state().joinPending).toBe(false);
     expect(state().joinError?.code).toBe('ROOM_FULL');
-    state().handleServerMessage({ t: 'error', code: 'NOT_ALLOWED', message: 'nope' });
-    expect(state().toasts.map((t) => t.kind)).toEqual(['error']);
+    // A refused move says the server's own few words, as a passing note.
+    state().handleServerMessage({ t: 'error', code: 'NOT_ALLOWED', message: 'It is not your turn.' });
+    expect(state().toasts.map((t) => [t.kind, t.text])).toEqual([['info', 'It is not your turn.']]);
+    state().handleServerMessage({ t: 'error', code: 'INTERNAL', message: 'boom' });
+    expect(state().toasts.map((t) => t.kind)).toEqual(['info', 'error']);
+  });
+});
+
+describe('toasts', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it('closes every toast by itself, an error a little later than a note', () => {
+    state().addToast('info', 'A note');
+    state().addToast('error', 'Something broke');
+    vi.advanceTimersByTime(TOAST_MS);
+    expect(state().toasts.map((t) => t.text)).toEqual(['Something broke']);
+    vi.advanceTimersByTime(ERROR_TOAST_MS - TOAST_MS);
+    expect(state().toasts).toEqual([]);
+  });
+
+  it('shows the same line once, kept up a little longer by each repeat', () => {
+    state().addToast('info', 'It is not your turn.');
+    vi.advanceTimersByTime(TOAST_MS - 1000);
+    state().addToast('info', 'It is not your turn.');
+    expect(state().toasts).toHaveLength(1);
+    vi.advanceTimersByTime(TOAST_MS - 1);
+    expect(state().toasts).toHaveLength(1);
+    vi.advanceTimersByTime(1);
+    expect(state().toasts).toEqual([]);
+  });
+
+  it('keeps at most four on show', () => {
+    for (let i = 0; i < 6; i++) state().addToast('error', `Error ${i}`);
+    expect(state().toasts.map((t) => t.text)).toEqual(['Error 2', 'Error 3', 'Error 4', 'Error 5']);
   });
 });
 

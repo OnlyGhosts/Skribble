@@ -1,7 +1,8 @@
 import { create } from 'zustand';
-import type { ChatMessage, ErrorCode, PlatformClientMessageOf, PlatformServerMessage, RoomState } from '@shared/platform/protocol';
+import type { ChatMessage, ErrorCode, GameResults, PlatformClientMessageOf, PlatformServerMessage, RoomState } from '@shared/platform/protocol';
 import { friendlyError, rejoinFailureText, type JoinErrorCode } from '../lib/format';
-import { loadPrefs, savePrefs, type Prefs, type Theme } from '../lib/storage';
+import { resultsToShow } from '../lib/results';
+import { loadPrefs, loadResultsSeen, loadResultsShown, savePrefs, saveResultsSeen, saveResultsShown, type Prefs, type Theme } from '../lib/storage';
 import { registeredGame } from '../registry';
 import { codeFromLocation, navigate } from '../router';
 
@@ -23,12 +24,16 @@ export type JoinRequest = PlatformClientMessageOf<'create'> | PlatformClientMess
 
 const CHAT_CAP = 300;
 const MAX_TOASTS = 4;
-/** Informational toasts go after this long; errors stay until dismissed. */
-const TOAST_MS = 4000;
+/** Informational toasts go after this long. */
+export const TOAST_MS = 4000;
+/** Errors stay a little longer, then go too: a stack of them must never pile up over the game. */
+export const ERROR_TOAST_MS = 5000;
 const JOIN_ERROR_CODES: ReadonlySet<ErrorCode> = new Set<ErrorCode>(['ROOM_NOT_FOUND', 'ROOM_FULL', 'INVALID_CODE']);
 
 interface PlatformState {
   connection: ConnectionStatus;
+  /** The socket is open but the server has not answered what was sent for a while (a weak or switching network). */
+  slow: boolean;
   playerId: string | null;
   /** The room as the server last showed it to us; the game's view sits in `room.game`, typed per game by its module. */
   room: RoomState | null;
@@ -49,12 +54,17 @@ interface PlatformState {
    * are biased by the one-way latency, so they never override a pong-based value).
    */
   clockSynced: boolean;
-  /** The host pressed "Play again" on the podium: the next lobby scrolls to Start, then clears this. */
-  playAgainPending: boolean;
+  /** The last game's results, up over the lobby until this player closes them (see resultsToShow). */
+  results: GameResults | null;
+  /** The id of the last results this tab closed (kept in sessionStorage too, so a reload remembers). */
+  resultsSeen: string | null;
+  /** The id of the results on show and not closed yet (kept in sessionStorage too, so a reload brings them back). */
+  resultsShown: string | null;
 }
 
 interface PlatformActions {
   setConnection(status: ConnectionStatus): void;
+  setSlow(slow: boolean): void;
   setRejoining(value: boolean): void;
   setClockOffset(offset: number): void;
   /** Platform messages only; the socket hands game messages to the game module. */
@@ -75,12 +85,14 @@ interface PlatformActions {
   dismissToast(id: number): void;
   setTheme(theme: Theme | null): void;
   setSound(on: boolean): void;
-  setPlayAgainPending(pending: boolean): void;
+  /** Closes the results for good: this tab will not show them again, reload or not. */
+  closeResults(): void;
 }
 
 export type PlatformStore = PlatformState & PlatformActions;
 
 let toastSeq = 0;
+const toastTimers = new Map<number, ReturnType<typeof setTimeout>>();
 
 function appendChat(chat: ChatMessage[], message: ChatMessage): ChatMessage[] {
   const next = chat.length >= CHAT_CAP ? chat.slice(chat.length - CHAT_CAP + 1) : chat.slice();
@@ -88,8 +100,16 @@ function appendChat(chat: ChatMessage[], message: ChatMessage): ChatMessage[] {
   return next;
 }
 
+/** The results to put up, remembered for a reload while they stay up (see resultsToShow). */
+function showResults(s: PlatformState, results: GameResults | null): Pick<PlatformState, 'results' | 'resultsShown'> {
+  if (results === null || results.id === s.resultsShown) return { results, resultsShown: s.resultsShown };
+  saveResultsShown(results.id);
+  return { results, resultsShown: results.id };
+}
+
 export const usePlatformStore = create<PlatformStore>()((set, get) => ({
   connection: 'connecting',
+  slow: false,
   playerId: null,
   room: null,
   rejoining: false,
@@ -101,9 +121,14 @@ export const usePlatformStore = create<PlatformStore>()((set, get) => ({
   joinError: null,
   clockOffset: 0,
   clockSynced: false,
-  playAgainPending: false,
+  results: null,
+  resultsSeen: loadResultsSeen(),
+  resultsShown: loadResultsShown(),
 
   setConnection: (connection) => set({ connection }),
+  setSlow: (slow) => {
+    if (get().slow !== slow) set({ slow });
+  },
   setRejoining: (rejoining) => set({ rejoining }),
   setClockOffset: (clockOffset) => set({ clockOffset, clockSynced: true }),
 
@@ -116,6 +141,8 @@ export const usePlatformStore = create<PlatformStore>()((set, get) => ({
         set((s) => ({
           playerId: msg.playerId,
           room: msg.room,
+          // The same seat coming back keeps what it saw (a game that ended during the outage shows its results).
+          ...showResults(s, resultsToShow(msg.room, s.playerId === msg.playerId ? s.room : null, msg.playerId, s.results, s.resultsSeen, s.resultsShown)),
           chat: msg.chat.slice(-CHAT_CAP),
           joinPending: false,
           pendingJoin: null,
@@ -125,7 +152,11 @@ export const usePlatformStore = create<PlatformStore>()((set, get) => ({
         }));
         break;
       case 'room':
-        set((s) => ({ room: msg.room, ...(s.clockSynced ? {} : { clockOffset: msg.room.serverTime - Date.now() }) }));
+        set((s) => ({
+          room: msg.room,
+          ...showResults(s, resultsToShow(msg.room, s.room, s.playerId, s.results, s.resultsSeen, s.resultsShown)),
+          ...(s.clockSynced ? {} : { clockOffset: msg.room.serverTime - Date.now() }),
+        }));
         break;
       case 'chat':
         set((s) => ({ chat: appendChat(s.chat, msg.message) }));
@@ -140,6 +171,11 @@ export const usePlatformStore = create<PlatformStore>()((set, get) => ({
         }
         if (JOIN_ERROR_CODES.has(msg.code) || get().joinPending) {
           get().failJoin({ code: msg.code, message: friendlyError(msg.code, msg.message) });
+          break;
+        }
+        // A move the room turned down says why in a few words ("It is not your turn."): a passing note, not an alarm.
+        if (msg.code === 'NOT_ALLOWED') {
+          get().addToast('info', msg.message.trim() || friendlyError(msg.code));
           break;
         }
         get().addToast('error', friendlyError(msg.code, msg.message));
@@ -162,17 +198,30 @@ export const usePlatformStore = create<PlatformStore>()((set, get) => ({
   resetRoom: (opts) => {
     const room = get().room;
     if (room) registeredGame(room.gameId)?.onLeave?.();
-    set({ room: null, playerId: null, chat: [], rejoining: false, joinPending: false, pendingJoin: null, playAgainPending: false });
+    saveResultsShown(null);
+    set({ room: null, playerId: null, chat: [], rejoining: false, joinPending: false, pendingJoin: null, results: null, resultsShown: null });
     // After the state is cleared, so routeSync sees a room-less store and does not leave a second time.
     if (room && !opts?.keepUrl && codeFromLocation() === room.code) navigate('/', { replace: true });
   },
 
   addToast: (kind, text) => {
-    const id = ++toastSeq;
-    set((s) => ({ toasts: [...s.toasts.slice(-(MAX_TOASTS - 1)), { id, kind, text }] }));
-    if (kind !== 'error') window.setTimeout(() => get().dismissToast(id), TOAST_MS);
+    // The same line again only keeps the one on show up longer.
+    const same = get().toasts.find((t) => t.kind === kind && t.text === text);
+    const id = same?.id ?? ++toastSeq;
+    if (!same) set((s) => ({ toasts: [...s.toasts.slice(-(MAX_TOASTS - 1)), { id, kind, text }] }));
+    const timer = toastTimers.get(id);
+    if (timer !== undefined) clearTimeout(timer);
+    toastTimers.set(
+      id,
+      setTimeout(() => get().dismissToast(id), kind === 'error' ? ERROR_TOAST_MS : TOAST_MS),
+    );
   },
-  dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
+  dismissToast: (id) => {
+    const timer = toastTimers.get(id);
+    if (timer !== undefined) clearTimeout(timer);
+    toastTimers.delete(id);
+    set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) }));
+  },
 
   setTheme: (theme) => {
     const prefs: Prefs = { ...get().prefs, theme };
@@ -184,5 +233,11 @@ export const usePlatformStore = create<PlatformStore>()((set, get) => ({
     savePrefs(prefs);
     set({ prefs });
   },
-  setPlayAgainPending: (playAgainPending) => set({ playAgainPending }),
+  closeResults: () => {
+    const { results } = get();
+    if (!results) return;
+    saveResultsSeen(results.id);
+    saveResultsShown(null);
+    set({ results: null, resultsSeen: results.id, resultsShown: null });
+  },
 }));

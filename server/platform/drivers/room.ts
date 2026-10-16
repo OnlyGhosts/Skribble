@@ -168,9 +168,15 @@ export class Room {
 
   handleMessage(playerId: string, inbound: RoomInbound): void {
     if (this.destroyed || !findPlayer(this.data, playerId)) return;
-    if (inbound.kind === 'platform') return void this.dispatch({ type: 'platformMessage', playerId, msg: inbound.msg });
+    if (inbound.kind === 'platform') return void this.dispatch({ type: 'platformMessage', playerId, msg: inbound.msg, seq: inbound.seq });
     if (this.sideStore && moduleFor(this.data.gameId).sideMessages?.has(inbound.msg.t)) return this.sideMessage(playerId, inbound.msg);
-    this.dispatch({ type: 'gameMessage', playerId, msg: inbound.msg });
+    this.dispatch({ type: 'gameMessage', playerId, msg: inbound.msg, seq: inbound.seq });
+  }
+
+  /** The player's connection went silent (or spoke again). */
+  handleActivity(playerId: string, connectionId: string, idle: boolean): void {
+    if (this.destroyed) return;
+    this.dispatch({ type: 'activity', playerId, connectionId, idle });
   }
 
   /** Stops every timer; the room must not be used afterwards. */

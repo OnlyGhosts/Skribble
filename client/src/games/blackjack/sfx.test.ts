@@ -37,6 +37,7 @@ function view(over: Partial<BlackjackView> = {}): BlackjackView {
     order: ['me', 'bob'],
     turn: null,
     waitingFor: [],
+    away: [],
     dealer: { cards: [], holeHidden: true, total: 0, soft: false, blackjack: false },
     players: { me: seat([]), bob: seat([]) },
     actions: { canHit: false, canStand: false, canDouble: false, canSplit: false },
@@ -225,7 +226,7 @@ describe('the blackjack sting', () => {
 
 describe('a big table', () => {
   it('shares its deal timings with the server, which starts the first turn once the deal has landed', () => {
-    expect(BLACKJACK_DEAL).toEqual({ deal: T.DEAL_MS, dealGap: T.DEAL_GAP_MS, discard: T.DISCARD_MS });
+    expect(BLACKJACK_DEAL).toEqual({ deal: T.DEAL_MS, dealGap: T.DEAL_GAP_MS, discard: T.DISCARD_MS, move: T.MOVE_MS });
   });
 
   const ids = Array.from({ length: 50 }, (_, i) => `p${i}`);

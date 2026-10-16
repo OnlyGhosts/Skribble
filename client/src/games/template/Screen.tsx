@@ -15,7 +15,7 @@ import { useActiveGame } from '../../platform/store/selectors';
 const meta = gameById('template');
 
 /**
- * One big button, a live ranking and the clock. The platform draws the podium when the race ends.
+ * One big button, a live ranking and the clock. The platform shows the results when the race ends.
  * A player sitting this one out watches: their button is off and the standings list racers only.
  */
 export function ClickRaceScreen({ room, meId, isHost }: GameScreenProps<TemplateView, TemplateSettings>) {

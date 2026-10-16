@@ -19,7 +19,3 @@ export function skipReveal(): void {
   socket.send({ t: 'nextRound' });
 }
 
-/** Host only, from the reveal: back to the lobby. */
-export function endGame(): void {
-  socket.send({ t: 'endGame' });
-}

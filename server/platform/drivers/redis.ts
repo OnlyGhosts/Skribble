@@ -16,8 +16,9 @@ import { productionCtx, systemClock, type Clock, type Rng } from '../transport.j
 import { PRESENCE_TTL_MS, parseChannelMessage, roomChannel, type RoomChannelMessage } from './redisKeys.js';
 import { RedisRooms, type Dispatched } from './redisRooms.js';
 import { RedisStorage } from './redisStorage.js';
+import { Outbound } from './outbound.js';
 import { AsyncLock } from './serial.js';
-import { SOCKET_OPEN, sendTo, type DriverHealth, type GameDriver, type LookupResult, type OutboundMessage, type RoomInbound, type Seat, type SeatResult, type SocketLike } from './types.js';
+import { SOCKET_OPEN, type DriverHealth, type GameDriver, type LookupResult, type OutboundMessage, type RoomInbound, type Seat, type SeatResult, type SocketLike } from './types.js';
 
 export interface RedisDriverOptions {
   url: string;
@@ -28,6 +29,8 @@ export interface RedisDriverOptions {
   presenceTtlMs?: number;
   /** How often an instance checks the presence keys of the rooms it holds sockets for. */
   reaperIntervalMs?: number;
+  /** Room snapshots to one socket at most this often (SNAPSHOT_INTERVAL_MS in production); 0, the default, sends each at once. */
+  snapshotIntervalMs?: number;
 }
 
 export const REAPER_INTERVAL_MS = 30_000;
@@ -86,6 +89,7 @@ export class RedisDriver implements GameDriver {
   private readonly clock: Clock;
   private readonly rng: Rng;
   private readonly reaperIntervalMs: number;
+  private readonly outbound: Outbound;
   private closed = false;
 
   constructor(options: RedisDriverOptions) {
@@ -93,6 +97,7 @@ export class RedisDriver implements GameDriver {
     this.clock = options.clock ?? systemClock;
     this.rng = options.rng ?? Math.random;
     this.reaperIntervalMs = options.reaperIntervalMs ?? REAPER_INTERVAL_MS;
+    this.outbound = new Outbound(options.snapshotIntervalMs ?? 0, () => this.clock.now());
     this.redis = this.connection(options.url);
     this.sub = this.connection(options.url);
     this.sub.on('message', (channel: string, raw: string) => this.onChannelMessage(channel, raw));
@@ -171,6 +176,11 @@ export class RedisDriver implements GameDriver {
     }
   }
 
+  async idle(seat: Seat, connectionId: string, idle: boolean): Promise<void> {
+    if (!this.holds(seat, connectionId)) return;
+    await this.rooms.dispatch(seat.code, { type: 'activity', playerId: seat.playerId, connectionId, idle });
+  }
+
   async handle(seat: Seat, inbound: RoomInbound): Promise<void> {
     if (inbound.kind === 'game') {
       const local = this.locals.get(seat.code);
@@ -179,7 +189,7 @@ export class RedisDriver implements GameDriver {
       const store = this.sideStore(data.gameId);
       if (store && moduleFor(data.gameId).sideMessages?.has(inbound.msg.t)) return this.sideMessage(seat, data, store, inbound.msg);
     }
-    const action: Action = inbound.kind === 'platform' ? { type: 'platformMessage', playerId: seat.playerId, msg: inbound.msg } : { type: 'gameMessage', playerId: seat.playerId, msg: inbound.msg };
+    const action: Action = inbound.kind === 'platform' ? { type: 'platformMessage', playerId: seat.playerId, msg: inbound.msg, seq: inbound.seq } : { type: 'gameMessage', playerId: seat.playerId, msg: inbound.msg, seq: inbound.seq };
     const dispatched = await this.rooms.dispatch(seat.code, action);
     if (!dispatched.ok) this.roomGone(seat.code);
   }
@@ -483,7 +493,7 @@ export class RedisDriver implements GameDriver {
   private sendLocal(local: LocalRoom, playerId: string, msg: OutboundMessage): void {
     const connectionId = local.seats.get(playerId);
     const entry = connectionId !== undefined ? this.sockets.get(connectionId) : undefined;
-    if (entry) sendTo(entry.ws, msg);
+    if (entry) this.outbound.send(entry.ws, msg);
   }
 
   private closeLocal(local: LocalRoom, playerId: string, code: number, reason: string): void {

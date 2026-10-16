@@ -1,6 +1,6 @@
 /** Blackjack's rules through the pure engine: betting (no clock: sitting out, Deal now), the deal from the endless deck and the peek, the moves one hand at a time (no clock: away hands stand, the host's Skip), splits with no cap, the dealer, payouts, chips as the score, rounds, the end, holds and seats. Every deck is scripted through ctx.rng. */
 import { describe, expect, it } from 'vitest';
-import { DECK, handTotal, revealAllowanceMs } from '../../../shared/games/blackjack/cards.js';
+import { DECK, handTotal } from '../../../shared/games/blackjack/cards.js';
 import { BLACKJACK_RESULTS_MS, DEFAULT_BLACKJACK_SETTINGS, blackjackClientMessageSchema, type BlackjackClientMessage, type BlackjackView, type Card, type CardRank } from '../../../shared/games/blackjack/protocol.js';
 import { PLATFORM_CLIENT_MESSAGE_TYPES, type RoomState } from '../../../shared/platform/protocol.js';
 import { gameById } from '../../../shared/platform/games.js';
@@ -8,8 +8,9 @@ import { defaultPlatformSettings } from '../../../shared/platform/settings.js';
 import type { Effect } from '../../platform/engine/effects.js';
 import { nextDeadline } from '../../platform/engine/time.js';
 import { viewFor } from '../../platform/engine/view.js';
-import { AVATAR, START, chatTexts, noticeTexts, errorsOf, sim, startGame, type Sim } from '../../platform/engine/testHarness.js';
-import { BLACKJACK_DEAL, MIN_DEAL_GAP_MS, dealAllowanceMs } from '../../../shared/games/blackjack/deal.js';
+import { AVATAR, START, chatTexts, endGame, noticeTexts, errorsOf, sim, standings, startGame, type Sim } from '../../platform/engine/testHarness.js';
+import { BLACKJACK_DEAL, BLACKJACK_REVEAL, MIN_DEAL_GAP_MS, dealAllowanceMs, revealAllowanceMs } from '../../../shared/games/blackjack/deal.js';
+import { AWAY_NOTICE_MS } from '../../../shared/platform/constants.js';
 import { RESUME_SETTLE_MS } from '../waiting.js';
 import { blackjackModule, type BlackjackData } from './module.js';
 
@@ -32,7 +33,8 @@ const score = (s: Sim, id: string): number => s.data.players.find((p) => p.id ==
 const chips = (s: Sim, id: string): number => data(s).seats[id]?.chips ?? -1;
 const token = (s: Sim, id: string): string => s.data.players.find((p) => p.id === id)?.token ?? '';
 const waiting = (s: Sim): string[] | null => viewFor(s.data, null, s.now).waiting?.missing ?? null;
-const disconnect = (s: Sim, id: string, name: string): Effect[] => s.apply({ type: 'connectionClosed', playerId: id, connectionId: `conn-${name}` });
+/** A lasting drop: the game hears of it at once (a blink is tested on its own). */
+const disconnect = (s: Sim, id: string, name: string): Effect[] => s.drop(id, `conn-${name}`);
 const reconnect = (s: Sim, id: string, name: string): Effect[] => s.apply({ type: 'rejoin', token: token(s, id), connectionId: `conn-${name}-2` });
 
 /** The platform score must equal the chips of every seated participant, and the chips never go negative. */
@@ -98,12 +100,16 @@ function seeded(seed: number): () => number {
 }
 
 function checked(s: Sim, effects: Effect[]): Effect[] {
+  // A finished game is gone from the room (its results stay): there is no table left to check.
+  if (s.data.game === null) return effects;
   expectScoresMatchChips(s);
   expectHoleHidden(s, effects);
   expect(JSON.parse(JSON.stringify(data(s)))).toEqual(data(s));
   return effects;
 }
 const act = (s: Sim, id: string, msg: unknown): Effect[] => checked(s, s.game(id, msg));
+/** The host's End game (the platform's message), checked like a move while the game still runs. */
+const end = (s: Sim, id: string): Effect[] => checked(s, endGame(s, id));
 const betAll = (s: Sim, ids: string[], amount = 10): void => {
   for (const id of ids) act(s, id, { t: 'bet', amount });
 };
@@ -156,6 +162,7 @@ describe('Blackjack: the table', () => {
       order: [alice, bob],
       turn: null,
       waitingFor: [alice, bob],
+      away: [],
       dealer: { cards: [], holeHidden: true, total: 0, soft: false, blackjack: false },
       players: {
         [alice]: { chips: 1000, bet: 0, hands: [], inRound: true, sittingOut: false, bustedOut: false },
@@ -223,17 +230,18 @@ describe('Blackjack: the table', () => {
     expect([chips(s, alice), chips(s, bob)]).toEqual([1015, 1040]);
   });
 
-  it('has no insurance anywhere; the host has End game, Deal now and Skip, even while sitting the game out', () => {
+  it('has no insurance anywhere; the host has Deal now and Skip, even while sitting the game out (End game is the platform\'s)', () => {
     const s = table();
     const [alice] = startGame(s, ['Alice', 'Bob']);
     expect(JSON.stringify(blackjackModule.settings.defaults)).not.toMatch(/insur/i);
     expect(JSON.stringify(view(s, alice))).not.toMatch(/insur/i);
     expect(blackjackClientMessageSchema.safeParse({ t: 'insurance' }).success).toBe(false);
     expect(blackjackClientMessageSchema.safeParse({ t: 'next' }).success).toBe(false);
-    expect([...(blackjackModule.hostMessages ?? [])]).toEqual(['endGame', 'dealNow', 'skip']);
+    expect([...(blackjackModule.hostMessages ?? [])]).toEqual(['dealNow', 'skip']);
+    expect(blackjackModule.end).toBeTypeOf('function');
     // A game message named like a platform one (the lobby's sitOut) would never reach the game.
     const types = blackjackClientMessageSchema.options.map((o) => o.shape.t.value);
-    expect(types).toEqual(['bet', 'hit', 'stand', 'double', 'split', 'sitOutHand', 'dealNow', 'skip', 'endGame']);
+    expect(types).toEqual(['bet', 'hit', 'stand', 'double', 'split', 'sitOutHand', 'dealNow', 'skip']);
     for (const t of types) expect(PLATFORM_CLIENT_MESSAGE_TYPES.has(t), t).toBe(false);
     expect(errorsOf(s.game(alice, { t: 'next' }))).toHaveLength(1);
     expect(view(s).phase).toBe('betting');
@@ -310,7 +318,10 @@ describe('Blackjack: betting', () => {
     expect(view(s).players[bob]).toMatchObject({ sittingOut: true, inRound: true, bet: 0 });
     expect(view(s).waitingFor).toEqual([alice, carol]);
     expect(controls(s, bob).canSitOut).toBe(false);
-    expect(errorsOf(act(s, bob, { t: 'sitOutHand' }))).toEqual(['You cannot sit out right now.']);
+    // A second tap of Sit out changes nothing and says nothing.
+    const again = act(s, bob, { t: 'sitOutHand' });
+    expect(errorsOf(again)).toEqual([]);
+    expect(again).toEqual([]);
     // Changed their mind: a bet puts them back in.
     act(s, bob, { t: 'bet', amount: 20 });
     expect(view(s).players[bob]).toMatchObject({ sittingOut: false, bet: 20 });
@@ -498,8 +509,9 @@ describe('Blackjack: the deal and the moves', () => {
     // Bob stands on 16; the dealer turns 15 and draws a 2: the natural pays 3:2, the 16 loses.
     const stood = act(s, bob, { t: 'stand' });
     expect(chatTexts(stood)).toEqual(['The dealer stands on 17.', 'Alice wins 15, Bob loses 10.']);
+    // The stand drew no card of Bob's, so the pause is the phones' reveal alone: the flip, the dealer's 2, the outcomes.
     const reveal = revealAllowanceMs(3);
-    expect(reveal).toBe(1700);
+    expect(reveal).toBe(900);
     // The settled table stays up for the dealer's reveal only, then the next bets open at once.
     expect(view(s)).toMatchObject({ phase: 'results', round: 1, turn: null, order: [], waitingFor: [] });
     expect(nextDeadline(s.data)).toBe(s.now + reveal);
@@ -659,7 +671,8 @@ describe('Blackjack: away players and the host\'s Skip', () => {
     const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol']);
     // Alice 10 + 9, Bob 8 + 8 (a pair), Carol 10 + 7; the dealer 6 + 10.
     rig(s, '10S', '8H', '10C', '6D', '9S', '8D', '7C', '10H', '3S', '2S', 'KD');
-    expect(errorsOf(act(s, alice, skipNow(s)))).toEqual(['There is no turn to skip.']);
+    // No turn to skip: a skip aimed at nobody does nothing.
+    expect(act(s, alice, skipNow(s))).toEqual([]);
     betAll(s, [alice, bob, carol]);
     // The host's own turn: nothing for the host to skip.
     expect(view(s).turn).toEqual({ playerId: alice, handIndex: 0 });
@@ -691,10 +704,11 @@ describe('Blackjack: away players and the host\'s Skip', () => {
     expect(view(s).phase).toBe('results');
     expect(lastHands(s, carol)[0].status).not.toBe('acting');
     expect(controls(s, alice).canSkip).toBe(false);
-    expect(errorsOf(act(s, alice, { t: 'skip', playerId: carol, handIndex: 0 }))).toEqual(['There is no turn to skip.']);
+    // A late tap aimed at Carol's finished hand changes nothing and says nothing.
+    expect(act(s, alice, { t: 'skip', playerId: carol, handIndex: 0 })).toEqual([]);
   });
 
-  it('never stands the next hand on a second tap of Skip: a skip names the hand, and a stale one is refused', () => {
+  it('never stands the next hand on a second tap of Skip: a skip names the hand, and a stale one is ignored without a word', () => {
     const s = table();
     const [hana, ben, cleo, dev] = startGame(s, ['Hana', 'Ben', 'Cleo', 'Dev']);
     rig(s, '10S', '9H', '10C', '6D', '9S', '8D', '7C', '10H', '8H', '7S');
@@ -705,11 +719,11 @@ describe('Blackjack: away players and the host\'s Skip', () => {
     const tap = skipNow(s);
     expect(chatTexts(act(s, hana, tap))).toEqual(["Hana stood Ben's hand."]);
     expect(view(s).turn).toEqual({ playerId: cleo, handIndex: 0 });
-    expect(errorsOf(act(s, hana, tap))).toEqual(['That hand is already done.']);
+    expect(act(s, hana, tap)).toEqual([]);
     expect(handsOf(s, cleo)[0].status).toBe('acting');
     expect(handsOf(s, dev)[0].status).toBe('waiting');
-    // A skip aimed at a hand still to come is refused too.
-    expect(errorsOf(act(s, hana, { t: 'skip', playerId: dev, handIndex: 0 }))).toEqual(['That hand is already done.']);
+    // A skip aimed at a hand still to come does nothing either.
+    expect(act(s, hana, { t: 'skip', playerId: dev, handIndex: 0 })).toEqual([]);
     expect(view(s).turn).toEqual({ playerId: cleo, handIndex: 0 });
   });
 
@@ -1037,11 +1051,14 @@ describe('Blackjack: the dealer', () => {
     const effects = act(s, bob, { t: 'bet', amount: 10 });
     expect(chatTexts(effects)).toEqual(['Alice has blackjack!', 'The dealer has blackjack.', 'Alice pushes, Bob loses 10.']);
     expect(effects.some((e) => e.type === 'send' && e.msg.t === 'room' && (e.msg as { room: RoomState<BlackjackView> }).room.game?.phase === 'acting')).toBe(false);
-    // Only the hole card turns over: the reveal allowance is the flip alone.
+    // The phones show the whole deal, a pause, then the hole card turns: the bets open only once the outcomes show.
     expect(view(s)).toMatchObject({ phase: 'results', round: 1 });
+    const shown = dealAllowanceMs(2) + BLACKJACK_REVEAL.peekPause + revealAllowanceMs(2);
+    expect(shown).toBe(1300 + 300 + 550);
+    expect(data(s).phase).toEqual({ kind: 'results', endsAt: s.now + shown });
     expect(view(s).lastRound).toMatchObject({
       peeked: true,
-      revealEndsAt: s.now + 1200,
+      revealEndsAt: s.now + shown,
       dealer: { cards: cards('AD', 'KS'), holeHidden: false, total: 21, soft: true, blackjack: true },
     });
     expect(results(s)).toEqual([
@@ -1118,16 +1135,16 @@ describe('Blackjack: rounds', () => {
     act(s, alice, { t: 'stand' });
     const settled = act(s, bob, { t: 'stand' });
     expect(chatTexts(settled)).toEqual(['The dealer stands on 18.', 'Alice loses 10, Bob loses 10.']);
-    // One card drawn after the hole card: 1200 + 500 ms for the reveal, and no wait after it.
+    // One card drawn after the hole card: the flip, the draw and the outcomes (900 ms), and no wait after it.
     const settledAt = s.now;
-    expect(data(s).phase).toEqual({ kind: 'results', endsAt: settledAt + 1700 });
+    expect(data(s).phase).toEqual({ kind: 'results', endsAt: settledAt + 900 });
     expect(chatTexts(nextRound(s))).toEqual(['Round 2: place your bets!']);
-    expect(s.now).toBe(settledAt + 1700);
+    expect(s.now).toBe(settledAt + 900);
     expect(view(s)).toMatchObject({ phase: 'betting', round: 2, order: [alice, bob], waitingFor: [alice, bob] });
     expect(nextDeadline(s.data)).toBeNull();
     expect(view(s).dealer).toEqual({ cards: [], holeHidden: true, total: 0, soft: false, blackjack: false });
     expect(view(s).players[alice]).toMatchObject({ bet: 0, hands: [], inRound: true });
-    expect(view(s).lastRound).toMatchObject({ round: 1, order: [alice, bob], dealer: { cards: cards('9D', '7S', '2C') }, revealEndsAt: settledAt + 1700 });
+    expect(view(s).lastRound).toMatchObject({ round: 1, order: [alice, bob], dealer: { cards: cards('9D', '7S', '2C') }, revealEndsAt: settledAt + 900 });
     // A bet does not clear it; the deal does.
     rig(s, '10S', '5H', '9D', '6H', '6C', '7S', '2C');
     act(s, alice, { t: 'bet', amount: 10 });
@@ -1151,7 +1168,11 @@ describe('Blackjack: rounds', () => {
     expect(errorsOf(act(s, alice, { t: 'bet', amount: 10 }))).toEqual(['You cannot bet right now.']);
     expect(errorsOf(act(s, alice, { t: 'sitOutHand' }))).toEqual(['You cannot sit out right now.']);
     expect(errorsOf(act(s, alice, { t: 'dealNow' }))).toEqual(['The cards are already out.']);
-    expect(errorsOf(act(s, alice, { t: 'skip', playerId: alice, handIndex: 0 }))).toEqual(['There is no turn to skip.']);
+    expect(act(s, alice, { t: 'skip', playerId: alice, handIndex: 0 })).toEqual([]);
+    // Taps aimed at the round just played (a second tap, a resend) do nothing and say nothing.
+    expect(act(s, alice, { t: 'bet', amount: 10, round: 1 })).toEqual([]);
+    expect(act(s, alice, { t: 'sitOutHand', round: 1 })).toEqual([]);
+    expect(act(s, alice, { t: 'dealNow', round: 1 })).toEqual([]);
     s.apply({ type: 'join', name: 'Bob', avatar: AVATAR, connectionId: 'b' });
     const bob = s.playerId('Bob');
     expect(data(s).seats[bob]).toBeUndefined();
@@ -1170,8 +1191,9 @@ describe('Blackjack: rounds', () => {
     // A player who leaves during the pause is gone from the next round.
     ended.apply({ type: 'leave', playerId: dave });
     expect(view(ended).phase).toBe('results');
-    expect(chatTexts(act(ended, carol, { t: 'endGame' }))).toEqual(['The host ended the game.', 'Game over! Carol wins with 1000 points.']);
-    expect(ended.data.phase).toBe('ended');
+    expect(chatTexts(end(ended, carol))).toEqual(['The host ended the game.', 'Game over! Carol wins with 1000 points.']);
+    expect(ended.data.phase).toBe('lobby');
+    expect(ended.data.results?.reason).toBe('host');
   });
 
   it('holds once a pause runs out with nobody still in the game connected', () => {
@@ -1246,7 +1268,7 @@ describe('Blackjack: rounds', () => {
     expect(view(s).phase).toBe('ending');
     const over = tick(s, 1200 + RESULTS_MS);
     expect(chatTexts(over)).toEqual(['Game over! Alice and Bob tie with 0 points.']);
-    expect(s.data.phase).toBe('ended');
+    expect(s.data.phase).toBe('lobby');
   });
 
   it('deals from an endless deck: every card drawn on its own from the 52, so a round never runs out and nothing is ever reshuffled', () => {
@@ -1393,11 +1415,12 @@ describe('Blackjack: the end', () => {
     const second = act(s, bob, { t: 'stand' });
     expect(chatTexts(second)).toEqual(['The dealer stands on 17.', 'Alice loses 50, Bob wins 50.', 'Alice is out of chips.', 'Bob is the last one standing.']);
     // The final table stays up for the reveal, then five seconds.
-    expect(data(s).phase).toEqual({ kind: 'ending', endsAt: s.now + 1200 + RESULTS_MS });
-    expect(tick(s, 1200 + RESULTS_MS - 1)).toEqual([]);
+    expect(data(s).phase).toEqual({ kind: 'ending', endsAt: s.now + revealAllowanceMs(2) + RESULTS_MS });
+    expect(tick(s, revealAllowanceMs(2) + RESULTS_MS - 1)).toEqual([]);
     tick(s, 1);
-    expect(s.data.phase).toBe('ended');
-    expect(s.data.podium).toEqual([
+    expect(s.data.phase).toBe('lobby');
+    expect(s.data.results?.reason).toBe('finished');
+    expect(standings(s)).toEqual([
       { playerId: bob, score: 100, rank: 1 },
       { playerId: alice, score: 0, rank: 2 },
     ]);
@@ -1441,25 +1464,29 @@ describe('Blackjack: the end', () => {
     const settled = act(s, alice, { t: 'stand' });
     expect(chatTexts(settled)).toEqual(['The dealer stands on 17.', 'Alice loses 100.', 'Alice is out of chips.', 'Everyone is out of chips. The house wins.']);
     expect(view(s).phase).toBe('ending');
-    tick(s, 1200 + RESULTS_MS);
-    expect(s.data.phase).toBe('ended');
-    expect(s.data.podium).toEqual([{ playerId: alice, score: 0, rank: 1 }]);
     expect(data(s).seats[bob]).toBeUndefined();
+    tick(s, 1200 + RESULTS_MS);
+    expect(s.data.phase).toBe('lobby');
+    expect(standings(s)).toEqual([{ playerId: alice, score: 0, rank: 1 }]);
   });
 });
 
 describe('Blackjack: the host ends the game', () => {
-  it('ends at once during the betting, every stake back, straight to the podium; only the host may', () => {
+  it('ends at once during the betting, every stake back, straight to the results; only the host may', () => {
     const s = table();
     const [alice, bob] = startGame(s, ['Alice', 'Bob']);
     act(s, alice, { t: 'bet', amount: 100 });
     expect(chips(s, alice)).toBe(900);
-    expect(errorsOf(act(s, bob, { t: 'endGame' }))).toEqual(['Only the host can end the game.']);
-    const effects = act(s, alice, { t: 'endGame' });
+    expect(errorsOf(end(s, bob))).toEqual(['Only the host can do that.']);
+    expect(view(s).phase).toBe('betting');
+    const effects = end(s, alice);
     expect(chatTexts(effects)).toEqual(['The host ended the game.', 'Game over! Alice and Bob tie with 1000 points.']);
-    expect([chips(s, alice), score(s, alice)]).toEqual([1000, 1000]);
-    expect(s.data.phase).toBe('ended');
-    expect(view(s)).toMatchObject({ phase: 'gameOver', endRequested: true });
+    expect(s.data.phase).toBe('lobby');
+    expect(s.data.results).toMatchObject({ reason: 'host', gameId: 'blackjack' });
+    expect(standings(s)).toEqual([
+      { playerId: alice, score: 1000, rank: 1 },
+      { playerId: bob, score: 1000, rank: 1 },
+    ]);
   });
 
   it('ends at once while everyone sits the hand out', () => {
@@ -1468,37 +1495,57 @@ describe('Blackjack: the host ends the game', () => {
     act(s, alice, { t: 'sitOutHand' });
     act(s, bob, { t: 'sitOutHand' });
     expect(view(s)).toMatchObject({ phase: 'betting', waitingFor: [] });
-    expect(chatTexts(act(s, alice, { t: 'endGame' }))).toEqual(['The host ended the game.', 'Game over! Alice and Bob tie with 1000 points.']);
-    expect(s.data.phase).toBe('ended');
+    expect(chatTexts(end(s, alice))).toEqual(['The host ended the game.', 'Game over! Alice and Bob tie with 1000 points.']);
+    expect(s.data.phase).toBe('lobby');
   });
 
-  it('ends after the hand in play settles, through the final pause instead of the next betting, then the podium ranked by chips', () => {
+  it('ends after the hand in play settles, through the final pause instead of the next betting, then the results ranked by chips', () => {
     const s = table();
     const [alice, bob] = startGame(s, ['Alice', 'Bob']);
     rig(s, 'AS', '9H', '5D', 'KH', '7C', '10S', '2S');
     betAll(s, [alice, bob]);
-    const asked = act(s, alice, { t: 'endGame' });
-    expect(chatTexts(asked)).toEqual(['The host ends the game after this hand.']);
+    const asked = end(s, alice);
+    expect(chatTexts(asked)).toEqual(['The game ends after this hand.']);
     expect(view(s)).toMatchObject({ phase: 'acting', endRequested: true, turn: { playerId: bob, handIndex: 0 } });
-    expect(errorsOf(act(s, alice, { t: 'endGame' }))).toEqual(['The game ends after this hand.']);
+    // Everyone's snapshot says the end is coming; a second tap changes nothing and says nothing.
+    expect(viewFor(s.data, bob, s.now).endRequested).toBe(true);
+    const again = end(s, alice);
+    expect([errorsOf(again), chatTexts(again)]).toEqual([[], []]);
     const settled = act(s, bob, { t: 'stand' });
     expect(chatTexts(settled)).toEqual(['The dealer stands on 17.', 'Alice wins 15, Bob loses 10.']);
     expect(view(s)).toMatchObject({ phase: 'ending', lastRound: { round: 1 } });
-    expect(data(s).phase).toEqual({ kind: 'ending', endsAt: s.now + 1700 + RESULTS_MS });
+    expect(data(s).phase).toEqual({ kind: 'ending', endsAt: s.now + revealAllowanceMs(3) + RESULTS_MS });
     expect(s.data.phase).toBe('playing');
-    expect(errorsOf(act(s, alice, { t: 'endGame' }))).toEqual(['The game is ending already.']);
-    expect(tick(s, 1700 + RESULTS_MS - 1)).toEqual([]);
+    expect(errorsOf(end(s, alice))).toEqual([]);
+    expect(tick(s, revealAllowanceMs(3) + RESULTS_MS - 1)).toEqual([]);
     const effects = tick(s, 1);
-    expect(s.data.phase).toBe('ended');
-    expect(data(s).phase).toEqual({ kind: 'gameOver' });
-    expect(view(s)).toMatchObject({ phase: 'gameOver', turn: null, lastRound: { round: 1 } });
-    expect(s.data.podium).toEqual([
+    expect(s.data.phase).toBe('lobby');
+    expect(s.data.game).toBeNull();
+    expect(s.data.results?.reason).toBe('host');
+    expect(standings(s)).toEqual([
       { playerId: alice, score: 1015, rank: 1 },
       { playerId: bob, score: 990, rank: 2 },
     ]);
     expect(chatTexts(effects)).toEqual(['Game over! Alice wins with 1015 points.']);
     expect(nextDeadline(s.data)).toBeNull();
-    expect(errorsOf(s.game(alice, { t: 'endGame' }))).toEqual(['The game is not running.']);
+    expect(errorsOf(s.game(alice, { t: 'bet', amount: 10 }))).toEqual(['The game is not running.']);
+  });
+
+  it('ends at once when the host ends it during a final table that is already on show', () => {
+    const s = table();
+    const [alice, bob] = startGame(s, ['Alice', 'Bob']);
+    rig(s, '10S', '9D', '8H', '7C', '6S', '5H');
+    betAll(s, [alice, bob], 1000);
+    act(s, alice, { t: 'stand' });
+    act(s, bob, { t: 'stand' });
+    expect(view(s).phase).toBe('ending');
+    // Bob is out of chips, so the final table is up; the host's End game skips the rest of its pause.
+    expect(chatTexts(end(s, alice))).toEqual(['Game over! Alice wins with 1000 points.']);
+    expect(s.data.phase).toBe('lobby');
+    expect(standings(s)).toEqual([
+      { playerId: alice, score: 1000, rank: 1 },
+      { playerId: bob, score: 0, rank: 2 },
+    ]);
   });
 
   it('ends at once while the table is held, clearing the hold', () => {
@@ -1514,10 +1561,10 @@ describe('Blackjack: the host ends the game', () => {
     nextRound(s);
     expect(view(s).phase).toBe('held');
     expect(waiting(s)).toEqual([bob, carol]);
-    const effects = act(s, alice, { t: 'endGame' });
+    const effects = end(s, alice);
     expect(chatTexts(effects)).toEqual(['The host ended the game.', 'Game over! Bob and Carol tie with 150 points.']);
-    expect(waiting(s)).toBeNull();
-    expect(s.data.phase).toBe('ended');
+    expect(s.data.waiting).toBeNull();
+    expect(s.data.phase).toBe('lobby');
   });
 });
 
@@ -1563,12 +1610,12 @@ describe('Blackjack: seats coming and going', () => {
     expect(late.map((id) => data(s).seats[id])).toEqual([undefined, undefined]);
   });
 
-  it('leaves a newcomer who arrived during the final pause off the podium: nobody who never played is ranked', () => {
+  it('leaves a newcomer who arrived during the final pause out of the results: nobody who never played is ranked', () => {
     const s = table();
     const [alice, bob] = startGame(s, ['Alice', 'Bob']);
     rig(s, 'AS', '9H', '5D', 'KH', '7C', '10S', '2S');
     betAll(s, [alice, bob]);
-    act(s, alice, { t: 'endGame' });
+    end(s, alice);
     act(s, bob, { t: 'stand' });
     expect(view(s).phase).toBe('ending');
     s.apply({ type: 'join', name: 'Carol', avatar: AVATAR, connectionId: 'c' });
@@ -1577,9 +1624,9 @@ describe('Blackjack: seats coming and going', () => {
     expect([score(s, carol), data(s).seats[carol]]).toEqual([0, undefined]);
     expect(view(s).phase).toBe('ending');
     const over = tick(s, 1700 + RESULTS_MS);
-    expect(s.data.phase).toBe('ended');
+    expect(s.data.phase).toBe('lobby');
     expect(chatTexts(over)).toEqual(['Game over! Alice wins with 1015 points.']);
-    expect(s.data.podium).toEqual([
+    expect(standings(s)).toEqual([
       { playerId: alice, score: 1015, rank: 1 },
       { playerId: bob, score: 990, rank: 2 },
     ]);
@@ -1686,5 +1733,194 @@ describe('Blackjack: seats coming and going', () => {
     const projected = blackjackModule.view(bet.data, alice, ctx);
     expect(projected.order).not.toBe(bet.data.order);
     expect(projected.dealer.cards).toEqual([]);
+  });
+});
+
+/** What the player's screen aims a move at right now: the round, the hand in play, the cards they hold. */
+const aim = (s: Sim, id: string) => ({
+  round: view(s).round,
+  handIndex: view(s).turn?.handIndex ?? 0,
+  cards: view(s).players[id].hands.reduce((sum, h) => sum + h.cards.length, 0),
+});
+
+describe('Blackjack: a second tap', () => {
+  it('never plays a second move: a hit, stand or double aimed at a hand that moved on is ignored without a word', () => {
+    const s = table();
+    const [alice, bob] = startGame(s, ['Alice', 'Bob']);
+    // Alice 5 + 3, Bob 10 + 9, the dealer 6 + 10; then the hits.
+    rig(s, '5S', '10H', '6D', '3C', '9C', '10S', '2H', '4D');
+    betAll(s, [alice, bob]);
+    const tap = aim(s, alice);
+    act(s, alice, { t: 'hit', ...tap });
+    expect(handsOf(s, alice)[0].cards).toEqual(cards('5S', '3C', '2H'));
+    // The same tap again (sent before the first one's answer came back) draws nothing and says nothing.
+    expect(act(s, alice, { t: 'hit', ...tap })).toEqual([]);
+    expect(handsOf(s, alice)[0].cards).toHaveLength(3);
+    const stand = aim(s, alice);
+    act(s, alice, { t: 'stand', ...stand });
+    expect(view(s).turn).toEqual({ playerId: bob, handIndex: 0 });
+    expect(act(s, alice, { t: 'stand', ...stand })).toEqual([]);
+    expect(act(s, alice, { t: 'double', ...stand })).toEqual([]);
+    // A move with no aim (an older phone) is still refused out loud when it is not your turn.
+    expect(errorsOf(act(s, alice, { t: 'hit' }))).toEqual(['It is not your turn.']);
+    // A tap left over from the last round does nothing in the next.
+    const last = aim(s, bob);
+    act(s, bob, { t: 'stand', ...last });
+    nextRound(s);
+    rig(s, '10S', '10H', '6D', '7C', '8C', '10D');
+    betAll(s, [alice, bob]);
+    expect(act(s, alice, { t: 'hit', ...stand, round: 1 })).toEqual([]);
+    expect(handsOf(s, alice)[0].cards).toHaveLength(2);
+    // Aimed at the hand in play now, the same move goes through.
+    act(s, alice, { t: 'hit', ...aim(s, alice) });
+    expect(handsOf(s, alice)[0].cards).toHaveLength(3);
+  });
+
+  it('never stands both split hands on a double tap of Stand, nor splits twice on a double tap of Split', () => {
+    const s = table();
+    const [alice, bob] = startGame(s, ['Alice', 'Bob']);
+    // Alice 8 + 8, Bob 10 + 9, the dealer 6 + 10; the split deals Alice an 8 and a 3.
+    rig(s, '8S', '10H', '6D', '8C', '9C', '10S', '8H', '3D');
+    betAll(s, [alice, bob]);
+    const split = aim(s, alice);
+    act(s, alice, { t: 'split', ...split });
+    expect(handsOf(s, alice).map((h) => h.cards)).toEqual([cards('8S', '8H'), cards('8C', '3D')]);
+    // The first hand is a pair again, but the second tap was aimed at the two cards before the split.
+    expect(act(s, alice, { t: 'split', ...split })).toEqual([]);
+    expect(handsOf(s, alice)).toHaveLength(2);
+    const stand = aim(s, alice);
+    act(s, alice, { t: 'stand', ...stand });
+    expect(view(s).turn).toEqual({ playerId: alice, handIndex: 1 });
+    expect(act(s, alice, { t: 'stand', ...stand })).toEqual([]);
+    expect(handsOf(s, alice).map((h) => h.status)).toEqual(['stood', 'acting']);
+    expect(view(s).players[bob].hands[0].status).toBe('waiting');
+  });
+
+  it('deals once on a double tap of Bet by the last seat to bet, and ignores the same stake again without a word', () => {
+    const s = table();
+    const [alice, bob] = startGame(s, ['Alice', 'Bob']);
+    rig(s, '5S', '10H', '6D', '3C', '9C', '10S');
+    act(s, alice, { t: 'bet', amount: 10, round: 1 });
+    expect(act(s, alice, { t: 'bet', amount: 10, round: 1 })).toEqual([]);
+    act(s, bob, { t: 'bet', amount: 20, round: 1 });
+    expect(view(s)).toMatchObject({ phase: 'acting', round: 1 });
+    expect(act(s, bob, { t: 'bet', amount: 20, round: 1 })).toEqual([]);
+    expect(act(s, bob, { t: 'dealNow', round: 1 })).toEqual([]);
+    expect([chips(s, alice), chips(s, bob)]).toEqual([990, 980]);
+  });
+
+  it('times the pause after a hit that ends the round to include the card sliding in', () => {
+    const s = table();
+    const [alice] = startGame(s, ['Alice']);
+    // Alice 10 + 6, the dealer 9 + 8; Alice hits a king and busts.
+    rig(s, '10S', '9H', '6C', '8D', 'KC');
+    act(s, alice, { t: 'bet', amount: 10 });
+    act(s, alice, { t: 'hit', ...aim(s, alice) });
+    expect(data(s).phase).toEqual({ kind: 'results', endsAt: s.now + BLACKJACK_DEAL.deal + revealAllowanceMs(2) });
+  });
+});
+
+describe('Blackjack: a blink in the connection', () => {
+  it('keeps the hand of a player whose socket drops and comes straight back: nothing is stood for them', () => {
+    const s = table();
+    const [alice, bob] = startGame(s, ['Alice', 'Bob']);
+    rig(s, '5S', '10H', '6D', '3C', '9C', '10S');
+    betAll(s, [alice, bob]);
+    expect(view(s).turn).toEqual({ playerId: alice, handIndex: 0 });
+    const blink = s.apply({ type: 'connectionClosed', playerId: alice, connectionId: 'conn-Alice' });
+    expect(noticeTexts(blink)).toEqual(['Bob is now the host']);
+    expect(view(s).turn).toEqual({ playerId: alice, handIndex: 0 });
+    s.advance(1000);
+    reconnect(s, alice, 'Alice');
+    s.advance(AWAY_NOTICE_MS);
+    s.tick();
+    expect(view(s).turn).toEqual({ playerId: alice, handIndex: 0 });
+    expect(handsOf(s, alice)[0].status).toBe('acting');
+  });
+
+  it('stands the hand once the drop has lasted AWAY_NOTICE_MS', () => {
+    const s = table();
+    const [alice, bob] = startGame(s, ['Alice', 'Bob']);
+    rig(s, '5S', '10H', '6D', '3C', '9C', '10S');
+    betAll(s, [alice, bob]);
+    s.apply({ type: 'connectionClosed', playerId: alice, connectionId: 'conn-Alice' });
+    s.advance(AWAY_NOTICE_MS - 1);
+    expect(s.tick()).toEqual([]);
+    expect(view(s).turn?.playerId).toBe(alice);
+    s.advance(1);
+    expect(noticeTexts(s.tick())).toContain('Alice is away and stands.');
+    expect(view(s).turn).toEqual({ playerId: bob, handIndex: 0 });
+  });
+
+  it('waits for the bet of a player who blinks, and deals without them only once the drop lasts', () => {
+    const s = table();
+    const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol']);
+    betAll(s, [alice, bob]);
+    s.apply({ type: 'connectionClosed', playerId: carol, connectionId: 'conn-Carol' });
+    expect(view(s)).toMatchObject({ phase: 'betting', waitingFor: [carol] });
+    reconnect(s, carol, 'Carol');
+    s.advance(AWAY_NOTICE_MS);
+    s.tick();
+    expect(view(s)).toMatchObject({ phase: 'betting', waitingFor: [carol] });
+    act(s, carol, { t: 'bet', amount: 10 });
+    expect(view(s)).toMatchObject({ phase: 'acting', order: [alice, bob, carol] });
+
+    const later = table();
+    const [dee, eve, fay] = startGame(later, ['Dee', 'Eve', 'Fay']);
+    betAll(later, [dee, eve]);
+    later.apply({ type: 'connectionClosed', playerId: fay, connectionId: 'conn-Fay' });
+    later.advance(AWAY_NOTICE_MS);
+    later.tick();
+    expect(view(later)).toMatchObject({ phase: 'acting', order: [dee, eve] });
+  });
+});
+
+describe('Blackjack: a phone that went quiet', () => {
+  const idle = (s: Sim, id: string, name: string, quiet = true) => s.apply({ type: 'activity', playerId: id, connectionId: `conn-${name}`, idle: quiet });
+
+  it('shows the player away on their turn and lets anyone skip them, but plays nothing for them', () => {
+    const s = table();
+    const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol']);
+    rig(s, '10S', '5H', '9D', '6C', '7S', '8H', '10D');
+    betAll(s, [alice, bob, carol]);
+    act(s, alice, { t: 'stand' });
+    expect(view(s).turn?.playerId).toBe(bob);
+    expect(controls(s, carol).canSkip).toBe(false);
+    idle(s, bob, 'Bob');
+    expect(view(s).away).toEqual([bob]);
+    expect(controls(s, carol).canSkip).toBe(true);
+    // No clock: however long it stays quiet, the table only waits.
+    expect(nextDeadline(s.data)).toBeNull();
+    expect(tick(s, LONG_MS)).toEqual([]);
+    expect(view(s).turn?.playerId).toBe(bob);
+    expect(chatTexts(act(s, carol, skipNow(s)))).toEqual(["Carol stood Bob's hand."]);
+    expect(view(s).turn?.playerId).toBe(carol);
+    // Not waited on any more: not shown away.
+    expect(view(s).away).toEqual([]);
+  });
+
+  it('lets anyone deal now while the bets wait on a seat that went quiet, and only then', () => {
+    const s = table();
+    const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol']);
+    betAll(s, [alice, bob]);
+    expect(controls(s, bob).canDealNow).toBe(false);
+    idle(s, carol, 'Carol');
+    expect(view(s).away).toEqual([carol]);
+    expect(controls(s, bob).canDealNow).toBe(true);
+    idle(s, carol, 'Carol', false);
+    expect(view(s).away).toEqual([]);
+    expect(controls(s, bob).canDealNow).toBe(false);
+    idle(s, carol, 'Carol');
+    act(s, bob, { t: 'dealNow' });
+    expect(view(s)).toMatchObject({ phase: 'acting', order: [alice, bob] });
+  });
+
+  it('shows nobody away who is not being waited on', () => {
+    const s = table();
+    const [alice, bob] = startGame(s, ['Alice', 'Bob']);
+    act(s, alice, { t: 'bet', amount: 10 });
+    idle(s, alice, 'Alice');
+    expect(view(s).away).toEqual([]);
+    expect(view(s).waitingFor).toEqual([bob]);
   });
 });

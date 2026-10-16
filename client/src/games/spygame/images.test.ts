@@ -36,7 +36,7 @@ describe('location tiles', () => {
 
   it('keeps the spy choosing from 24 candidates whatever the pool size', () => {
     // The reference grid is laid out for 24 tiles; larger pools only change the decoys drawn, never the count.
-    expect(locationsForMode('unhinged').length).toBeGreaterThan(locationsForMode('family').length);
     expect(locationsForMode('family').length).toBeGreaterThanOrEqual(24);
+    expect(locationsForMode('unhinged').length).toBeGreaterThanOrEqual(70);
   });
 });

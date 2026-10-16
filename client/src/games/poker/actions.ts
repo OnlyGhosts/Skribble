@@ -1,29 +1,34 @@
-import type { PokerActions } from '@shared/games/poker/protocol';
+import type { PokerActions, PokerMoveTarget, PokerView } from '@shared/games/poker/protocol';
 import { socket } from '../../platform/net/socket';
 import { usePokerStore } from './store';
 
-function send(msg: Parameters<typeof socket.send>[0]): boolean {
-  const sent = socket.send(msg);
-  if (sent) usePokerStore.getState().newTurn();
-  return sent;
+/** What a move answers, as my screen has it: the hand and the latest move on the table. A tap that lands after the turn moved on does nothing. */
+export function moveTarget(view: PokerView): PokerMoveTarget {
+  return { hand: view.hand, move: view.lastMove?.seq ?? 0 };
 }
 
-export const fold = (): boolean => send({ t: 'fold' });
-export const check = (): boolean => send({ t: 'check' });
-export const call = (): boolean => send({ t: 'call' });
-export const allIn = (): boolean => send({ t: 'allIn' });
+/** Sends a move aimed at the turn on my screen, and holds the moves until the table answers. */
+function send(view: PokerView, msg: { t: 'fold' | 'check' | 'call' | 'allIn' } | { t: 'bet'; amount: number } | { t: 'raise'; to: number }): boolean {
+  const sent = socket.send({ ...msg, ...moveTarget(view) });
+  if (!sent) return false;
+  const store = usePokerStore.getState();
+  store.newTurn();
+  store.markPending(msg.t, view);
+  return true;
+}
+
+export const fold = (view: PokerView): boolean => send(view, { t: 'fold' });
+export const check = (view: PokerView): boolean => send(view, { t: 'check' });
+export const call = (view: PokerView): boolean => send(view, { t: 'call' });
+export const allIn = (view: PokerView): boolean => send(view, { t: 'allIn' });
 
 /**
  * The Bet / Raise button: a bet of `amount` when nobody has bet, a raise to `amount` otherwise;
  * the whole stack goes as an all in so a short stack never trips the minimum.
  */
-export function wager(actions: PokerActions, amount: number): boolean {
-  if (actions.canBet) return amount >= actions.maxBet ? allIn() : send({ t: 'bet', amount });
-  if (actions.canRaise) return amount >= actions.maxRaiseTo ? allIn() : send({ t: 'raise', to: amount });
+export function wager(view: PokerView, actions: PokerActions, amount: number): boolean {
+  if (actions.canBet) return amount >= actions.maxBet ? allIn(view) : send(view, { t: 'bet', amount });
+  if (actions.canRaise) return amount >= actions.maxRaiseTo ? allIn(view) : send(view, { t: 'raise', to: amount });
   return false;
 }
 
-/** Host only: ends the game now (a hand in progress is void, every stake goes back). */
-export function endGame(): void {
-  if (socket.send({ t: 'endGame' })) usePokerStore.getState().setConfirmEnd(false);
-}

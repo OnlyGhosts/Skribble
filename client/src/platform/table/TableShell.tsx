@@ -28,8 +28,6 @@ interface Props {
   players: ReactNode;
   sheet: TableSheet | null;
   onSheet(sheet: TableSheet | null): void;
-  /** The host's End game, in the menu sheet (phone) or the bar (desktop). */
-  endControl(variant: 'menu' | 'header'): ReactNode;
   table: ReactNode;
   panel: ReactNode;
 }
@@ -39,7 +37,7 @@ interface Props {
  * where every player is on the table), the table, and the control panel always in the same place:
  * docked under the table on a phone, in a left column on a desktop (table.css).
  */
-export function TableShell({ meta, className, testId, headerTestId, mainTestId, data, isPhone, status, statusTestId, statusData, room, players, sheet, onSheet, endControl, table, panel }: Props) {
+export function TableShell({ meta, className, testId, headerTestId, mainTestId, data, isPhone, status, statusTestId, statusData, room, players, sheet, onSheet, table, panel }: Props) {
   const closeSheet = () => onSheet(null);
   const style = { '--table-accent': meta.accent } as CSSProperties;
   return (
@@ -56,7 +54,6 @@ export function TableShell({ meta, className, testId, headerTestId, mainTestId, 
         players={{ open: sheet === 'players', onOpen: () => onSheet('players') }}
         compact={isPhone}
         menu={{ open: sheet === 'menu', onOpen: () => onSheet('menu') }}
-        actions={endControl('header')}
       />
 
       <main className="tbl__table" data-testid={mainTestId}>
@@ -70,11 +67,7 @@ export function TableShell({ meta, className, testId, headerTestId, mainTestId, 
       <BottomSheet open={sheet === 'players'} title={`Players (${room.players.length})`} onClose={closeSheet} testId="players-sheet">
         {players}
       </BottomSheet>
-      {isPhone && (
-        <GameMenuSheet open={sheet === 'menu'} onClose={closeSheet}>
-          {endControl('menu')}
-        </GameMenuSheet>
-      )}
+      {isPhone && <GameMenuSheet open={sheet === 'menu'} onClose={closeSheet} />}
     </div>
   );
 }

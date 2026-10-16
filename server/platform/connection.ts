@@ -1,9 +1,17 @@
 import { randomUUID } from 'node:crypto';
 import type { WebSocket } from 'ws';
-import { CHAT_RATE_LIMIT_COUNT, CHAT_RATE_LIMIT_WINDOW_MS } from '../../shared/platform/constants.js';
+import {
+  CHAT_RATE_LIMIT_COUNT,
+  CHAT_RATE_LIMIT_WINDOW_MS,
+  GAME_MESSAGE_RATE_LIMIT_PER_SECOND,
+  IDLE_AFTER_MS,
+  PLATFORM_RATE_LIMIT_COUNT,
+  PLATFORM_RATE_LIMIT_WINDOW_MS,
+} from '../../shared/platform/constants.js';
 import {
   CLOSE_REMOVED,
   CLOSE_REPLACED,
+  clientSeqOf,
   isPlatformMessageType,
   isWireMessage,
   platformClientMessageSchema,
@@ -16,16 +24,18 @@ import { RateLimiter } from './rateLimiter.js';
 import { systemClock, type Clock } from './transport.js';
 
 export const HEARTBEAT_INTERVAL_MS = 30_000;
-/** Game messages (draw batches, clicks, ...) above this rate per socket are dropped silently. */
-export const GAME_MESSAGE_RATE_LIMIT_PER_SECOND = 60;
 /**
  * Room create/join attempts per socket: each one can allocate a room (kept alive for a minute
  * after it is abandoned) or a seat, so a flood from one connection must be refused early.
  */
 export const ROOM_RATE_LIMIT_COUNT = 5;
 export const ROOM_RATE_LIMIT_WINDOW_MS = 10_000;
+/** How often a connection checks whether it has gone silent (see IDLE_AFTER_MS). */
+export const IDLE_CHECK_MS = 10_000;
 
 export { CLOSE_REMOVED, CLOSE_REPLACED };
+/** The per-socket limits live in shared/ so the client can pace a resend to them. */
+export { GAME_MESSAGE_RATE_LIMIT_PER_SECOND, PLATFORM_RATE_LIMIT_COUNT, PLATFORM_RATE_LIMIT_WINDOW_MS };
 export { SocketHub } from './drivers/socketHub.js';
 export type { SocketLike };
 
@@ -34,6 +44,8 @@ export interface ConnectionDeps {
   clock?: Clock;
   /** Overridable for tests; defaults to HEARTBEAT_INTERVAL_MS. */
   heartbeatMs?: number;
+  /** Overridable for tests; defaults to IDLE_AFTER_MS. */
+  idleAfterMs?: number;
   log?: (msg: string) => void;
 }
 
@@ -56,8 +68,14 @@ export function handleConnection(ws: SocketLike, deps: ConnectionDeps): string {
   const chatLimiter = new RateLimiter(CHAT_RATE_LIMIT_COUNT, CHAT_RATE_LIMIT_WINDOW_MS);
   const gameLimiter = new RateLimiter(GAME_MESSAGE_RATE_LIMIT_PER_SECOND, 1000);
   const roomLimiter = new RateLimiter(ROOM_RATE_LIMIT_COUNT, ROOM_RATE_LIMIT_WINDOW_MS);
+  const platformLimiter = new RateLimiter(PLATFORM_RATE_LIMIT_COUNT, PLATFORM_RATE_LIMIT_WINDOW_MS);
+  const idleAfterMs = deps.idleAfterMs ?? IDLE_AFTER_MS;
   let seat: Seat | null = null;
   let alive = true;
+  /** When the client last sent anything at all (its keep-alive ping included): a frozen phone sends nothing. */
+  let lastHeardAt = clock.now();
+  /** The room has been told this connection went silent. */
+  let idle = false;
 
   const reply = (msg: PlatformServerMessage): void => sendTo(ws, msg);
   const fail = (code: 'INVALID_MESSAGE' | 'NOT_ALLOWED' | 'RATE_LIMITED' | 'INTERNAL' | 'REJOIN_FAILED', message: string): void =>
@@ -83,6 +101,23 @@ export function handleConnection(ws: SocketLike, deps: ConnectionDeps): string {
     }
   }, deps.heartbeatMs ?? HEARTBEAT_INTERVAL_MS);
 
+  // A frozen or backgrounded tab still answers the socket's own pings (the browser does), but its
+  // page sends nothing: after a long silence the room shows the player idle.
+  const idleCheck = setInterval(() => {
+    const s = currentSeat();
+    if (!s || idle || clock.now() - lastHeardAt < idleAfterMs) return;
+    idle = true;
+    queue.push(() => driver.idle(s, connectionId, true));
+  }, Math.min(IDLE_CHECK_MS, idleAfterMs));
+
+  const heard = (): void => {
+    lastHeardAt = clock.now();
+    if (!idle) return;
+    idle = false;
+    const s = currentSeat();
+    if (s) queue.push(() => driver.idle(s, connectionId, false));
+  };
+
   /** Drops the current seat if its socket was replaced by a rejoin elsewhere. */
   const currentSeat = (): Seat | null => {
     if (seat && !driver.holds(seat, connectionId)) seat = null;
@@ -98,6 +133,7 @@ export function handleConnection(ws: SocketLike, deps: ConnectionDeps): string {
   const takeSeat = (result: SeatResult): void => {
     if (!result.ok) return reply({ t: 'error', code: result.code, message: result.message });
     seat = result.seat;
+    idle = false;
   };
 
   const handleSessionMessage = (msg: SessionMessage): MaybePromise<void> => {
@@ -133,8 +169,10 @@ export function handleConnection(ws: SocketLike, deps: ConnectionDeps): string {
   const handleRoomMessage = (inbound: RoomInbound): MaybePromise<void> => {
     const s = currentSeat();
     if (!s) return fail('NOT_ALLOWED', 'Join a room first.');
-    if (inbound.kind === 'platform' && inbound.msg.t === 'chat' && !chatLimiter.tryAcquire(clock.now())) {
-      return fail('RATE_LIMITED', 'You are sending messages too quickly.');
+    if (inbound.kind === 'platform' && inbound.msg.t === 'chat') {
+      if (!chatLimiter.tryAcquire(clock.now())) return fail('RATE_LIMITED', 'You are sending messages too quickly.');
+    } else if (inbound.kind === 'platform' && !platformLimiter.tryAcquire(clock.now())) {
+      return;
     }
     if (inbound.kind === 'game' && !gameLimiter.tryAcquire(clock.now())) return;
     return driver.handle(s, inbound);
@@ -156,9 +194,11 @@ export function handleConnection(ws: SocketLike, deps: ConnectionDeps): string {
       return fail('INVALID_MESSAGE', 'Messages must be JSON.');
     }
     if (!isWireMessage(parsed)) return fail('INVALID_MESSAGE', 'Messages need a string `t`.');
+    heard();
+    const seq = clientSeqOf(parsed);
     if (!isPlatformMessageType(parsed.t)) {
       const game = parsed;
-      queue.push(() => handleRoomMessage({ kind: 'game', msg: game }));
+      queue.push(() => handleRoomMessage({ kind: 'game', msg: game, seq }));
       return;
     }
     const result = platformClientMessageSchema.safeParse(parsed);
@@ -168,7 +208,7 @@ export function handleConnection(ws: SocketLike, deps: ConnectionDeps): string {
       return fail('INVALID_MESSAGE', `${issue?.message ?? 'Invalid message'}${where}`);
     }
     const msg = result.data;
-    queue.push(() => (isSessionMessage(msg) ? handleSessionMessage(msg) : handleRoomMessage({ kind: 'platform', msg })));
+    queue.push(() => (isSessionMessage(msg) ? handleSessionMessage(msg) : handleRoomMessage({ kind: 'platform', msg, seq })));
   });
 
   ws.on('error', (err) => {
@@ -177,6 +217,7 @@ export function handleConnection(ws: SocketLike, deps: ConnectionDeps): string {
 
   ws.on('close', () => {
     clearInterval(heartbeat);
+    clearInterval(idleCheck);
     // Queued, and the seat read only then: a join the driver was still answering has seated the socket by the time this runs.
     queue.push(() => {
       const s = seat;

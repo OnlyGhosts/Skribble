@@ -68,7 +68,9 @@ class FakeWebSocket {
 
 vi.stubGlobal('WebSocket', FakeWebSocket);
 
-const { GameSocket, PING_INTERVAL_MS, PONG_TIMEOUT_MS, PROBE_TIMEOUT_MS, LONG_LIVED_MS, SLOW_RECONNECT_MS, CLOSE_REPLACED } = await import('./socket');
+const { GameSocket, PING_INTERVAL_MS, PONG_TIMEOUT_MS, PROBE_TIMEOUT_MS, LONG_LIVED_MS, SLOW_RECONNECT_MS, CLOSE_REPLACED, CONNECT_TIMEOUT_MS, STALE_CONNECTING_MS, SEND_CHECK_MS, SLOW_PILL_MS, QUIET_PLAY_MS, SERVER_RESTARTED_TEXT } = await import('./socket');
+const { PACE_MARGIN_MS } = await import('./pacer');
+const { CHAT_RATE_LIMIT_COUNT, CHAT_RATE_LIMIT_WINDOW_MS } = await import('@shared/platform/constants');
 const { SEAT_KEY_PREFIX, loadSeat, loadSession, saveSeat } = await import('../lib/storage');
 const { usePlatformStore } = await import('../store/usePlatformStore');
 const { registerGames } = await import('../registry');
@@ -278,6 +280,9 @@ describe('reconnect timing', () => {
     expect(toasts).toEqual(['Connection lost. Reconnecting…']);
     const next = FakeWebSocket.latest();
     next.open();
+    // Open is not back yet: only the seat's welcome is.
+    expect(toasts).toEqual(['Connection lost. Reconnecting…']);
+    next.receive(welcome('bob', room(), 'tok-1'));
     expect(toasts).toEqual(['Connection lost. Reconnecting…', 'Reconnected']);
   });
 
@@ -358,16 +363,13 @@ describe('seat recovery from localStorage', () => {
     const { ws } = startSocket();
     ws.receive(welcome('bob', room(), 'tok-1'));
     const first = loadSeat('ABCD')?.savedAt ?? 0;
-    // Nothing but pings for a while: no snapshot comes during a long reveal or a quiet round.
-    vi.advanceTimersByTime(PING_INTERVAL_MS * 3);
-    ws.receive({ t: 'pong', serverTime: Date.now() });
+    // Nothing but pings and their pongs for a while: no snapshot comes during a long reveal or a quiet round.
+    keepAlive(ws, PING_INTERVAL_MS * 3);
     expect(loadSeat('ABCD')?.savedAt).toBe(first + PING_INTERVAL_MS * 3);
-    vi.advanceTimersByTime(PING_INTERVAL_MS);
-    ws.receive({ t: 'pong', serverTime: Date.now() });
+    keepAlive(ws, PING_INTERVAL_MS);
     // Still at most once a minute.
     expect(loadSeat('ABCD')?.savedAt).toBe(first + PING_INTERVAL_MS * 3);
-    vi.advanceTimersByTime(PING_INTERVAL_MS * 2);
-    ws.receive({ t: 'pong', serverTime: Date.now() });
+    keepAlive(ws, PING_INTERVAL_MS * 2);
     expect(loadSeat('ABCD')?.savedAt).toBe(first + PING_INTERVAL_MS * 6);
   });
 
@@ -478,5 +480,252 @@ describe('game module hooks', () => {
     ws.receive({ t: 'chat', message: chatLine(2) });
     expect(hooks.onServerMessage).not.toHaveBeenCalled();
     expect(hooks.onChat).not.toHaveBeenCalled();
+  });
+});
+
+describe('messages a dead link swallowed', () => {
+  const sentOf = (ws: FakeWebSocket) => ws.sent as unknown as Array<Record<string, unknown>>;
+
+  it('numbers room messages (not session ones) and sends again, after the rejoin, only those the room never applied', () => {
+    const { socket, ws } = startSocket();
+    ws.receive(welcome('bob', room(), 'tok-1'));
+    socket.send({ t: 'hit' });
+    socket.send({ t: 'chat', text: 'gg' });
+    socket.send({ t: 'draw', ops: [] }, { keep: false });
+    const out = sentOf(ws);
+    expect(out[0]).toEqual({ t: 'ping' });
+    expect(out.slice(1)).toEqual([{ t: 'hit', cs: 1 }, { t: 'chat', text: 'gg', cs: 2 }, { t: 'draw', ops: [] }]);
+    // The link was dead: the room only ever got the hit.
+    ws.drop(1006);
+    const next = reconnect();
+    expect(sentOf(next)).toContainEqual({ t: 'rejoin', code: 'ABCD', token: 'tok-1' });
+    next.receive({ ...welcome('bob', room(), 'tok-1'), seq: 1 });
+    expect(sentOf(next).slice(-1)).toEqual([{ t: 'chat', text: 'gg', cs: 2 }]);
+    // Numbering carries on above what the room has seen.
+    socket.send({ t: 'stand' });
+    expect(sentOf(next).at(-1)).toEqual({ t: 'stand', cs: 3 });
+  });
+
+  it('sends nothing again into another seat, and numbers on above what that seat has seen', () => {
+    const { socket, ws } = startSocket();
+    ws.receive(welcome('bob', room(), 'tok-1'));
+    socket.send({ t: 'hit' });
+    ws.receive({ ...welcome('carol', room({ code: 'WXYZ' }), 'tok-2'), seq: 40 });
+    expect(sentOf(ws).filter((m) => m.t === 'hit')).toHaveLength(1);
+    socket.send({ t: 'stand' });
+    expect(sentOf(ws).at(-1)).toEqual({ t: 'stand', cs: 41 });
+  });
+
+  it('probes after a send the server does not answer, shows the slow pill, then drops the socket', () => {
+    const { socket, ws } = startSocket();
+    ws.receive(welcome('bob', room(), 'tok-1'));
+    socket.send({ t: 'hit' });
+    vi.advanceTimersByTime(SEND_CHECK_MS - 1);
+    expect(types(ws).filter((t) => t === 'ping')).toHaveLength(1);
+    vi.advanceTimersByTime(1);
+    expect(types(ws).filter((t) => t === 'ping')).toHaveLength(2);
+    expect(usePlatformStore.getState().slow).toBe(false);
+    vi.advanceTimersByTime(SLOW_PILL_MS);
+    expect(usePlatformStore.getState().slow).toBe(true);
+    vi.advanceTimersByTime(PROBE_TIMEOUT_MS - SLOW_PILL_MS);
+    expect(ws.closeCalls).toBe(1);
+    expect(usePlatformStore.getState()).toMatchObject({ connection: 'reconnecting', slow: false });
+  });
+
+  it('counts any frame as a sign of life: an answer clears the check, and frames keep a socket whose pong is late', () => {
+    const { socket, ws } = startSocket();
+    ws.receive(welcome('bob', room(), 'tok-1'));
+    socket.send({ t: 'hit' });
+    ws.receive({ t: 'room', room: room() });
+    vi.advanceTimersByTime(SEND_CHECK_MS + SLOW_PILL_MS);
+    expect(types(ws).filter((t) => t === 'ping')).toHaveLength(1);
+    expect(usePlatformStore.getState().slow).toBe(false);
+    // The first ping's pong never came, but snapshots did: the socket is alive.
+    vi.advanceTimersByTime(PONG_TIMEOUT_MS - SEND_CHECK_MS - SLOW_PILL_MS);
+    expect(ws.closeCalls).toBe(0);
+  });
+
+  it('holds what is sent while the rejoin is in flight and sends it after what the room is missing, in order', () => {
+    const { socket, ws } = startSocket();
+    ws.receive(welcome('bob', room(), 'tok-1'));
+    socket.send({ t: 'hit' }); // 1: applied
+    socket.send({ t: 'ready', ready: true }); // 2 and 3: lost on the dead link
+    socket.send({ t: 'chat', text: 'gg' });
+    ws.drop(1006);
+    const next = reconnect();
+    // A tap while the rejoin is in flight: it must not reach the room before 2 and 3 do.
+    expect(socket.send({ t: 'stand' })).toBe(true);
+    expect(sentOf(next).map((m) => m.t)).toEqual(['ping', 'rejoin']);
+    next.receive({ ...welcome('bob', room(), 'tok-1'), seq: 1 });
+    expect(sentOf(next).slice(2)).toEqual([
+      { t: 'ready', ready: true, cs: 2 },
+      { t: 'chat', text: 'gg', cs: 3 },
+      { t: 'stand', cs: 4 },
+    ]);
+  });
+
+  it('sends what the game sends on the welcome (a queued bet) after what the outage held back', () => {
+    const { socket, ws } = startSocket();
+    const hooks = spyModule();
+    ws.receive(welcome('bob', room(), 'tok-1'));
+    socket.send({ t: 'hit' });
+    ws.drop(1006);
+    const next = reconnect();
+    hooks.onRoom.mockImplementation(() => void socket.send({ t: 'bet', amount: 10 }));
+    next.receive({ ...welcome('bob', room(), 'tok-1'), seq: 0 });
+    expect(sentOf(next).slice(2)).toEqual([{ t: 'hit', cs: 1 }, { t: 'bet', amount: 10, cs: 2 }]);
+  });
+
+  it('paces a resend to the server’s limits, so none of it is refused, and keeps later sends behind it', () => {
+    const { socket, ws } = startSocket();
+    ws.receive(welcome('bob', room(), 'tok-1'));
+    const guesses = CHAT_RATE_LIMIT_COUNT + 2;
+    for (let i = 0; i < guesses; i++) {
+      socket.send({ t: 'chat', text: `guess ${i}` });
+      vi.advanceTimersByTime(1000); // typed at a normal pace, into a dead link
+      ws.receive({ t: 'pong', serverTime: Date.now() });
+    }
+    ws.drop(1006);
+    const next = reconnect();
+    next.receive({ ...welcome('bob', room(), 'tok-1'), seq: 0 });
+    const chats = () => sentOf(next).filter((m) => m.t === 'chat');
+    expect(chats()).toHaveLength(CHAT_RATE_LIMIT_COUNT);
+    socket.send({ t: 'hit' });
+    expect(sentOf(next).at(-1)?.t).toBe('chat');
+    vi.advanceTimersByTime(CHAT_RATE_LIMIT_WINDOW_MS + PACE_MARGIN_MS);
+    expect(chats().map((m) => m.cs)).toEqual(Array.from({ length: guesses }, (_, i) => i + 1));
+    expect(sentOf(next).at(-1)).toEqual({ t: 'hit', cs: guesses + 1 });
+    // Once the backlog is out, sends go straight to the wire again.
+    socket.send({ t: 'stand' });
+    expect(sentOf(next).at(-1)).toEqual({ t: 'stand', cs: guesses + 2 });
+  });
+
+  it('drops a dead socket within a probe of the first unanswered send, however often the player keeps tapping', () => {
+    const { socket, ws } = startSocket();
+    ws.receive(welcome('bob', room(), 'tok-1'));
+    ws.receive({ t: 'pong', serverTime: Date.now() });
+    // A stroke every 2 s into a link that answers nothing.
+    for (let t = 0; t < SEND_CHECK_MS + PROBE_TIMEOUT_MS; t += 500) {
+      if (t % 2000 === 0) socket.send({ t: 'draw', ops: [] }, { keep: false });
+      vi.advanceTimersByTime(500);
+    }
+    expect(ws.closeCalls).toBe(1);
+  });
+
+  it('probes a link that goes quiet during a game, and leaves a quiet lobby to the keep-alive', () => {
+    const { ws } = startSocket();
+    ws.receive(welcome('bob', room({ phase: 'playing' }), 'tok-1'));
+    ws.receive({ t: 'pong', serverTime: Date.now() });
+    // The turn came, then the link went silent: nothing for this phone to send.
+    vi.advanceTimersByTime(QUIET_PLAY_MS + PROBE_TIMEOUT_MS + 1000);
+    expect(ws.closeCalls).toBe(1);
+
+    const next = reconnect();
+    next.receive(welcome('bob', room(), 'tok-1'));
+    next.receive({ t: 'pong', serverTime: Date.now() });
+    vi.advanceTimersByTime(PING_INTERVAL_MS - 1);
+    expect(types(next).filter((t) => t === 'ping')).toHaveLength(1);
+    expect(next.closeCalls).toBe(0);
+  });
+
+  it('gives up an open socket at once when the network goes offline, and listens to it no more', () => {
+    const { ws } = startSocket();
+    ws.receive(welcome('bob', room(), 'tok-1'));
+    fireEvent('window', 'offline');
+    expect(usePlatformStore.getState().connection).toBe('reconnecting');
+    ws.receive({ t: 'room', room: room({ phase: 'playing' }) });
+    expect(usePlatformStore.getState().room?.phase).toBe('lobby');
+  });
+});
+
+describe('a handshake that hangs', () => {
+  it('gives up on a socket still connecting after CONNECT_TIMEOUT_MS and tries again', () => {
+    const socket = new GameSocket();
+    socket.start();
+    const first = FakeWebSocket.latest();
+    vi.advanceTimersByTime(CONNECT_TIMEOUT_MS - 1);
+    expect(usePlatformStore.getState().connection).toBe('connecting');
+    const before = FakeWebSocket.instances.length;
+    vi.advanceTimersByTime(1);
+    // Closed, not only forgotten: a browser opens one socket per host at a time, so every new
+    // attempt would queue behind a handshake left hanging.
+    expect(first.closeCalls).toBe(1);
+    vi.advanceTimersByTime(10_000);
+    expect(FakeWebSocket.instances.length).toBeGreaterThan(before);
+    // Should it open after all, it is not ours any more.
+    first.open();
+    expect(first.closeCalls).toBe(2);
+    expect(FakeWebSocket.latest()).not.toBe(first);
+  });
+
+  it('replaces a socket stuck connecting when the page wakes up or the network comes back', () => {
+    const { ws } = startSocket();
+    ws.drop(1006);
+    vi.advanceTimersByTime(1_000);
+    const stuck = FakeWebSocket.latest();
+    expect(stuck).not.toBe(ws);
+    fireEvent('window', 'online');
+    // Too fresh to give up on.
+    expect(stuck.closeCalls).toBe(0);
+    vi.advanceTimersByTime(STALE_CONNECTING_MS);
+    const before = FakeWebSocket.instances.length;
+    fireEvent('window', 'online');
+    // A fresh attempt starts at once (sockets of earlier tests listen to the same window, hence at least one).
+    expect(FakeWebSocket.instances.length).toBeGreaterThan(before);
+    // The stuck handshake is closed, so the new one is not queued behind it.
+    expect(stuck.closeCalls).toBe(1);
+  });
+});
+
+describe('a server restart', () => {
+  it('says the server restarted when the rejoin after a dropped connection finds no room', () => {
+    const toasts = recordToasts();
+    const { ws } = startSocket();
+    ws.receive(welcome('bob', room(), 'tok-1'));
+    ws.drop(1006);
+    const next = reconnect();
+    next.receive({ t: 'error', code: 'REJOIN_FAILED', message: 'No room with code ABCD exists.' });
+    expect(toasts).toContain(SERVER_RESTARTED_TEXT);
+    expect(toasts.some((t) => t.includes('No room'))).toBe(false);
+    expect(usePlatformStore.getState().room).toBeNull();
+    expect(loadSeat('ABCD')).toBeNull();
+  });
+
+  it('still says why when the seat was taken away (a kick), or when nothing dropped', () => {
+    const toasts = recordToasts();
+    const { ws } = startSocket();
+    ws.receive(welcome('bob', room(), 'tok-1'));
+    ws.drop(1006);
+    const next = reconnect();
+    next.receive({ t: 'error', code: 'REJOIN_FAILED', message: 'You were removed from this room.' });
+    expect(toasts).not.toContain(SERVER_RESTARTED_TEXT);
+    expect(toasts.at(-1)).toMatch(/removed/);
+  });
+});
+
+describe('typing the code of a room this phone holds a seat in', () => {
+  const joinRequest = { t: 'join', code: 'abcd', name: 'Bob', avatar: { color: 0, emoji: 0 } } as const;
+
+  it('goes back into the seat instead of taking a second one', () => {
+    saveSeat({ code: 'ABCD', token: 'tok-old', playerId: 'bob', savedAt: Date.now() });
+    const { socket, ws } = startSocket();
+    expect(socket.resumeOrJoin({ code: 'ABCD', token: 'tok-old' }, joinRequest)).toBe(true);
+    expect(ws.sent.at(-1)).toEqual({ t: 'rejoin', code: 'ABCD', token: 'tok-old' });
+    ws.receive(welcome('bob', room(), 'tok-new'));
+    expect(usePlatformStore.getState().room?.code).toBe('ABCD');
+    expect(ws.sent.filter((m) => m.t === 'join')).toEqual([]);
+  });
+
+  it('joins as a newcomer when the seat is gone, without a rejoin error on screen', () => {
+    const toasts = recordToasts();
+    saveSeat({ code: 'ABCD', token: 'tok-old', playerId: 'bob', savedAt: Date.now() });
+    const { socket, ws } = startSocket();
+    usePlatformStore.getState().beginJoin(joinRequest);
+    socket.resumeOrJoin({ code: 'ABCD', token: 'tok-old' }, joinRequest);
+    ws.receive({ t: 'error', code: 'REJOIN_FAILED', message: 'Your seat in this room has expired.' });
+    expect(ws.sent.at(-1)).toEqual(joinRequest);
+    expect(loadSeat('ABCD')).toBeNull();
+    expect(usePlatformStore.getState().joinPending).toBe(true);
+    expect(toasts).toEqual([]);
   });
 });

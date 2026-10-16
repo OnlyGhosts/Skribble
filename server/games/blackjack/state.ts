@@ -51,7 +51,7 @@ export type PhaseData =
   | { kind: 'results'; endsAt: number }
   /** The next round waits for a player still in the game to reconnect; resumeAt is the settle once one is back. */
   | { kind: 'held'; resumeAt: number | null }
-  /** The final table stays on show until endsAt, then the podium. */
+  /** The final table stays on show until endsAt, then the results. */
   | { kind: 'ending'; endsAt: number }
   | { kind: 'gameOver' };
 
@@ -79,6 +79,11 @@ export interface Gx {
   ctx: Ctx;
   data: BlackjackData;
   effects: Effect[];
+  /**
+   * How long the phones spend showing this event's own cards (a hit's card sliding in, a whole
+   * deal) before a dealer's reveal in the same event can start; a settle waits for it too.
+   */
+  leadMs?: number;
 }
 
 export const MIN_PLAYERS = gameById('blackjack').minPlayers;
@@ -156,26 +161,45 @@ export function canSitOut(data: BlackjackData, playerId: string): boolean {
   return data.phase.kind === 'betting' && seat !== undefined && data.order.includes(playerId) && seat.chips > 0 && seat.bet === 0 && !seat.sittingOut;
 }
 
+/** Cards the player holds across their hands this round: a move names it, so a stale second tap can be told apart. */
+export function cardsHeld(data: BlackjackData, playerId: string): number {
+  return (data.seats[playerId]?.hands ?? []).reduce((sum, hand) => sum + hand.cards.length, 0);
+}
+
+/** The seats the table waits on right now: the player of the hand in play, or the seats still to bet. */
+function waitedOn(ctx: Pick<Ctx, 'players'>, data: BlackjackData): string[] {
+  if (data.phase.kind === 'betting') return waitingFor(ctx, data);
+  return data.phase.kind === 'acting' ? [data.phase.playerId] : [];
+}
+
+/**
+ * The seats the table waits on whose phone has gone quiet (the platform marks a connection idle
+ * after a long silence: asleep, frozen, in the background). Blackjack has no clock, so nothing is
+ * played for them; instead everyone may Skip or Deal now for them.
+ */
+export function awaySeats(ctx: Pick<Ctx, 'players'>, data: BlackjackData): string[] {
+  return waitedOn(ctx, data).filter((id) => findPlayer(ctx, id)?.idle === true);
+}
+
 /**
  * The host deals and skips. When the host is the one holding the table up (connected but idle with
- * no bet down, or on their own turn) every other player gets the same control, so an idle host
- * never stalls a table that has no clocks.
+ * no bet down, or on their own turn), or the table waits on a seat that is away, every other
+ * player gets the same control, so nobody idle ever stalls a table that has no clocks.
  */
-function hostIsWaitedOn(ctx: Pick<Ctx, 'players' | 'hostId'>, data: BlackjackData): boolean {
-  if (data.phase.kind === 'betting') return waitingFor(ctx, data).includes(ctx.hostId);
-  return data.phase.kind === 'acting' && data.phase.playerId === ctx.hostId;
+function othersMayAct(ctx: Pick<Ctx, 'players' | 'hostId'>, data: BlackjackData): boolean {
+  return waitedOn(ctx, data).includes(ctx.hostId) || awaySeats(ctx, data).length > 0;
 }
 
-/** Whether `viewerId` may deal now: during betting with a bet down, the host (or anyone, while the table waits on the host). */
+/** Whether `viewerId` may deal now: during betting with a bet down, the host (or anyone, while the table waits on the host or on a seat that is away). */
 export function canDealNow(ctx: Pick<Ctx, 'players' | 'hostId'>, data: BlackjackData, viewerId: string): boolean {
   if (data.phase.kind !== 'betting' || !anyBetDown(data) || viewerId === '') return false;
-  return viewerId === ctx.hostId || (findPlayer(ctx, viewerId) !== undefined && hostIsWaitedOn(ctx, data));
+  return viewerId === ctx.hostId || (findPlayer(ctx, viewerId) !== undefined && othersMayAct(ctx, data));
 }
 
-/** Whether `viewerId` may stand the hand in play: someone else's turn, and the host (or anyone, on the host's own turn). */
+/** Whether `viewerId` may stand the hand in play: someone else's turn, and the host (or anyone, on the host's own turn or an away player's). */
 export function canSkip(ctx: Pick<Ctx, 'players' | 'hostId'>, data: BlackjackData, viewerId: string): boolean {
   if (data.phase.kind !== 'acting' || data.phase.playerId === viewerId || viewerId === '') return false;
-  return viewerId === ctx.hostId || (findPlayer(ctx, viewerId) !== undefined && hostIsWaitedOn(ctx, data));
+  return viewerId === ctx.hostId || (findPlayer(ctx, viewerId) !== undefined && othersMayAct(ctx, data));
 }
 
 /** The viewer's table controls: sitting out, Deal now and Skip. */

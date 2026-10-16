@@ -1,24 +1,52 @@
 /**
- * Extra Spy Game locations for an Unhinged room, in two tiers: 'cheeky' (rude but harmless) and
- * 'unhinged' (explicit 18+ places: sex, drink and drugs, bodily fluids, death). Ids double as image
- * file names (client/src/games/spygame/assets/locations); re-run scripts/spygame-location-images.mjs
- * after editing. The pool for a mode is built in ./locations.ts (locationsForMode).
+ * The Spy Game's adult locations, in two tiers: 'cheeky' (rude but harmless: booze, nudity,
+ * embarrassment) and 'unhinged' (explicit 18+ places: sex, drink and drugs, bodily fluids, death).
+ * Together they are the whole pool of an Unhinged room, without the family pack, so every place
+ * here is adult and one a group could plausibly be in together. Ids are kebab-case letters only and
+ * double as image file names (client/src/games/spygame/assets/locations); re-run
+ * scripts/spygame-location-images.mjs after editing. The pool for a mode is built in ./locations.ts
+ * (locationsForMode).
  */
 import type { SpyLocation } from './locations.js';
 
 export const CHEEKY_LOCATIONS: readonly SpyLocation[] = [
-  { id: 'tattoo-parlour', name: 'Tattoo Parlour', emoji: '🪡', hue: 330 },
-  { id: 'nightclub', name: 'Nightclub', emoji: '🪩', hue: 280 },
+  { id: 'intimate-piercing-studio', name: 'Intimate Piercing Studio', emoji: '🧷', hue: 330 },
+  { id: 'sticky-floor-nightclub', name: 'Sticky-Floor Nightclub', emoji: '🪩', hue: 280 },
   { id: 'stag-party', name: 'Stag Party', emoji: '🍻', hue: 40 },
   { id: 'hen-party', name: 'Hen Party', emoji: '💃', hue: 320 },
   { id: 'nudist-beach', name: 'Nudist Beach', emoji: '🩲', hue: 190 },
   { id: 'hot-tub-party', name: 'Hot Tub Party', emoji: '🛁', hue: 200 },
   { id: 'waxing-salon', name: 'Waxing Salon', emoji: '🪒', hue: 350 },
-  { id: 'speed-dating', name: 'Speed Dating', emoji: '💘', hue: 340 },
-  { id: 'karaoke-bar', name: 'Karaoke Bar', emoji: '🎤', hue: 260 },
-  { id: 'tinder-date', name: 'First Tinder Date', emoji: '🔥', hue: 10 },
+  { id: 'naked-speed-dating', name: 'Naked Speed Dating', emoji: '💘', hue: 340 },
+  { id: 'topless-karaoke-night', name: 'Topless Karaoke Night', emoji: '🎤', hue: 260 },
+  { id: 'erotic-bakery', name: 'Erotic Bakery', emoji: '🧁', hue: 20 },
   { id: 'wedding-after-party', name: 'Wedding After-Party', emoji: '🥂', hue: 50 },
   { id: 'strip-poker-night', name: 'Strip Poker Night', emoji: '🃏', hue: 0 },
+  { id: 'pub-lock-in', name: 'Pub Lock-In', emoji: '🍺', hue: 38 },
+  { id: 'office-christmas-party', name: 'Office Christmas Party', emoji: '🎄', hue: 130 },
+  { id: 'bottomless-brunch', name: 'Bottomless Brunch', emoji: '🍾', hue: 52 },
+  { id: 'pub-crawl', name: 'Pub Crawl', emoji: '🥴', hue: 28 },
+  { id: 'lads-holiday-villa', name: "Lads' Holiday Villa", emoji: '🌴', hue: 175 },
+  { id: 'booze-cruise', name: 'Booze Cruise', emoji: '🚢', hue: 205 },
+  { id: 'beer-festival', name: 'Beer Festival', emoji: '🥨', hue: 44 },
+  { id: 'divorce-party', name: 'Divorce Party', emoji: '💔', hue: 345 },
+  { id: 'burlesque-show', name: 'Burlesque Show', emoji: '💋', hue: 338 },
+  { id: 'lingerie-shop', name: 'Lingerie Shop', emoji: '👙', hue: 328 },
+  { id: 'naked-sauna', name: 'Naked Sauna', emoji: '🧖', hue: 20 },
+  { id: 'night-bus-home', name: 'Night Bus Home', emoji: '🚌', hue: 235 },
+  { id: 'student-house-party', name: 'Student House Party', emoji: '🎉', hue: 100 },
+  { id: 'naked-butler-party', name: 'Naked Butler Party', emoji: '🤵', hue: 210 },
+  { id: 'pole-dancing-class', name: 'Pole Dancing Class', emoji: '🩰', hue: 316 },
+  { id: 'erotic-art-gallery', name: 'Erotic Art Gallery', emoji: '🎨', hue: 15 },
+  { id: 'nude-life-drawing-class', name: 'Nude Life Drawing Class', emoji: '✏️', hue: 55 },
+  { id: 'naked-wedding', name: 'Naked Wedding', emoji: '💍', hue: 0 },
+  { id: 'foam-party', name: 'Foam Party', emoji: '🫧', hue: 185 },
+  { id: 'adults-only-holiday-camp', name: 'Adults-Only Holiday Camp', emoji: '🍹', hue: 165 },
+  { id: 'boob-job-recovery-ward', name: 'Boob Job Recovery Ward', emoji: '🩹', hue: 348 },
+  { id: 'naked-bike-ride', name: 'Naked Bike Ride', emoji: '🚲', hue: 140 },
+  { id: 'funeral-limo', name: 'Funeral Limo', emoji: '🚘', hue: 250 },
+  { id: 'colonic-clinic', name: 'Colonic Clinic', emoji: '🚿', hue: 160 },
+  { id: 'piss-up-in-a-brewery', name: 'Piss-Up in a Brewery', emoji: '🍻', hue: 32 },
 ];
 
 export const UNHINGED_LOCATIONS: readonly SpyLocation[] = [
@@ -46,4 +74,26 @@ export const UNHINGED_LOCATIONS: readonly SpyLocation[] = [
   { id: 'vasectomy-clinic', name: 'Vasectomy Clinic', emoji: '✂️', hue: 262 },
   { id: 'embalming-room', name: 'Embalming Room', emoji: '⚰️', hue: 272 },
   { id: 'rave-toilet-cubicle', name: 'Toilets at a Rave', emoji: '💊', hue: 282 },
+  { id: 'sex-toy-factory', name: 'Sex Toy Factory', emoji: '🏭', hue: 315 },
+  { id: 'soho-peep-show', name: 'Soho Peep Show', emoji: '👀', hue: 300 },
+  { id: 'drug-den', name: 'Drug Den', emoji: '💉', hue: 95 },
+  { id: 'loft-cannabis-farm', name: 'Loft Cannabis Farm', emoji: '🌿', hue: 120 },
+  { id: 'happy-ending-massage', name: 'Happy-Ending Massage', emoji: '💆', hue: 300 },
+  { id: 'paternity-test-tv-show', name: 'Paternity Test TV Show', emoji: '📺', hue: 50 },
+  { id: 'roman-themed-orgy', name: 'Roman-Themed Orgy', emoji: '🍇', hue: 285 },
+  { id: 'spanking-workshop', name: 'Spanking Workshop', emoji: '🍑', hue: 5 },
+  { id: 'sex-addicts-meeting', name: "Sex Addicts' Meeting", emoji: '☕', hue: 22 },
+  { id: 'adult-film-awards', name: 'Adult Film Awards', emoji: '🏆', hue: 46 },
+  { id: 'tantric-sex-workshop', name: 'Tantric Sex Workshop', emoji: '🧘', hue: 268 },
+  { id: 'shroom-trip-in-a-field', name: 'Shroom Trip in a Field', emoji: '🍄', hue: 85 },
+  { id: 'ket-afterparty', name: 'Ket Afterparty', emoji: '🐴', hue: 255 },
+  { id: 'masked-sex-party', name: 'Masked Sex Party', emoji: '🎭', hue: 270 },
+  { id: 'nudist-funeral', name: 'Nudist Funeral', emoji: '🌹', hue: 355 },
+  { id: 'viagra-clinical-trial', name: 'Viagra Clinical Trial', emoji: '📋', hue: 205 },
+  { id: 'love-hotel', name: 'Love Hotel', emoji: '🏩', hue: 335 },
+  { id: 'ayahuasca-retreat', name: 'Ayahuasca Retreat', emoji: '🌀', hue: 150 },
+  { id: 'norovirus-coach-trip', name: 'Norovirus Coach Trip', emoji: '🤢', hue: 90 },
+  { id: 'hotboxed-car', name: 'Hotboxed Car', emoji: '💨', hue: 100 },
+  { id: 'seedy-adult-cinema', name: 'Seedy Adult Cinema', emoji: '🎞️', hue: 280 },
+  { id: 'dirty-weekend-bnb', name: 'Dirty Weekend B&B', emoji: '🧳', hue: 25 },
 ];

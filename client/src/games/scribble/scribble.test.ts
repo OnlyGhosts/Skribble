@@ -149,7 +149,7 @@ describe('drawing through an outage', () => {
     expect(sent).toEqual([]);
     open.value = true;
     enter(turn());
-    canvas().appendOps(queue.resumeOfflineOps(myDrawingTurn(platform())));
+    canvas().appendOps(queue.resume(myDrawingTurn(platform()), []));
     expect(sent).toEqual([{ t: 'draw', ops }]);
     expect(canvas().canvas).toHaveLength(1);
     vi.useRealTimers();
@@ -164,9 +164,57 @@ describe('drawing through an outage', () => {
     open.value = true;
     const next = inTurn(drawingPhase('host'), { turn: 2 });
     enter(next);
-    expect(queue.resumeOfflineOps(myDrawingTurn(platform()))).toEqual([]);
+    expect(queue.resume(myDrawingTurn(platform()), [])).toEqual([]);
     expect(sent).toEqual([]);
     expect(canvas().canvas).toHaveLength(0);
+  });
+
+  it('sends again what went out on a dead socket and never reached the server, and only that', () => {
+    vi.useFakeTimers();
+    // The socket looks open the whole time: the ops are sent, but the link was dead.
+    const { queue, sent } = queueFor({ value: true });
+    enter(turn());
+    const second: DrawOp[] = [
+      { k: 'start', id: 1, tool: 'brush', color: '#ff0000', size: 6, x: 5, y: 5 },
+      { k: 'move', id: 1, pts: [6, 6, 7, 7, 8, 8] },
+      { k: 'end', id: 1 },
+    ];
+    queue.queue([...ops, ...second, { k: 'fill', x: 1, y: 2, color: '#00ff00' }]);
+    queue.flush();
+    expect(sent).toHaveLength(1);
+    // The welcome's canvas has stroke 0 whole and stroke 1 cut after its first move point.
+    const history: CanvasAction[] = [
+      { kind: 'stroke', id: 0, tool: 'brush', color: '#000000', size: 6, points: [1, 1, 2, 2, 3, 3], done: true },
+      { kind: 'stroke', id: 1, tool: 'brush', color: '#ff0000', size: 6, points: [5, 5, 6, 6] },
+    ];
+    enter(turn());
+    const restored = queue.resume(myDrawingTurn(platform()), history);
+    expect(restored).toEqual([{ k: 'move', id: 1, pts: [7, 7, 8, 8] }, { k: 'end', id: 1 }, { k: 'fill', x: 1, y: 2, color: '#00ff00' }]);
+    expect(sent.at(-1)).toEqual({ t: 'draw', ops: restored });
+    // Nothing missing: nothing sent.
+    const whole: CanvasAction[] = [
+      history[0],
+      { kind: 'stroke', id: 1, tool: 'brush', color: '#ff0000', size: 6, points: [5, 5, 6, 6, 7, 7, 8, 8], done: true },
+      { kind: 'fill', x: 1, y: 2, color: '#00ff00' },
+    ];
+    const full = queue.resume(myDrawingTurn(platform()), whole);
+    expect(full).toEqual([]);
+    vi.useRealTimers();
+  });
+
+  it('forgets an undone or cleared stroke: it is never brought back after a rejoin', () => {
+    vi.useFakeTimers();
+    const { queue } = queueFor({ value: true });
+    enter(turn());
+    queue.queue(ops);
+    queue.flush();
+    queue.undone();
+    expect(queue.resume(myDrawingTurn(platform()), [])).toEqual([]);
+    queue.queue(ops);
+    queue.flush();
+    queue.cleared();
+    expect(queue.resume(myDrawingTurn(platform()), [])).toEqual([]);
+    vi.useRealTimers();
   });
 
   it('merges consecutive move ops of one stroke into one message', () => {

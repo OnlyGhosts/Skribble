@@ -21,7 +21,7 @@ function pieceStyle(i: number): CSSProperties {
   return style as CSSProperties;
 }
 
-/** A brief burst of paper for the podium, pure CSS; never blocks taps, and none at all under prefers-reduced-motion. */
+/** A brief burst of paper for the results, pure CSS; never blocks taps, and none at all under prefers-reduced-motion. */
 export function Confetti() {
   return (
     <div className="confetti" aria-hidden="true" data-testid="confetti">

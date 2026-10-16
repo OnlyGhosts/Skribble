@@ -2,7 +2,7 @@
  * Click Race: the template game module. Copy this folder to start a new game. A module is a pure
  * reducer: `start` builds the initial state, `handle` folds one event into it and returns the
  * next state plus effects, `nextDeadline` tells the platform when to tick, `view` renders what
- * one player may see. The platform owns everything else (seats, chat, scores, podium, lobby).
+ * one player may see. The platform owns everything else (seats, chat, scores, results, lobby).
  */
 import {
   DEFAULT_TEMPLATE_SETTINGS,
@@ -55,7 +55,7 @@ function click(ctx: GameCtx<TemplateSettings>, data: TemplateData, playerId: str
   return { data: next, effects: [{ type: 'snapshot', to: 'all' }] };
 }
 
-/** Ends the race: the winner (if any) takes the bonus, everyone else scores their clicks; the platform builds the podium. */
+/** Ends the race: the winner (if any) takes the bonus, everyone else scores their clicks; the platform builds the results. */
 function finish(ctx: GameCtx<TemplateSettings>, data: TemplateData, winnerId: string | null): Result {
   const effects: Effect[] = [];
   for (const p of ctx.players) {
@@ -82,4 +82,6 @@ export const templateModule: GameServerModule<TemplateSettings, TemplateData, Te
   handle,
   nextDeadline,
   view,
+  // The host's End game scores the clicks so far, as the clock running out would.
+  end: (ctx, data) => (data.over ? { data, effects: [] } : finish(ctx, data, null)),
 };

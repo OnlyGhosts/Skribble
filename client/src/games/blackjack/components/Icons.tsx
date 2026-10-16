@@ -1,1 +1,1 @@
-export { CardsIcon, OutIcon, StarIcon, StopIcon } from '../../../platform/table/Icons';
+export { CardsIcon, OutIcon, StarIcon } from '../../../platform/table/Icons';

@@ -1,7 +1,7 @@
 /**
  * Click Race: the template game. Copy this file for a new game and replace the settings,
  * messages and view. Everything a game needs on the wire lives here; the platform handles rooms,
- * seats, chat, scores and the podium.
+ * seats, chat, scores and the results.
  */
 import { z } from 'zod';
 import type { RoomState } from '../../platform/protocol.js';

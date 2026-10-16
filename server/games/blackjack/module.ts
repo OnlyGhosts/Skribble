@@ -66,30 +66,29 @@ function handle(ctx: Ctx, data: BlackjackData, event: GameEvent<BlackjackClientM
 function onMessage(gx: Gx, playerId: string, msg: BlackjackClientMessage): void {
   switch (msg.t) {
     case 'bet':
-      return bet(gx, playerId, msg.amount);
+      return bet(gx, playerId, msg.amount, msg.round);
     case 'hit':
-      return hit(gx, playerId);
+      return hit(gx, playerId, msg);
     case 'stand':
-      return stand(gx, playerId);
+      return stand(gx, playerId, msg);
     case 'double':
-      return double(gx, playerId);
+      return double(gx, playerId, msg);
     case 'split':
-      return split(gx, playerId);
+      return split(gx, playerId, msg);
     case 'sitOutHand':
-      return sitOut(gx, playerId);
+      return sitOut(gx, playerId, msg.round);
     case 'dealNow':
-      return dealNow(gx, playerId);
+      return dealNow(gx, playerId, msg.round);
     case 'skip':
       return skip(gx, playerId, msg);
-    case 'endGame':
-      return endGame(gx, playerId);
   }
 }
 
 /**
- * Nothing waits on a player who is away: the deal stops waiting for their bet (with no bet down
- * and nobody connected the table holds), and their hand in play stands at once. A reconnect only
- * matters to a hold; they play their next hand as usual.
+ * Nothing waits on a player who is away (the platform tells the game a few seconds after the
+ * drop, so a blink costs nothing): the deal stops waiting for their bet (with no bet down and
+ * nobody connected the table holds), and their hand in play stands. A reconnect only matters to a
+ * hold; they play their next hand as usual.
  */
 function onConnectionChange(gx: Gx, playerId: string): void {
   switch (gx.data.phase.kind) {
@@ -166,7 +165,8 @@ export const blackjackModule: GameServerModule<BlackjackSettings, BlackjackData,
   handle,
   nextDeadline,
   view: viewFor,
-  hostMessages: new Set(['endGame', 'dealNow', 'skip']),
+  hostMessages: new Set(['dealNow', 'skip']),
+  end: (ctx, data) => withDraft(data, (draft, effects) => endGame({ ctx, data: draft, effects })),
 };
 
 export type { BlackjackData };

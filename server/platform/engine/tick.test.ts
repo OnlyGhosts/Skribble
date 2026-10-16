@@ -8,7 +8,7 @@ import { canDraw, type ScribbleData } from '../../games/scribble/state.js';
 import type { Effect } from './effects.js';
 import { applyAction } from './reduce.js';
 import { nextDeadline, pendingDeadlines } from './time.js';
-import { Ids, START, chatTexts, ctxAt, sim, startGame } from './testHarness.js';
+import { Ids, START, chatTexts, ctxAt, sim, standings, startGame } from './testHarness.js';
 import { viewFor } from './view.js';
 
 /** The Scribble phases a player saw, in order, from the snapshot effects. */
@@ -59,8 +59,8 @@ describe('tick', () => {
     // Far enough ahead the game finishes and nothing is scheduled any more.
     s.now += 10 * 60_000;
     s.tick();
-    expect(s.data.phase).toBe('ended');
-    expect(game(s).phase.kind).toBe('gameOver');
+    expect(s.data.phase).toBe('lobby');
+    expect(s.data.game).toBeNull();
     expect(nextDeadline(s.data)).toBeNull();
     expect(s.tick()).toEqual([]);
   });
@@ -75,7 +75,7 @@ describe('tick', () => {
 
     // A dropped socket schedules nothing of the platform's own beyond the seat expiry: the turn runs its course.
     const dropAt = s.now;
-    s.apply({ type: 'connectionClosed', playerId: bob, connectionId: 'conn-Bob' });
+    s.drop(bob, 'conn-Bob');
     expect(s.data.phase).toBe('playing');
     expect(pendingDeadlines(s.data).map((d) => d.kind)).toEqual(['game', 'reconnectExpiry']);
     s.now = dropAt + SCRIBBLE_DRAW_SECONDS * 1000;
@@ -97,7 +97,7 @@ describe('tick', () => {
     s.now = dropAt + RECONNECT_GRACE_MS;
     const expiry = s.tick();
     expect(s.data.players.map((p) => p.id)).toEqual([alice]);
-    expect(chatTexts(expiry)).toEqual(['Bob left', 'Not enough players. Back to the lobby.']);
+    expect(chatTexts(expiry)).toEqual(['Bob left', 'Not enough players to go on.', 'Game over!']);
     expect(s.data).toMatchObject({ phase: 'lobby', game: null, waiting: null });
     expect(viewFor(s.data, alice, s.now).waiting).toBeNull();
     expect(nextDeadline(s.data)).toBeNull();
@@ -117,8 +117,8 @@ describe('tick', () => {
     s.platform(bob, { t: 'chat', text: 'apple' });
     s.platform(dave, { t: 'chat', text: 'apple' });
     // The last unsolved guesser and then the drawer drop: allGuessed and drawerGone share a deadline.
-    s.apply({ type: 'connectionClosed', playerId: carol });
-    s.apply({ type: 'connectionClosed', playerId: alice });
+    s.drop(carol);
+    s.drop(alice);
     expect(game(s).grace.allGuessedAt).toBe(s.now + DRAWER_DISCONNECT_GRACE_MS);
     expect(game(s).grace.drawerGoneAt).toBe(s.now + DRAWER_DISCONNECT_GRACE_MS);
     s.now += DRAWER_DISCONNECT_GRACE_MS;
@@ -137,8 +137,8 @@ describe('tick', () => {
     expect(s.tick()).toEqual([]);
     s.now += 1;
     const effects = s.tick();
-    expect(s.data.phase).toBe('ended');
-    expect(s.data.podium).toEqual([
+    expect(s.data.phase).toBe('lobby');
+    expect(standings(s)).toEqual([
       { playerId: alice, score: 3, rank: 1 },
       { playerId: bob, score: 1, rank: 2 },
     ]);

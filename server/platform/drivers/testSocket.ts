@@ -10,6 +10,7 @@ export type AnyServerMessageOf<T extends AnyServerMessage['t']> = Extract<AnySer
 
 export class FakeSocket extends EventEmitter implements SocketLike {
   readyState = 1;
+  bufferedAmount = 0;
   readonly sent: AnyServerMessage[] = [];
   readonly closes: Array<{ code?: number; reason?: string }> = [];
   terminated = false;

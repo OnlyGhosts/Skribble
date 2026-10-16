@@ -2,6 +2,7 @@ import { avatarSchema, type Avatar } from '@shared/platform/avatar';
 import { NAME_MAX_LENGTH, RECONNECT_GRACE_MS } from '@shared/platform/constants';
 import { upgradeGameId } from '@shared/platform/games';
 import { SESSION_STORAGE_KEY, type StoredSession } from '@shared/platform/protocol';
+import { normalizeRoomCode } from '@shared/platform/roomCode';
 
 export type Theme = 'light' | 'dark';
 
@@ -163,4 +164,39 @@ export function seatToResume(code: string | null, session: StoredSession | null,
   if (session && session.code === code) return { code, token: session.token };
   const seat = loadSeat(code);
   return seat && isSeatFresh(seat, now) ? { code, token: seat.token } : null;
+}
+
+/**
+ * The seat this phone still holds in the room a typed code names (the tab was closed, the code
+ * typed again on the home page): the player goes back into it instead of taking a second seat.
+ */
+export function heldSeat(typed: string, now: number): { code: string; token: string } | null {
+  const code = normalizeRoomCode(typed);
+  const seat = loadSeat(code);
+  return seat && isSeatFresh(seat, now) ? { code, token: seat.token } : null;
+}
+
+const RESULTS_SEEN_KEY = 'boredgames.resultsSeen';
+
+/** The id of the last game results this tab closed: a reload must not show them again. */
+export function loadResultsSeen(): string | null {
+  return readRaw('session', RESULTS_SEEN_KEY);
+}
+
+export function saveResultsSeen(id: string): void {
+  writeRaw('session', RESULTS_SEEN_KEY, id);
+}
+
+const RESULTS_SHOWN_KEY = 'boredgames.resultsShown';
+
+/**
+ * The id of the game results this tab has on show and not closed yet: a reload brings them back,
+ * also for someone who only watched (the fresh page has no room to tell it they did).
+ */
+export function loadResultsShown(): string | null {
+  return readRaw('session', RESULTS_SHOWN_KEY);
+}
+
+export function saveResultsShown(id: string | null): void {
+  writeRaw('session', RESULTS_SHOWN_KEY, id);
 }

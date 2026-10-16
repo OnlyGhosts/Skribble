@@ -3,14 +3,26 @@
  * when the host deals), the cards in table order and the dealer's peek. Betting has no clock.
  */
 import { dealerPeeks, isNatural } from '../../../shared/games/blackjack/cards.js';
+import { BLACKJACK_REVEAL, dealAllowanceMs } from '../../../shared/games/blackjack/deal.js';
 import { settleRound, nextHand } from './dealer.js';
 import { beginRound, fillRound, holdBetting } from './round.js';
 import { MIN_PLAYERS, adjustChips, anyBetDown, canDealNow, canSitOut, connectedActive, draw, fail, nameOf, settledStatus, snapshot, systemMessage, waitingFor, type Gx, type HandData } from './state.js';
 
-export function bet(gx: Gx, playerId: string, amount: number): void {
+/**
+ * A table control aimed at a round that is over or whose cards are out: a second tap that landed
+ * after the first one dealt, or a tap from the last round. It is ignored without a word.
+ */
+function staleRound(gx: Gx, round: number | undefined): boolean {
+  return round !== undefined && (round !== gx.data.round || gx.data.phase.kind !== 'betting');
+}
+
+export function bet(gx: Gx, playerId: string, amount: number, round?: number): void {
   const { data } = gx;
   const seat = data.seats[playerId];
+  if (staleRound(gx, round)) return;
   if (data.phase.kind !== 'betting' || !seat || !data.order.includes(playerId)) return fail(gx, playerId, 'You cannot bet right now.');
+  // The same stake again (a second tap, a resend after a reconnect) changes nothing.
+  if (seat.bet === amount) return;
   // Any whole number of chips from 1 up to the whole stack (a stake already down included).
   const available = seat.chips + seat.bet;
   if (amount < 1 || amount > available) return fail(gx, playerId, `Bet between 1 and ${available} chips.`);
@@ -24,16 +36,18 @@ export function bet(gx: Gx, playerId: string, amount: number): void {
 }
 
 /** No cards for this seat this hand; it can still bet before the deal to come back in. */
-export function sitOut(gx: Gx, playerId: string): void {
+export function sitOut(gx: Gx, playerId: string, round?: number): void {
+  if (staleRound(gx, round) || (gx.data.phase.kind === 'betting' && gx.data.seats[playerId]?.sittingOut === true)) return;
   if (!canSitOut(gx.data, playerId)) return fail(gx, playerId, 'You cannot sit out right now.');
   gx.data.seats[playerId].sittingOut = true;
   if (dealIfReady(gx)) return;
   snapshot(gx);
 }
 
-/** Deals to the seats that bet; everyone else sits the hand out. The host's, or anyone's while the table waits on the host. */
-export function dealNow(gx: Gx, playerId: string): void {
+/** Deals to the seats that bet; everyone else sits the hand out. The host's, or anyone's while the table waits on the host or on a seat that is away. */
+export function dealNow(gx: Gx, playerId: string, round?: number): void {
   const { data, ctx } = gx;
+  if (staleRound(gx, round)) return;
   if (data.phase.kind !== 'betting') return fail(gx, playerId, 'The cards are already out.');
   if (!anyBetDown(data)) return fail(gx, playerId, 'Nobody has bet yet.');
   if (!canDealNow(ctx, data, playerId)) return fail(gx, playerId, 'Only the host can deal.');
@@ -91,6 +105,9 @@ function deal(gx: Gx): void {
     hand.status = 'blackjack';
     systemMessage(gx, `${nameOf(ctx, id)} has blackjack!`);
   }
+  // A round that settles straight away (a dealer blackjack at the peek, every hand a natural) shows
+  // the whole deal first, then the pause before the hole card turns.
+  gx.leadMs = dealAllowanceMs(data.order.length) + BLACKJACK_REVEAL.peekPause;
   if (dealerPeeks(data.dealer[0]) && isNatural(data.dealer)) {
     data.holeHidden = false;
     systemMessage(gx, 'The dealer has blackjack.');

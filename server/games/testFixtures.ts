@@ -17,8 +17,8 @@ export interface GameTestFixture {
   longSettings: Record<string, unknown>;
   /** A message the game accepts from the host (the first player) right after `start`. */
   validMessage: WireMessage;
-  /** For a game that never ends on its own clock (Blackjack's rounds never run out): the host's message that ends it. */
-  hostEnd?: WireMessage;
+  /** A game that never ends on its own clock (Blackjack's rounds never run out): the suites end it with the host's End game. */
+  endsByHost?: boolean;
 }
 
 /** Ten custom words so `customWordsOnly` is honoured; with rng () => 0 they are picked in this order. */
@@ -33,7 +33,8 @@ export const GAME_TEST_FIXTURES: Readonly<Record<GameId, GameTestFixture>> = {
   spygame: {
     settings: { rounds: 1 },
     longSettings: { rounds: 10 },
-    // With rng () => 0 the host is round one's spy, 'airplane' is the location and 'beach' a decoy: a wrong first guess.
+    // With rng () => 0 in a Family room (the default) the host is round one's spy, 'airplane' is the location and
+    // 'beach' a decoy: a wrong first guess. An Unhinged room deals only adult places, so 'beach' is not on offer there.
     validMessage: { t: 'guess', locationId: 'beach' },
   },
   quipgame: {
@@ -50,7 +51,7 @@ export const GAME_TEST_FIXTURES: Readonly<Record<GameId, GameTestFixture>> = {
     // The round opens with betting; any stake up to the stack is allowed.
     validMessage: { t: 'bet', amount: 10 },
     // The bets wait for idle players, so only the host ends it.
-    hostEnd: { t: 'endGame' },
+    endsByHost: true,
   },
   poker: {
     // One hand (the clocks are fixed): rng () => 0 gives the host the button, so they act first preflop (heads-up and three-handed alike).

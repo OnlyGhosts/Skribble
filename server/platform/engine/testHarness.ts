@@ -30,7 +30,12 @@ export interface Sim {
   ids: Ids;
   effects: Effect[];
   /** Applies an action at the current time; returns the effects of that action. */
-  apply(action: Action): Effect[];
+  apply(action: Action, ctx?: Partial<Ctx>): Effect[];
+  /**
+   * The player's socket drops for good: the running game hears of it at once, as it would
+   * AWAY_NOTICE_MS later, without the clock moving. A blink is `apply({ type: 'connectionClosed' })`.
+   */
+  drop(playerId: string, connectionId?: string): Effect[];
   /** Shorthand for a platform message from `playerId`. */
   platform(playerId: string, msg: PlatformRoomMessage): Effect[];
   /** Shorthand for a game message from `playerId`. */
@@ -48,12 +53,15 @@ export function sim(gameId: GameId = 'scribble', code = 'ABCD', now = START, rng
     now,
     ids,
     effects: [],
-    apply(action) {
-      const out = applyAction(s.data, action, ctxAt(s.now, ids, rng));
+    apply(action, ctx) {
+      const out = applyAction(s.data, action, { ...ctxAt(s.now, ids, rng), ...ctx });
       expect(out.result.ok).toBe(true);
       s.data = out.data;
       s.effects.push(...out.effects);
       return out.effects;
+    },
+    drop(playerId, connectionId) {
+      return s.apply({ type: 'connectionClosed', playerId, connectionId }, { awayNoticeMs: 0 });
     },
     platform(playerId, msg) {
       return s.apply({ type: 'platformMessage', playerId, msg });
@@ -99,6 +107,16 @@ export function startGame(s: Sim, names: string[], settings: Record<string, unkn
   readyUp(s, ids.slice(1));
   s.platform(host, { t: 'start' });
   return ids;
+}
+
+/** The last game's standings as `{ playerId, score, rank }` (the names and avatars left out); null while there are none. */
+export function standings(s: Sim): Array<{ playerId: string; score: number; rank: number }> | null {
+  return s.data.results?.entries.map(({ playerId, score, rank }) => ({ playerId, score, rank })) ?? null;
+}
+
+/** The host's End game (a platform message). */
+export function endGame(s: Sim, hostId: string): Effect[] {
+  return s.platform(hostId, { t: 'endGame' });
 }
 
 /** The error messages a set of effects carries, in order. */

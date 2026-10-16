@@ -5,7 +5,7 @@ import { Avatar } from '../../../platform/components/Avatar';
 import { ResultNext, ResultPoints, earnersOf } from '../../../platform/components/RoundResult';
 import { useCountdownSeconds } from '../../../platform/lib/useCountdown';
 import { useModalFocus } from '../../../platform/lib/useModalFocus';
-import { endGame, skipReveal } from '../actions';
+import { skipReveal } from '../actions';
 import { playerOf } from '../hooks';
 import { outcomeDetail, outcomeHeadline, winnerKicker } from '../lib/text';
 import { LocationTile } from './LocationTile';
@@ -72,14 +72,9 @@ export function RevealOverlay({ room, view, reveal, isHost, holding = false }: P
         <ResultPoints rows={rows} label="Points earned this round" rowTestId="reveal-points-row" empty="Nobody scored this round." />
         <div className="overlay__footer spy-reveal__footer">
           {isHost ? (
-            <>
-              <button type="button" className="btn btn--primary" onClick={skipReveal} disabled={holding} data-testid="spygame-next-round" data-countdown={countdownState}>
-                {holding ? `${nextLabel} (paused)` : settling ? `${nextLabel}…` : `${nextLabel} (${seconds})`}
-              </button>
-              <button type="button" className="btn btn--ghost" onClick={endGame} data-testid="spygame-end-game">
-                Back to lobby
-              </button>
-            </>
+            <button type="button" className="btn btn--primary" onClick={skipReveal} disabled={holding} data-testid="spygame-next-round" data-countdown={countdownState}>
+              {holding ? `${nextLabel} (paused)` : settling ? `${nextLabel}…` : `${nextLabel} (${seconds})`}
+            </button>
           ) : (
             <ResultNext noun={nextNoun} endsAt={reveal.endsAt} paused={holding} settling={settling} testId="reveal-countdown" />
           )}

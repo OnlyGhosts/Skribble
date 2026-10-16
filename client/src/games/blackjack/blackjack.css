@@ -322,50 +322,6 @@
   color: var(--color-text-muted);
 }
 
-/* ---------- End game (host) ---------- */
-.bj-end {
-  white-space: nowrap;
-}
-
-.bj-end-note {
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: var(--color-text-muted);
-  white-space: nowrap;
-}
-
-.bj-end-note--menu {
-  display: block;
-  padding: var(--space-3) 0;
-}
-
-.bj-end-confirm {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.bj-end-confirm__text {
-  font-weight: 700;
-  font-size: 0.85rem;
-  white-space: nowrap;
-}
-
-.bj-end-confirm--menu {
-  flex-wrap: wrap;
-  padding: var(--space-2) 0;
-}
-
-.bj-end-confirm--menu .bj-end-confirm__text {
-  flex: 1 1 100%;
-  white-space: normal;
-}
-
-.bj-end-confirm--menu .btn {
-  flex: 1;
-  min-height: 44px;
-}
-
 /* ---------- Player list hooks ---------- */
 .player__badge--acting {
   background: var(--color-primary);

@@ -1,14 +1,16 @@
 import { useState, type ReactNode } from 'react';
 import type { GameMeta } from '@shared/platform/games';
 import type { RoomState } from '@shared/platform/protocol';
-import { leaveRoom } from '../net/actions';
+import { useLive } from '../lib/useLive';
 import { registeredGame } from '../registry';
+import { selectIsHost } from '../store/selectors';
+import { usePlatformStore } from '../store/usePlatformStore';
 import { BottomSheet } from './BottomSheet';
 import { ConnectionPill } from './ConnectionPill';
-import { BackIcon, LogoutIcon, MenuIcon, UsersIcon } from './Icons';
-import { LeaveConfirm } from './LeaveConfirm';
+import { EndGameButton, EndGameConfirm, ExitActions, LeaveConfirm, canEndGame, type ExitKind } from './GameExit';
+import { BackIcon, FlagIcon, LogoutIcon, MenuIcon, UsersIcon } from './Icons';
 import { PlayerChips } from './PlayerChips';
-import { PreferenceRows, SettingsMenu } from './Preferences';
+import { PreferenceRows, SettingsMenu, type MenuAction } from './Preferences';
 
 type DataAttrs = Record<`data-${string}`, string | number | boolean | undefined>;
 
@@ -34,10 +36,8 @@ interface Props {
   clock?: ReactNode;
   /** The players sheet the chips open. */
   players: Toggle & { label?: string };
-  /** The phone's options sheet (theme, sound, the game's host controls, Leave). */
+  /** The phone's options sheet (theme, sound, the game's own rows, End game and Leave room). */
   menu: Toggle;
-  /** Desktop only: host controls beside the gear (End game). */
-  actions?: ReactNode;
   /** Desktop: between the name and the round (Scribble's word). */
   middle?: ReactNode;
   /** A last row inside the bar (Scribble's word on a phone). */
@@ -53,12 +53,20 @@ interface Props {
 /**
  * Every game's top bar, as on the brand board: a back arrow (leaving asks first), the game's name
  * large and the round on the right, then a row of player chips with the timer ring at its end.
- * The options button is a small icon button on the first row of a phone; a desktop has the gear and
- * the host's controls there instead of the options sheet.
+ * The options button is a small icon button on the first row of a phone; a desktop has the host's
+ * End game and the gear (preferences, End game, Leave room) there instead of the options sheet.
  */
-export function GameTopBar({ meta, room, isPhone, testId, className, status, statusTestId = 'round-indicator', statusData, clock, players, menu, actions, middle, below, compact = false }: Props) {
+export function GameTopBar({ meta, room, isPhone, testId, className, status, statusTestId = 'round-indicator', statusData, clock, players, menu, middle, below, compact = false }: Props) {
   const game = registeredGame(room.gameId);
-  const [leaving, setLeaving] = useState(false);
+  const meId = useLive(usePlatformStore, (s) => s.playerId);
+  const isHost = useLive(usePlatformStore, selectIsHost);
+  const [exit, setExit] = useState<ExitKind | null>(null);
+  const closeExit = () => setExit(null);
+  const hostCanEnd = canEndGame(room, isHost);
+  const menuActions: MenuAction[] = [
+    ...(hostCanEnd && !room.endRequested ? [{ label: 'End game', icon: <FlagIcon size={16} />, onSelect: () => setExit('end'), testId: 'menu-end-game', tone: 'danger' as const }] : []),
+    { label: 'Leave room', icon: <LogoutIcon size={16} />, onSelect: () => setExit('leave'), testId: 'menu-leave-room' },
+  ];
   return (
     <>
       <header className={`gbar card${isPhone ? ' gbar--phone' : ''}${compact ? ' gbar--compact' : ''}${middle ? ' gbar--middle' : ''}${className ? ` ${className}` : ''}`} data-testid={testId} data-game={meta.id}>
@@ -66,9 +74,9 @@ export function GameTopBar({ meta, room, isPhone, testId, className, status, sta
           <button
             type="button"
             className="icon-btn gbar__btn gbar__back"
-            onClick={() => setLeaving(true)}
+            onClick={() => setExit('leave')}
             aria-haspopup="dialog"
-            aria-expanded={leaving}
+            aria-expanded={exit === 'leave'}
             aria-label="Leave game"
             data-testid="game-back"
           >
@@ -102,8 +110,8 @@ export function GameTopBar({ meta, room, isPhone, testId, className, status, sta
             ) : (
               <>
                 <ConnectionPill />
-                {actions}
-                <SettingsMenu />
+                {hostCanEnd && <EndGameButton room={room} open={exit === 'end'} onOpen={() => setExit('end')} />}
+                <SettingsMenu actions={menuActions} />
               </>
             )}
           </div>
@@ -116,8 +124,11 @@ export function GameTopBar({ meta, room, isPhone, testId, className, status, sta
         )}
         {below}
       </header>
-      <BottomSheet open={leaving} title="Leave" onClose={() => setLeaving(false)} testId="leave-sheet">
-        <LeaveConfirm onStay={() => setLeaving(false)} testId="game-leave" />
+      <BottomSheet open={exit === 'leave'} title="Leave room" onClose={closeExit} testId="leave-sheet" className="sheet--exit">
+        <LeaveConfirm room={room} meId={meId} onCancel={closeExit} testId="game-leave" />
+      </BottomSheet>
+      <BottomSheet open={exit === 'end' && hostCanEnd} title="End game" onClose={closeExit} testId="end-sheet" className="sheet--exit">
+        <EndGameConfirm room={room} onCancel={closeExit} testId="end-game" />
       </BottomSheet>
     </>
   );
@@ -141,16 +152,35 @@ export function RoundStatus({ round, total }: { round: number; total: number }) 
   );
 }
 
-/** The phone's options sheet behind the top bar's menu button: preferences, the game's own rows, Leave room. */
+/**
+ * The phone's options sheet behind the top bar's menu button: preferences, the game's own rows,
+ * then the ways out (End game for the host, Leave room), each behind its confirm step.
+ */
 export function GameMenuSheet({ open, onClose, children }: { open: boolean; onClose(): void; children?: ReactNode }) {
+  const room = useLive(usePlatformStore, (s) => s.room);
+  const meId = useLive(usePlatformStore, (s) => s.playerId);
+  const isHost = useLive(usePlatformStore, selectIsHost);
+  const [confirm, setConfirm] = useState<ExitKind | null>(null);
+  const close = () => {
+    setConfirm(null);
+    onClose();
+  };
+  // A step whose action went away (the game ended, the host role moved) falls back to the menu.
+  const step = confirm === 'end' && !canEndGame(room, isHost) ? null : confirm;
   return (
-    <BottomSheet open={open} title="Options" onClose={onClose} testId="menu-sheet">
+    <BottomSheet open={open} title={step === 'end' ? 'End game' : step === 'leave' ? 'Leave room' : 'Options'} onClose={close} testId="menu-sheet">
       <div className="menu-sheet">
-        <PreferenceRows />
-        {children}
-        <button type="button" className="btn btn--ghost btn--block menu-sheet__leave" onClick={leaveRoom} data-testid="leave-room">
-          <LogoutIcon size={16} /> Leave room
-        </button>
+        {step === 'end' ? (
+          <EndGameConfirm room={room} onCancel={close} testId="end-game" />
+        ) : step === 'leave' ? (
+          <LeaveConfirm room={room} meId={meId} onCancel={() => setConfirm(null)} testId="game-leave" />
+        ) : (
+          <>
+            <PreferenceRows />
+            {children}
+            <ExitActions room={room} isHost={isHost} onPick={setConfirm} />
+          </>
+        )}
       </div>
     </BottomSheet>
   );

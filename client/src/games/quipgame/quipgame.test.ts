@@ -214,8 +214,6 @@ describe('writing', () => {
     expect(tagsWith(vote, 'vote-submit')).toHaveLength(0);
     expect(tagWith(vote, 'vote-watching')).toBeTruthy();
     expect(vote).toContain('You&#x27;re watching. You can play the next game.');
-    const over = render(quipRoom(view(), { phase: 'ended' }), 'bob');
-    expect(tagWith(over, 'write-input')).toContain('disabled');
   });
 });
 

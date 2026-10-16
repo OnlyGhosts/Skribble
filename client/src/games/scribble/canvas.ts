@@ -13,6 +13,7 @@ export function myDrawingTurn(s: PlatformStore): string | null {
 
 /** Scribble's canvas: the platform's shared canvas session on the game socket. */
 export const scribbleCanvas = createCanvasSession({
-  link: { send: (msg) => socket.send(msg), isOpen: () => socket.isOpen() },
+  // The queue recovers lost ops itself (against the welcome's canvas), so they skip the socket's outbox.
+  link: { send: (msg) => socket.send(msg, { keep: false }), isOpen: () => socket.isOpen() },
   myDrawingTurn: () => myDrawingTurn(usePlatformStore.getState()),
 });

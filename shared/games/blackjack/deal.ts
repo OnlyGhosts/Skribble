@@ -1,8 +1,9 @@
 /**
- * The pace of a deal on screen: the client's plan (client/src/games/blackjack/lib/timeline.ts on
- * the platform's table timeline) follows these timings, and dealAllowanceMs is how long a whole
- * deal takes to show. Tests keep the two in step and the whole deal under the client's animation
- * backlog, however big the table.
+ * The pace of the table on screen: the client's plan (client/src/games/blackjack/lib/timeline.ts on
+ * the platform's table timeline) follows these timings. dealAllowanceMs is how long a whole deal
+ * takes to show and revealAllowanceMs how long the dealer's reveal takes; the server times the
+ * results pause by them, so the next bets open the moment the outcomes show. Tests keep the client
+ * in step and the whole deal under the client's animation backlog, however big the table.
  */
 
 /** The client's animation timings, in ms. */
@@ -13,7 +14,33 @@ export const BLACKJACK_DEAL = {
   dealGap: 150,
   /** The last round's cards going to the discards first. */
   discard: 300,
+  /** The half of a split sliding over within the seat. */
+  move: 200,
 } as const;
+
+/** The dealer's reveal on screen, in ms. */
+export const BLACKJACK_REVEAL = {
+  /** The hole card turning over. */
+  flip: 400,
+  /** The beat after the flip before the dealer's first draw. */
+  beat: 100,
+  /** From one dealer draw to the next. */
+  draw: 500,
+  /** The beat between the dealer's last card and the outcomes. */
+  outcome: 150,
+  /** After a fresh deal, before a peeked dealer blackjack turns over. */
+  peekPause: 300,
+} as const;
+
+/**
+ * How long the dealer's reveal takes to show, from the moment the hole card starts to turn until
+ * the outcomes are up: the flip, then each card the dealer draws after it, then the outcomes.
+ */
+export function revealAllowanceMs(dealerCards: number): number {
+  const draws = Math.max(0, dealerCards - 2);
+  if (draws === 0) return BLACKJACK_REVEAL.flip + BLACKJACK_REVEAL.outcome;
+  return BLACKJACK_REVEAL.flip + BLACKJACK_REVEAL.beat + (draws - 1) * BLACKJACK_REVEAL.draw + BLACKJACK_DEAL.deal + BLACKJACK_REVEAL.outcome;
+}
 
 /**
  * A big table's deal speeds up so every card has started within this long, never closer than

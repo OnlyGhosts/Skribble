@@ -16,6 +16,7 @@ export function publicPlayer(p: PlatformPlayerData, hostId: string): PlayerPubli
     ready: p.ready,
     sittingOut: p.sittingOut,
     participating: p.participating,
+    idle: p.connected && p.idle === true,
   };
 }
 
@@ -33,7 +34,8 @@ export function viewFor(stored: PlatformRoomData, playerId: string | null, now: 
     settings: structuredClone(data.settings),
     players: sortedPlayers(data).map((p) => publicPlayer(p, data.hostId)),
     phase: data.phase,
-    podium: data.podium ? data.podium.map((e) => ({ ...e })) : null,
+    results: data.results ? structuredClone(data.results) : null,
+    endRequested: data.endRequested === true,
     game: data.game === null ? null : game.view(data.game, playerId !== null && findPlayer(data, playerId) ? playerId : null, { settings: data.settings, players, spectators, hostId: data.hostId, now }),
     waiting: waitingFor(data),
     serverTime: now,
@@ -53,7 +55,9 @@ function waitingFor(data: PlatformRoomData): WaitingState | null {
   const missing = data.waiting.filter((id) => findPlayer(data, id)?.connected === false);
   if (missing.length === 0) return null;
   // `needed` is a participant count, so `connected` counts participants too (spectators never fill a seat).
-  return { reason: 'players', missing, needed: minPlayers(data), connected: participants(data).filter((p) => p.connected).length };
+  const state: WaitingState = { reason: 'players', missing, needed: minPlayers(data), connected: participants(data).filter((p) => p.connected).length };
+  if (typeof data.waitingUntil === 'number') state.until = data.waitingUntil;
+  return state;
 }
 
 /** What the home screen shows about a room before joining it. */
@@ -64,7 +68,7 @@ export function previewOf(data: PlatformRoomData): RoomPreview {
     gameId: data.gameId,
     players: data.players.length,
     maxPlayers: gameSeatLimit(data),
-    // Only a running game has anything to watch; a newcomer on the podium is an ordinary member.
+    // Only a running game has anything to watch.
     inProgress: data.phase === 'playing',
     joinable: !isFull(data),
   };
@@ -74,5 +78,5 @@ export function previewOf(data: PlatformRoomData): RoomPreview {
 export function welcomeFor(data: PlatformRoomData, playerId: string, now: number): Omit<WelcomeMessage, 'extra'> | null {
   const player = findPlayer(data, playerId);
   if (!player) return null;
-  return { t: 'welcome', playerId, token: player.token, room: viewFor(data, playerId, now), chat: structuredClone(data.chat) };
+  return { t: 'welcome', playerId, token: player.token, room: viewFor(data, playerId, now), chat: structuredClone(data.chat), seq: player.lastSeq ?? 0 };
 }

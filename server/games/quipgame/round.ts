@@ -31,7 +31,7 @@ import { startMatchup } from './vote.js';
 export function beginRound(gx: Gx): void {
   const { data, ctx } = gx;
   if (ctx.players.length < MIN_PLAYERS) {
-    gx.effects.push({ type: 'abort', reason: 'Not enough players. Back to the lobby.' });
+    gx.effects.push({ type: 'abort', reason: 'Not enough players to go on.' });
     return;
   }
   if (connectedCount(ctx) < MIN_PLAYERS) return hold(gx);
@@ -159,7 +159,7 @@ export function finishWriting(gx: Gx, why: 'everyoneIn' | 'timeUp'): void {
   startMatchup(gx, 0);
 }
 
-/** Leaves a result: the next matchup, the next round or the final (holding for missing players), or the podium. */
+/** Leaves a result: the next matchup, the next round or the final (holding for missing players), or the end of the game. */
 export function advance(gx: Gx): void {
   const { data } = gx;
   if (data.phase === 'finalResult') {

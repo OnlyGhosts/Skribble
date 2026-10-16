@@ -1,8 +1,8 @@
 /** Round lifecycle: start -> playing (guesses, pauses) -> reveal -> next round / game over. */
 import { drawCandidates, locationById, locationsForMode, pickLocation } from '../../../shared/games/spygame/locations.js';
-import { SPYGAME_CANDIDATES, SPYGAME_GUESSES, SPYGAME_POINTS, SPYGAME_REVEAL_SECONDS, SPYGAME_ROUND_MINUTES, type SpygameOutcome } from '../../../shared/games/spygame/protocol.js';
+import { SPYGAME_CANDIDATES, SPYGAME_GUESSES, SPYGAME_POINTS, SPYGAME_REVEAL_SECONDS, SPYGAME_ROUND_MINUTES, SPYGAME_SPY_AWAY_SECONDS, type SpygameOutcome } from '../../../shared/games/spygame/protocol.js';
 import { RESUME_SETTLE_MS, holdEffects, resumeEffect } from '../waiting.js';
-import { MIN_PLAYERS, agentIds, connectedCount, fail, findPlayer, nameOf, snapshot, systemMessage, type Gx, type RoundData } from './state.js';
+import { MIN_PLAYERS, agentIds, connectedCount, fail, findPlayer, nameOf, snapshot, systemMessage, type Gx, type RoundData, type SpygameData } from './state.js';
 
 /** Uniform pick from a non-empty list. */
 function pickOne<T>(items: readonly T[], rng: () => number): T {
@@ -26,7 +26,7 @@ export function buildRound(gx: Gx): RoundData {
   const { data, ctx } = gx;
   const playerIds = ctx.players.filter((p) => p.connected).map((p) => p.id);
   const spyId = pickSpy(gx, playerIds);
-  // The room's content mode picks the pool: the family pack, plus the cheeky and unhinged tiers when Unhinged.
+  // The room's content mode picks the pool: the family pack, or the cheeky and unhinged tiers alone when Unhinged.
   const pool = locationsForMode(ctx.settings.contentMode);
   if (pool.every((l) => data.usedLocationIds.includes(l.id))) data.usedLocationIds = [];
   const location = pickLocation(data.usedLocationIds, ctx.rng, pool);
@@ -42,6 +42,7 @@ export function buildRound(gx: Gx): RoundData {
     accusers: [],
     clock: { kind: 'running', endsAt: ctx.now + SPYGAME_ROUND_MINUTES * 60_000 },
     spyAway: false,
+    spyAwayUntil: null,
   };
 }
 
@@ -53,7 +54,7 @@ export function buildRound(gx: Gx): RoundData {
 export function beginRound(gx: Gx): void {
   const { data, ctx } = gx;
   if (ctx.players.length < MIN_PLAYERS) {
-    gx.effects.push({ type: 'abort', reason: 'Not enough players. Back to the lobby.' });
+    gx.effects.push({ type: 'abort', reason: 'Not enough players to go on.' });
     return;
   }
   if (connectedCount(ctx) < MIN_PLAYERS) return hold(gx);
@@ -98,6 +99,53 @@ export function settleDue(gx: Gx): void {
   if (data.phase !== 'waiting' || data.resumeAt === null || ctx.now < data.resumeAt) return;
   data.resumeAt = null;
   beginRound(gx);
+}
+
+/**
+ * The spy's phone dropped mid-round: the clock stops and everyone sees the platform's waiting
+ * card with the spy missing (the host may remove them). Without them back in
+ * SPYGAME_SPY_AWAY_SECONDS the round ends as if they had left. A vote running at the time is
+ * left to finish first (the card would cover its buttons while its clock ran out): the hold comes
+ * up only if the round goes on after it.
+ */
+export function spyWentAway(gx: Gx): void {
+  const { data, ctx } = gx;
+  const { current } = data;
+  current.spyAway = true;
+  current.spyAwayUntil = ctx.now + SPYGAME_SPY_AWAY_SECONDS * 1000;
+  pauseClock(gx);
+  if (data.phase === 'playing') holdForSpy(gx);
+}
+
+/** The waiting card for the away spy, and the line that says why the clock stopped. */
+function holdForSpy(gx: Gx): void {
+  const { current } = gx.data;
+  gx.effects.push({ type: 'waiting', missing: [current.spyId], until: current.spyAwayUntil ?? undefined });
+  systemMessage(gx, `${current.spyName} lost connection. The clock is paused.`);
+}
+
+/** The spy is back in time: the hold lifts (if a vote had not kept it down) and the clock runs again (unless a vote holds it). */
+export function spyCameBack(gx: Gx): void {
+  const { data } = gx;
+  const { current } = data;
+  current.spyAway = false;
+  current.spyAwayUntil = null;
+  if (data.phase === 'playing') gx.effects.push(resumeEffect());
+  resumeClock(gx);
+}
+
+/** A vote is over and the round goes on: the clock runs again, or the hold for a spy who dropped during the vote comes up now. */
+export function playOn(gx: Gx): void {
+  const { data } = gx;
+  data.vote = null;
+  data.phase = 'playing';
+  if (data.current.spyAway) holdForSpy(gx);
+  else resumeClock(gx);
+}
+
+/** When the round gives up on an away spy, or null while the spy is here (or a vote runs: it finishes first). */
+export function spyAwayDeadline(data: SpygameData): number | null {
+  return data.phase === 'playing' && data.current.spyAway ? (data.current.spyAwayUntil ?? null) : null;
 }
 
 /** Freezes the round clock, keeping what is left of it. */
@@ -185,6 +233,9 @@ export function endRound(gx: Gx, outcome: SpygameOutcome, vote: { accuserId: str
   const points = pointsFor(gx, outcome, vote?.accuserId ?? null);
   for (const [playerId, delta] of Object.entries(points)) gx.effects.push({ type: 'score', playerId, delta });
   pauseClock(gx);
+  if (data.current.spyAway) gx.effects.push(resumeEffect());
+  data.current.spyAway = false;
+  data.current.spyAwayUntil = null;
   data.vote = null;
   data.phase = 'reveal';
   data.reveal = { outcome, spyId: data.current.spyId, spyName: data.current.spyName, locationId: data.current.locationId, points, endsAt: ctx.now + SPYGAME_REVEAL_SECONDS * 1000 };
@@ -192,7 +243,7 @@ export function endRound(gx: Gx, outcome: SpygameOutcome, vote: { accuserId: str
   snapshot(gx);
 }
 
-/** Leaves the reveal: the podium after the last round, otherwise the next round (or a hold for missing players). */
+/** Leaves the reveal: the results after the last round, otherwise the next round (or a hold for missing players). */
 export function advance(gx: Gx): void {
   const { data, ctx } = gx;
   if (data.phase !== 'reveal') return;
@@ -208,11 +259,4 @@ export function nextRound(gx: Gx, playerId: string): void {
   if (playerId !== gx.ctx.hostId) return fail(gx, playerId, 'Only the host can skip the reveal.');
   if (gx.data.phase !== 'reveal') return fail(gx, playerId, 'There is no reveal to skip.');
   advance(gx);
-}
-
-/** The host calls the game off from the reveal (or the hold that keeps it on screen): the platform resets everyone to the lobby. */
-export function endGame(gx: Gx, playerId: string): void {
-  if (playerId !== gx.ctx.hostId) return fail(gx, playerId, 'Only the host can end the game.');
-  if (gx.data.phase !== 'reveal' && gx.data.phase !== 'waiting') return fail(gx, playerId, 'The game can only be ended from the reveal.');
-  gx.effects.push({ type: 'abort', reason: 'The host ended the game. Back to the lobby.' });
 }

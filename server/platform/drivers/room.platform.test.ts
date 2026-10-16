@@ -32,8 +32,7 @@ describe.each(GAME_IDS)('platform room (%s)', (gameId: GameId) => {
   /** Runs the game to its end on the clock; a game that never ends on its own is ended by the host. */
   const runToEnd = (h: Harness, host: string, ms: number): void => {
     vi.advanceTimersByTime(ms);
-    const end = GAME_TEST_FIXTURES[gameId].hostEnd;
-    if (end && h.room.phase === 'playing') h.room.handleMessage(host, { kind: 'game', msg: end });
+    if (GAME_TEST_FIXTURES[gameId].endsByHost && h.room.phase === 'playing') h.send(host, { t: 'endGame' });
   };
 
   describe('seats', () => {
@@ -45,9 +44,10 @@ describe.each(GAME_IDS)('platform room (%s)', (gameId: GameId) => {
       expect(welcome.playerId).toBe(alice);
       expect(welcome.token).toBe(h.token(alice));
       expect(welcome.token).toMatch(/^[0-9a-f]{32}$/);
-      expect(welcome.room).toMatchObject({ code: 'ABCD', gameId, hostId: alice, phase: 'lobby', podium: null, game: null, serverTime: START });
+      expect(welcome.room).toMatchObject({ code: 'ABCD', gameId, hostId: alice, phase: 'lobby', results: null, endRequested: false, game: null, serverTime: START });
       expect(welcome.room.players).toHaveLength(1);
-      expect(welcome.room.players[0]).toEqual({ id: alice, name: 'Alice', avatar: AVATAR, score: 0, isHost: true, connected: true, joinOrder: 0, ready: false, sittingOut: false, participating: false });
+      expect(welcome.room.players[0]).toEqual({ id: alice, name: 'Alice', avatar: AVATAR, score: 0, isHost: true, connected: true, joinOrder: 0, ready: false, sittingOut: false, participating: false, idle: false });
+      expect(welcome.seq).toBe(0);
       expect(welcome.chat.map((c) => c.text)).toEqual(['Alice joined']);
       expect(h.transport.attached).toEqual([{ playerId: alice, connectionId: 'conn-Alice' }]);
 
@@ -183,7 +183,7 @@ describe.each(GAME_IDS)('platform room (%s)', (gameId: GameId) => {
       expect(h.emptied).toEqual([h.room]);
       expect(h.room.isEmpty).toBe(true);
       expect(h.room.hostPlayerId).toBe('');
-      expect(h.room.state).toMatchObject({ phase: 'lobby', game: null, podium: null, votes: [], kickedTokens: [] });
+      expect(h.room.state).toMatchObject({ phase: 'lobby', game: null, results: null, votes: [], kickedTokens: [] });
       expect(h.room.state.grace.emptyRoomAt).toBe(Date.now() + EMPTY_ROOM_TTL_MS);
       const carol = h.join('Carol');
       expect(h.transport.last(carol, 'welcome').room).toMatchObject({ phase: 'lobby', game: null, hostId: carol });
@@ -324,7 +324,8 @@ describe.each(GAME_IDS)('platform room (%s)', (gameId: GameId) => {
 
       vi.advanceTimersByTime(RECONNECT_GRACE_MS - 1);
       expect(h.room.playerCount).toBe(names.length);
-      expect(h.room.phase).not.toBe('lobby');
+      // Still running, or over on its own clock (Click Race tops out at two minutes): never abandoned.
+      expect(h.room.phase === 'playing' || h.room.state.results?.reason === 'finished').toBe(true);
       h.transport.clear();
       const result = h.room.rejoin(h.token(bob), 'conn-Bob-2');
       expect(result).toEqual({ ok: true, playerId: bob });
@@ -391,12 +392,16 @@ describe.each(GAME_IDS)('platform room (%s)', (gameId: GameId) => {
         vi.advanceTimersByTime(1);
         expect(h.room.phase).toBe('lobby');
         expect(h.room.getPlayer(bob)).toBeUndefined();
-        expect(h.transport.chats(alice).slice(-2)).toEqual([
+        expect(h.transport.chats(alice).slice(-3)).toEqual([
           { kind: 'system', text: 'Bob left' },
-          { kind: 'notice', text: 'Not enough players. Back to the lobby.' },
+          { kind: 'system', text: 'Not enough players to go on.' },
+          { kind: 'system', text: 'Game over!' },
         ]);
         const state = h.transport.last(alice, 'room').room;
         expect(state.game).toBeNull();
+        // Alice gets the standings in the lobby, with why it ended; Bob's seat is gone, so he is not in them.
+        expect(state.results).toMatchObject({ reason: 'players', gameId });
+        expect(state.results?.entries.map((e) => e.playerId)).not.toContain(bob);
         expect(state.waiting).toBeNull();
         expect(state.players.every((p) => p.score === 0)).toBe(true);
         // Timers were cancelled: nothing changes later.
@@ -414,16 +419,36 @@ describe.each(GAME_IDS)('platform room (%s)', (gameId: GameId) => {
         // The seat is no longer on a timer.
         vi.advanceTimersByTime(RECONNECT_GRACE_MS);
         expect(h.room.getPlayer(bob)).toBeDefined();
-        expect(h.room.phase).not.toBe('lobby');
+        // Still running, or over on its own (never cut short for want of players).
+        expect(h.room.phase === 'playing' || h.room.state.results?.reason === 'finished').toBe(true);
       });
 
-      it('abandons the game at once when a player leaves and too few remain', () => {
+      it('ends the game at once, with the results for the others, when a player leaves and too few remain', () => {
         const h = harness();
         const [alice, bob] = startGame(h, ['Alice', 'Bob']);
         h.transport.clear();
         h.room.leave(bob);
         expect(h.room.phase).toBe('lobby');
-        expect(h.transport.chats(alice).map((c) => c.text)).toEqual(['Bob left', 'Not enough players. Back to the lobby.']);
+        expect(h.transport.chats(alice).map((c) => c.text)).toEqual(['Bob left', 'Not enough players to go on.', 'Game over!']);
+        expect(h.transport.last(alice, 'room').room.results).toMatchObject({ reason: 'players', gameId });
+      });
+
+      it('keeps the game running for everyone else when a player leaves and enough remain', () => {
+        const h = harness();
+        // One seat above the game's minimum: the leaver is the last of them.
+        const ids = startGame(h, ['Alice', 'Bob', 'Carol', 'Dave', 'Erin'].slice(0, Math.max(3, meta.minPlayers + 1)), GAME_TEST_FIXTURES[gameId].longSettings);
+        const [alice] = ids;
+        const carol = ids[ids.length - 1];
+        const carolName = h.player(carol).name;
+        const before = h.room.state.players.filter((p) => p.participating).length;
+        h.transport.clear();
+        h.room.leave(carol);
+        expect(h.room.phase).toBe('playing');
+        expect(h.room.getPlayer(carol)).toBeUndefined();
+        expect(h.room.state.players.filter((p) => p.participating)).toHaveLength(before - 1);
+        expect(h.room.state.results).toBeNull();
+        expect(h.transport.chats(alice).map((c) => c.text)).toContain(`${carolName} left`);
+        expect(h.transport.last(alice, 'room').room).toMatchObject({ phase: 'playing', results: null });
       });
     }
   });
@@ -639,35 +664,70 @@ describe.each(GAME_IDS)('platform room (%s)', (gameId: GameId) => {
     });
   });
 
-  describe('lobby return', () => {
-    it('only the host returns to the lobby, and only after the game ended; scores and the podium reset', () => {
+  describe('the end of a game', () => {
+    it('goes straight back to the lobby with the results when the game ends on its own (or by the host, where it never does)', () => {
       const h = harness();
       const [alice, bob] = startGame(h, ['Alice', 'Bob']);
-      h.send(alice, { t: 'returnToLobby' });
-      expect(h.transport.errors(alice)).toEqual(['NOT_ALLOWED']);
-      // Run the game to its end with the clock (or the host, where the clock never ends it).
-      runToEnd(h, alice, 10 * 60_000);
-      expect(h.room.phase).toBe('ended');
-      expect(h.room.state.podium).not.toBeNull();
+      runToEnd(h, alice, 60 * 60_000);
+      expect(h.room.phase).toBe('lobby');
       expect(h.transport.chats(alice).at(-1)?.text).toMatch(/^Game over!/);
-      // The podium persists until the host returns to the lobby.
-      vi.advanceTimersByTime(600_000);
-      expect(h.room.phase).toBe('ended');
-      h.send(bob, { t: 'returnToLobby' });
-      expect(h.transport.errors(bob)).toEqual(['NOT_ALLOWED']);
-      // On the podium everyone may already ready up (or sit the next one out) for the next game...
-      h.send(bob, { t: 'ready', ready: true });
-      expect(h.transport.last(alice, 'room').room.players.find((p) => p.id === bob)).toMatchObject({ ready: true, participating: true });
-      h.transport.clear();
-      h.send(alice, { t: 'returnToLobby' });
       const lobby = h.transport.last(bob, 'room').room;
-      expect(lobby).toMatchObject({ phase: 'lobby', podium: null, game: null, gameId });
+      expect(lobby).toMatchObject({ phase: 'lobby', game: null, gameId, endRequested: false, results: { gameId, reason: GAME_TEST_FIXTURES[gameId].endsByHost ? 'host' : 'finished' } });
+      expect(lobby.results?.entries.map((e) => e.playerId)).toContain(alice);
+      expect(lobby.results?.entries.every((e) => e.name.length > 0 && typeof e.avatar === 'object')).toBe(true);
       expect(lobby.players.every((p) => p.score === 0 && !p.participating)).toBe(true);
-      // ...and those flags survive the trip back to the lobby, so "play again" is one tap.
-      expect(lobby.players.find((p) => p.id === bob)?.ready).toBe(true);
-      readyUp(h, lobby.players.map((p) => p.id).filter((id) => id !== alice && id !== bob));
+      // Nothing holds the players: they ready up and the host starts again, which clears the results.
+      vi.advanceTimersByTime(600_000);
+      expect(h.room.phase).toBe('lobby');
+      expect(h.room.state.results).not.toBeNull();
+      readyUp(h, lobby.players.map((p) => p.id).filter((id) => id !== alice));
       h.send(alice, { t: 'start' });
       expect(h.room.phase).toBe('playing');
+      expect(h.transport.last(bob, 'room').room.results).toBeNull();
+    });
+
+    it('lets only the host end a running game, for everyone at once, with the results in everyone\'s lobby', () => {
+      const h = harness();
+      const [alice, bob] = startGame(h, ['Alice', 'Bob'], GAME_TEST_FIXTURES[gameId].longSettings);
+      h.send(bob, { t: 'endGame' });
+      expect(h.transport.errors(bob)).toEqual(['NOT_ALLOWED']);
+      expect(h.room.phase).toBe('playing');
+      h.transport.clear();
+      h.send(alice, { t: 'endGame' });
+      // Blackjack finishes the hand in play first: its bets are open at the start, so it ends at once too.
+      expect(h.room.phase).toBe('lobby');
+      for (const id of h.room.state.players.map((p) => p.id)) {
+        expect(h.transport.last(id, 'room').room).toMatchObject({ phase: 'lobby', game: null, results: { reason: 'host', gameId } });
+      }
+      // A second tap (or a late one from another tab) after the end changes nothing and says nothing.
+      h.transport.clear();
+      h.send(alice, { t: 'endGame' });
+      expect(h.transport.of(alice)).toEqual([]);
+    });
+
+    it('lets a host who sits the game out end it', () => {
+      const h = harness();
+      const alice = h.join('Alice');
+      h.send(alice, { t: 'sitOut', sitOut: true });
+      const others = enoughNames(gameId, ['Bob', 'Carol']).map((n) => h.join(n));
+      h.send(alice, { t: 'updateSettings', settings: { ...GAME_TEST_FIXTURES[gameId].settings, ...GAME_TEST_FIXTURES[gameId].longSettings } });
+      readyUp(h, others);
+      h.send(alice, { t: 'start' });
+      expect(h.room.phase).toBe('playing');
+      expect(h.player(alice).participating).toBe(false);
+      h.send(alice, { t: 'endGame' });
+      expect(h.transport.errors(alice)).toEqual([]);
+      expect(h.room.phase).toBe('lobby');
+      expect(h.room.state.results?.entries.map((e) => e.playerId)).not.toContain(alice);
+    });
+
+    it('refuses End game in the lobby without a word', () => {
+      const h = harness();
+      const alice = h.join('Alice');
+      h.transport.clear();
+      h.send(alice, { t: 'endGame' });
+      expect(h.transport.of(alice)).toEqual([]);
+      expect(h.room.state.results).toBeNull();
     });
   });
 
@@ -707,30 +767,32 @@ describe.each(GAME_IDS)('platform room (%s)', (gameId: GameId) => {
 
       // The party then plays the new game, and returns to its lobby afterwards.
       readyUp(h, [carol, ...fill(h, 3, gameById(other).minPlayers)]);
-      h.send(alice, { t: 'updateSettings', settings: GAME_TEST_FIXTURES[other].settings });
+      // Back to Family to play: the fixtures' messages are written for the family packs (the Spy fixture
+      // guesses a family decoy, and an Unhinged room deals only adult places).
+      h.send(alice, { t: 'updateSettings', settings: { ...GAME_TEST_FIXTURES[other].settings, contentMode: 'family' } });
       h.send(alice, { t: 'start' });
       expect(h.room.phase).toBe('playing');
       expect(h.transport.last(bob, 'room').room.game).not.toBeNull();
       h.room.handleMessage(alice, { kind: 'game', msg: GAME_TEST_FIXTURES[other].validMessage });
       expect(h.transport.errors(alice)).toEqual([]);
       vi.advanceTimersByTime(60 * 60_000);
-      expect(h.room.phase).toBe('ended');
-      h.send(alice, { t: 'returnToLobby' });
+      if (GAME_TEST_FIXTURES[other].endsByHost) h.send(alice, { t: 'endGame' });
       expect(h.room.phase).toBe('lobby');
       expect(h.room.gameId).toBe(other);
+      expect(h.room.state.results?.gameId).toBe(other);
     });
 
-    it('refuses to switch while a game runs or sits on the podium', () => {
+    it('refuses to switch while a game runs, and switches once it ended (the lobby is right there)', () => {
       const h = harness();
       const [alice] = startGame(h, ['Alice', 'Bob']);
       h.send(alice, { t: 'selectGame', gameId: other });
       expect(h.transport.errors(alice)).toEqual(['NOT_ALLOWED']);
       expect(h.room.gameId).toBe(gameId);
       runToEnd(h, alice, 60 * 60_000);
-      expect(h.room.phase).toBe('ended');
+      expect(h.room.phase).toBe('lobby');
       h.send(alice, { t: 'selectGame', gameId: other });
-      expect(h.transport.errors(alice)).toEqual(['NOT_ALLOWED', 'NOT_ALLOWED']);
-      expect(h.room.gameId).toBe(gameId);
+      expect(h.transport.errors(alice)).toEqual(['NOT_ALLOWED']);
+      expect(h.room.gameId).toBe(other);
     });
   });
 
@@ -762,7 +824,7 @@ describe.each(GAME_IDS)('platform room (%s)', (gameId: GameId) => {
       expect(h.player(bob).sittingOut).toBe(true);
 
       runToEnd(h, alice, 60 * 60_000);
-      expect(h.room.phase).toBe('ended');
+      expect(h.room.phase).toBe('lobby');
       // Still sitting out after the game, until Bob says otherwise.
       expect(h.player(bob).sittingOut).toBe(true);
       h.send(bob, { t: 'sitOut', sitOut: false });
@@ -825,12 +887,11 @@ describe.each(GAME_IDS)('platform room (%s)', (gameId: GameId) => {
       const dave = h.join('Dave');
       expect(h.player(dave).participating).toBe(false);
       runToEnd(h, alice, 60 * 60_000);
-      expect(h.room.phase).toBe('ended');
-      // Never on the podium of a game they only watched, but an ordinary member who can ready up.
-      expect(h.room.state.podium?.map((e) => e.playerId)).not.toContain(dave);
+      expect(h.room.phase).toBe('lobby');
+      // Never in the results of a game they only watched, but an ordinary member who can ready up.
+      expect(h.room.state.results?.entries.map((e) => e.playerId)).not.toContain(dave);
       h.send(dave, { t: 'ready', ready: true });
       expect(h.transport.errors(dave)).toEqual([]);
-      h.send(alice, { t: 'returnToLobby' });
       expect(h.player(dave)).toMatchObject({ participating: false, ready: true });
       readyUp(h, h.room.getState(null).players.map((p) => p.id).filter((id) => id !== alice));
       h.send(alice, { t: 'start' });
@@ -942,7 +1003,7 @@ describe('platform room: seat limits and spectators (Click Race)', () => {
 });
 
 describe('platform room: the end of a game', () => {
-  it('keeps every seat, closes nothing and puts the podium in everyone\'s snapshot when the last click ends a Click Race', () => {
+  it('keeps every seat, closes nothing and puts the results in everyone\'s lobby snapshot when the last click ends a Click Race', () => {
     const h = createHarness({ gameId: 'template' });
     const alice = h.join('Alice');
     const bob = h.join('Bob');
@@ -954,33 +1015,37 @@ describe('platform room: the end of a game', () => {
     for (let i = 0; i < 9; i++) h.send(bob, { t: 'click' });
     expect(h.room.phase).toBe('playing');
     h.send(bob, { t: 'click' });
-    expect(h.room.phase).toBe('ended');
+    expect(h.room.phase).toBe('lobby');
     expect(h.transport.closed).toEqual([]);
     for (const id of [alice, bob, carol]) {
       expect(h.room.getPlayer(id)).toBeDefined();
       expect(h.transport.ofType(id, 'kicked')).toEqual([]);
       expect(h.transport.errors(id)).toEqual([]);
       const last = h.transport.last(id, 'room').room;
-      expect(last.phase).toBe('ended');
-      expect(last.podium).toEqual([
-        { playerId: bob, score: 100, rank: 1 },
-        { playerId: alice, score: 0, rank: 2 },
+      expect(last.phase).toBe('lobby');
+      expect(last.results?.entries).toEqual([
+        { playerId: bob, name: 'Bob', avatar: AVATAR, score: 100, rank: 1 },
+        { playerId: alice, name: 'Alice', avatar: AVATAR, score: 0, rank: 2 },
       ]);
       expect(last.players.find((p) => p.id === id)?.connected).toBe(true);
     }
     expect(h.transport.chats(carol).at(-1)).toEqual({ kind: 'system', text: 'Game over! Bob wins with 100 points.' });
     expect(h.emptied).toEqual([]);
-    // The podium stays until the host returns to the lobby, whatever the clock does.
+    // A reconnect after the end still finds the results in its welcome (the phone shows them once).
+    h.room.handleDisconnect(alice);
+    expect(h.room.rejoin(h.token(alice), 'conn-Alice-2').ok).toBe(true);
+    expect(h.transport.last(alice, 'welcome').room.results?.entries[0]).toMatchObject({ playerId: bob, name: 'Bob' });
+    // The results stay with the lobby, whatever the clock does; nobody is held anywhere.
     vi.advanceTimersByTime(60 * 60_000);
-    expect(h.room.phase).toBe('ended');
-    expect(h.room.playerCount).toBe(3);
-    expect(h.transport.closed).toEqual([]);
-    h.send(alice, { t: 'returnToLobby' });
     expect(h.room.phase).toBe('lobby');
     expect(h.room.playerCount).toBe(3);
+    expect(h.transport.closed).toEqual([]);
+    // A results entry outlives the player's seat: the name and avatar are kept.
+    h.room.leave(bob);
+    expect(h.room.getState(alice).results?.entries[0]).toMatchObject({ playerId: bob, name: 'Bob' });
   });
 
-  it('keeps the guesser whose guess closes the last Scribble turn seated on the podium', () => {
+  it('keeps the guesser whose guess closes the last Scribble turn seated, in the lobby with the results', () => {
     const h = createHarness({ gameId: 'scribble' });
     const [alice, bob] = startGame(h, ['Alice', 'Bob']);
     // Turn 1: Alice draws, Bob guesses; turn 2: Bob draws, Alice's guess is the last of the game.
@@ -992,16 +1057,15 @@ describe('platform room: the end of a game', () => {
     h.send(alice, { t: 'chat', text: 'banana' });
     expect(h.score(alice)).toBeGreaterThan(0);
     vi.advanceTimersByTime(6000);
-    expect(h.room.phase).toBe('ended');
+    expect(h.room.phase).toBe('lobby');
     expect(h.transport.closed).toEqual([]);
     for (const id of [alice, bob]) {
-      expect(h.room.getPlayer(id)).toMatchObject({ connected: true, participating: true });
+      expect(h.room.getPlayer(id)).toMatchObject({ connected: true, participating: false });
       expect(h.transport.ofType(id, 'kicked')).toEqual([]);
       expect(h.transport.errors(id)).toEqual([]);
       const last = h.transport.last(id, 'room').room;
-      expect(last.phase).toBe('ended');
-      expect(last.podium?.map((e) => e.playerId).sort()).toEqual([alice, bob].sort());
-      expect((last.game as { phase: { kind: string } }).phase.kind).toBe('gameOver');
+      expect(last).toMatchObject({ phase: 'lobby', game: null });
+      expect(last.results?.entries.map((e) => e.playerId).sort()).toEqual([alice, bob].sort());
     }
     expect(h.emptied).toEqual([]);
   });

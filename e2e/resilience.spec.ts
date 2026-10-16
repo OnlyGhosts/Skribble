@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type BrowserContext, type Page, type WebSocketRoute } from '@playwright/test';
-import { createParty, joinByCode, readyAll } from './party';
+import { closeResults, createParty, joinByCode, readyAll } from './party';
 
 /**
  * Phones that go dark must not end the game. Part one (Scribble, two players): a guesser's link
@@ -339,12 +339,14 @@ test.describe('Spy Game holds for a dropped phone and the host may remove it', (
     expect(await guest.page.evaluate(() => document.activeElement?.closest('[data-testid="overlay-waiting"]') !== null)).toBe(true);
   });
 
-  test('the host removes the missing player: below three seats the game returns to the lobby with a message', async () => {
+  test('the host removes the missing player: below three seats the game ends, the results over the lobby say why', async () => {
     await host.page.getByTestId('waiting-remove').click();
     for (const p of players().filter((p) => p !== offline)) {
       await expect(p.page.getByTestId('room-code')).toHaveText(code, { timeout: 15_000 });
-      // There is no chat to read it in: the reason pops up as a toast.
-      await expect(p.page.getByTestId('toast').filter({ hasText: 'Not enough players. Back to the lobby.' })).toBeVisible();
+      // There is no chat to read it in: the results popup says why it ended, and crowns nobody.
+      await expect(p.page.getByTestId('results-reason')).toHaveText('Too few players were left.');
+      await expect(p.page.getByTestId('results-headline')).toHaveText('Game over');
+      await closeResults(p.page);
       await expect(p.page.getByTestId('overlay-waiting')).toHaveCount(0);
       await expect(p.page.getByTestId('player-item')).toHaveCount(2);
       await expect(p.page.locator(`[data-testid="player-item"][data-name="${offline.name}"]`)).toHaveCount(0);

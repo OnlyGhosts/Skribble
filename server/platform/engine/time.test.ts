@@ -51,10 +51,10 @@ describe('nextDeadline', () => {
     s.tick();
     expectAgreement(s); // second hint
 
-    s.apply({ type: 'connectionClosed', playerId: carol });
+    s.drop(carol);
     expectAgreement(s); // Bob has not guessed, so no all-guessed grace: still the hint
 
-    s.apply({ type: 'connectionClosed', playerId: alice });
+    s.drop(alice);
     expectAgreement(s); // drawer-gone grace, 20 s, beats the hint at 53.3 s
 
     s.apply({ type: 'rejoin', token: 'token-1', connectionId: 'a2' });
@@ -66,8 +66,8 @@ describe('nextDeadline', () => {
     s.tick();
     expectAgreement(s); // turnEnd -> next turn
 
-    s.apply({ type: 'connectionClosed', playerId: bob });
-    s.apply({ type: 'connectionClosed', playerId: carol });
+    s.drop(bob);
+    s.drop(carol);
     // Summary ends (held); then both seats expire in one tick: the first leaves two seats (still held), the second abandons the game.
     const steps: string[] = [];
     while (s.data.players.length > 1) {
@@ -89,7 +89,7 @@ describe('nextDeadline', () => {
     s.game(alice, { t: 'chooseWord', index: 0 });
     s.platform(bob, { t: 'chat', text: 'apple' });
     expect((s.data.game as ScribbleData).phase.kind).toBe('turnEnd');
-    s.apply({ type: 'connectionClosed', playerId: bob });
+    s.drop(bob);
     s.now = nextDeadline(s.data) ?? s.now; // the summary ends while Bob is in grace
     s.tick();
     expect((s.data.game as ScribbleData).phase).toMatchObject({ kind: 'turnEnd', held: true });
@@ -111,14 +111,14 @@ describe('nextDeadline', () => {
     const s = sim('template');
     const [alice, bob] = startGame(s, ['Alice', 'Bob'], { timeLimit: 20 });
     expectAgreement(s); // the race deadline
-    s.apply({ type: 'connectionClosed', playerId: bob });
+    s.drop(bob);
     expectAgreement(s); // a disconnect schedules nothing before the race (the seat expiry is far later)
     s.apply({ type: 'rejoin', token: 'token-2', connectionId: 'b2' });
     expectAgreement(s); // still the race deadline
     s.game(alice, { t: 'click' });
     s.now = nextDeadline(s.data) ?? s.now;
     s.tick();
-    expect(s.data.phase).toBe('ended');
-    expectAgreement(s); // nothing scheduled on the podium
+    expect(s.data.phase).toBe('lobby');
+    expectAgreement(s); // nothing scheduled in the lobby after it
   });
 });

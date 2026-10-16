@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
 import { renderToString } from 'react-dom/server';
-import { REVEAL_CARD_MS, REVEAL_HOLE_MS, revealAllowanceMs } from '@shared/games/blackjack/cards';
+import { BLACKJACK_DEAL, BLACKJACK_REVEAL, revealAllowanceMs } from '@shared/games/blackjack/deal';
 import {
   DEFAULT_BLACKJACK_SETTINGS,
   type BlackjackRoomState,
@@ -38,6 +38,10 @@ const { betAmount, betWindow, defaultBet, doubleBet, halfBet, parseBet, suggeste
 const { panelStatus, roundLabel, RIBBON_TEXT, DEALER_RULE_TEXT, payoutText, joinNames, phaseKicker, HOTKEY_HINT } = await import('./lib/text');
 const { player, registryOf, resetStore, room, welcome } = await import('../../test/fixtures');
 const { tileFigures } = await import('../../platform/table/PlayersGrid');
+const P = await import('./lib/pending');
+const A = await import('./actions');
+const { socket } = await import('../../platform/net/socket');
+const { seatLine } = await import('./components/Seats');
 
 const NOW = Date.now();
 const NO_ACTIONS = { canHit: false, canStand: false, canDouble: false, canSplit: false };
@@ -61,6 +65,7 @@ function view(overrides: Partial<BlackjackView> = {}): BlackjackView {
     order: ['host', 'bob'],
     turn: null,
     waitingFor: ['host', 'bob'],
+    away: [],
     dealer: EMPTY_DEALER,
     players: {
       host: { chips: 1000, bet: 0, hands: [], inRound: true, sittingOut: false, bustedOut: false },
@@ -275,8 +280,30 @@ describe('the animation timeline', () => {
     expect(T.outcomesShown(tl, at + 1000)).toBe(false);
     expect(T.outcomesAt(tl)).not.toBeNull();
     expect(T.outcomesShown(tl, T.outcomesAt(tl) ?? 0)).toBe(true);
-    expect((T.outcomesAt(tl) ?? 0) - at).toBeLessThanOrEqual(revealAllowanceMs(3));
-    expect(REVEAL_HOLE_MS + REVEAL_CARD_MS).toBe(revealAllowanceMs(3));
+    // The server keeps the table up exactly as long: the hits sliding in (the server counts one slide
+    // for the move that settled), then the reveal. The bets open as the outcomes show.
+    expect((T.outcomesAt(tl) ?? 0) - (T.holeFlipAt(tl) ?? 0)).toBe(revealAllowanceMs(3));
+  });
+
+  it('plays the reveal at the shared pace the server times the results by', () => {
+    expect(T.FLIP_MS).toBe(BLACKJACK_REVEAL.flip);
+    expect(T.DEALER_GAP_MS).toBe(BLACKJACK_REVEAL.draw);
+    expect(T.OUTCOME_DELAY_MS).toBe(BLACKJACK_REVEAL.outcome);
+    expect(T.PEEK_PAUSE_MS).toBe(BLACKJACK_REVEAL.peekPause);
+    expect(T.DRAW_BEAT_MS).toBe(BLACKJACK_REVEAL.beat);
+    expect(T.MOVE_MS).toBe(BLACKJACK_DEAL.move);
+    // No draws, then one, two, three: the outcomes show exactly revealAllowanceMs after the flip starts.
+    for (const draws of [0, 1, 2, 3]) {
+      const dealt = plan(view(), acting());
+      const at = NOW + 5000;
+      const dealerCards = [c('6'), c('K'), ...[c('2'), c('3'), c('4')].slice(0, draws)];
+      const settledView = nextBetting();
+      const last = settledView.lastRound;
+      if (!last) throw new Error('no last round');
+      const withDraws = { ...settledView, lastRound: { ...last, dealer: { ...last.dealer, cards: dealerCards } } };
+      const tl = plan(acting(), withDraws, dealt, at);
+      expect((T.outcomesAt(tl) ?? 0) - (T.holeFlipAt(tl) ?? 0), `${draws} draws`).toBe(revealAllowanceMs(2 + draws));
+    }
   });
 
   it('clears the last round to the discards before the next deal, once its outcomes have been up a moment', () => {
@@ -486,9 +513,10 @@ describe('copy', () => {
     const base = { phase: 'results' as const, seated: true, bustedOut: false, connected: true, inRound: false, hasChips: true, betPlaced: false, sittingOut: false, pending: [], myTurn: false, turnName: '', handIndex: 0, handCount: 0, dealerPlaying: false };
     expect(panelStatus(base)).toMatchObject({ state: 'results', text: 'Next round soon' });
     expect(panelStatus({ ...base, dealerPlaying: true }).text).toBe("Dealer's turn");
-    // No bet, sit-out or move is on offer while the settled table is on show.
+    // Once the outcomes are up, Bet is on offer through the pause: the tap waits and goes out as the bets open.
+    // No sit-out or move is on offer while the settled table is on show.
     const html = render(bjRoom(results), 'host');
-    expect(disabled(html, 'place-bet')).toBe(true);
+    expect(disabled(html, 'place-bet')).toBe(false);
     expect(tagsWith(html, 'sit-out')).toHaveLength(0);
     expect(attr(tagWith(html, 'blackjack-screen'), 'data-phase')).toBe('results');
   });
@@ -651,17 +679,22 @@ describe('the screen', () => {
     expect(tagWith(render(bjRoom(acting()), 'bob'), 'bj-panel')).not.toContain('data-watching');
   });
 
-  it('gives the host an End game control and, once asked, says the game ends after the hand', () => {
+  it('gives the host the platform\'s End game, says it ends after the hand in play, and once asked says so instead', () => {
     expect(tagWith(render(bjRoom(acting()), 'host'), 'end-game')).toBeTruthy();
     expect(tagsWith(render(bjRoom(acting()), 'bob', false), 'end-game')).toHaveLength(0);
-    expect(tagWith(render(bjRoom(acting({ endRequested: true })), 'host'), 'end-game-requested')).toBeTruthy();
+    expect(blackjackClient.endGameNote?.(bjRoom(acting()))).toBe('It ends after the hand in play.');
+    expect(blackjackClient.endGameNote?.(bjRoom(acting({ phase: 'betting' })))).toBe('Bets on the table go back.');
+    expect(blackjackClient.endGameNote?.(bjRoom(acting({ phase: 'results' })))).toBeNull();
+    const asked = render(bjRoom(acting({ endRequested: true }), { endRequested: true }), 'host');
+    expect(tagWith(asked, 'end-game-requested')).toBeTruthy();
+    expect(tagsWith(asked, 'end-game')).toHaveLength(0);
   });
 });
 
 describe('the move the panel lights on my turn', () => {
   const all = { canHit: true, canStand: true, canDouble: true, canSplit: true };
   const up = (rank: Card['rank']) => c(rank, 'H');
-  it('plays the usual sensible move from my hand and the dealer\'s up card', async () => {
+  it('plays the basic strategy move from my hand and the dealer\'s up card', async () => {
     const { suggestedMove } = await import('./lib/advice');
     expect(suggestedMove([c('8'), c('8', 'D')], up('10'), all)).toBe('split');
     expect(suggestedMove([c('A'), c('A', 'D')], up('6'), all)).toBe('split');
@@ -677,6 +710,60 @@ describe('the move the panel lights on my turn', () => {
     expect(suggestedMove([c('A'), c('7')], up('8'), all)).toBe('stand');
     expect(suggestedMove([c('A'), c('8')], up('10'), all)).toBe('stand');
     expect(suggestedMove([c('5'), c('3')], up('7'), all)).toBe('hit');
+  });
+
+  it('follows the basic strategy chart for every pair', async () => {
+    const { suggestedMove } = await import('./lib/advice');
+    const pair = (rank: Card['rank'], dealer: Card['rank']) => suggestedMove([c(rank), c(rank, 'D')], up(dealer), all);
+    expect(pair('2', '7')).toBe('split');
+    expect(pair('2', '8')).toBe('hit');
+    expect(pair('3', '2')).toBe('split');
+    expect(pair('4', '5')).toBe('split');
+    expect(pair('4', '4')).toBe('hit');
+    expect(pair('5', '9')).toBe('double');
+    expect(pair('5', '10')).toBe('hit');
+    expect(pair('6', '2')).toBe('split');
+    expect(pair('6', '7')).toBe('hit');
+    expect(pair('7', '7')).toBe('split');
+    expect(pair('7', '8')).toBe('hit');
+    expect(pair('9', '6')).toBe('split');
+    expect(pair('9', '7')).toBe('stand');
+    expect(pair('9', '9')).toBe('split');
+    expect(pair('9', 'A')).toBe('stand');
+    expect(pair('K', '6')).toBe('stand');
+    expect(suggestedMove([c('K'), c('Q', 'D')], up('5'), all)).toBe('stand');
+    expect(pair('8', 'A')).toBe('split');
+    expect(pair('A', 'A')).toBe('split');
+  });
+
+  it('doubles a hard 9 to 11 and the soft hands where the chart does, and hits 11 against an ace', async () => {
+    const { suggestedMove } = await import('./lib/advice');
+    expect(suggestedMove([c('5'), c('4')], up('3'), all)).toBe('double');
+    expect(suggestedMove([c('5'), c('4')], up('2'), all)).toBe('hit');
+    expect(suggestedMove([c('5'), c('4')], up('7'), all)).toBe('hit');
+    expect(suggestedMove([c('6'), c('5')], up('A'), all)).toBe('hit');
+    // The casino card (six to eight decks): soft 13 and 14 double against a 5 or 6, soft 15 and 16 against a 4 to 6.
+    expect(suggestedMove([c('A'), c('2')], up('5'), all)).toBe('double');
+    expect(suggestedMove([c('A'), c('2')], up('4'), all)).toBe('hit');
+    expect(suggestedMove([c('A'), c('3')], up('6'), all)).toBe('double');
+    expect(suggestedMove([c('A'), c('4')], up('4'), all)).toBe('double');
+    expect(suggestedMove([c('A'), c('4')], up('3'), all)).toBe('hit');
+    expect(suggestedMove([c('A'), c('5')], up('4'), all)).toBe('double');
+    expect(suggestedMove([c('A'), c('6')], up('3'), all)).toBe('double');
+    expect(suggestedMove([c('A'), c('6')], up('7'), all)).toBe('hit');
+    expect(suggestedMove([c('A'), c('7')], up('3'), all)).toBe('double');
+    expect(suggestedMove([c('A'), c('7')], up('2'), all)).toBe('stand');
+    expect(suggestedMove([c('A'), c('8')], up('6'), all)).toBe('stand');
+  });
+
+  it('turns a double the hand cannot take into Hit, or into Stand on a soft 18', async () => {
+    const { suggestedMove } = await import('./lib/advice');
+    const noDouble = { ...all, canDouble: false, canSplit: false };
+    expect(suggestedMove([c('A'), c('2'), c('4')], up('5'), noDouble)).toBe('hit');
+    expect(suggestedMove([c('A'), c('3'), c('4')], up('4'), noDouble)).toBe('stand');
+    expect(suggestedMove([c('2'), c('3'), c('6')], up('6'), noDouble)).toBe('hit');
+    // Split aces take one card each: only Stand (or a re-split of another ace) is on offer.
+    expect(suggestedMove([c('A'), c('5')], up('6'), { ...NO_ACTIONS, canStand: true })).toBe('stand');
   });
 
   it('falls back to Hit, then Stand, when the play is not on offer, and lights nothing off my turn', async () => {
@@ -745,10 +832,11 @@ describe('the table controls (no clocks)', () => {
       return true;
     });
     const { sitOut, dealNow, skipTurn } = await import('./actions');
-    sitOut();
-    dealNow();
-    skipTurn({ playerId: 'bob', handIndex: 2 });
-    expect(sent).toEqual([{ t: 'sitOutHand' }, { t: 'dealNow' }, { t: 'skip', playerId: 'bob', handIndex: 2 }]);
+    sitOut(view(), 'host');
+    dealNow(view(), 'host');
+    skipTurn({ playerId: 'bob', handIndex: 2 }, view(), 'host');
+    expect(sent).toEqual([{ t: 'sitOutHand', round: 2 }, { t: 'dealNow', round: 2 }, { t: 'skip', playerId: 'bob', handIndex: 2 }]);
+    useBlackjackStore.getState().clearPending();
     spy.mockRestore();
   });
 
@@ -774,7 +862,7 @@ describe('the table controls (no clocks)', () => {
     expect(turnKey(theirs)).toBe('2:bob:1');
     expect(turnKey(view())).toBeNull();
     const skipped: string[] = [];
-    const element = (skippedKey: string | null) => TableAction({ view: theirs, turnName: 'Pia', skipped: skippedKey, onSkip: (k) => skipped.push(k) });
+    const element = (skippedKey: string | null) => TableAction({ view: theirs, meId: 'host', turnName: 'Pia', skipped: skippedKey, onSkip: (k) => skipped.push(k) });
     const live = element(null);
     expect(renderToString(live)).not.toContain('disabled');
     (live.props as { onClick(): void }).onClick();
@@ -1186,5 +1274,168 @@ describe('player-list hooks', () => {
     expect(renderToString(createElement('div', null, blackjackClient.playerMeta?.(state, hana)))).toContain('bet 50');
     const out = bjRoom(view({ players: { ...view().players, bob: { chips: 5, bet: 0, hands: [], inRound: false, sittingOut: false, bustedOut: true } } }));
     expect(blackjackClient.playerClassName?.(out, out.players[1])).toBe('player--out');
+  });
+});
+
+describe('a tap waiting for its answer', () => {
+  function recordSends(): unknown[] {
+    const sent: unknown[] = [];
+    vi.spyOn(socket, 'send').mockImplementation((msg: unknown) => {
+      sent.push(msg);
+      return true;
+    });
+    return sent;
+  }
+
+  it('aims a move at the round, the hand in play and the cards I hold', () => {
+    const sent = recordSends();
+    expect(P.moveTarget(acting(), 'host')).toEqual({ round: 2, handIndex: 0, cards: 2 });
+    A.playMove('hit', acting(), 'host');
+    expect(sent).toEqual([{ t: 'hit', round: 2, handIndex: 0, cards: 2 }]);
+    vi.restoreAllMocks();
+  });
+
+  it('holds every control, the pressed move shown pressed, until a snapshot answers it', () => {
+    recordSends();
+    A.playMove('hit', acting(), 'host');
+    const pending = useBlackjackStore.getState().pending;
+    expect(pending).toMatchObject({ kind: 'hit' });
+    const html = render(bjRoom(acting()), 'host');
+    for (const id of ['action-hit', 'action-stand', 'action-split', 'action-double']) expect(disabled(html, id), id).toBe(true);
+    expect(attr(tagWith(html, 'action-hit'), 'data-sent')).toBe('true');
+    // The same table again is no answer; my new card is.
+    if (!pending) throw new Error('no pending move');
+    expect(P.answered(pending, acting(), 'host')).toBe(false);
+    const hit = acting({ players: { ...acting().players, host: { ...acting().players.host, hands: [hand([c('8'), c('8', 'D'), c('2')], { total: 18, status: 'acting' })] } } });
+    expect(P.answered(pending, hit, 'host')).toBe(true);
+    blackjackClient.onRoom?.(bjRoom(hit), bjRoom(acting()));
+    expect(useBlackjackStore.getState().pending).toBeNull();
+    // Answered: nothing is shown pressed any more (the new card still slides in before the moves light up).
+    expect(attr(tagWith(render(bjRoom(hit), 'host'), 'action-hit'), 'data-sent')).toBeUndefined();
+    vi.restoreAllMocks();
+  });
+
+  it('lets go of the controls on its own after PENDING_MS, on a refusal and on a rejoin', async () => {
+    vi.useFakeTimers();
+    const { PENDING_MS } = await import('./store');
+    recordSends();
+    A.playMove('stand', acting(), 'host');
+    vi.advanceTimersByTime(PENDING_MS - 1);
+    expect(useBlackjackStore.getState().pending).not.toBeNull();
+    vi.advanceTimersByTime(1);
+    expect(useBlackjackStore.getState().pending).toBeNull();
+    A.playMove('stand', acting(), 'host');
+    blackjackClient.onError?.('NOT_ALLOWED', 'You cannot double this hand.');
+    expect(useBlackjackStore.getState().pending).toBeNull();
+    A.playMove('stand', acting(), 'host');
+    blackjackClient.onWelcome?.(undefined);
+    expect(useBlackjackStore.getState().pending).toBeNull();
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  it('shows Bet placed the moment Bet is tapped, and sends the round with it', () => {
+    const sent = recordSends();
+    A.placeBet(50, view(), 'host');
+    expect(sent).toEqual([{ t: 'bet', amount: 50, round: 2 }]);
+    const html = render(bjRoom(view()), 'host');
+    expect(textOf(html, 'place-bet')).toBe('Bet placed');
+    expect(disabled(html, 'place-bet')).toBe(true);
+    expect(attr(tagWith(html, 'place-bet'), 'data-sent')).toBe('true');
+    vi.restoreAllMocks();
+  });
+
+  it('takes a Bet tapped once the outcomes are up, before the bets open, and sends it as they open', () => {
+    const sent = recordSends();
+    const results = nextBetting({ phase: 'results', round: 2, order: [], waitingFor: [] });
+    A.queueBet(40, results);
+    expect(useBlackjackStore.getState().queuedBet).toEqual({ round: 3, amount: 40 });
+    expect(textOf(render(bjRoom(results), 'host'), 'place-bet')).toBe('Bet placed');
+    expect(sent).toEqual([]);
+    // The bets open: it goes out at once, for that round.
+    blackjackClient.onRoom?.(bjRoom(nextBetting()), bjRoom(results));
+    expect(sent).toEqual([{ t: 'bet', amount: 40, round: 3 }]);
+    expect(useBlackjackStore.getState().queuedBet).toBeNull();
+    vi.restoreAllMocks();
+  });
+
+  it('drops a queued bet the game moved past (it ended instead)', () => {
+    const sent = recordSends();
+    const results = nextBetting({ phase: 'results', round: 2, order: [], waitingFor: [] });
+    render(bjRoom(results), 'host');
+    A.queueBet(40, results);
+    blackjackClient.onRoom?.(bjRoom(nextBetting({ phase: 'ending', round: 2 })), bjRoom(results));
+    expect(useBlackjackStore.getState().queuedBet).toBeNull();
+    expect(sent).toEqual([]);
+    vi.restoreAllMocks();
+  });
+
+  it('takes a Bet tapped while the reveal still plays: one bet goes out at once, or waits for the bets to open', async () => {
+    const { betTap } = await import('./components/ControlPanel');
+    const sent = recordSends();
+    const settled = nextBetting();
+    // The reveal is planned from the hand in play to the settled table: the outcomes are not up yet.
+    useBlackjackStore.getState().applyView(acting(), Date.now(), true, true);
+    useBlackjackStore.getState().applyView(settled, Date.now(), false, true);
+    const html = render(bjRoom(settled), 'bob');
+    expect(textOf(html, 'turn-status')).toBe('Dealer&#x27;s turn');
+    expect(disabled(html, 'place-bet')).toBe(false);
+    expect(attr(tagWith(html, 'place-bet'), 'aria-disabled')).toBeUndefined();
+    // The server already takes bets: the tap places one now.
+    const opts = { canSend: true, held: false, queued: false };
+    expect(betTap(settled, 'bob', 50, opts)).toBe('place');
+    A.placeBet(50, settled, 'bob');
+    expect(sent).toEqual([{ t: 'bet', amount: 50, round: 3 }]);
+    expect(textOf(render(bjRoom(settled), 'bob'), 'place-bet')).toBe('Bet placed');
+    // A second tap finds Bet held: still one bet.
+    expect(betTap(settled, 'bob', 50, { ...opts, held: useBlackjackStore.getState().pending !== null })).toBeNull();
+    // Outcomes on the server, bets not open yet: the tap is kept for them.
+    const results = nextBetting({ phase: 'results', round: 2, order: [], waitingFor: [] });
+    expect(betTap(results, 'host', 40, opts)).toBe('queue');
+    expect(betTap(results, 'host', 40, { ...opts, queued: true })).toBeNull();
+    // Not on offer at all: on my turn, offline, or with nothing to bet.
+    expect(betTap(acting(), 'host', 40, opts)).toBeNull();
+    expect(betTap(settled, 'host', 40, { ...opts, canSend: false })).toBeNull();
+    expect(betTap(settled, 'host', null, opts)).toBeNull();
+    vi.restoreAllMocks();
+  });
+
+  it('waits for my own cards only before my moves go, saying Dealing meanwhile', () => {
+    const at = Date.now();
+    useBlackjackStore.getState().applyView(view(), at, true, true);
+    useBlackjackStore.getState().applyView(acting(), at, false, true);
+    const { timeline, table } = useBlackjackStore.getState();
+    expect(T.myHandLanded(timeline, table, 'host', 0, at)).toBe(false);
+    // The host's two cards and the dealer's up card land before bob's second card and the hole card.
+    const mine = ['host/0/0/8S', 'd0', 'host/0/1/8D'].map((key) => (timeline.arrivals[key] ?? 0) + T.DEAL_MS);
+    const ready = Math.max(...mine);
+    expect(T.myHandLanded(timeline, table, 'host', 0, ready)).toBe(true);
+    expect(ready).toBeLessThan(timeline.endsAt);
+    const base = { phase: 'acting' as const, seated: true, bustedOut: false, connected: true, inRound: true, hasChips: true, betPlaced: true, sittingOut: false, pending: [], myTurn: true, turnName: 'Hana', handIndex: 0, handCount: 1, dealerPlaying: false };
+    expect(panelStatus({ ...base, dealing: true })).toMatchObject({ state: 'dealing', text: 'Dealing' });
+    expect(panelStatus(base)).toMatchObject({ state: 'my-turn', text: 'Your turn' });
+  });
+
+  it('does not hold the next deal for the last outcomes when my own bet dealt it', () => {
+    const at = Date.now();
+    const store = useBlackjackStore.getState();
+    store.applyView(acting(), at, true, true);
+    store.applyView(nextBetting(), at, false, true);
+    const outcomes = T.outcomesAt(useBlackjackStore.getState().timeline) ?? at;
+    recordSends();
+    A.placeBet(50, nextBetting(), 'host');
+    const deal = acting({ round: 3 });
+    useBlackjackStore.getState().applyView(deal, outcomes, false, true);
+    expect(useBlackjackStore.getState().timeline.discard?.from).toBe(outcomes);
+    vi.restoreAllMocks();
+  });
+
+  it('shows a seat the table waits on whose phone went quiet as away, and says so on their turn', () => {
+    const quiet = acting({ turn: { playerId: 'bob', handIndex: 0 }, away: ['bob'], controls: { ...NO_CONTROLS, canSkip: true } });
+    const html = render(bjRoom(quiet), 'host');
+    expect(textOf(html, 'turn-status')).toBe('Pia is away');
+    expect(tagsWith(html, 'skip-turn')).toHaveLength(1);
+    expect(seatLine(quiet, 'bob', [], false)).toMatchObject({ state: 'away', text: 'Away' });
+    expect(seatLine(quiet, 'host', [], false).state).not.toBe('away');
   });
 });

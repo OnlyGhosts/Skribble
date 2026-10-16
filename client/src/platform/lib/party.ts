@@ -1,9 +1,9 @@
 /**
- * Pure helpers for the party: who is ready for the next game, whether the host may start, and
- * how the podium reads for each player. Shared by the lobby, the podium and their tests.
+ * Pure helpers for the party: who is ready for the next game and whether the host may start.
+ * Shared by the lobby, the results and their tests.
  */
 import type { GameMeta } from '@shared/platform/games';
-import type { PlayerPublic, PodiumEntry, RoomState } from '@shared/platform/protocol';
+import type { PlayerPublic, RoomState } from '@shared/platform/protocol';
 
 /** "3+ players" for a game that seats any number, "2 to 23 players" with a seat limit. */
 export function playerCountLabel(meta: GameMeta): string {
@@ -59,34 +59,4 @@ export function ordinal(n: number): string {
     default:
       return `${n}th`;
   }
-}
-
-/** Podium entries ranked first (ties share the rank), best score first. */
-export function podiumOrder(room: RoomState): PodiumEntry[] {
-  return (room.podium ?? []).slice().sort((a, b) => a.rank - b.rank || b.score - a.score);
-}
-
-export function winners(room: RoomState): PodiumEntry[] {
-  return podiumOrder(room).filter((e) => e.rank === 1);
-}
-
-function nameOf(room: RoomState, playerId: string): string {
-  return room.players.find((p) => p.id === playerId)?.name ?? 'Someone';
-}
-
-/** "Alice wins!", "Alice and Bob tie!", or a thank-you when nobody is on the podium. */
-export function winnerHeadline(room: RoomState): string {
-  const top = winners(room);
-  if (top.length === 0) return 'Thanks for playing!';
-  if (top.length === 1) return `${nameOf(room, top[0].playerId)} wins!`;
-  return `${listNames(top.map((e) => nameOf(room, e.playerId)))} tie!`;
-}
-
-/** What the podium says to this player: "You won!", "You came 2nd", or null for someone who sat the game out. */
-export function placeLine(room: RoomState, meId: string | null): string | null {
-  if (meId === null) return null;
-  const mine = podiumOrder(room).find((e) => e.playerId === meId);
-  if (!mine) return null;
-  if (mine.rank === 1) return winners(room).length > 1 ? 'You tied for the win!' : 'You won!';
-  return `You came ${ordinal(mine.rank)}`;
 }

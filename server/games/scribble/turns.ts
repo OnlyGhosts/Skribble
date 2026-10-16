@@ -52,10 +52,10 @@ export function beginNextTurn(gx: Gx): void {
   const { data, ctx } = gx;
   clearTurnGrace(gx);
   if (ctx.players.length < MIN_PLAYERS) {
-    gx.effects.push({ type: 'abort', reason: 'Not enough players. Back to the lobby.' });
+    gx.effects.push({ type: 'abort', reason: 'Not enough players to go on.' });
     return;
   }
-  // A game with no turn left is over whoever is connected: the podium neither waits for an absent
+  // A game with no turn left is over whoever is connected: the results neither wait for an absent
   // player nor is lost to their seat expiring during a hold.
   if (data.turnIndex + 1 >= data.turnQueue.length && data.round >= ctx.settings.rounds) return finishGame(gx);
   if (connectedCount(ctx) < MIN_PLAYERS) return holdTurnBoundary(gx);
@@ -84,6 +84,7 @@ export function beginNextTurn(gx: Gx): void {
 function startChoosing(gx: Gx, drawer: PlatformPlayer): void {
   const { data, ctx } = gx;
   resetCanvas(gx);
+  // Family draws the language list, Unhinged the adult tiers only; custom words merge in, or replace the pack when custom-only.
   const pool = buildWordPool(ctx.settings.language, ctx.settings.customWords, ctx.settings.customWordsOnly, ctx.settings.contentMode);
   const choices = pickWords(pool, ctx.settings.wordChoices, data.usedWords, ctx.rng);
   data.turn = {

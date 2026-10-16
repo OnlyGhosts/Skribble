@@ -35,16 +35,14 @@ describe.each(GAME_IDS)('party (%s)', (gameId) => {
     expect(ctx.spectators).toEqual([]);
     expect(ctx.settings).toMatchObject({ contentMode: 'family' });
 
-    s.apply({ type: 'platformMessage', playerId: alice, msg: { t: 'returnToLobby' } });
     s.apply({ type: 'join', name: 'Dave', avatar: AVATAR, connectionId: 'd' });
     const dave = s.playerId('Dave');
     s.apply({ type: 'platformMessage', playerId: dave, msg: { t: 'sitOut', sitOut: true } });
-    // The game ended on its own clock (or by the host, where the clock never ends it): bring it back to the lobby first.
+    // The game ends on its own clock (or by the host, where the clock never ends it), straight back to the lobby.
     s.now += 60 * 60_000;
     s.tick();
-    const end = GAME_TEST_FIXTURES[gameId].hostEnd;
-    if (end && s.data.phase === 'playing') s.game(alice, end);
-    if (s.data.phase === 'ended') s.platform(alice, { t: 'returnToLobby' });
+    if (GAME_TEST_FIXTURES[gameId].endsByHost && s.data.phase === 'playing') s.platform(alice, { t: 'endGame' });
+    expect(s.data.phase).toBe('lobby');
     readyUp(s, s.data.players.map((p) => p.id).filter((id) => id !== dave));
     s.platform(alice, { t: 'start' });
     expect(s.data.phase).toBe('playing');
@@ -161,14 +159,14 @@ describe.each(GAME_IDS)('rooms stored before content modes existed (%s)', (gameI
     // Mid-game: the next round (or the game's end) comes without a content lookup failing.
     const played = applyAction(legacy, { type: 'tick' }, ctxAt(s.now + 60 * 60_000, new Ids()));
     expect(played.data.settings).toMatchObject({ contentMode: 'family', maxPlayers: 8 });
-    expect(['playing', 'ended']).toContain(played.data.phase);
+    expect(['playing', 'lobby']).toContain(played.data.phase);
     expect(viewFor(played.data, alice, s.now).settings.contentMode).toBe('family');
 
     // A legacy lobby with everyone readied up starts.
     const lobby = structuredClone(legacy);
     lobby.phase = 'lobby';
     lobby.game = null;
-    lobby.podium = null;
+    lobby.results = null;
     for (const p of lobby.players) {
       p.participating = false;
       p.ready = true;
@@ -177,7 +175,7 @@ describe.each(GAME_IDS)('rooms stored before content modes existed (%s)', (gameI
     expect(started.data.phase).toBe('playing');
     expect(started.data.settings.contentMode).toBe('family');
     const later = applyAction(started.data, { type: 'tick' }, ctxAt(s.now + 60 * 60_000, new Ids()));
-    expect(['playing', 'ended']).toContain(later.data.phase);
+    expect(['playing', 'lobby']).toContain(later.data.phase);
   });
 });
 
@@ -191,12 +189,12 @@ describe.each(GAME_IDS)('rooms stored while Cheeky was a content mode (%s)', (ga
     expect(viewFor(legacy, alice, s.now).settings.contentMode).toBe('family');
     const played = applyAction(legacy, { type: 'tick' }, ctxAt(s.now + 60 * 60_000, new Ids()));
     expect(played.data.settings.contentMode).toBe('family');
-    expect(['playing', 'ended']).toContain(played.data.phase);
+    expect(['playing', 'lobby']).toContain(played.data.phase);
 
     const lobby = structuredClone(legacy);
     lobby.phase = 'lobby';
     lobby.game = null;
-    lobby.podium = null;
+    lobby.results = null;
     for (const p of lobby.players) {
       p.participating = false;
       p.ready = true;
@@ -227,13 +225,13 @@ describe.each(GAME_IDS)('rooms stored before one of the game settings existed (%
       expect(viewFor(legacy, alice, s.now).settings, key).toEqual(restored);
       const played = applyAction(legacy, { type: 'tick' }, ctxAt(s.now + 60 * 60_000, new Ids()));
       expect(played.data.settings, key).toEqual(restored);
-      expect(['playing', 'ended'], key).toContain(played.data.phase);
+      expect(['playing', 'lobby'], key).toContain(played.data.phase);
     }
   });
 });
 
 describe('a host who sits the game out', () => {
-  it('still ends a Spy Game from the reveal, while their other moves stay refused', () => {
+  it('still ends a Spy Game, while their other moves stay refused', () => {
     const s = sim('spygame');
     const [alice, bob, carol, dave] = seat(s, ['Alice', 'Bob', 'Carol', 'Dave']);
     s.platform(alice, { t: 'sitOut', sitOut: true });
@@ -246,9 +244,10 @@ describe('a host who sits the game out', () => {
     s.advance(SPYGAME_ROUND_MINUTES * 60_000);
     s.tick();
     expect(gamePhase(s)).toBe('reveal');
-    expect(errorsOf(s.game(bob, { t: 'endGame' }))).toEqual(['Only the host can end the game.']);
-    expect(chatTexts(s.game(alice, { t: 'endGame' }))).toContain('The host ended the game. Back to the lobby.');
-    expect(s.data.phase).toBe('lobby');
+    expect(errorsOf(s.platform(bob, { t: 'endGame' }))).toEqual(['Only the host can do that.']);
+    expect(chatTexts(s.platform(alice, { t: 'endGame' })).at(-1)).toMatch(/^Game over!/);
+    expect(s.data).toMatchObject({ phase: 'lobby', results: { reason: 'host' } });
+    expect(s.data.results?.entries.map((e) => e.playerId)).not.toContain(alice);
   });
 
   it('still skips a Quip Game result, while their other moves stay refused', () => {
@@ -345,19 +344,62 @@ describe.each(GAME_IDS)('joining while a game runs (%s)', (gameId) => {
 });
 
 describe('joining between games', () => {
-  it('lets a newcomer in on the podium as an ordinary member', () => {
+  it('lets a newcomer into the lobby after a game as an ordinary member, the results left as they are', () => {
     const s = sim('template');
     const [alice] = seat(s, ['Alice']);
     s.platform(alice, { t: 'updateSettings', settings: { targetClicks: 10 } });
     s.platform(alice, { t: 'start' });
     for (let i = 0; i < 10; i++) s.game(alice, { t: 'click' });
-    expect(s.data.phase).toBe('ended');
+    expect(s.data.phase).toBe('lobby');
     // Nothing is running, so the front door does not offer to watch.
     expect(previewOf(s.data)).toMatchObject({ inProgress: false, joinable: true });
-    const podium = structuredClone(s.data.podium);
+    const results = structuredClone(s.data.results);
     s.apply({ type: 'join', name: 'Bob', avatar: AVATAR, connectionId: 'b' });
     expect(s.data.players.find((p) => p.name === 'Bob')).toMatchObject({ participating: false, ready: false });
-    expect(s.data).toMatchObject({ phase: 'ended', podium });
+    expect(s.data).toMatchObject({ phase: 'lobby', results });
+  });
+});
+
+describe('rooms stored on the old podium phase', () => {
+  it('load as a lobby carrying that podium as the results, ready for the next game', () => {
+    const s = sim('template');
+    const [alice, bob] = startGame(s, ['Alice', 'Bob']);
+    // A room stored before the results lived in the lobby: phase 'ended', a podium list, the game's data kept.
+    const legacy = {
+      ...structuredClone(s.data),
+      phase: 'ended',
+      podium: [
+        { playerId: bob, score: 7, rank: 1 },
+        { playerId: alice, score: 3, rank: 2 },
+        { playerId: 'gone', score: 1, rank: 3 },
+      ],
+      results: undefined,
+      waiting: [bob],
+    } as unknown as PlatformRoomData;
+    const loaded = upgradeRoomData(legacy);
+    expect(loaded).toMatchObject({ phase: 'lobby', game: null, waiting: null, endRequested: false });
+    expect(loaded).not.toHaveProperty('podium');
+    expect(loaded.results).toEqual({
+      id: `stored-${legacy.version}`,
+      gameId: 'template',
+      reason: 'finished',
+      // A player no longer seated has no name to show and drops off.
+      entries: [
+        { playerId: bob, name: 'Bob', avatar: AVATAR, score: 7, rank: 1 },
+        { playerId: alice, name: 'Alice', avatar: AVATAR, score: 3, rank: 2 },
+      ],
+    });
+    expect(loaded.players.every((p) => !p.participating && p.score === 0)).toBe(true);
+    // Its snapshot is an ordinary lobby's, and the host can start the next game at once.
+    expect(viewFor(legacy, alice, s.now)).toMatchObject({ phase: 'lobby', game: null, results: { reason: 'finished' } });
+    const started = applyAction(legacy, { type: 'platformMessage', playerId: alice, msg: { t: 'start' } }, ctxAt(s.now, new Ids()));
+    expect(started.data).toMatchObject({ phase: 'playing', results: null });
+
+    // Any other stored room drops its old empty podium field and reads with no results.
+    const running = { ...structuredClone(s.data), podium: null, results: undefined } as unknown as PlatformRoomData;
+    const upgraded = upgradeRoomData(running);
+    expect(upgraded).not.toHaveProperty('podium');
+    expect(upgraded).toMatchObject({ phase: 'playing', results: null });
   });
 });
 
@@ -372,6 +414,6 @@ describe('rooms stored before the Scribble rename', () => {
     expect(viewFor(legacy, alice, s.now)).toEqual(viewFor(s.data, alice, s.now));
     const played = applyAction(legacy, { type: 'tick' }, ctxAt(s.now + 60 * 60_000, new Ids()));
     expect(played.data.gameId).toBe('scribble');
-    expect(['playing', 'ended']).toContain(played.data.phase);
+    expect(['playing', 'lobby']).toContain(played.data.phase);
   });
 });

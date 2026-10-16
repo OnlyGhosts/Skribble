@@ -107,6 +107,12 @@ export interface PanelStatusInput {
   handCount: number;
   /** The dealer's reveal is still playing on screen. */
   dealerPlaying: boolean;
+  /** My turn, but my cards are still sliding in: the moves wait a moment. */
+  dealing?: boolean;
+  /** The player whose turn it is has gone quiet (asleep, frozen, in the background). */
+  turnAway?: boolean;
+  /** A bet tapped before the bets opened: it goes out as they do. */
+  betQueued?: boolean;
 }
 
 function line(state: PanelState, text: string): PanelStatus {
@@ -121,7 +127,7 @@ export function panelStatus(s: PanelStatusInput): PanelStatus {
   if (!s.connected) return line('offline', 'Reconnecting…');
   if (s.phase === 'held') return line('held', 'Waiting for players');
   if (s.dealerPlaying) return line('dealer', "Dealer's turn");
-  if (s.phase === 'results') return line('results', 'Next round soon');
+  if (s.phase === 'results') return line('results', s.betQueued ? 'Bet placed. Next round soon' : 'Next round soon');
   if (s.phase === 'betting') {
     if (!s.inRound) return line('next-round', "You're in from the next round");
     if (s.sittingOut) return line('sat-out', 'You sit this hand out');
@@ -131,8 +137,9 @@ export function panelStatus(s: PanelStatusInput): PanelStatus {
   }
   // Seated with chips but not dealt in: they sat the hand out (a newcomer has no chips yet).
   if (!s.inRound) return line('next-round', s.hasChips ? 'You sit this hand out' : "You're in from the next round");
+  if (s.myTurn && s.dealing) return line('dealing', 'Dealing');
   if (s.myTurn) return line('my-turn', s.handCount > 1 ? `Your turn, hand ${s.handIndex + 1} of ${s.handCount}` : 'Your turn');
-  return line('their-turn', `${s.turnName}'s turn`);
+  return line('their-turn', s.turnAway ? `${s.turnName} is away` : `${s.turnName}'s turn`);
 }
 
 /** The line under the ribbon for my settled round: "You win +200", "Blackjack +250", "Push", "You lost". */

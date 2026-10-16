@@ -13,23 +13,31 @@ import {
   faceDown,
   finishPlan,
   flipping,
+  landed,
   reached,
   snapTimeline as snapAt,
   type Frame as TableFrame,
   type Timeline as TableTimeline,
 } from '../../../platform/table/timeline';
-import { dealGapMs } from '@shared/games/blackjack/deal';
-import { dealOrder, dealerKey, seatCards, type TableModel } from './table';
+import { BLACKJACK_REVEAL, dealGapMs } from '@shared/games/blackjack/deal';
+import { cardKey, dealOrder, dealerKey, seatCards, type TableModel } from './table';
 
 export { DEAL_GAP_MS, DEAL_MS, DISCARD_MS, FLIP_MS, MAX_BACKLOG_MS, MOVE_MS, OUTCOME_HOLD_MS, animating, cardMotion, cardShown, frameAt, landed, nextEvent } from '../../../platform/table/timeline';
 
-export const DEALER_GAP_MS = 500;
+/**
+ * The reveal's pace is shared with the server (shared/games/blackjack/deal.ts), which keeps the
+ * settled table on show exactly as long as the reveal takes here, so the bets open the moment the
+ * outcomes show.
+ */
+export const DEALER_GAP_MS = BLACKJACK_REVEAL.draw;
 /** The deal's pace is shared with the server, which gives the first turn the time the deal takes to show. */
 export { BIG_DEAL_MS, MIN_DEAL_GAP_MS, dealGapMs } from '@shared/games/blackjack/deal';
 /** The beat between the dealer's last card and the outcomes. */
-export const OUTCOME_DELAY_MS = 150;
+export const OUTCOME_DELAY_MS = BLACKJACK_REVEAL.outcome;
 /** A pause after the deal before a peeked dealer blackjack turns over. */
-export const PEEK_PAUSE_MS = 300;
+export const PEEK_PAUSE_MS = BLACKJACK_REVEAL.peekPause;
+/** The beat after the hole card turns before the dealer's first draw. */
+export const DRAW_BEAT_MS = BLACKJACK_REVEAL.beat;
 
 export type Timeline = TableTimeline<TableModel>;
 export type Frame = TableFrame<TableModel>;
@@ -67,11 +75,12 @@ export function outcomesAt(timeline: Timeline): number | null {
 
 /**
  * Plans the next timeline from the previous one. `fresh` is a first snapshot (nothing to animate
- * from); `motion` is false under prefers-reduced-motion.
+ * from); `motion` is false under prefers-reduced-motion; `hold` is how long the last round's
+ * outcomes stay up before a new deal clears them (OUTCOME_HOLD_MS unless given).
  */
-export function planTimeline(prev: Timeline, prevTable: TableModel | null, next: TableModel | null, now: number, fresh: boolean, motion: boolean): Timeline {
+export function planTimeline(prev: Timeline, prevTable: TableModel | null, next: TableModel | null, now: number, fresh: boolean, motion: boolean, hold?: number): Timeline {
   if (!next) return snapTimeline(null, now);
-  const draft = beginPlan({ prev, prevTable, prevId: prevTable?.round ?? null, nextId: next.round, now, fresh, motion });
+  const draft = beginPlan({ prev, prevTable, prevId: prevTable?.round ?? null, nextId: next.round, now, fresh, motion, ...(hold !== undefined ? { hold } : {}) });
   if (!draft) return snapTimeline(next, now);
   const { tl, same, start } = draft;
 
@@ -112,7 +121,7 @@ export function planTimeline(prev: Timeline, prevTable: TableModel | null, next:
   }
   const flipAt = holeFlipAt(tl);
   draws.forEach((key, k) => {
-    const at = (flipAt ?? cursor) + FLIP_MS + 100 + k * DEALER_GAP_MS;
+    const at = (flipAt ?? cursor) + FLIP_MS + DRAW_BEAT_MS + k * DEALER_GAP_MS;
     tl.arrivals[key] = Math.max(at, t);
     cursor = tl.arrivals[key] + DEAL_MS;
     added = true;
@@ -137,4 +146,14 @@ export function holeFlipping(timeline: Timeline, now: number): boolean {
 
 export function outcomesShown(timeline: Timeline, now: number): boolean {
   return reached(timeline, OUTCOMES, now);
+}
+
+/**
+ * My moves may go once the cards they depend on have landed: my hand in play and the dealer's up
+ * card. The rest of the deal (the other seats, the hole card) can still be sliding in.
+ */
+export function myHandLanded(timeline: Timeline, table: TableModel | null, meId: string, handIndex: number, now: number): boolean {
+  const hand = table?.hands[meId]?.[handIndex];
+  if (!table || !hand || (timeline.discard && now < timeline.discard.until)) return false;
+  return landed(timeline, dealerKey(0), now) && hand.cards.every((card, i) => landed(timeline, cardKey(meId, handIndex, i, card), now));
 }

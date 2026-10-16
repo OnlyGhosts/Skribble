@@ -33,7 +33,7 @@ export function isFull(data: PlatformRoomData): boolean {
   return data.players.length >= ROOM_HARD_CAP;
 }
 
-/** A game is running or its podium is up (the preview badge). Anyone may join either way: mid-game they watch. */
+/** A game is running (the preview badge). Anyone may join either way: mid-game they watch. */
 export function inProgress(data: PlatformRoomData): boolean {
   return data.phase !== 'lobby';
 }
@@ -47,7 +47,7 @@ export function gameSeatLimit(data: PlatformRoomData): number {
   return seatLimit(gameById(data.gameId));
 }
 
-/** Seated players in the running (or just ended) game, in join order. */
+/** Seated players in the running game, in join order. */
 export function participants(data: PlatformRoomData): PlatformPlayerData[] {
   return sortedPlayers(data).filter((p) => p.participating);
 }
@@ -87,9 +87,14 @@ export function votesNeeded(data: PlatformRoomData, targetId: string): number {
   return Math.max(2, Math.floor(othersConnected(data, targetId) / 2) + 1);
 }
 
+/** Whether the running game counts the player as connected: their socket is up, or it dropped too recently for the game to have heard. */
+export function connectedForGame(p: PlatformPlayerData): boolean {
+  return p.connected || (p.awayNoticeAt ?? null) !== null;
+}
+
 /** What a game module may see of the participating players, in join order. */
 export function platformPlayers(data: PlatformRoomData): PlatformPlayer[] {
-  return participants(data).map((p) => ({ id: p.id, name: p.name, joinOrder: p.joinOrder, connected: p.connected, score: p.score }));
+  return participants(data).map((p) => ({ id: p.id, name: p.name, joinOrder: p.joinOrder, connected: connectedForGame(p), idle: p.connected && p.idle === true, score: p.score }));
 }
 
 /** What a game module may see of the spectators, in join order. */

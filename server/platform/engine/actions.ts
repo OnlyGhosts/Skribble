@@ -15,9 +15,15 @@ export type Action =
   | { type: 'connectionClosed'; playerId: string; connectionId?: string }
   /** Explicit "leave room": the seat is released immediately. */
   | { type: 'leave'; playerId: string }
-  | { type: 'platformMessage'; playerId: string; msg: PlatformRoomMessage }
+  /**
+   * The seat's connection went silent for IDLE_AFTER_MS (`idle` true), or spoke again (false).
+   * Ignored unless `connectionId` is the one bound to the seat.
+   */
+  | { type: 'activity'; playerId: string; connectionId: string; idle: boolean }
+  /** `seq` is the message's client sequence number (CLIENT_SEQ_KEY), when it carried one. */
+  | { type: 'platformMessage'; playerId: string; msg: PlatformRoomMessage; seq?: number }
   /** A raw game message; the reducer validates it with the room's game module. */
-  | { type: 'gameMessage'; playerId: string; msg: unknown }
+  | { type: 'gameMessage'; playerId: string; msg: unknown; seq?: number }
   /** Processes every deadline that is <= ctx.now, in chronological order. Idempotent. */
   | { type: 'tick' };
 
@@ -31,6 +37,11 @@ export interface Ctx {
   newId: () => string;
   /** Fresh seat token. */
   newToken: () => string;
+  /**
+   * How long after a dropped socket the running game hears of it; AWAY_NOTICE_MS when absent. 0
+   * tells it at once (tests of a game's reaction to a lasting drop).
+   */
+  awayNoticeMs?: number;
 }
 
 export type ActionResult =

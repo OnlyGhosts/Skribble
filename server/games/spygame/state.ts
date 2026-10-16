@@ -23,6 +23,8 @@ export interface RoundData {
   clock: ClockData;
   /** The spy's socket is down: the clock stays paused until they rejoin. */
   spyAway: boolean;
+  /** While the spy is away: when the round ends without them (SPYGAME_SPY_AWAY_SECONDS). Absent in older rooms. */
+  spyAwayUntil?: number | null;
 }
 
 export interface VoteData {
@@ -47,7 +49,7 @@ export interface SpygameData {
   /**
    * 'waiting': holding between rounds because fewer than three players are connected while
    * enough still hold seats (the last reveal stays up under RoomState.waiting; no round clock,
-   * no spy chosen yet). 'over' once the last reveal ended and the platform took over with the podium.
+   * no spy chosen yet). 'over' once the last reveal ended and the platform took over with the results.
    */
   phase: 'playing' | 'voting' | 'reveal' | 'waiting' | 'over';
   /** While 'waiting' with enough players connected again: when the next round starts (the settle); null otherwise. */

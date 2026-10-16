@@ -1,4 +1,5 @@
 import { MemoryDriver } from './memory.js';
+import { SNAPSHOT_INTERVAL_MS } from './outbound.js';
 import { RedisDriver } from './redis.js';
 import type { GameDriver } from './types.js';
 
@@ -19,7 +20,7 @@ export function createDriverFromEnv(options: SelectDriverOptions): GameDriver {
   const url = redisUrlFromEnv(options.env);
   if (url) {
     options.log(`driver: redis (${describeUrl(url)})`);
-    return new RedisDriver({ url, log: options.log });
+    return new RedisDriver({ url, log: options.log, snapshotIntervalMs: SNAPSHOT_INTERVAL_MS });
   }
   if (options.expectRedis) {
     options.log('WARNING: neither REDIS_URL nor KV_URL is set. Falling back to in-memory rooms, which only');
@@ -27,7 +28,7 @@ export function createDriverFromEnv(options: SelectDriverOptions): GameDriver {
   } else {
     options.log('driver: memory');
   }
-  return new MemoryDriver();
+  return new MemoryDriver({ snapshotIntervalMs: SNAPSHOT_INTERVAL_MS });
 }
 
 /** Host and scheme only; never the credentials. */

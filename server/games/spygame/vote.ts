@@ -1,6 +1,6 @@
 /** Accusations and votes: one accusation per agent per round, a passed vote is the group's single guess. */
 import { SPYGAME_VOTE_SECONDS } from '../../../shared/games/spygame/protocol.js';
-import { endRound, pauseClock, resumeClock } from './round.js';
+import { endRound, pauseClock, playOn } from './round.js';
 import { fail, isRoundPlayer, nameOf, noticeMessage, snapshot, systemMessage, type Gx } from './state.js';
 
 export function accuse(gx: Gx, playerId: string, accusedId: string): void {
@@ -13,6 +13,8 @@ export function accuse(gx: Gx, playerId: string, accusedId: string): void {
   if (accusedId === playerId) return fail(gx, playerId, "You can't accuse yourself.");
   if (!isRoundPlayer(data, accusedId)) return fail(gx, playerId, 'You can only accuse a player in this round.');
   if (current.accusers.includes(playerId)) return fail(gx, playerId, 'You already started a vote this round.');
+  // The waiting card is up: nobody could reach the vote's buttons.
+  if (current.spyAway) return fail(gx, playerId, 'The round is on hold.');
 
   pauseClock(gx);
   current.accusers.push(playerId);
@@ -69,9 +71,7 @@ export function resolveVote(gx: Gx): void {
   }
   // Never print the padded count: yes + no is the eligible count, which differs by one when the accused is the spy.
   noticeMessage(gx, 'The vote failed. Play on.');
-  data.vote = null;
-  data.phase = 'playing';
-  resumeClock(gx);
+  playOn(gx);
   snapshot(gx);
 }
 
@@ -87,9 +87,7 @@ export function voterLeft(gx: Gx, playerId: string): void {
   if (playerId === v.accusedId || playerId === v.accuserId) {
     noticeMessage(gx, playerId === v.accusedId ? 'The accused left. The vote is off.' : 'The accuser left. The vote is off.');
     data.current.accusers = data.current.accusers.filter((id) => id !== v.accuserId);
-    data.vote = null;
-    data.phase = 'playing';
-    resumeClock(gx);
+    playOn(gx);
     return snapshot(gx);
   }
   if (!v.eligible.includes(playerId)) return;

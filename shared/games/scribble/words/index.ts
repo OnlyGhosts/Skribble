@@ -25,19 +25,22 @@ export function getWordList(lang: Language): string[] {
   return WORD_LISTS[lang] ?? WORD_LISTS.en;
 }
 
-/** The extra tiers a content mode adds on top of the language list (none for family). */
+/**
+ * The adult tiers, pooled for an Unhinged room: the cheeky and unhinged words, never the language
+ * list (no clean words to dilute it). Family has none: it plays the language list alone.
+ */
 export const TIER_WORDS: Record<ContentMode, readonly string[]> = {
   family: [],
-  unhinged: [...CHEEKY_WORDS, ...UNHINGED_WORDS],
+  unhinged: dedupe([...CHEEKY_WORDS, ...UNHINGED_WORDS]),
 };
 
 /**
- * The pack words a room draws from: the language list plus the tiers its content mode unlocks
- * (family = the language list alone; unhinged adds the cheeky and unhinged word tiers),
- * deduplicated case-insensitively so a tier word that also sits in the language list appears once.
+ * The pack words a room draws from: family = the language list; unhinged = the cheeky and unhinged
+ * tiers only (the adult words are not language-specific, so `lang` only picks the family list).
+ * Deduplicated case-insensitively.
  */
 export function wordPoolForMode(mode: ContentMode, lang: Language = 'en'): string[] {
-  return dedupe([...getWordList(lang), ...TIER_WORDS[mode]]);
+  return [...(mode === 'unhinged' ? TIER_WORDS.unhinged : getWordList(lang))];
 }
 
 /**
@@ -69,7 +72,10 @@ export function pickWords(
   return out;
 }
 
-/** Builds the word pool for a room: custom words only, or the pack for the content mode merged with custom words. */
+/**
+ * Builds the word pool for a room: custom words only (when there are any), or the pack for the
+ * content mode (wordPoolForMode) with the custom words merged in, deduplicated.
+ */
 export function buildWordPool(lang: Language, customWords: readonly string[], customOnly: boolean, mode: ContentMode = 'family'): string[] {
   const custom = dedupe([...customWords]);
   if (customOnly && custom.length > 0) return custom;

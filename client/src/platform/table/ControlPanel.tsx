@@ -148,13 +148,27 @@ interface MoveProps {
   hotkey?: string;
   /** A small icon after the label. */
   icon?: ReactNode;
+  /** Just tapped and on its way: it stays pressed (and every move waits) until the table answers. */
+  sent?: boolean;
   data?: DataAttrs;
 }
 
 /** One move: lit when it is on offer, dimmed (not gone) otherwise, so the layout never shifts. */
-export function MoveButton({ label, ariaLabel, testId, enabled, onClick, primary = false, hotkey, icon, data }: MoveProps) {
+export function MoveButton({ label, ariaLabel, testId, enabled, onClick, primary = false, hotkey, icon, sent = false, data }: MoveProps) {
   return (
-    <button type="button" className={`btn ${primary ? 'btn--primary' : 'btn--secondary'} tbl-move`} onClick={onClick} disabled={!enabled} aria-label={ariaLabel} aria-keyshortcuts={hotkey} data-testid={testId} data-primary={primary} {...data}>
+    <button
+      type="button"
+      className={`btn ${primary ? 'btn--primary' : 'btn--secondary'} tbl-move`}
+      onClick={onClick}
+      disabled={!enabled}
+      aria-label={ariaLabel}
+      aria-keyshortcuts={hotkey}
+      aria-busy={sent || undefined}
+      data-testid={testId}
+      data-primary={primary}
+      data-sent={sent || undefined}
+      {...data}
+    >
       <span className="tbl-move__label">{label}</span>
       {icon && (
         <span className="tbl-move__icon" aria-hidden="true">

@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
-import { createParty, enterNameIfAsked, joinByLink, leaveLobby, readyAll } from './party';
+import { closeResults, createParty, enterNameIfAsked, joinByLink, leaveLobby, readyAll } from './party';
 
 /**
  * The front door and the routing around it: Join a room and Create a room and nothing else, the four code
@@ -241,9 +241,9 @@ test('create → "Who’s playing?" → the lobby, where picking a game comes fi
   await expect(host.page.getByRole('heading', { name: "Who's playing?" })).toBeVisible();
   await expect(host.page.getByTestId('room-code')).toHaveCount(0);
   await expect(host.page.getByTestId('avatar-picker')).toBeVisible();
-  // Every face and colour is a 44px target where there is room (40px is only for the narrowest phones).
+  // Every one of the 50 faces and 12 colours is a 44px target (e2e/avatars.spec.ts covers the grid and the pictures).
   const tiles = await host.page.locator('.emoji-choice, .avatar-picker__group .swatch').evaluateAll((els) => els.map((e) => Math.min(e.getBoundingClientRect().width, e.getBoundingClientRect().height)));
-  expect(tiles).toHaveLength(36);
+  expect(tiles).toHaveLength(62);
   expect(Math.min(...tiles)).toBeGreaterThanOrEqual(44);
   await expect(host.page.getByTestId('home-continue')).toHaveText('Continue');
   await host.page.getByTestId('home-continue').click();
@@ -432,35 +432,32 @@ test('the hidden template game plays a whole Click Race between two players', as
   await expect(host.page.locator('[data-testid="race-row"][data-name="Gus"]')).toHaveAttribute('data-clicks', '3');
   for (let i = 0; i < 10; i++) await host.page.getByTestId('click-button').click();
 
+  // The race is over: both are back in the lobby (scores reset there) with the results over it.
   for (const p of [host, guest]) {
     const end = p.page.getByTestId('overlay-game-end');
     await expect(end).toBeVisible();
     await expect(end).toContainText(`${host.name} wins!`);
-    await expect(end.getByTestId('podium-entry')).toHaveCount(2);
-    await expect(end.locator('[data-testid="podium-entry"][data-rank="1"]')).toContainText('100 pts');
-    await expect(end.locator('[data-testid="podium-entry"][data-rank="2"]')).toContainText('3 pts');
+    await expect(end.getByTestId('results-entry')).toHaveCount(2);
+    await expect(end.locator('[data-testid="results-entry"][data-rank="1"]')).toContainText('100 pts');
+    await expect(end.locator('[data-testid="results-entry"][data-rank="2"]')).toContainText('3 pts');
+    await expect(p.page.getByTestId('room-code')).toHaveText(code);
+    expect(await scoreOf(p.page, host.name)).toBe(0);
+    expect(await scoreOf(p.page, guest.name)).toBe(0);
   }
-  await expect(guest.page.getByTestId('back-to-lobby')).toHaveCount(0);
-  await expect(guest.page.getByTestId('podium-leave')).toHaveCount(0);
-  await expect(guest.page.getByTestId('overlay-game-end').getByTestId('ready-toggle')).toBeVisible();
+  for (const id of ['back-to-lobby', 'podium-leave', 'play-again']) await expect(guest.page.getByTestId(id)).toHaveCount(0);
   await expect(host.page.getByTestId('overlay-game-end')).toContainText('You won!');
   await expect(guest.page.getByTestId('overlay-game-end')).toContainText('You came 2nd');
 
-  // The podium is a modal dialog: it takes the focus and keeps Tab inside, away from the game screen under it.
+  // The results are a modal dialog: they take the focus and keep Tab inside, away from the lobby under them.
   await expect(host.page.getByTestId('overlay-game-end')).toHaveAttribute('aria-modal', 'true');
   const focusInside = () => host.page.evaluate(() => document.activeElement?.closest('[data-testid="overlay-game-end"]') instanceof HTMLElement);
   await expect.poll(focusInside).toBe(true);
   for (let i = 0; i < 4; i++) {
     await host.page.keyboard.press('Tab');
-    expect(await focusInside(), `Tab ${i + 1} stays in the podium`).toBe(true);
+    expect(await focusInside(), `Tab ${i + 1} stays in the results`).toBe(true);
   }
 
-  await host.page.getByTestId('back-to-lobby').click();
-  for (const p of [host, guest]) {
-    await expect(p.page.getByTestId('room-code')).toHaveText(code);
-    expect(await scoreOf(p.page, host.name)).toBe(0);
-    expect(await scoreOf(p.page, guest.name)).toBe(0);
-  }
+  for (const p of [host, guest]) await closeResults(p.page);
   await expect(host.page.getByTestId('start-game')).toBeEnabled();
   for (const p of [host, guest]) await leaveLobby(p.page);
 });
@@ -565,7 +562,15 @@ for (const width of [320, 390, 700, 768, 1024, 1440]) {
     const icon = await page.getByTestId('site-header').locator('.wordmark__icon').boundingBox();
     expect(icon?.x ?? -1, 'the icon starts the logo').toBeLessThanOrEqual((mark?.x ?? 0) + (mark?.width ?? 0) * 0.05);
     expect((icon?.x ?? 0) + (icon?.width ?? 0), 'and stays left of the text').toBeLessThanOrEqual((mark?.x ?? 0) + (mark?.width ?? 0) * 0.2);
-    expect(icon?.height ?? 0, 'about as tall as the letters').toBeGreaterThanOrEqual((mark?.height ?? 0) * 0.8);
+    // The icon is centred on "bored", from the top of the "b" to the baseline, a little taller with
+    // its outlines and shadows, and does not hang down with the "g" of "games".
+    const letters = await page.getByTestId('site-header').locator('[data-testid="wordmark"] > path').first().boundingBox();
+    const games = await page.getByTestId('site-header').locator('.wordmark__accent').boundingBox();
+    const centre = (box: typeof icon) => (box?.y ?? 0) + (box?.height ?? 0) / 2;
+    expect(icon?.height ?? 0, 'at least as tall as "bored"').toBeGreaterThanOrEqual(letters?.height ?? Infinity);
+    expect(icon?.height ?? 0, 'but not much taller').toBeLessThanOrEqual((letters?.height ?? 0) * 1.35);
+    expect(Math.abs(centre(icon) - centre(letters)), 'centred on "bored"').toBeLessThanOrEqual((mark?.height ?? 0) * 0.03);
+    expect((icon?.y ?? 0) + (icon?.height ?? 0), 'well above the bottom of the "g"').toBeLessThanOrEqual((games?.y ?? 0) + (games?.height ?? 0) - (mark?.height ?? 0) * 0.1);
     expect((mark?.y ?? 0) + (mark?.height ?? 0), 'the logo stays above Join a room').toBeLessThanOrEqual(join?.y ?? 0);
     // The column sits in the middle of the page, top to bottom, on every screen.
     const top = (await page.getByTestId('site-header').boundingBox())?.y ?? 0;

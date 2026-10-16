@@ -1,13 +1,13 @@
-/** Lobby actions (settings, profile, game choice, ready, sit-out, start, back to lobby) and the game-over transition. */
+/** Lobby actions (settings, profile, game choice, ready, sit-out, start), the host's End game and the way back to the lobby with the results. */
 import type { Avatar } from '../../../shared/platform/avatar.js';
 import { gameById, type GameId } from '../../../shared/platform/games.js';
-import type { PodiumEntry } from '../../../shared/platform/protocol.js';
+import type { GameEndReason, ResultEntry } from '../../../shared/platform/protocol.js';
 import { defaultPlatformSettings, platformSettingsPatchSchema, platformSettingsSchema, type PlatformSettings } from '../../../shared/platform/settings.js';
 import { applyGameResult, gameCtx } from './delegate.js';
-import { broadcastSnapshot, fail, noticeMessage, requireHost, requirePhase, systemMessage, type Cx } from './messaging.js';
+import { broadcastSnapshot, fail, requireHost, requirePhase, systemMessage, type Cx } from './messaging.js';
 import { moduleFor } from './module.js';
 import { findPlayer, gameSeatLimit, hasEnoughSeated, minPlayers, participants, readyPlayers, sortedPlayers } from './players.js';
-import type { RoomSettingsData } from './state.js';
+import type { PlatformPlayerData, RoomSettingsData } from './state.js';
 
 export function updateSettings(cx: Cx, playerId: string, patch: Record<string, unknown>): void {
   if (!requireHost(cx, playerId) || !requirePhase(cx, playerId, 'lobby', 'Settings can only be changed in the lobby.')) return;
@@ -107,7 +107,8 @@ export function start(cx: Cx, playerId: string): void {
     p.score = 0;
   }
   data.votes = [];
-  data.podium = null;
+  data.results = null;
+  data.endRequested = false;
   data.phase = 'playing';
   const sitting = sortedPlayers(data).filter((p) => !p.participating && !benched.includes(p));
   if (sitting.length > 0) systemMessage(cx, `${listNames(sitting.map((p) => p.name))} ${sitting.length === 1 ? 'sits' : 'sit'} this one out`);
@@ -120,9 +121,19 @@ export function start(cx: Cx, playerId: string): void {
   if (!applied.snapshotted && data.phase === 'playing') broadcastSnapshot(cx);
 }
 
-export function returnToLobby(cx: Cx, playerId: string): void {
-  if (!requireHost(cx, playerId) || !requirePhase(cx, playerId, 'ended', 'You can only return to the lobby after the game ends.')) return;
-  resetToLobby(cx);
+/**
+ * The host ends the running game for everyone: at once, or at the game's own next boundary when
+ * its module says so (`end`). A second tap, or one that arrives after the game ended, changes nothing.
+ */
+export function endGame(cx: Cx, playerId: string): void {
+  const { data } = cx;
+  if (!requireHost(cx, playerId) || data.phase !== 'playing' || data.endRequested === true) return;
+  data.endRequested = true;
+  const game = moduleFor(data.gameId);
+  if (!game.end || data.game === null) return finishGame(cx);
+  const applied = applyGameResult(cx, game.end(gameCtx(cx), data.game));
+  // Ending later: everyone sees that it is coming.
+  if (data.phase === 'playing' && !applied.snapshotted) broadcastSnapshot(cx);
 }
 
 /** "Alice", "Alice and Bob", "Alice, Bob and Carol". */
@@ -131,34 +142,41 @@ function listNames(names: string[]): string {
   return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
 }
 
-export function podiumOf(players: Array<{ id: string; score: number; joinOrder: number }>): PodiumEntry[] {
+/** The standings: best score first, then join order; tied scores share a rank. */
+export function rankPlayers(players: PlatformPlayerData[]): ResultEntry[] {
   const ranked = [...players].sort((a, b) => b.score - a.score || a.joinOrder - b.joinOrder);
-  return ranked.map((p) => ({ playerId: p.id, score: p.score, rank: 1 + ranked.filter((o) => o.score > p.score).length }));
+  return ranked.map((p) => ({ playerId: p.id, name: p.name, avatar: { ...p.avatar }, score: p.score, rank: 1 + ranked.filter((o) => o.score > p.score).length }));
 }
 
-/** The game declared itself over: rank the players, announce the result and keep the room on the podium until the host returns to the lobby. */
-export function finishGame(cx: Cx): void {
+/**
+ * The game is over, however it ended: rank its players, announce the result and take the room
+ * straight back to the lobby carrying the results, which every phone shows once. `reason`
+ * defaults to the host's End game when it was asked for, otherwise the game finishing on its own.
+ */
+export function finishGame(cx: Cx, reason?: GameEndReason): void {
   const { data } = cx;
-  data.waiting = null;
+  if (data.phase !== 'playing') return;
   const game = moduleFor(data.gameId);
   const ranked = participants(data).filter((p) => data.game === null || !game.ranks || game.ranks(data.game, p.id));
-  data.podium = podiumOf(ranked);
-  data.phase = 'ended';
-  const top = data.podium[0]?.score;
-  const winners = data.podium.filter((e) => e.score === top).map((e) => findPlayer(data, e.playerId)?.name ?? '');
+  const entries = rankPlayers(ranked);
+  data.results = { id: cx.ctx.newId(), gameId: data.gameId, reason: reason ?? (data.endRequested === true ? 'host' : 'finished'), entries };
+  const top = entries[0]?.score;
+  // A game cut short by players leaving crowns nobody: the standings are just where it stopped.
+  const winners = data.results.reason === 'players' ? [] : entries.filter((e) => e.score === top).map((e) => e.name);
   if (winners.length === 0) systemMessage(cx, 'Game over!');
   else if (winners.length === 1) systemMessage(cx, `Game over! ${winners[0]} wins with ${top} points.`);
   else systemMessage(cx, `Game over! ${listNames(winners)} tie with ${top} points.`);
-  broadcastSnapshot(cx);
+  resetToLobby(cx);
 }
 
-/** Drops the game (and its side store) and resets scores; votes do not survive either. Ready flags and sit-out choices do. */
-export function resetToLobby(cx: Cx): void {
+/** Drops the game (and its side store) and resets scores; votes do not survive either. Ready flags, sit-out choices and the results do. */
+function resetToLobby(cx: Cx): void {
   const { data } = cx;
   data.phase = 'lobby';
-  data.podium = null;
+  data.endRequested = false;
   data.game = null;
   data.waiting = null;
+  data.waitingUntil = null;
   data.votes = [];
   for (const p of data.players) {
     p.score = 0;
@@ -168,14 +186,16 @@ export function resetToLobby(cx: Cx): void {
   broadcastSnapshot(cx);
 }
 
+const NOT_ENOUGH_PLAYERS = 'Not enough players to go on.';
+
 /**
- * Abandons a running game when fewer participating seats than the game needs remain (after a
+ * Ends a running game when fewer participating seats than the game needs remain (after a
  * leave, a kick or a seat expiry). A disconnected player still holds a seat, so a dropped socket
- * never ends a game here: the game holds for them instead. Returns true when it abandoned the game.
+ * never ends a game here: the game holds for them instead. Returns true when it ended the game.
  */
 export function ensureEnoughSeated(cx: Cx): boolean {
   if (cx.data.phase !== 'playing' || hasEnoughSeated(cx.data)) return false;
-  noticeMessage(cx, 'Not enough players. Back to the lobby.');
-  resetToLobby(cx);
+  systemMessage(cx, NOT_ENOUGH_PLAYERS);
+  finishGame(cx, 'players');
   return true;
 }

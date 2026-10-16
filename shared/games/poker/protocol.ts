@@ -66,22 +66,36 @@ export function normalizePokerSettings(s: PokerSettings): PokerSettings {
 /** A stack grows with every queued seat's starting chips, so amounts are bounded only by what JSON carries exactly. */
 const chipAmount = z.number().int().min(1).max(Number.MAX_SAFE_INTEGER);
 
+const count = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
+
+/**
+ * What a move answers, as the player's screen had it: the hand and the number of the latest move
+ * on the table (`lastMove.seq`, 0 before the first). A second tap that lands after the first one
+ * (or the clock) already played the turn no longer matches and is ignored without a word.
+ * Optional: a client from before it existed sends none.
+ */
+const moveTarget = { hand: count.optional(), move: count.optional() };
+
 export const pokerClientMessageSchema = z.discriminatedUnion('t', [
-  z.object({ t: z.literal('fold') }),
-  z.object({ t: z.literal('check') }),
-  z.object({ t: z.literal('call') }),
+  z.object({ t: z.literal('fold'), ...moveTarget }),
+  z.object({ t: z.literal('check'), ...moveTarget }),
+  z.object({ t: z.literal('call'), ...moveTarget }),
   /** Opens the betting on a street with no bet yet: `amount` chips (at least the big blind, or the whole stack). */
-  z.object({ t: z.literal('bet'), amount: chipAmount }),
+  z.object({ t: z.literal('bet'), amount: chipAmount, ...moveTarget }),
   /** Raises the street's bet to `to` in total (at least the last raise above the current bet, or the whole stack). */
-  z.object({ t: z.literal('raise'), to: chipAmount }),
-  z.object({ t: z.literal('allIn') }),
-  /** Host only, during `results`: the next hand without waiting. */
-  z.object({ t: z.literal('next') }),
-  /** Host only: ends the game now; a hand in progress is void and every stake goes back. */
-  z.object({ t: z.literal('endGame') }),
+  z.object({ t: z.literal('raise'), to: chipAmount, ...moveTarget }),
+  z.object({ t: z.literal('allIn'), ...moveTarget }),
+  /** Host only, during `results`: the next hand without waiting. `hand` names the hand whose result is skipped. */
+  z.object({ t: z.literal('next'), hand: count.optional() }),
 ]);
 
 export type PokerClientMessage = z.infer<typeof pokerClientMessageSchema>;
+
+/** What a move answers (see moveTarget). */
+export interface PokerMoveTarget {
+  hand: number;
+  move: number;
+}
 
 /** Poker sends nothing beyond snapshots. */
 export type PokerServerMessage = never;

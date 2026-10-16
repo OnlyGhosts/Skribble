@@ -12,9 +12,10 @@ import {
 import { hintRevealOrder, hintSchedule, maskWord } from '../../../shared/games/scribble/hints.js';
 import { SCRIBBLE_DRAW_SECONDS, type DrawOp } from '../../../shared/games/scribble/protocol.js';
 import { drawerPoints, guesserPoints } from '../../../shared/games/scribble/scoring.js';
+import { CHEEKY_WORDS } from '../../../shared/games/scribble/words/cheeky.js';
 import { getWordList } from '../../../shared/games/scribble/words/index.js';
 import { UNHINGED_WORDS } from '../../../shared/games/scribble/words/unhinged.js';
-import { RECONNECT_GRACE_MS } from '../../../shared/platform/constants.js';
+import { AWAY_NOTICE_MS, RECONNECT_GRACE_MS } from '../../../shared/platform/constants.js';
 import { AVATAR, TEST_WORDS, createHarness, drawerOf, expectPhase, phaseOf, pick, readyUp, scribbleView, startGame, type Harness } from '../../platform/drivers/testUtils.js';
 import { GAME_TEST_FIXTURES } from '../testFixtures.js';
 
@@ -32,7 +33,7 @@ afterEach(() => {
 });
 
 describe('Scribble: turn lifecycle', () => {
-  it('runs choosing -> drawing -> turnEnd -> next turn -> game over with a tie-aware podium', () => {
+  it('runs choosing -> drawing -> turnEnd -> next turn -> game over with tie-aware results', () => {
     const h = createHarness();
     const [alice, bob, carol] = startGame(h, ['Alice', 'Bob', 'Carol']);
     const state = scribbleView(h.room);
@@ -102,26 +103,24 @@ describe('Scribble: turn lifecycle', () => {
     h.send(carol, { t: 'chooseWord', index: 0 });
     vi.advanceTimersByTime(DRAW_MS + TURN_END_SECONDS * 1000);
 
-    expect(h.room.phase).toBe('ended');
-    expect(phaseOf(h.room).kind).toBe('gameOver');
-    expect(h.score(alice)).toBe(alicePts);
-    expect(h.score(bob)).toBe(guessPts);
-    expect(h.score(carol)).toBe(guessPts);
+    // Straight back to the lobby, carrying the results.
+    expect(h.room.phase).toBe('lobby');
     // Bob and Carol tie for first (ordered by join order); Alice is third, not second.
-    expect(h.room.state.podium).toEqual([
+    expect(h.standings()).toEqual([
       { playerId: bob, score: guessPts, rank: 1 },
       { playerId: carol, score: guessPts, rank: 1 },
       { playerId: alice, score: alicePts, rank: 3 },
     ]);
     expect(h.transport.chats(alice).at(-1)).toEqual({ kind: 'system', text: `Game over! Bob and Carol tie with ${guessPts} points.` });
 
-    // The podium persists until the host returns to the lobby.
+    // The results stay with the lobby (for a late tab or a reconnect) until the next game starts.
     vi.advanceTimersByTime(600_000);
-    expect(h.room.phase).toBe('ended');
-    h.send(alice, { t: 'returnToLobby' });
     const lobby = h.room.getState(null);
-    expect(lobby).toMatchObject({ phase: 'lobby', game: null, podium: null });
+    expect(lobby).toMatchObject({ phase: 'lobby', game: null, results: { reason: 'finished', gameId: 'scribble' } });
     expect(lobby.players.every((p) => p.score === 0)).toBe(true);
+    readyUp(h, [bob, carol]);
+    h.send(alice, { t: 'start' });
+    expect(h.room.getState(null)).toMatchObject({ phase: 'playing', results: null });
   });
 
   it('announces a single winner', () => {
@@ -133,9 +132,11 @@ describe('Scribble: turn lifecycle', () => {
     vi.advanceTimersByTime(TURN_END_SECONDS * 1000);
     pick(h, players);
     vi.advanceTimersByTime(DRAW_MS + TURN_END_SECONDS * 1000);
-    expect(h.room.phase).toBe('ended');
-    expect(h.score(bob)).toBeGreaterThan(h.score(alice));
-    expect(h.transport.chats(alice).at(-1)).toEqual({ kind: 'system', text: `Game over! Bob wins with ${h.score(bob)} points.` });
+    expect(h.room.phase).toBe('lobby');
+    const [first, second] = h.standings() ?? [];
+    expect([first?.playerId, second?.playerId]).toEqual([bob, alice]);
+    expect(first.score).toBeGreaterThan(second.score);
+    expect(h.transport.chats(alice).at(-1)).toEqual({ kind: 'system', text: `Game over! Bob wins with ${first.score} points.` });
   });
 
   it('ends the turn as soon as every connected non-drawer has guessed', () => {
@@ -247,9 +248,9 @@ describe('Scribble: turn lifecycle', () => {
 });
 
 describe('Scribble: the word pool follows the room content mode', () => {
-  it('offers only language-list words in a family room and tier words in an unhinged one', () => {
+  it('offers only language-list words in a family room and only adult tier words in an unhinged one', () => {
     const lower = (list: readonly string[]): Set<string> => new Set(list.map((w) => w.toLowerCase()));
-    // An rng of 0.999 picks from the end of the pool, where the tiers sit.
+    // An rng of 0.999 picks from the end of the pool.
     const family = createHarness({ rng: () => 0.999 });
     const [alice] = startGame(family, ['Alice', 'Bob'], { customWordsOnly: false, customWords: [] });
     for (const w of expectPhase(family.room, 'choosing', alice).choices ?? []) expect(lower(getWordList('en')).has(w.toLowerCase())).toBe(true);
@@ -260,7 +261,22 @@ describe('Scribble: the word pool follows the room content mode', () => {
     expect(choices).toHaveLength(3);
     // The partial shuffle lands on the end of the pool first: the unhinged tier.
     expect(lower(UNHINGED_WORDS).has(choices[0].toLowerCase())).toBe(true);
-    expect(lower(getWordList('en')).has(choices[0].toLowerCase())).toBe(false);
+    // Every choice is an adult word, never one from the clean language list.
+    const adult = lower([...CHEEKY_WORDS, ...UNHINGED_WORDS]);
+    for (const w of choices) {
+      expect(adult.has(w.toLowerCase())).toBe(true);
+      expect(lower(getWordList('en')).has(w.toLowerCase())).toBe(false);
+    }
+  });
+
+  it('never offers a clean word in an unhinged room, whatever the rng', () => {
+    const lower = (list: readonly string[]): Set<string> => new Set(list.map((w) => w.toLowerCase()));
+    const adult = lower([...CHEEKY_WORDS, ...UNHINGED_WORDS]);
+    for (const r of [0, 0.25, 0.5, 0.75]) {
+      const h = createHarness({ rng: () => r });
+      const [host] = startGame(h, ['Alice', 'Bob'], { customWordsOnly: false, customWords: [], contentMode: 'unhinged' });
+      for (const w of expectPhase(h.room, 'choosing', host).choices ?? []) expect(adult.has(w.toLowerCase()), w).toBe(true);
+    }
   });
 });
 
@@ -389,6 +405,8 @@ describe('Scribble: guessing and chat', () => {
     const qs = startGame(k, ['Alice', 'Bob', 'Carol', 'Dan']);
     const [a3, b3, c3] = qs;
     k.room.handleDisconnect(c3);
+    // The game hears of the drop a moment later; the choice comes after that.
+    vi.advanceTimersByTime(AWAY_NOTICE_MS);
     const third = pick(k, qs);
     const eve = k.join('Eve');
     k.send(b3, { t: 'chat', text: third.word });
@@ -679,8 +697,7 @@ describe('Scribble: canvas', () => {
     h.send(bob, { t: 'chooseWord', index: 0 });
     h.send(bob, { t: 'draw', ops: [{ k: 'fill', x: 1, y: 1, color: '#000000' }] });
     vi.advanceTimersByTime(DRAW_MS + TURN_END_SECONDS * 1000);
-    expect(h.room.phase).toBe('ended');
-    expect(h.canvas()).toHaveLength(1);
+    expect(h.room.phase).toBe('lobby');
     h.room.leave(alice);
     h.room.leave(bob);
     expect(h.room.isEmpty).toBe(true);
@@ -731,15 +748,16 @@ describe('Scribble: drawer and guesser grace periods', () => {
     h.send(bob, { t: 'chat', text: word });
     const bobScore = h.score(bob);
 
+    // The game hears of a drop AWAY_NOTICE_MS after it; the drawer's grace runs from then.
     h.room.handleDisconnect(alice);
-    vi.advanceTimersByTime(DRAWER_DISCONNECT_GRACE_MS - 1);
+    vi.advanceTimersByTime(AWAY_NOTICE_MS + DRAWER_DISCONNECT_GRACE_MS - 1);
     expect(phaseOf(h.room).kind).toBe('drawing');
     h.room.rejoin(h.token(alice), 'conn-Alice-2');
-    vi.advanceTimersByTime(DRAWER_DISCONNECT_GRACE_MS);
+    vi.advanceTimersByTime(AWAY_NOTICE_MS + DRAWER_DISCONNECT_GRACE_MS);
     expect(phaseOf(h.room).kind).toBe('drawing');
 
     h.room.handleDisconnect(alice);
-    vi.advanceTimersByTime(DRAWER_DISCONNECT_GRACE_MS);
+    vi.advanceTimersByTime(AWAY_NOTICE_MS + DRAWER_DISCONNECT_GRACE_MS);
     const end = expectPhase(h.room, 'turnEnd');
     expect(end.reason).toBe('drawerLeft');
     expect(h.score(alice)).toBe(0);
@@ -751,14 +769,14 @@ describe('Scribble: drawer and guesser grace periods', () => {
     const h = createHarness();
     const players = startGame(h, ['Alice', 'Bob', 'Carol']);
     const [alice, bob] = players;
-    const goneAt = Date.now() + DRAWER_DISCONNECT_GRACE_MS;
+    const goneAt = Date.now() + AWAY_NOTICE_MS + DRAWER_DISCONNECT_GRACE_MS;
     h.room.handleDisconnect(alice);
     h.transport.clear();
     vi.advanceTimersByTime(CHOOSE_TIME_SECONDS * 1000);
     // The choose deadline passed but the drawer's grace has not: the turn stays theirs until it does.
     expect(expectPhase(h.room, 'choosing').endsAt).toBe(goneAt);
     expect(h.transport.last(bob, 'room').room.game?.phase).toMatchObject({ kind: 'choosing', endsAt: goneAt });
-    vi.advanceTimersByTime(DRAWER_DISCONNECT_GRACE_MS - CHOOSE_TIME_SECONDS * 1000 - 1);
+    vi.advanceTimersByTime(AWAY_NOTICE_MS + DRAWER_DISCONNECT_GRACE_MS - CHOOSE_TIME_SECONDS * 1000 - 1);
     expect(phaseOf(h.room).kind).toBe('choosing');
     vi.advanceTimersByTime(1);
     const end = expectPhase(h.room, 'turnEnd');
@@ -774,7 +792,7 @@ describe('Scribble: drawer and guesser grace periods', () => {
     vi.advanceTimersByTime(CHOOSE_TIME_SECONDS * 1000 + 1000);
     expect(g.room.rejoin(g.token(ps[0]), 'conn-Alice-2').ok).toBe(true);
     expect(phaseOf(g.room).kind).toBe('choosing');
-    vi.advanceTimersByTime(DRAWER_DISCONNECT_GRACE_MS - CHOOSE_TIME_SECONDS * 1000 - 1000);
+    vi.advanceTimersByTime(AWAY_NOTICE_MS + DRAWER_DISCONNECT_GRACE_MS - CHOOSE_TIME_SECONDS * 1000 - 1000);
     expect(expectPhase(g.room, 'drawing').drawerId).toBe(ps[0]);
   });
 
@@ -836,15 +854,17 @@ describe('Scribble: drawer and guesser grace periods', () => {
     vi.advanceTimersByTime(1);
     expect(h.room.phase).toBe('lobby');
     expect(h.room.getPlayer(bob)).toBeUndefined();
-    expect(h.transport.chats(alice).slice(-2)).toEqual([
+    expect(h.transport.chats(alice).slice(-3)).toEqual([
       { kind: 'system', text: 'Bob left' },
-      { kind: 'notice', text: 'Not enough players. Back to the lobby.' },
+      { kind: 'system', text: 'Not enough players to go on.' },
+      { kind: 'system', text: 'Game over!' },
     ]);
+    expect(h.room.getState(alice).results?.reason).toBe('players');
     expect(h.transport.last(alice, 'room').room.waiting).toBeNull();
     expect(h.score(alice)).toBe(0);
   });
 
-  it('ends the game with the podium when the last turn ends while the other player is away, instead of holding', () => {
+  it('ends the game with the results when the last turn ends while the other player is away, instead of holding', () => {
     const h = createHarness();
     const players = startGame(h, ['Alice', 'Bob']);
     const [alice, bob] = players;
@@ -861,16 +881,16 @@ describe('Scribble: drawer and guesser grace periods', () => {
     // Bob's phone locks during the last summary: there is no turn left to hold for, so the game ends.
     h.room.handleDisconnect(bob);
     vi.advanceTimersByTime(TURN_END_SECONDS * 1000);
-    expect(h.room.phase).toBe('ended');
+    expect(h.room.phase).toBe('lobby');
     expect(h.room.getState(alice).waiting).toBeNull();
-    expect(h.room.getState(alice).podium?.map((e) => e.playerId).sort()).toEqual([...players].sort());
+    expect(h.standings()?.map((e) => e.playerId).sort()).toEqual([...players].sort());
     expect(h.transport.chats(alice).some((c) => c.text.startsWith('Waiting for'))).toBe(false);
     expect(h.transport.chats(alice).some((c) => c.text.startsWith('Game over!'))).toBe(true);
-    // Bob's seat expiring later leaves the finished game on the podium, scores intact.
+    // Bob's seat expiring later leaves the finished game's results as they were, scores intact.
     vi.advanceTimersByTime(RECONNECT_GRACE_MS);
-    expect(h.room.phase).toBe('ended');
-    expect(h.room.getState(alice).podium).toHaveLength(2);
-    expect(h.score(alice)).toBe(scores[0]);
+    expect(h.room.phase).toBe('lobby');
+    expect(h.standings()?.find((e) => e.playerId === alice)?.score).toBe(scores[0]);
+    expect(h.room.getState(alice).results?.reason).toBe('finished');
   });
 
   it('resumes the held turn boundary with scores intact when the player rejoins in time', () => {
@@ -898,7 +918,8 @@ describe('Scribble: drawer and guesser grace periods', () => {
     // Bob's seat is no longer on a timer: the game simply goes on.
     vi.advanceTimersByTime(RECONNECT_GRACE_MS);
     expect(h.room.getPlayer(bob)).toBeDefined();
-    expect(h.room.phase).not.toBe('lobby');
+    // Still running, or over on its own turns (never cut short for want of players).
+    expect(h.room.phase === 'playing' || h.room.getState(null).results?.reason === 'finished').toBe(true);
   });
 
   it('keeps a held turn boundary held when a newcomer joins: they only watch, and the missing player ends it', () => {
@@ -933,7 +954,7 @@ describe('Scribble: drawer and guesser grace periods', () => {
     expect(drawerOf(h.room, players)).toBe(carol);
     expect(h.room.getState(alice).waiting).toBeNull();
     h.room.handleDisconnect(carol);
-    vi.advanceTimersByTime(DRAWER_DISCONNECT_GRACE_MS);
+    vi.advanceTimersByTime(AWAY_NOTICE_MS + DRAWER_DISCONNECT_GRACE_MS);
     expect(expectPhase(h.room, 'turnEnd').reason).toBe('drawerLeft');
     vi.advanceTimersByTime(TURN_END_SECONDS * 1000);
     expect(h.room.getState(alice).waiting).toEqual({ reason: 'players', missing: [bob, carol], needed: 2, connected: 1 });
@@ -945,7 +966,10 @@ describe('Scribble: drawer and guesser grace periods', () => {
     h.send(alice, { t: 'kick', playerId: carol });
     expect(h.room.phase).toBe('lobby');
     expect(h.room.getState(alice).waiting).toBeNull();
-    expect(h.transport.chats(alice).at(-1)).toEqual({ kind: 'notice', text: 'Not enough players. Back to the lobby.' });
+    expect(h.transport.chats(alice).slice(-2)).toEqual([
+      { kind: 'system', text: 'Not enough players to go on.' },
+      { kind: 'system', text: 'Game over!' },
+    ]);
   });
 
   it('gives the last unsolved guesser a grace before "everyone guessed" ends the turn', () => {
@@ -974,7 +998,7 @@ describe('Scribble: drawer and guesser grace periods', () => {
     const second = pick(g, ps);
     g.send(b2, { t: 'chat', text: second.word });
     g.room.handleDisconnect(c2);
-    vi.advanceTimersByTime(DRAWER_DISCONNECT_GRACE_MS);
+    vi.advanceTimersByTime(AWAY_NOTICE_MS + DRAWER_DISCONNECT_GRACE_MS);
     expect(expectPhase(g.room, 'turnEnd').reason).toBe('allGuessed');
     expect(g.turnState(a2).turnPoints).toBe(drawerPoints(1, 2));
   });
@@ -986,7 +1010,7 @@ describe('Scribble: drawer and guesser grace periods', () => {
     pick(h, players);
     h.transport.clear();
     h.room.handleDisconnect(alice);
-    vi.advanceTimersByTime(DRAWER_DISCONNECT_GRACE_MS);
+    vi.advanceTimersByTime(AWAY_NOTICE_MS + DRAWER_DISCONNECT_GRACE_MS);
     expect(expectPhase(h.room, 'turnEnd').reason).toBe('drawerLeft');
     expect(h.transport.chats(bob).map((c) => c.text)).toContain('Alice lost connection. Skipping their turn.');
     expect(h.room.getPlayer(alice)).toBeDefined();

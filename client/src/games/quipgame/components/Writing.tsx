@@ -9,7 +9,7 @@ import { useQuipgame, useQuipgameStore } from '../store';
 
 interface Props {
   view: QuipgameView;
-  /** False once the phase is over (the podium is up): nothing can be sent any more. */
+  /** False once the phase is over (the game ended): nothing can be sent any more. */
   open: boolean;
 }
 

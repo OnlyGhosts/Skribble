@@ -80,6 +80,8 @@ export interface Harness {
   send: (playerId: string, msg: Inbound) => void;
   player: (playerId: string) => PlatformPlayerData;
   score: (playerId: string) => number;
+  /** The last game's standings as `{ playerId, score, rank }`; null while there are none. */
+  standings: () => Array<{ playerId: string; score: number; rank: number }> | null;
   token: (playerId: string) => string;
   /** Scribble's per-player turn state as the spectator view shows it. */
   turnState: (playerId: string) => ScribblePlayerView;
@@ -128,6 +130,7 @@ export function createHarness(opts: { gameId?: GameId; rng?: Rng; code?: string;
     },
     player,
     score: (id) => player(id).score,
+    standings: () => room.getState(null).results?.entries.map(({ playerId, score, rank }) => ({ playerId, score, rank })) ?? null,
     token: (id) => room.getPlayer(id)?.token ?? '',
     turnState(id) {
       const state = scribbleView(room);

@@ -39,7 +39,7 @@ export interface CanvasSession {
   clear(): void;
   /** A server message that may belong to the canvas stream; returns true when it did. */
   handleServerMessage(msg: WireMessage): boolean;
-  /** `welcome.extra` (the canvas history) plus any ops parked during the outage for the turn the rejoin landed in. */
+  /** `welcome.extra` (the canvas history) plus whatever the drawer drew in this turn that the server never got. */
   onWelcome(extra: unknown): void;
   /** The room is being left: flush what must still go out, drop the rest. */
   onLeave(): void;
@@ -82,7 +82,9 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
     nextStrokeId,
     undo() {
       queue.flush();
-      if (options.link.send({ t: 'undo' })) store.getState().undo(true);
+      if (!options.link.send({ t: 'undo' })) return;
+      store.getState().undo(true);
+      queue.undone();
     },
     redo() {
       if (!options.link.isOpen()) return;
@@ -93,7 +95,9 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
     },
     clear() {
       queue.flush();
-      if (options.link.send({ t: 'clear' })) store.getState().clear();
+      if (!options.link.send({ t: 'clear' })) return;
+      store.getState().clear();
+      queue.cleared();
     },
     handleServerMessage(raw) {
       if (!SERVER_MESSAGE_TYPES.has(raw.t)) return false;
@@ -118,8 +122,9 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
       return true;
     },
     onWelcome(extra) {
-      store.getState().setCanvas(isCanvasWelcomeExtra(extra) ? extra.canvas : []);
-      const restored = queue.resumeOfflineOps(options.myDrawingTurn());
+      const history = isCanvasWelcomeExtra(extra) ? extra.canvas : [];
+      store.getState().setCanvas(history);
+      const restored = queue.resume(options.myDrawingTurn(), history);
       if (restored.length > 0) store.getState().appendOps(restored);
     },
     onLeave() {

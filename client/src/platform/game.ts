@@ -1,14 +1,14 @@
 /**
  * The contract between the platform shell and a game's client module. The platform renders the
- * front door, the room, players, settings and the podium; the module supplies
- * what happens on screen while the room is 'playing' or 'ended' and reacts to its own messages.
+ * front door, the room, players, settings and the results; the module supplies
+ * what happens on screen while the room is 'playing' and reacts to its own messages.
  *
  * `V` is the game's per-recipient view (RoomState.game), `S` its settings (flat next to the
  * platform settings in RoomState.settings).
  */
 import type { ComponentType, ReactNode } from 'react';
 import type { GameMeta } from '@shared/platform/games';
-import type { ChatMessage, PlayerPublic, RoomState, WireMessage } from '@shared/platform/protocol';
+import type { ChatMessage, ErrorCode, PlayerPublic, RoomState, WireMessage } from '@shared/platform/protocol';
 import type { PlatformSettings } from '@shared/platform/settings';
 import type { AnySoundBank } from './lib/sound';
 
@@ -39,7 +39,7 @@ export interface PlayerStatus {
 
 export interface GameClientModule<V = unknown, S = Record<string, unknown>> {
   meta: GameMeta;
-  /** Rendered while the room is 'playing' or 'ended' (the platform adds the podium overlay for 'ended'). */
+  /** Rendered while the room is 'playing'; a finished game's results show over the lobby. */
   Screen: ComponentType<GameScreenProps<V, S>>;
   /** The game's sound effects; the platform starts loading them when the game screen mounts. */
   sounds?: AnySoundBank;
@@ -64,8 +64,16 @@ export interface GameClientModule<V = unknown, S = Record<string, unknown>> {
   onRoom?(room: RoomState<V, S>, prev: RoomState<V, S> | null): void;
   /** A freshly appended chat line (history from a welcome does not count): Scribble's guesses and the game's lines. */
   onChat?(message: ChatMessage): void;
+  /** The room refused something while we are in it (a move against the rules): a game holding its controls for an answer lets go. */
+  onError?(code: ErrorCode, message: string): void;
   /** The room is being left (leave, kick, seat lost): drop local game state, flush what must still go out. */
   onLeave?(): void;
+  /**
+   * What the host's End game does in this game right now, in a few words under "End the game for
+   * everyone?" (Blackjack: "It ends after the hand in play."). Null or absent: it ends at once on
+   * the scores so far.
+   */
+  endGameNote?(room: RoomState<V, S>): string | null;
 }
 
 /** The erased module type the registry and the platform shell work with. */

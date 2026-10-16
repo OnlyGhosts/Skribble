@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type Page } from '@playwright/test';
-import { createParty, enterNameIfAsked, readyAll } from './party';
+import { closeResults, createParty, endGameAsHost, enterNameIfAsked, readyAll } from './party';
 import { tilesReadable } from './tableFit';
 
 /**
@@ -70,14 +70,12 @@ test('a third phone joins a running game, watches it without controls, and plays
     )
     .toBe('2');
 
-  // The host ends the game; Rae is not on the podium, but readies up for the next one there.
-  await host.getByTestId('game-menu').click();
-  await host.getByTestId('end-game').click();
-  await host.getByTestId('end-game-yes').click();
+  // The host ends the game; Rae is not in the results, but sees them and readies up for the next one in the lobby.
+  await endGameAsHost(host);
   for (const p of [host, pia, rae]) await expect(p.getByTestId('overlay-game-end')).toBeVisible({ timeout: 20_000 });
-  await expect(rae.getByTestId('podium-place')).toHaveText('You watched this one');
-  await expect(rae.getByTestId('overlay-game-end').getByTestId('podium-entry')).toHaveCount(2);
-  await host.getByTestId('back-to-lobby').click();
+  await expect(rae.getByTestId('results-place')).toHaveText('You watched this one');
+  await expect(rae.getByTestId('overlay-game-end').getByTestId('results-entry')).toHaveCount(2);
+  for (const p of [host, pia, rae]) await closeResults(p);
   for (const p of [host, pia, rae]) await expect(p.getByTestId('room-code')).toHaveText(code);
 
   // Next game: Rae plays, and Pia, who sits this one out, watches it the same way.

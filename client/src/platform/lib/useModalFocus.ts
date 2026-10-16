@@ -3,7 +3,7 @@ import { focusableIn, nextInCycle } from './focus';
 
 /**
  * The open modals, oldest first. Two can be up at once (a bottom sheet under the platform's
- * waiting or podium overlay): only the one on top owns the keyboard, so Tab cycles inside the
+ * waiting overlay or the results): only the one on top owns the keyboard, so Tab cycles inside the
  * dialog the user sees and Escape does not close the sheet hidden underneath it.
  */
 const openModals: object[] = [];

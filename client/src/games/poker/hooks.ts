@@ -58,3 +58,9 @@ export function useConnected(): boolean {
   const read = () => usePlatformStore.getState().connection === 'connected';
   return useSyncExternalStore(usePlatformStore.subscribe, read, read);
 }
+
+/** A rejoin is in flight (the socket is back, the seat not yet): the controls wait for it. */
+export function useRejoining(): boolean {
+  const read = () => usePlatformStore.getState().rejoining;
+  return useSyncExternalStore(usePlatformStore.subscribe, read, read);
+}

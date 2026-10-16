@@ -1,8 +1,9 @@
 /**
  * The Spy Game's location pack and the pure draws over it. Every location has a generated tile
  * (client/src/games/spygame/assets/locations/<id>.svg) built from `emoji` and `hue`; a photo
- * dropped next to it with the same id takes precedence. SPY_LOCATIONS is the family pack; the
- * cheeky and unhinged tiers (./locationTiers.ts) join it in an Unhinged room (locationsForMode).
+ * dropped next to it with the same id takes precedence. SPY_LOCATIONS is the family pack; an
+ * Unhinged room plays the cheeky and unhinged tiers (./locationTiers.ts) instead of it, never the
+ * family places (locationsForMode).
  */
 import type { ContentMode } from '../../platform/settings.js';
 import { CHEEKY_LOCATIONS, UNHINGED_LOCATIONS } from './locationTiers.js';
@@ -92,9 +93,12 @@ export const ALL_SPY_LOCATIONS: readonly SpyLocation[] = [...SPY_LOCATIONS, ...C
 
 const BY_ID = new Map<string, SpyLocation>(ALL_SPY_LOCATIONS.map((l) => [l.id, l]));
 
-/** The pool a room draws from: the family pack, plus the cheeky and unhinged tiers for an Unhinged room. */
+/** The adult pool: the cheeky and unhinged tiers together, without the family pack. */
+const UNHINGED_POOL: readonly SpyLocation[] = [...CHEEKY_LOCATIONS, ...UNHINGED_LOCATIONS];
+
+/** The pool a room draws from: the family pack for Family, the cheeky and unhinged tiers alone for Unhinged. */
 export function locationsForMode(mode: ContentMode): readonly SpyLocation[] {
-  return mode === 'unhinged' ? ALL_SPY_LOCATIONS : SPY_LOCATIONS;
+  return mode === 'unhinged' ? UNHINGED_POOL : SPY_LOCATIONS;
 }
 
 export function locationById(id: string): SpyLocation | undefined {

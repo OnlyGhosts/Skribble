@@ -5,7 +5,7 @@ import { defaultPlatformSettings } from '../../../shared/platform/settings.js';
 import { FALLBACK_ANSWERS, PROMPTS } from '../../../shared/games/quipgame/prompts.js';
 import { DEFAULT_QUIPGAME_SETTINGS, QUIPGAME_ANSWER_MAX_LENGTH, QUIPGAME_RESULTS_SECONDS, QUIPGAME_VOTE_SECONDS, QUIPGAME_WRITE_SECONDS } from '../../../shared/games/quipgame/protocol.js';
 import { nextDeadline } from '../../platform/engine/time.js';
-import { AVATAR, START, chatTexts, sim, startGame } from '../../platform/engine/testHarness.js';
+import { AVATAR, START, chatTexts, sim, standings, startGame } from '../../platform/engine/testHarness.js';
 import { drawPrompts, promptPool } from './prompts.js';
 import type { Gx } from './state.js';
 import { answerText, authors, castVotes, data, disconnect, errorCodes, errors, lcg, matchup, nameOf, playRound, reconnect, score, startWithAudience, view, voters, writeAll } from './testHarness.js';
@@ -515,12 +515,15 @@ describe('Quip Game: results and the flow between rounds', () => {
     expect(data(s)).toMatchObject({ phase: 'writing', round: 2, totalRounds: 2, endsAt: s.now + WRITE_MS });
     writeAll(s);
     playRound(s, alice);
-    expect(s.data.phase).toBe('ended');
-    expect(data(s).phase).toBe('over');
-    expect(view(s, alice)).toMatchObject({ phase: 'result', canSkip: false });
+    expect(s.data.phase).toBe('lobby');
+    expect(s.data.game).toBeNull();
     expect(nextDeadline(s.data)).toBeNull();
-    expect(s.data.podium).toHaveLength(3);
-    expect(s.data.podium?.[0].score).toBe(Math.max(...s.data.players.map((p) => p.score)));
+    // The results keep the final scores, best first; the lobby starts the next game from zero.
+    const ranked = standings(s) ?? [];
+    expect(ranked).toHaveLength(3);
+    expect(ranked.map((e) => e.score)).toEqual([...ranked.map((e) => e.score)].sort((a, b) => b - a));
+    expect(ranked[0].score).toBeGreaterThan(0);
+    expect(s.data.players.every((p) => p.score === 0)).toBe(true);
     expect(chatTexts(s.effects).some((t) => t.startsWith('Game over!'))).toBe(true);
   });
 

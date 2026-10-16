@@ -14,8 +14,8 @@ import {
 } from '../../../shared/games/spygame/protocol.js';
 import { gameById } from '../../../shared/platform/games.js';
 import { defineSettings, withDraft, type GameEvent, type GameResult, type GameServerModule } from '../../platform/game.js';
-import { advance, beginRound, endGame, endRound, guess, nextRound, pauseClock, resumeClock, resumeIfHeld, settleDue } from './round.js';
-import { nameOf, snapshot, systemMessage, type Ctx, type Gx, type SpygameData } from './state.js';
+import { advance, beginRound, endRound, guess, nextRound, resumeIfHeld, settleDue, spyAwayDeadline, spyCameBack, spyWentAway } from './round.js';
+import { snapshot, type Ctx, type Gx, type SpygameData } from './state.js';
 import { accuse, resolveVote, vote, voterLeft } from './vote.js';
 import { viewFor } from './view.js';
 
@@ -68,8 +68,6 @@ function onMessage(gx: Gx, playerId: string, msg: SpygameClientMessage): void {
       return vote(gx, playerId, msg.yes);
     case 'nextRound':
       return nextRound(gx, playerId);
-    case 'endGame':
-      return endGame(gx, playerId);
   }
 }
 
@@ -86,13 +84,10 @@ function onPlayerLeft(gx: Gx, playerId: string): void {
 }
 
 function onPlayerDisconnected(gx: Gx, playerId: string): void {
-  const { data, ctx } = gx;
+  const { data } = gx;
   if (data.phase === 'waiting') return resumeIfHeld(gx);
-  if (playerId !== data.current.spyId || (data.phase !== 'playing' && data.phase !== 'voting')) return;
-  data.current.spyAway = true;
-  pauseClock(gx);
-  // The pause can last the whole reconnect grace (10 min), so say how to end it sooner.
-  systemMessage(gx, `${nameOf(ctx, playerId)} lost connection. The clock is paused until they are back. The host can remove them from the players list.`);
+  if (playerId !== data.current.spyId || data.current.spyAway || (data.phase !== 'playing' && data.phase !== 'voting')) return;
+  spyWentAway(gx);
   snapshot(gx);
 }
 
@@ -100,15 +95,23 @@ function onPlayerReconnected(gx: Gx, playerId: string): void {
   const { data } = gx;
   if (data.phase === 'waiting') return resumeIfHeld(gx);
   if (playerId !== data.current.spyId || !data.current.spyAway) return;
-  data.current.spyAway = false;
-  resumeClock(gx);
+  spyCameBack(gx);
   snapshot(gx);
+}
+
+/** The away spy's time ran out (a room stored before the limit existed never runs out). */
+function spyAwayDue(gx: Gx): boolean {
+  const due = spyAwayDeadline(gx.data);
+  if (due === null || gx.ctx.now < due) return false;
+  endRound(gx, 'spyLeft');
+  return true;
 }
 
 function onTick(gx: Gx): void {
   const { data, ctx } = gx;
   switch (data.phase) {
     case 'playing':
+      if (spyAwayDue(gx)) return;
       if (data.current.clock.kind === 'running' && ctx.now >= data.current.clock.endsAt) endRound(gx, 'timeUp');
       return;
     case 'voting':
@@ -127,7 +130,7 @@ function onTick(gx: Gx): void {
 function nextDeadline(data: SpygameData): number | null {
   switch (data.phase) {
     case 'playing':
-      return data.current.clock.kind === 'running' ? data.current.clock.endsAt : null;
+      return earliest(data.current.clock.kind === 'running' ? data.current.clock.endsAt : null, spyAwayDeadline(data));
     case 'voting':
       return data.vote?.endsAt ?? null;
     case 'reveal':
@@ -139,6 +142,11 @@ function nextDeadline(data: SpygameData): number | null {
   }
 }
 
+function earliest(a: number | null, b: number | null): number | null {
+  if (a === null) return b;
+  return b === null ? a : Math.min(a, b);
+}
+
 export const spygameModule: GameServerModule<SpygameSettings, SpygameData, SpygameView, SpygameClientMessage, SpygameServerMessage> = {
   meta: gameById('spygame'),
   settings: defineSettings(spygameSettingsSchema, DEFAULT_SPYGAME_SETTINGS),
@@ -147,7 +155,7 @@ export const spygameModule: GameServerModule<SpygameSettings, SpygameData, Spyga
   handle,
   nextDeadline,
   view: viewFor,
-  hostMessages: new Set(['nextRound', 'endGame']),
+  hostMessages: new Set(['nextRound']),
 };
 
 export type { SpygameData };

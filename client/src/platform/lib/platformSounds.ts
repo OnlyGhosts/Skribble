@@ -1,6 +1,6 @@
 /**
  * The platform's own sounds: someone joining between games, readying up, a game starting, and
- * the podium (a fanfare on the winner's phone, a softer sting on everyone else's). They load
+ * the results (a fanfare on the winner's phone, a softer sting on everyone else's). They load
  * after the first gesture, when audio may play at all.
  */
 import type { RoomState } from '@shared/platform/protocol';

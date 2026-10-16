@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { DECK, REVEAL_CARD_MS, REVEAL_HOLE_MS, dealerPeeks, dealerShouldHit, drawCard, handTotal, isBust, isNatural, isPair, isTenValue, naturalWinnings, revealAllowanceMs, settleHand } from './cards.js';
+import { DECK, dealerPeeks, dealerShouldHit, drawCard, handTotal, isBust, isNatural, isPair, isTenValue, naturalWinnings, settleHand } from './cards.js';
+import { revealAllowanceMs } from './deal.js';
 import type { Card, CardRank } from './protocol.js';
 
 /** 'AS', '10H', 'KD' -> a card. */
@@ -146,11 +147,13 @@ describe('the peek and the reveal', () => {
     expect(isTenValue('A')).toBe(false);
   });
 
-  it('allows 1200 ms for the hole card and 500 ms for every card the dealer drew after it', () => {
-    expect(revealAllowanceMs(2)).toBe(REVEAL_HOLE_MS);
-    expect(revealAllowanceMs(5)).toBe(1200 + 3 * 500);
-    expect(REVEAL_CARD_MS).toBe(500);
+  it('allows exactly the reveal the phone plays: the flip and the outcomes, and 500 ms for every further draw', () => {
+    // Flip 400 + outcomes 150; with draws: flip 400 + 100, 500 between draws, the last slide 250, outcomes 150.
+    expect(revealAllowanceMs(2)).toBe(550);
+    expect(revealAllowanceMs(3)).toBe(900);
+    expect(revealAllowanceMs(4)).toBe(1400);
+    expect(revealAllowanceMs(5)).toBe(1900);
     // A dealer cleared before a deal (or never dealt) still gets the flip allowance only.
-    expect(revealAllowanceMs(0)).toBe(1200);
+    expect(revealAllowanceMs(0)).toBe(550);
   });
 });

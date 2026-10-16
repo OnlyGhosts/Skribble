@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Avatar as AvatarData } from '@shared/platform/avatar';
 import { NAME_MAX_LENGTH } from '@shared/platform/constants';
 import { gameById } from '@shared/platform/games';
@@ -31,22 +31,13 @@ export function Lobby({ room, game }: Props) {
   const isHost = useLive(usePlatformStore, selectIsHost);
   const playerId = useLive(usePlatformStore, (s) => s.playerId);
   const addToast = usePlatformStore((s) => s.addToast);
-  const playAgainPending = usePlatformStore((s) => s.playAgainPending);
-  const setPlayAgainPending = usePlatformStore((s) => s.setPlayAgainPending);
   const [editing, setEditing] = useState(false);
-  const startRef = useRef<HTMLDivElement | null>(null);
   const meta = gameById(room.gameId);
 
-  // The home page was likely scrolled to its join form; start the lobby at the code. After "Play
-  // again" the host lands at the Start button instead.
+  // The home page was likely scrolled to its join form (or the game was): start the lobby at the code.
   useEffect(() => {
-    if (playAgainPending) {
-      startRef.current?.scrollIntoView({ block: 'center' });
-      setPlayAgainPending(false);
-      return;
-    }
     window.scrollTo(0, 0);
-  }, [playAgainPending, setPlayAgainPending]);
+  }, []);
 
   const host = room.players.find((p) => p.id === room.hostId);
   const changeLook = (
@@ -142,10 +133,10 @@ export function Lobby({ room, game }: Props) {
         )}
       </div>
 
-      <div className="lobby__footer" ref={startRef} data-testid="lobby-footer">
+      <div className="lobby__footer" data-testid="lobby-footer">
         <div className="lobby__footer-inner">
           {isHost && <StartControls room={room} />}
-          {me && <ReadyControls me={me} context="lobby" extra={changeLook} />}
+          {me && <ReadyControls me={me} extra={changeLook} />}
           {!isHost && (
             <p className="lobby__waiting" data-testid="waiting-for-host">
               Waiting for {host?.name ?? 'the host'} to start {meta.name}

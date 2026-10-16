@@ -3,8 +3,20 @@ import { POKER_ACT_SECONDS, type PokerActionKind, type PokerActions, type PokerC
 import { adjustChips, bigBlind, contenders, fail, nameOf, noteMove, noticeMessage, ringAfter, snapshot, streetIdle, systemMessage, turnOf, type Gx, type PokerData } from './state.js';
 import { endStreet } from './streets.js';
 
+/**
+ * A move aimed at a turn that is over: a second tap sent before the first one's answer arrived,
+ * or a tap the clock beat to it. It is ignored without a word: the player meant the first one.
+ */
+function stale(data: PokerData, playerId: string, msg: { hand?: number; move?: number }): boolean {
+  if (msg.hand === undefined && msg.move === undefined) return false;
+  if (turnOf(data) !== playerId) return true;
+  if (msg.hand !== undefined && msg.hand !== data.hand) return true;
+  return msg.move !== undefined && msg.move !== (data.lastMove?.seq ?? 0);
+}
+
 /** A move the player sent themselves (the clock's moves go through actTimedOut). */
 export function playerMove(gx: Gx, playerId: string, msg: Extract<PokerClientMessage, { t: 'fold' | 'check' | 'call' | 'bet' | 'raise' | 'allIn' }>): void {
+  if (stale(gx.data, playerId, msg)) return;
   if (turnOf(gx.data) === playerId) gx.data.acted = true;
   switch (msg.t) {
     case 'fold':

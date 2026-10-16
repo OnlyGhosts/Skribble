@@ -60,6 +60,7 @@ function clockFor(data: SpygameData, fullRoundMs: number): SpygameClock {
     endsAt: null,
     pausedRemainingMs: current.clock.remainingMs,
     pausedReason: data.phase === 'voting' ? 'vote' : 'spyAway',
-    waitingForId: current.spyAway ? current.spyId : null,
+    // Not while a vote runs: the spy's hold only comes up after it, and the vote must not learn who dropped.
+    waitingForId: current.spyAway && data.phase === 'playing' ? current.spyId : null,
   };
 }

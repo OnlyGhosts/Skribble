@@ -1,5 +1,5 @@
 /**
- * A full room of 50: the lobby, the players sheet and the podium list every player, each long
+ * A full room of 50: the lobby, the players sheet and the results list every player, each long
  * list scrolling inside its own panel, and the game picker reads out each game's seat range.
  */
 import { readFileSync } from 'node:fs';
@@ -16,7 +16,7 @@ const { ROOM_HARD_CAP } = await import('@shared/platform/settings');
 const { player, resetStore, room } = await import('../../test/fixtures');
 const { GamePicker } = await import('./GamePicker');
 const { PlayerList } = await import('./PlayerList');
-const { PodiumOverlay } = await import('./PodiumOverlay');
+const { ResultsPopup } = await import('./ResultsPopup');
 const { Lobby } = await import('../screens/Lobby');
 
 const ids = Array.from({ length: ROOM_HARD_CAP }, (_, i) => (i === 0 ? 'host' : `p${i}`));
@@ -45,15 +45,15 @@ describe('a full room of 50', () => {
     expect(ruleOf(stylesheet('lobby.css'), '.lobby__players .player')).toContain('flex: none');
   });
 
-  it('lists all 50 in the players sheet and on the podium, each scrolling inside its panel', () => {
+  it('lists all 50 in the players sheet and in the results, each scrolling inside its panel', () => {
     expect(rows(renderToString(createElement(PlayerList, { room: full({ phase: 'playing' }), meId: 'host', isHost: true, mode: 'game', game: null })))).toBe(50);
-    const podium = ids.map((playerId, i) => ({ playerId, score: (ROOM_HARD_CAP - i) * 10, rank: i + 1 }));
-    const html = renderToString(createElement(PodiumOverlay, { room: full({ phase: 'ended', podium }), meId: 'p49', isHost: false }));
-    expect(html.match(/data-testid="podium-entry"/g)).toHaveLength(50);
+    const entries = ids.map((playerId, i) => ({ playerId, name: playerId, avatar: { color: 0, emoji: 0 }, score: (ROOM_HARD_CAP - i) * 10, rank: i + 1 }));
+    const html = renderToString(createElement(ResultsPopup, { results: { id: 'r', gameId: 'scribble', reason: 'finished', entries }, meId: 'p49', onClose: () => undefined }));
+    expect(html.match(/data-testid="results-entry"/g)).toHaveLength(50);
     expect(html).toContain('You came 50th');
     const css = stylesheet('components.css');
     expect(ruleOf(css, '.sheet__body')).toContain('overflow-y: auto');
-    expect(ruleOf(css, '.podium-card__scroll')).toContain('overflow-y: auto');
+    expect(ruleOf(css, '.results-card__scroll')).toContain('overflow-y: auto');
   });
 
   it("reads out each game's seat range: no cap for Blackjack and Quip Game, 2 to 23 for Poker", () => {

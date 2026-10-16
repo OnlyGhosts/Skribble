@@ -35,6 +35,8 @@ export function seatLine(view: BlackjackView, id: string, hands: TableHand[], se
   const seat = view.players[id];
   if (dealerPlaying && hands.length > 0) return { state: 'waiting', text: 'Waiting', tone: 'quiet' };
   if (seat.bustedOut) return { state: 'out', text: 'Out', tone: 'bad' };
+  // The table waits on them and their phone has gone quiet: anyone may Skip or Deal now for them.
+  if ((view.away ?? []).includes(id)) return { state: 'away', text: 'Away', tone: 'quiet' };
   const betting = view.phase === 'betting' && view.order.includes(id);
   if (betting && seat.bet > 0) return { state: 'bet', text: '', tone: 'quiet' };
   if (betting && seat.sittingOut) return { state: 'sitting-out', text: 'Sitting out', tone: 'quiet' };
@@ -161,9 +163,10 @@ export function Seats({ room, view, ids, meId, table, timeline, now, leaving, wi
                 playerId={id}
                 name={player.name}
                 avatar={player.avatar}
-                connected={player.connected}
+                connected={player.connected && !(view.away ?? []).includes(id)}
                 count={ids.length}
                 turn={turn}
+                turnNote={turn && line.state === 'away' ? line.text : undefined}
                 line={line}
                 mark={seatMark(line, hands, settledShown)}
                 outcome={settledShown ? seatOutcome(hands) : null}

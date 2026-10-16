@@ -36,7 +36,8 @@ export function room(overrides: Partial<RoomState> = {}): RoomState {
     settings: { contentMode: 'family', ...DEFAULT_SCRIBBLE_SETTINGS },
     players: [player('host'), player('bob', { joinOrder: 1 })],
     phase: 'lobby',
-    podium: null,
+    results: null,
+    endRequested: false,
     game: null,
     serverTime: Date.now(),
     ...overrides,
@@ -67,5 +68,8 @@ export function resetStore(): void {
     joinError: null,
     clockOffset: 0,
     clockSynced: false,
+    results: null,
+    resultsSeen: null,
+    resultsShown: null,
   });
 }

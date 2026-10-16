@@ -10,14 +10,13 @@ import type { ScribbleData } from '../../games/scribble/state.js';
 import { GAME_TEST_FIXTURES } from '../../games/testFixtures.js';
 import { applyGameResult } from './delegate.js';
 import type { Cx } from './messaging.js';
-import { applyAction } from './reduce.js';
 import type { PlatformRoomData } from './state.js';
 import { Ids, chatTexts, ctxAt, sim, startGame, type Sim } from './testHarness.js';
 import { gameDeadline, nextDeadline, pendingDeadlines } from './time.js';
 import { viewFor } from './view.js';
 
 const disconnect = (s: Sim, id: string): void => {
-  s.apply({ type: 'connectionClosed', playerId: id });
+  s.drop(id);
 };
 
 /** A reducer context over a private copy of the room, for driving `applyGameResult` directly. */
@@ -34,7 +33,7 @@ describe.each(GAME_IDS)('holding for disconnected players (%s)', (gameId) => {
     for (const id of others) disconnect(s, id);
     expect(s.data.players.filter((p) => p.connected).map((p) => p.id)).toEqual([alice]);
     expect(s.data.phase).toBe('playing');
-    expect(chatTexts(s.effects)).not.toContain('Not enough players. Back to the lobby.');
+    expect(chatTexts(s.effects)).not.toContain('Not enough players to go on.');
     const kinds = pendingDeadlines(s.data).map((d) => d.kind);
     expect(kinds.filter((k) => k === 'reconnectExpiry')).toHaveLength(others.length);
     expect(kinds.every((k) => k === 'game' || k === 'reconnectExpiry')).toBe(true);
@@ -57,8 +56,8 @@ describe.each(GAME_IDS)('holding for disconnected players (%s)', (gameId) => {
 
       s.now = dropAt + RECONNECT_GRACE_MS;
       const effects = s.tick();
-      expect(chatTexts(effects).slice(-2)).toEqual(['Bob left', 'Not enough players. Back to the lobby.']);
-      expect(s.data).toMatchObject({ phase: 'lobby', game: null, waiting: null, podium: null });
+      expect(chatTexts(effects).slice(-3)).toEqual(['Bob left', 'Not enough players to go on.', 'Game over!']);
+      expect(s.data).toMatchObject({ phase: 'lobby', game: null, waiting: null, results: { reason: 'players' } });
       expect(s.data.players.map((p) => p.id)).not.toContain(bob);
       expect(s.data.players.every((p) => p.score === 0)).toBe(true);
       expect(viewFor(s.data, alice, s.now).waiting).toBeNull();
@@ -95,26 +94,38 @@ describe('the waiting effect', () => {
     expect(viewFor(cx.data, alice, s.now).waiting).toBeNull();
   });
 
-  it('is cleared by abort, by gameOver and by the return to the lobby', () => {
+  it('is cleared by abort and by gameOver, both of which take the room to the lobby', () => {
     const s = sim('template');
     const [alice, bob] = startGame(s, ['Alice', 'Bob']);
     disconnect(s, bob);
 
     const aborted = cxOf(s.data, s.now);
     applyGameResult(aborted, { data: aborted.data.game, effects: [{ type: 'waiting', missing: [bob] }, { type: 'abort', reason: 'Called off.' }] });
-    expect(aborted.data).toMatchObject({ phase: 'lobby', waiting: null });
+    expect(aborted.data).toMatchObject({ phase: 'lobby', waiting: null, waitingUntil: null, results: { reason: 'players' } });
     expect(viewFor(aborted.data, alice, s.now).waiting).toBeNull();
 
     const over = cxOf(s.data, s.now);
-    applyGameResult(over, { data: over.data.game, effects: [{ type: 'waiting', missing: [bob] }, { type: 'gameOver' }] });
-    expect(over.data).toMatchObject({ phase: 'ended', waiting: null });
+    applyGameResult(over, { data: over.data.game, effects: [{ type: 'waiting', missing: [bob], until: s.now + 5000 }, { type: 'gameOver' }] });
+    expect(over.data).toMatchObject({ phase: 'lobby', waiting: null, waitingUntil: null, results: { reason: 'finished' } });
     expect(viewFor(over.data, alice, s.now).waiting).toBeNull();
 
-    // A stale list left on an ended room is dropped when the host returns everyone to the lobby.
+    // A stale list stored on a lobby never shows: only a running game holds.
     const stale: PlatformRoomData = { ...over.data, waiting: [bob] };
-    const back = applyAction(stale, { type: 'platformMessage', playerId: alice, msg: { t: 'returnToLobby' } }, ctxAt(s.now, new Ids()));
-    expect(back.data).toMatchObject({ phase: 'lobby', waiting: null });
-    expect(viewFor(back.data, alice, s.now).waiting).toBeNull();
+    expect(viewFor(stale, alice, s.now).waiting).toBeNull();
+  });
+
+  it('carries the time a game stops waiting, when the game gives one', () => {
+    const s = sim('template');
+    const [alice, bob] = startGame(s, ['Alice', 'Bob']);
+    disconnect(s, bob);
+    const cx = cxOf(s.data, s.now);
+    applyGameResult(cx, { data: cx.data.game, effects: [{ type: 'waiting', missing: [bob], until: s.now + 90_000 }] });
+    expect(viewFor(cx.data, alice, s.now).waiting).toEqual({ reason: 'players', missing: [bob], needed: 1, connected: 1, until: s.now + 90_000 });
+    // A hold without a limit (the games' boundaries) has none, and the end of a hold drops it.
+    applyGameResult(cx, { data: cx.data.game, effects: [{ type: 'waiting', missing: [bob] }] });
+    expect(viewFor(cx.data, alice, s.now).waiting).not.toHaveProperty('until');
+    applyGameResult(cx, { data: cx.data.game, effects: [{ type: 'waiting', missing: [bob], until: s.now + 1 }, { type: 'waiting', missing: null }] });
+    expect(cx.data).toMatchObject({ waiting: null, waitingUntil: null });
   });
 
   it('leaves a holding game with no deadline but the seat expiries', () => {

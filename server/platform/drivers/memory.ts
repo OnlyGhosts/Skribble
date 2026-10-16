@@ -3,11 +3,15 @@ import type { GameId } from '../../../shared/platform/games.js';
 import type { RoomPreview } from '../../../shared/platform/protocol.js';
 import { normalizeRoomCode } from '../../../shared/platform/roomCode.js';
 import { previewOf } from '../engine/view.js';
+import { Outbound } from './outbound.js';
 import { RoomManager, type RoomManagerDeps } from './roomManager.js';
 import { SocketHub } from './socketHub.js';
 import type { DriverHealth, GameDriver, LookupResult, RoomInbound, Seat, SeatResult, SocketLike } from './types.js';
 
-export type MemoryDriverOptions = Omit<RoomManagerDeps, 'transport'>;
+export type MemoryDriverOptions = Omit<RoomManagerDeps, 'transport'> & {
+  /** Room snapshots to one socket at most this often (SNAPSHOT_INTERVAL_MS in production); 0, the default, sends each at once. */
+  snapshotIntervalMs?: number;
+};
 
 /**
  * Everything in one process: rooms live in a RoomManager, sockets in a SocketHub. This is the
@@ -16,10 +20,12 @@ export type MemoryDriverOptions = Omit<RoomManagerDeps, 'transport'>;
  */
 export class MemoryDriver implements GameDriver {
   readonly name = 'memory';
-  readonly hub = new SocketHub();
+  readonly hub: SocketHub;
   readonly rooms: RoomManager;
 
-  constructor(options: MemoryDriverOptions = {}) {
+  constructor({ snapshotIntervalMs = 0, ...options }: MemoryDriverOptions = {}) {
+    const clock = options.clock;
+    this.hub = new SocketHub(new Outbound(snapshotIntervalMs, clock ? () => clock.now() : Date.now));
     this.rooms = new RoomManager({ transport: this.hub, ...options });
   }
 
@@ -79,6 +85,10 @@ export class MemoryDriver implements GameDriver {
 
   heartbeat(): void {
     // Liveness is the socket itself in a single process.
+  }
+
+  idle(seat: Seat, connectionId: string, idle: boolean): void {
+    this.rooms.get(seat.code)?.handleActivity(seat.playerId, connectionId, idle);
   }
 
   preview(code: string): RoomPreview {

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CONTENT_MODES } from '../../platform/settings.js';
 import { CHEEKY_LOCATIONS, UNHINGED_LOCATIONS } from './locationTiers.js';
 import { ALL_SPY_LOCATIONS, SPY_LOCATIONS, drawCandidates, isLocationId, locationById, locationsForMode, pickLocation } from './locations.js';
+import type { SpyLocation } from './locations.js';
 import { SPYGAME_CANDIDATES } from './protocol.js';
 
 /** A deterministic [0, 1) sequence so shuffles are reproducible but not degenerate. */
@@ -29,15 +30,29 @@ describe('the location pack', () => {
     expect(isLocationId('nowhere')).toBe(false);
   });
 
-  it('adds the cheeky and unhinged tiers in an Unhinged room, with unique ids and names across every tier', () => {
+  it('plays the cheeky and unhinged tiers alone in an Unhinged room, with unique ids and names across every tier', () => {
     expect(locationsForMode('family')).toEqual(SPY_LOCATIONS);
-    expect(locationsForMode('unhinged')).toEqual([...SPY_LOCATIONS, ...CHEEKY_LOCATIONS, ...UNHINGED_LOCATIONS]);
-    expect(CHEEKY_LOCATIONS.length).toBeGreaterThanOrEqual(10);
-    expect(UNHINGED_LOCATIONS).toHaveLength(24);
+    expect(locationsForMode('unhinged')).toEqual([...CHEEKY_LOCATIONS, ...UNHINGED_LOCATIONS]);
+    // No family place in an Unhinged room, no adult place in a Family one.
+    const familyIds = new Set(SPY_LOCATIONS.map((l) => l.id));
+    expect(locationsForMode('unhinged').filter((l) => familyIds.has(l.id))).toEqual([]);
+    const adultIds = new Set(locationsForMode('unhinged').map((l) => l.id));
+    expect(locationsForMode('family').filter((l) => adultIds.has(l.id))).toEqual([]);
+    // Big enough that a round's 24 places change from round to round.
+    expect(locationsForMode('unhinged').length).toBeGreaterThanOrEqual(70);
+    expect(CHEEKY_LOCATIONS.length).toBeGreaterThanOrEqual(30);
+    expect(UNHINGED_LOCATIONS.length).toBeGreaterThanOrEqual(40);
     expect(new Set(ALL_SPY_LOCATIONS.map((l) => l.id)).size).toBe(ALL_SPY_LOCATIONS.length);
-    expect(new Set(ALL_SPY_LOCATIONS.map((l) => l.name)).size).toBe(ALL_SPY_LOCATIONS.length);
+    // Names compared letters only, so 'Nightclub' and 'Night Club' count as the same place.
+    const normalised = (l: SpyLocation): string => l.name.toLowerCase().replace(/[^a-z]/g, '');
+    expect(new Set(ALL_SPY_LOCATIONS.map(normalised)).size).toBe(ALL_SPY_LOCATIONS.length);
+    const familyNames = new Set(SPY_LOCATIONS.map(normalised));
+    expect(locationsForMode('unhinged').filter((l) => familyNames.has(normalised(l)))).toEqual([]);
     for (const l of ALL_SPY_LOCATIONS) {
       expect(l.id).toMatch(/^[a-z]+(-[a-z]+)*$/);
+      expect(l.name.length).toBeGreaterThan(0);
+      expect(l.emoji.length).toBeGreaterThan(0);
+      expect(Number.isInteger(l.hue)).toBe(true);
       expect(l.hue).toBeGreaterThanOrEqual(0);
       expect(l.hue).toBeLessThan(360);
       // Every tier's location resolves by id (the client names candidates that way).
@@ -59,7 +74,30 @@ describe('the location pack', () => {
       for (const id of drawCandidates('beach', SPYGAME_CANDIDATES, rng)) expect(SPY_LOCATIONS.some((l) => l.id === id)).toBe(true);
       expect(SPY_LOCATIONS).toContain(pickLocation([], rng));
     }
-    expect(pickLocation(SPY_LOCATIONS.map((l) => l.id), () => 0, pool).id).toBe(CHEEKY_LOCATIONS[0].id);
+    // The Unhinged pool never draws a family place either.
+    for (let i = 0; i < 20; i++) {
+      for (const id of drawCandidates('stag-do-in-magaluf', SPYGAME_CANDIDATES, rng, pool)) expect(SPY_LOCATIONS.some((l) => l.id === id)).toBe(false);
+      expect(SPY_LOCATIONS.some((l) => l.id === pickLocation([], rng, pool).id)).toBe(false);
+    }
+    expect(pickLocation([], () => 0, pool).id).toBe(CHEEKY_LOCATIONS[0].id);
+    expect(pickLocation(CHEEKY_LOCATIONS.map((l) => l.id), () => 0, pool).id).toBe(UNHINGED_LOCATIONS[0].id);
+  });
+
+  it('shows a different set of 24 places from round to round in an Unhinged room', () => {
+    const pool = locationsForMode('unhinged');
+    const rng = lcg(11);
+    const sets = new Set<string>();
+    const seen = new Set<string>();
+    for (let i = 0; i < 10; i++) {
+      const real = pickLocation([], rng, pool).id;
+      const candidates = drawCandidates(real, SPYGAME_CANDIDATES, rng, pool);
+      expect(candidates).toHaveLength(SPYGAME_CANDIDATES);
+      sets.add([...candidates].sort().join(','));
+      for (const id of candidates) seen.add(id);
+    }
+    expect(sets.size).toBe(10);
+    // Ten rounds reach well past a single grid's worth of places.
+    expect(seen.size).toBeGreaterThan(SPYGAME_CANDIDATES * 2);
   });
 
   it('draws 24 unique candidates that always include the real location, from any rng', () => {

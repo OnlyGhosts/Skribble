@@ -8,7 +8,7 @@ import { defaultPlatformSettings } from '../../../shared/platform/settings.js';
 import type { Effect } from '../../platform/engine/effects.js';
 import { nextDeadline } from '../../platform/engine/time.js';
 import { viewFor } from '../../platform/engine/view.js';
-import { AVATAR, START, chatTexts, noticeTexts, errorsOf, sim, startGame, type Sim } from '../../platform/engine/testHarness.js';
+import { AVATAR, START, chatTexts, endGame, noticeTexts, errorsOf, sim, standings, startGame, type Sim } from '../../platform/engine/testHarness.js';
 import { RESUME_SETTLE_MS } from '../waiting.js';
 import { pokerModule, type PokerData } from './module.js';
 import { buildPots, splitPot } from './pots.js';
@@ -27,11 +27,14 @@ const score = (s: Sim, id: string): number => s.data.players.find((p) => p.id ==
 const chips = (s: Sim, id: string): number => data(s).seats[id]?.chips ?? -1;
 const token = (s: Sim, id: string): string => s.data.players.find((p) => p.id === id)?.token ?? '';
 const waiting = (s: Sim): string[] | null => viewFor(s.data, null, s.now).waiting?.missing ?? null;
-const disconnect = (s: Sim, id: string, name: string): Effect[] => s.apply({ type: 'connectionClosed', playerId: id, connectionId: `conn-${name}` });
+/** A lasting drop: the game hears of it at once. */
+const disconnect = (s: Sim, id: string, name: string): Effect[] => s.drop(id, `conn-${name}`);
 const reconnect = (s: Sim, id: string, name: string): Effect[] => s.apply({ type: 'rejoin', token: token(s, id), connectionId: `conn-${name}-2` });
 
 /** The platform score must equal the chips of every seated participant after every action, and no stack may go negative. */
 function expectScoresMatchChips(s: Sim): void {
+  // A finished game is gone from the room (its results stay): there is no table left to check.
+  if (s.data.game === null) return;
   for (const p of s.data.players) {
     const seat = data(s).seats[p.id];
     if (seat) {
@@ -518,7 +521,8 @@ describe('Poker: timeouts', () => {
       expect(data(s).idleHands).toBe(hand);
       tickResults(s);
     }
-    expect(s.data.phase).toBe('ended');
+    expect(s.data.phase).toBe('lobby');
+    expect(s.data.results?.reason).toBe('finished');
     expect(chatTexts(s.effects)).toContain('Nobody played for 3 hands. The game is over.');
   });
 
@@ -702,7 +706,7 @@ describe('Poker: hands and the game', () => {
     expect(totalChips(s)).toBe(1007);
   });
 
-  it('ends after the hands cap with the podium ranked by chips', () => {
+  it('ends after the hands cap with the results ranked by chips', () => {
     const s = sim('poker');
     const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol'], { hands: 2 });
     act(s, alice, { t: 'fold' });
@@ -713,14 +717,14 @@ describe('Poker: hands and the game', () => {
     act(s, carol, { t: 'fold' });
     expect(chips(s, alice)).toBe(1005);
     const over = tickResults(s);
-    expect(s.data.phase).toBe('ended');
+    expect(s.data.phase).toBe('lobby');
     expect(chatTexts(over)).toEqual(['Game over! Alice wins with 1005 points.']);
-    expect(s.data.podium).toEqual([
+    expect(standings(s)).toEqual([
       { playerId: alice, score: 1005, rank: 1 },
       { playerId: carol, score: 1000, rank: 2 },
       { playerId: bob, score: 995, rank: 3 },
     ]);
-    expect(view(s)).toMatchObject({ phase: 'gameOver', endsAt: null });
+    expect(s.data.game).toBeNull();
     expect(nextDeadline(s.data)).toBeNull();
   });
 
@@ -733,7 +737,7 @@ describe('Poker: hands and the game', () => {
     expect([chips(s, alice), chips(s, bob)]).toEqual([2000, 0]);
     const over = tickResults(s);
     expect(chatTexts(over)).toEqual(['Alice has all the chips!', 'Game over! Alice wins with 2000 points.']);
-    expect(s.data.podium).toEqual([
+    expect(standings(s)).toEqual([
       { playerId: alice, score: 2000, rank: 1 },
       { playerId: bob, score: 0, rank: 2 },
     ]);
@@ -751,12 +755,17 @@ describe('Poker: hands and the game', () => {
     expect(view(s)).toMatchObject({ phase: 'acting', hand: 2 });
     act(s, bob, { t: 'raise', to: 100 });
     act(s, carol, { t: 'call' });
-    expect(errorsOf(act(s, bob, { t: 'endGame' }))).toEqual(['Only the host can end the game.']);
-    const ended = act(s, alice, { t: 'endGame' });
+    expect(errorsOf(endGame(s, bob))).toEqual(['Only the host can do that.']);
+    expect(view(s).phase).toBe('acting');
+    const ended = endGame(s, alice);
     expect(chatTexts(ended)).toEqual(['Alice ended the game. The hand is void and every stake goes back.', 'Game over! Carol wins with 1005 points.']);
-    expect([alice, bob, carol].map((id) => chips(s, id))).toEqual([1000, 995, 1005]);
-    expect(totalChips(s)).toBe(3000);
-    expect(s.data.phase).toBe('ended');
+    expect(standings(s)).toEqual([
+      { playerId: carol, score: 1005, rank: 1 },
+      { playerId: alice, score: 1000, rank: 2 },
+      { playerId: bob, score: 995, rank: 3 },
+    ]);
+    expect(s.data.phase).toBe('lobby');
+    expect(s.data.results?.reason).toBe('host');
   });
 
   it('lets a sitting-out host skip the results and end the game', () => {
@@ -768,8 +777,8 @@ describe('Poker: hands and the game', () => {
     act(s, bob, { t: 'fold' });
     expect(view(s).phase).toBe('results');
     expect(chips(s, carol)).toBe(1005);
-    act(s, bob, { t: 'endGame' });
-    expect(s.data.phase).toBe('ended');
+    endGame(s, bob);
+    expect(s.data.phase).toBe('lobby');
   });
 });
 
@@ -831,8 +840,8 @@ describe('Poker: seats coming and going', () => {
     act(s, alice, { t: 'fold' });
     expect(view(s).phase).toBe('results');
     tickResults(s);
-    expect(s.data.phase).toBe('ended');
-    expect(s.data.podium?.map((p) => p.playerId)).toEqual([bob, alice]);
+    expect(s.data.phase).toBe('lobby');
+    expect(standings(s)?.map((p) => p.playerId)).toEqual([bob, alice]);
   });
 
   it('aborts rather than crowning anyone when a player walks off with their chips and leaves one stack', () => {
@@ -851,8 +860,10 @@ describe('Poker: seats coming and going', () => {
     s.advance(resultsLeft(s));
     const ended = s.tick();
     expect(s.data.phase).toBe('lobby');
-    expect(chatTexts(ended)).toContain('Not enough players with chips. Back to the lobby.');
-    expect(chatTexts(s.effects).join('\n')).not.toMatch(/has all the chips|Game over/);
+    expect(chatTexts(ended)).toContain('Not enough players with chips to go on.');
+    // The standings show where it stopped, but nobody is crowned.
+    expect(s.data.results?.reason).toBe('players');
+    expect(chatTexts(s.effects).join('\n')).not.toMatch(/has all the chips|wins with/);
   });
 
   it('aborts a held boundary when a player with chips leaves it', () => {
@@ -869,7 +880,7 @@ describe('Poker: seats coming and going', () => {
     expect(view(s).paused).toBe(true);
     s.apply({ type: 'leave', playerId: carol });
     expect(s.data.phase).toBe('lobby');
-    expect(chatTexts(s.effects)).toContain('Not enough players with chips. Back to the lobby.');
+    expect(chatTexts(s.effects)).toContain('Not enough players with chips to go on.');
   });
 
   it('hands the pot to the last player left when the others leave, and aborts when a seat loss drops below two', () => {
@@ -879,7 +890,8 @@ describe('Poker: seats coming and going', () => {
     expect(data(s)).toMatchObject({ toAct: [alice, carol] });
     s.apply({ type: 'leave', playerId: alice });
     expect(s.data.phase).toBe('lobby');
-    expect(chatTexts(s.effects).at(-1)).toBe('Not enough players. Back to the lobby.');
+    expect(chatTexts(s.effects).slice(-2)).toEqual(['Not enough players to go on.', 'Game over!']);
+    expect(standings(s)?.map((p) => p.playerId)).toEqual([carol]);
   });
 
   it('plays a disconnected player by the clock mid-hand and holds the next hand until they are back', () => {
@@ -942,5 +954,53 @@ describe('Poker: purity', () => {
     expect(v.myCards).not.toBe(game.seats[alice].cards);
     expect(v.community).not.toBe(game.community);
     expect(gameById('poker').minPlayers).toBe(2);
+  });
+});
+
+describe('Poker: a second tap', () => {
+  /** What the player's screen aims a move at: the hand and the latest move on the table. */
+  const aim = (s: Sim) => ({ hand: view(s).hand, move: view(s).lastMove?.seq ?? 0 });
+
+  it('never plays a second move: a tap aimed at a turn that is over is ignored without a word', () => {
+    const s = sim('poker');
+    const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol']);
+    const tap = aim(s);
+    act(s, alice, { t: 'call', ...tap });
+    expect(data(s).toAct[0]).toBe(bob);
+    const again = act(s, alice, { t: 'call', ...tap });
+    expect(again).toEqual([]);
+    expect(chips(s, alice)).toBe(990);
+    // Bob's double tap of Call: the second one would have been Carol's turn's move had it gone through.
+    const bobs = aim(s);
+    act(s, bob, { t: 'call', ...bobs });
+    expect(act(s, bob, { t: 'call', ...bobs })).toEqual([]);
+    expect(data(s).toAct[0]).toBe(carol);
+    // A move without an aim (an older phone) is still refused out loud.
+    expect(errorsOf(act(s, bob, { t: 'call' }))).toEqual(['It is not your turn.']);
+  });
+
+  it('ignores a tap the clock beat to it', () => {
+    const s = sim('poker');
+    const [alice, bob] = startGame(s, ['Alice', 'Bob', 'Carol']);
+    const tap = aim(s);
+    tick(s, ACT_MS);
+    expect(data(s).seats[alice].status).toBe('folded');
+    expect(data(s).toAct[0]).toBe(bob);
+    expect(act(s, alice, { t: 'call', ...tap })).toEqual([]);
+    expect(data(s).seats[alice].status).toBe('folded');
+  });
+
+  it('deals one next hand on a double tap of the host\'s Next', () => {
+    const s = sim('poker');
+    const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol'], { hands: 0 });
+    act(s, alice, { t: 'fold' });
+    act(s, bob, { t: 'fold' });
+    expect(view(s).phase).toBe('results');
+    const hand = view(s).hand;
+    act(s, alice, { t: 'next', hand });
+    expect(view(s)).toMatchObject({ phase: 'acting', hand: hand + 1 });
+    expect(act(s, alice, { t: 'next', hand })).toEqual([]);
+    expect(view(s).hand).toBe(hand + 1);
+    expect(data(s).seats[carol]).toBeDefined();
   });
 });

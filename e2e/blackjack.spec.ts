@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type BrowserContext, type Locator, type Page } from '@playwright/test';
-import { createParty, expectReadyCount, joinByCode, readyAll } from './party';
+import { closeResults, createParty, expectReadyCount, joinByCode, readyAll } from './party';
 import { tableBots, type TableBot } from './tableBots';
 import { tilesReadable } from './tableFit';
 
@@ -10,7 +10,7 @@ import { tilesReadable } from './tableFit';
  * through the control panel (1/2, 2x, MAX for all in, a typed amount, Enter, the Space shortcut), hands played one at a time in seat order with only the acting page's
  * moves lit, the hole card hidden on every page until the dealer plays, the settled table staying
  * up through the next betting with each outcome paid by the rules, the chips always equal to the
- * platform score, and the host's End game taking the table to the podium. The phone layout is
+ * platform score, and the host's End game taking everyone to the lobby with the results. The phone layout is
  * checked at 390x844 and 320x568. Then tables of 2, 6, 12, 24 and 50 players (bots on their own
  * sockets): nothing scrolls at any phone size or on a desktop, the tiles step down with the table,
  * and the seat in play is marked on every page. The shoe is really shuffled, so the checks hold
@@ -437,12 +437,13 @@ test('round two: the amount is remembered, Space bets on the desktop, and the ho
   const turns = await playOutRound(2, true, async () => {
     // The host asks to end the game during the hand: it finishes first.
     await host.page.getByTestId('end-game').click();
-    await expect(host.page.getByTestId('end-game-confirm')).toContainText('End after this hand?');
+    await expect(host.page.getByTestId('end-game-confirm')).toContainText('End the game for everyone?');
+    await expect(host.page.getByTestId('end-game-confirm')).toContainText('It ends after the hand in play.');
     await host.page.getByTestId('end-game-yes').click();
     await expect(host.page.getByTestId('end-game-requested')).toBeVisible();
     await expect(host.page.getByTestId('phase-kicker')).toHaveText('Last hand');
     // Nothing else tells the table: everyone gets a toast.
-    for (const p of players) await expect(p.page.getByTestId('toast').filter({ hasText: 'The host ends the game after this hand.' })).toBeVisible();
+    for (const p of players) await expect(p.page.getByTestId('toast').filter({ hasText: 'The game ends after this hand.' })).toBeVisible();
   });
   turnsInSeatOrder(turns);
   await checkSettlement(2, before, stakes);
@@ -450,7 +451,7 @@ test('round two: the amount is remembered, Space bets on the desktop, and the ho
     // A dealer blackjack (about one deal in 21) settled the round at the deal, before any hand was
     // played, so there was no hand to end the game after: the host ends it between hands instead.
     await host.page.getByTestId('end-game').click();
-    await expect(host.page.getByTestId('end-game-confirm')).toContainText('End now?');
+    await expect(host.page.getByTestId('end-game-confirm')).toContainText('Bets on the table go back.');
     await host.page.getByTestId('end-game-yes').click();
   }
 
@@ -459,18 +460,18 @@ test('round two: the amount is remembered, Space bets on the desktop, and the ho
   for (const p of players) {
     const end = p.page.getByTestId('overlay-game-end');
     await expect(end).toBeVisible({ timeout: 20_000 });
-    await expect(end.getByTestId('podium-entry')).toHaveCount(3);
+    await expect(end.getByTestId('results-entry')).toHaveCount(3);
+    await expect(end.getByTestId('results-reason')).toHaveText('The host ended the game.');
   }
-  // The podium ranks by chips.
-  const entries = await host.page.getByTestId('podium-entry').evaluateAll((els) => els.map((el) => ({ rank: Number((el as HTMLElement).dataset.rank), name: el.textContent ?? '' })));
+  // The results rank by chips.
+  const entries = await host.page.getByTestId('results-entry').evaluateAll((els) => els.map((el) => ({ rank: Number((el as HTMLElement).dataset.rank), name: el.textContent ?? '' })));
   const ranked = players.map((p) => ({ name: p.name, chips: chips[p.name] }));
   for (const entry of entries) {
     const me = ranked.find((r) => entry.name.includes(r.name));
-    if (!me) throw new Error(`podium entry without a player: ${entry.name}`);
+    if (!me) throw new Error(`results entry without a player: ${entry.name}`);
     expect(entry.rank).toBe(1 + ranked.filter((r) => r.chips > me.chips).length);
   }
-  await expect(host.page.getByTestId('back-to-lobby')).toBeVisible();
-  await host.page.getByTestId('back-to-lobby').click();
+  for (const p of players) await closeResults(p.page);
   for (const p of players) await expect(p.page.getByTestId('room-code')).toHaveText(roomCode);
 });
 

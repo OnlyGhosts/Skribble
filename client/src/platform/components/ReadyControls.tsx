@@ -7,8 +7,6 @@ import { CheckIcon } from './Icons';
 
 interface Props {
   me: PlayerPublic;
-  /** Where the controls sit: the room's footer or the podium; only the copy differs. */
-  context: 'lobby' | 'podium';
   /** More buttons beside "Sit this one out", in the same style (the room's "Change my look"). */
   extra?: ReactNode;
 }
@@ -26,11 +24,10 @@ export function readyState(me: PlayerPublic): ReadyState {
  * The choice everyone makes between games. Not ready: one big "I'm ready" over a row of secondary
  * buttons, "Sit this one out" first. Ready: the same big button checked ("You're ready", tap to
  * undo) over the same row. Sitting out: "Count me in", which comes back in and readies in one tap,
- * replaces "Sit this one out". The host is in by pressing Start, so on the podium their big button
- * is a statement rather than a question, and in the room (where Start is on screen) they only get
- * the row.
+ * replaces "Sit this one out". The host is in by pressing Start, which is on screen, so they only
+ * get the row.
  */
-export function ReadyControls({ me, context, extra }: Props) {
+export function ReadyControls({ me, extra }: Props) {
   const state = readyState(me);
   const ready = state === 'ready' || state === 'host';
   const sitOut = (
@@ -59,29 +56,22 @@ export function ReadyControls({ me, context, extra }: Props) {
           </p>
         </>
       ) : (
-        // In the room the host's Start button already says they are in; only the way out is left.
-        !(state === 'host' && context === 'lobby') && (
+        // The host's Start button already says they are in; only the way out is left.
+        state !== 'host' && (
           <button
             type="button"
-            className={`btn btn--lg btn--block ready-toggle${state === 'host' ? ' ready-toggle--host' : ''}${ready ? ' is-ready' : ' btn--primary'}`}
+            className={`btn btn--lg btn--block ready-toggle${ready ? ' is-ready' : ' btn--primary'}`}
             aria-pressed={ready}
-            disabled={state === 'host'}
             onClick={() => {
               if (!me.ready) PLATFORM_SOUNDS.play('ready');
               setReady(!me.ready);
             }}
             data-testid="ready-toggle"
           >
-            {state === 'host' ? (
-              <>
-                <CheckIcon size={18} /> You start the game
-              </>
-            ) : ready ? (
+            {ready ? (
               <>
                 <CheckIcon size={18} /> You're ready
               </>
-            ) : context === 'podium' ? (
-              'Ready for the next game'
             ) : (
               "I'm ready"
             )}

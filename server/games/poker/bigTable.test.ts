@@ -70,20 +70,16 @@ describe('Poker: a big table', () => {
     expect(data(s).order).not.toContain(late);
   });
 
-  it('leaves a player who never got a seat off the podium', () => {
+  it('leaves a player who never got a seat out of the results', () => {
     const s = sim('poker');
     const ids = startGame(s, names(24), { hands: 0 });
     const late = join(s, 'Late');
-    act(s, ids[0], { t: 'endGame' });
-    for (let guard = 0; guard < 50 && s.data.phase === 'playing'; guard++) {
-      foldAround(s);
-      tickResults(s);
-    }
-    expect(s.data.phase).toBe('ended');
-    const podium = s.data.podium?.map((e) => e.playerId) ?? [];
-    expect(podium).toHaveLength(23);
-    expect(podium).not.toContain(ids[23]);
-    expect(podium).not.toContain(late);
+    expect(errorsOf(s.platform(ids[0], { t: 'endGame' }))).toEqual([]);
+    expect(s.data.phase).toBe('lobby');
+    const ranked = s.data.results?.entries.map((e) => e.playerId) ?? [];
+    expect(ranked).toHaveLength(23);
+    expect(ranked).not.toContain(ids[23]);
+    expect(ranked).not.toContain(late);
   });
 
   it('keeps a mid-game joiner watching the whole game, even once a seat frees up', () => {

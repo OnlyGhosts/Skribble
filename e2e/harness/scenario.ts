@@ -117,7 +117,8 @@ function roomOf(players: PlayerPublic[], game: BlackjackView): BlackjackRoomStat
     settings: { ...defaultPlatformSettings(gameById('blackjack')), ...DEFAULT_BLACKJACK_SETTINGS },
     players,
     phase: 'playing',
-    podium: null,
+    results: null,
+    endRequested: false,
     game,
     serverTime: Date.now(),
   };
@@ -148,6 +149,7 @@ export function scenarioRooms(s: Scenario): BlackjackRoomState[] {
     order,
     turn: null,
     waitingFor: [],
+    away: [],
     dealer: { cards: [], holeHidden: true, total: 0, soft: false, blackjack: false },
     players: {},
     actions: NO_ACTIONS,

@@ -20,7 +20,7 @@ import { PokerScreen } from './Screen';
 import { PokerSettingsFields } from './SettingsFields';
 import { clearPokerSounds, playPokerSounds } from './sfx';
 import { pokerSounds } from './sounds';
-import { usePokerStore } from './store';
+import { answerKey, usePokerStore } from './store';
 import './poker.css';
 
 /** A welcome (a join or a reconnect) shows the table at once. */
@@ -33,6 +33,10 @@ export const pokerClient = defineGameClient<PokerView, PokerSettings>({
   Screen: PokerScreen,
   SettingsFields: PokerSettingsFields,
   sounds: pokerSounds,
+
+  endGameNote(room) {
+    return room.game?.phase === 'acting' ? 'The hand in play is off. Every bet goes back.' : null;
+  },
 
   playerBadge(room, player) {
     const view = room.game;
@@ -93,6 +97,12 @@ export const pokerClient = defineGameClient<PokerView, PokerSettings>({
 
   onWelcome() {
     entry.mark();
+    // A rejoin starts from the table as it is: nothing sent before it is still waiting for an answer.
+    usePokerStore.getState().clearPending();
+  },
+
+  onError() {
+    usePokerStore.getState().clearPending();
   },
 
   onRoom(room, prev) {
@@ -108,7 +118,7 @@ export const pokerClient = defineGameClient<PokerView, PokerSettings>({
     }
     const view = room.game;
     if (stepOf(prev) !== stepOf(room)) store.newTurn();
-    if (room.phase !== 'playing') store.setConfirmEnd(false);
+    if (store.pending && answerKey(view) !== store.pending.key) store.clearPending();
     const me = usePlatformStore.getState().playerId;
     const before = store.soundTimeline;
     const timeline = store.applyView(view, me, Date.now(), fresh, !prefersReducedMotion());

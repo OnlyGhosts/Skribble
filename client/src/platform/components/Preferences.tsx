@@ -57,6 +57,8 @@ export interface MenuAction {
   icon: ReactNode;
   onSelect(): void;
   testId: string;
+  /** 'danger' for a serious action (the host's End game). */
+  tone?: 'danger';
 }
 
 /**
@@ -121,7 +123,7 @@ export function SettingsMenu({ actions = [], variant = 'icon' }: SettingsMenuPro
                 <button
                   key={a.testId}
                   type="button"
-                  className="settings-menu__action"
+                  className={`settings-menu__action${a.tone === 'danger' ? ' settings-menu__action--danger' : ''}`}
                   onClick={() => {
                     setOpen(false);
                     a.onSelect();

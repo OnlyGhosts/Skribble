@@ -13,6 +13,8 @@ import { usePlatformStore } from '../../platform/store/usePlatformStore';
 import { CardsIcon, OutIcon, StarIcon } from './components/Icons';
 import { createEntryFlag } from '../../platform/table/entry';
 import { isActing, prefersReducedMotion, seatOf } from './hooks';
+import { sendQueuedBet } from './actions';
+import { answered } from './lib/pending';
 import { formatChips } from './lib/text';
 import { BlackjackScreen } from './Screen';
 import { BlackjackSettingsFields } from './SettingsFields';
@@ -31,6 +33,17 @@ export const blackjackClient = defineGameClient<BlackjackView, BlackjackSettings
   Screen: BlackjackScreen,
   SettingsFields: BlackjackSettingsFields,
   sounds: blackjackSounds,
+
+  endGameNote(room) {
+    switch (room.game?.phase) {
+      case 'acting':
+        return 'It ends after the hand in play.';
+      case 'betting':
+        return 'Bets on the table go back.';
+      default:
+        return null;
+    }
+  },
 
   playerBadge(room, player) {
     const view = room.game;
@@ -85,6 +98,12 @@ export const blackjackClient = defineGameClient<BlackjackView, BlackjackSettings
 
   onWelcome() {
     entry.mark();
+    // A rejoin starts from the table as it is: nothing sent before it is still waiting for an answer.
+    useBlackjackStore.getState().clearPending();
+  },
+
+  onError() {
+    useBlackjackStore.getState().clearPending();
   },
 
   onRoom(room, prev) {
@@ -98,11 +117,15 @@ export const blackjackClient = defineGameClient<BlackjackView, BlackjackSettings
     const view = room.game;
     const { soundTimeline: before, table: prevTable } = store;
     store.applyView(view, Date.now(), fresh, !prefersReducedMotion());
+    const me = usePlatformStore.getState().playerId;
+    if (me !== null) {
+      if (store.pending && answered(store.pending, view, me)) store.clearPending();
+      sendQueuedBet(view, me);
+    }
     if (fresh || !prev?.game) {
       clearBlackjackSounds();
       return;
     }
-    const me = usePlatformStore.getState().playerId;
     const { table, soundTimeline: timeline } = useBlackjackStore.getState();
     playBlackjackSounds({ view, prevView: prev.game, table, prevTable, before, timeline, me });
     if (me !== null && isActing(view, me) && !isActing(prev.game, me)) {

@@ -1,11 +1,12 @@
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
-import { createParty, expectReadyCount, joinByCode, leaveLobby, readyAll } from './party';
+import { closeResults, createParty, expectReadyCount, expectResults, joinByCode, leaveLobby, readyAll } from './party';
 
 /**
  * The party stays together across games. Four players (one on a phone) create a Click Race
- * party at /template, ready up and play to the podium; the winner is celebrated and nobody is
- * thrown out by a stray Enter; everyone readies up on the podium; the host goes back to the lobby
- * and switches the party to The Spy Game (the URL follows on every phone, nobody rejoins); one
+ * party at /template, ready up and play the race to its end: everyone lands back in the lobby with
+ * the results over it, the winner celebrated, nobody thrown out by a stray Enter, a reload still
+ * showing them, each closing them their own way; everyone readies up again, and the host switches
+ * the party to The Spy Game (the URL follows on every phone, nobody rejoins); one
  * player sits the next game out, the host sets Unhinged, the other three play a one-round Spy
  * Game while the fourth watches, and the party lands back in the lobby. Serial: the tests build
  * on each other.
@@ -156,7 +157,7 @@ test('players ready up: the count follows, Start waits for enough ready players 
   await expect(host.page.getByTestId('start-game')).toContainText('Start · 4 ready');
 });
 
-test('the race is played to the podium: the winner is celebrated, Enter changes nothing, everyone readies up for the next game', async () => {
+test('the race ends: everyone is back in the lobby with the results over it, the winner celebrated; Enter changes nothing', async () => {
   await host.page.getByTestId('settings-targetClicks').fill('10');
   await expect(host.page.getByTestId('settings-value-targetClicks')).toHaveText('10');
   await host.page.getByTestId('start-game').click();
@@ -165,54 +166,80 @@ test('the race is played to the podium: the winner is celebrated, Enter changes 
   for (let i = 0; i < 10; i++) await host.page.getByTestId('click-button').click();
 
   for (const p of players) {
+    await expectResults(p.page);
     const end = p.page.getByTestId('overlay-game-end');
-    await expect(end).toBeVisible();
-    await expect(end.getByTestId('podium-headline')).toHaveText(`${host.name} wins!`);
-    await expect(end.getByTestId('podium-entry')).toHaveCount(4);
+    await expect(end.getByTestId('results-headline')).toHaveText(`${host.name} wins!`);
+    await expect(end.getByTestId('results-entry')).toHaveCount(4);
     await expect(end.getByTestId('confetti')).toBeAttached();
+    // It ran its course: no reason line.
+    await expect(end.getByTestId('results-reason')).toHaveCount(0);
+    // Straight back to the lobby: no game screen under the popup, nothing holding anyone.
+    await expect(p.page.getByTestId('click-button')).toHaveCount(0);
   }
   await expect(host.page.getByTestId('overlay-game-end')).toHaveAttribute('data-winner', 'true');
-  await expect(host.page.getByTestId('podium-place')).toHaveText('You won!');
-  await expect(quinn.page.getByTestId('podium-place')).toHaveText('You came 2nd');
+  await expect(host.page.getByTestId('results-place')).toHaveText('You won!');
+  await expect(quinn.page.getByTestId('results-place')).toHaveText('You came 2nd');
   await expect(quinn.page.getByTestId('overlay-game-end')).toHaveAttribute('data-winner', 'false');
-  await expect(host.page.getByTestId('play-again')).toBeVisible();
-  await expect(host.page.getByTestId('back-to-lobby')).toBeVisible();
-  await expect(pia.page.getByTestId('back-to-lobby')).toHaveCount(0);
-  await expect(pia.page.getByTestId('podium-waiting')).toContainText(host.name);
+  for (const p of players) await expect(p.page.getByTestId('play-again')).toHaveCount(0);
 
-  // The phone podium fits the screen.
+  // The phone popup fits the screen, Back to the room a full-size target.
   await noHorizontalOverflow(pia.page, PORTRAIT.width);
-  await expectInsideViewport(pia.page, 'podium-card', PORTRAIT);
-  // The podium card pops in from 98% scale over 160ms: read Ready's height once it has landed.
+  await expectInsideViewport(pia.page, 'results-card', PORTRAIT);
   await expect
-    .poll(async () => (await pia.page.getByTestId('overlay-game-end').getByTestId('ready-toggle').boundingBox())?.height ?? 0, { message: 'Ready is a 44px target' })
+    .poll(async () => (await pia.page.getByTestId('results-done').boundingBox())?.height ?? 0, { message: 'Back to the room is a 44px target' })
     .toBeGreaterThanOrEqual(MIN_TARGET);
 
-  // On a small phone the standings scroll inside the card while Ready and the host's buttons stay on screen, untouched.
+  // On a small phone the standings scroll inside the card while Back to the room stays on screen.
   await host.page.setViewportSize(SMALL);
   await expect(host.page.getByTestId('overlay-game-end')).toBeVisible();
-  for (const id of ['ready-toggle', 'sitout-toggle', 'play-again', 'back-to-lobby']) await expectInsideViewport(host.page, id, SMALL);
+  for (const id of ['results-done', 'results-close']) await expectInsideViewport(host.page, id, SMALL);
   await host.page.setViewportSize(DESKTOP);
 
-  // The regression: Enter after the podium (the thumb still on the keyboard's send key) leaves nobody.
+  // The regression: Enter (the thumb still on the keyboard's send key) leaves nobody.
   for (const p of players) {
-    await expect.poll(() => p.page.evaluate(() => document.activeElement?.getAttribute('data-testid') ?? null)).toBe('podium-card');
+    await expect.poll(() => p.page.evaluate(() => document.activeElement?.getAttribute('data-testid') ?? null)).toBe('results-card');
     await p.page.keyboard.press('Enter');
     await p.page.keyboard.press('Enter');
     await p.page.waitForTimeout(400);
     await expect(p.page.getByTestId('overlay-game-end')).toBeVisible();
     await expect(p.page).toHaveURL(new RegExp(`/template/${code}$`));
     expect(await seatCode(p.page)).toBe(code);
-    await expect(p.page.getByTestId('podium-leave')).toHaveCount(0);
   }
-
-  // Everyone presses "Ready for the next game".
-  await readyAll(players.map((p) => p.page));
-  for (const p of players) await expect(p.page.getByTestId('podium-ready-count')).toHaveText('4 of 4 ready');
 });
 
-test('back to lobby keeps the party, and the host switches it to The Spy Game: the URL follows everywhere, nobody rejoins', async () => {
-  await host.page.getByTestId('back-to-lobby').click();
+test('a reload while the results are up shows them again; each player closes them their own way and stays in the lobby', async () => {
+  await quinn.page.reload();
+  await expectResults(quinn.page);
+  await expect(quinn.page.getByTestId('results-place')).toHaveText('You came 2nd');
+
+  // The button, the X, Escape and (on a desktop) a tap beside the card all close it.
+  await closeResults(host.page);
+  // A tap beside the card on a phone does nothing: the scores never go by accident.
+  await pia.page.touchscreen.tap(6, PORTRAIT.height - 6);
+  await pia.page.waitForTimeout(300);
+  await expect(pia.page.getByTestId('overlay-game-end')).toBeVisible();
+  await pia.page.getByTestId('results-close').click();
+  await quinn.page.keyboard.press('Escape');
+  await rae.page.mouse.click(8, 8);
+  for (const p of players) {
+    await expect(p.page.getByTestId('overlay-game-end')).toHaveCount(0);
+    await expect(p.page.getByTestId('room-code')).toHaveText(code);
+    await expect(p.page.getByTestId('player-item')).toHaveCount(4);
+    await expect(p.page).toHaveURL(new RegExp(`/template/${code}$`));
+    expect(await seatCode(p.page)).toBe(code);
+  }
+  // Closed for good: a reload does not bring them back.
+  await host.page.reload();
+  await expect(host.page.getByTestId('room-code')).toHaveText(code);
+  await host.page.waitForTimeout(500);
+  await expect(host.page.getByTestId('overlay-game-end')).toHaveCount(0);
+
+  // Everyone readies up for the next game.
+  await readyAll(guests().map((p) => p.page));
+  await expect(host.page.getByTestId('player-count')).toHaveText('4 of 4 ready');
+});
+
+test('the lobby keeps the party, and the host switches it to The Spy Game: the URL follows everywhere, nobody rejoins', async () => {
   for (const p of players) {
     await expect(p.page.getByTestId('room-code')).toHaveText(code);
     await expect(p.page.getByTestId('player-item')).toHaveCount(4);
@@ -282,7 +309,7 @@ test('one player sits out, the host sets Unhinged, three play a one-round Spy Ga
   expect(roles.filter((r) => r === 'spy')).toHaveLength(1);
   expect(roles.filter((r) => r === 'agent')).toHaveLength(2);
 
-  // The spy ends the round by naming the location; the podium follows, then the lobby.
+  // The spy ends the round by naming the location; the lobby follows with the results over it.
   const spy = playing[roles.indexOf('spy')];
   const agent = playing[roles.indexOf('agent')];
   const locationId = (await agent.page.getByTestId('spygame-location').getAttribute('data-location-id')) ?? '';
@@ -292,12 +319,13 @@ test('one player sits out, the host sets Unhinged, three play a one-round Spy Ga
   await tile.click();
   await expect(host.page.getByTestId('spygame-next-round')).toContainText('Show results');
   await host.page.getByTestId('spygame-next-round').click();
-  for (const p of players) await expect(p.page.getByTestId('overlay-game-end')).toBeVisible();
-  await expect(spy.page.getByTestId('podium-place')).toHaveText('You won!');
-  await expect(rae.page.getByTestId('podium-place')).toHaveText('You watched this one');
-  await expect(rae.page.getByTestId('overlay-game-end').getByTestId('podium-entry')).toHaveCount(3);
+  for (const p of players) await expectResults(p.page);
+  await expect(spy.page.getByTestId('results-place')).toHaveText('You won!');
+  // Rae watched the whole game: she sees how it ended too, and is not in the standings.
+  await expect(rae.page.getByTestId('results-place')).toHaveText('You watched this one');
+  await expect(rae.page.getByTestId('overlay-game-end').getByTestId('results-entry')).toHaveCount(3);
 
-  await host.page.getByTestId('back-to-lobby').click();
+  for (const p of players) await closeResults(p.page);
   for (const p of players) {
     await expect(p.page.getByTestId('room-code')).toHaveText(code);
     await expect(p.page.getByTestId('player-item')).toHaveCount(4);

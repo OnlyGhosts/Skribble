@@ -137,7 +137,7 @@ export type ScribblePhase =
       /** Points earned this turn by player id (drawer included). */
       points: Record<string, number>;
     }
-  /** The last turn is over; the platform's podium holds the result. */
+  /** The last turn is over; the platform's results hold the outcome. */
   | { kind: 'gameOver' };
 
 export interface ScribblePlayerView {

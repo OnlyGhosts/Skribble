@@ -8,12 +8,12 @@ import type { Action, ActionResult, Ctx } from './actions.js';
 import { chat } from './chat.js';
 import { runGame } from './delegate.js';
 import type { Effect } from './effects.js';
-import { returnToLobby, selectGame, setReady, setSitOut, start, updateProfile, updateSettings } from './lobby.js';
+import { endGame, selectGame, setReady, setSitOut, start, updateProfile, updateSettings } from './lobby.js';
 import { deepEqual } from '../json.js';
 import { fail, type Cx } from './messaging.js';
 import { moduleFor } from './module.js';
 import { findPlayer } from './players.js';
-import { connectionClosed, create, expireSeat, join, kick, leave, rejoin, voteKick } from './seats.js';
+import { connectionClosed, create, expireSeat, join, kick, leave, noticeAway, rejoin, setIdle, voteKick } from './seats.js';
 import { upgradeRoomData, type PlatformRoomData } from './state.js';
 import { gameDeadline, nextDue, type Deadline } from './time.js';
 
@@ -46,19 +46,36 @@ function dispatch(cx: Cx, action: Action): ActionResult {
     case 'connectionClosed':
       connectionClosed(cx, action.playerId, action.connectionId);
       return OK;
+    case 'activity':
+      setIdle(cx, action.playerId, action.connectionId, action.idle);
+      return OK;
     case 'leave':
       leave(cx, action.playerId);
       return OK;
     case 'platformMessage':
-      if (findPlayer(cx.data, action.playerId)) handlePlatformMessage(cx, action.playerId, action.msg);
+      if (acceptSeq(cx, action.playerId, action.seq)) handlePlatformMessage(cx, action.playerId, action.msg);
       return OK;
     case 'gameMessage':
-      if (findPlayer(cx.data, action.playerId)) handleGameMessage(cx, action.playerId, action.msg);
+      if (acceptSeq(cx, action.playerId, action.seq)) handleGameMessage(cx, action.playerId, action.msg);
       return OK;
     case 'tick':
       tick(cx);
       return OK;
   }
+}
+
+/**
+ * Whether a seated player's message is new: one without a sequence number always is; one with a
+ * number at or below the last applied for the seat was applied already (a resend after a
+ * reconnect) and is dropped without a word.
+ */
+function acceptSeq(cx: Cx, playerId: string, seq: number | undefined): boolean {
+  const player = findPlayer(cx.data, playerId);
+  if (!player) return false;
+  if (seq === undefined) return true;
+  if (seq <= (player.lastSeq ?? 0)) return false;
+  player.lastSeq = seq;
+  return true;
 }
 
 function handlePlatformMessage(cx: Cx, playerId: string, msg: PlatformRoomMessage): void {
@@ -81,8 +98,8 @@ function handlePlatformMessage(cx: Cx, playerId: string, msg: PlatformRoomMessag
       return kick(cx, playerId, msg.playerId);
     case 'voteKick':
       return voteKick(cx, playerId, msg.playerId);
-    case 'returnToLobby':
-      return returnToLobby(cx, playerId);
+    case 'endGame':
+      return endGame(cx, playerId);
   }
 }
 
@@ -126,6 +143,8 @@ function fire(cx: Cx, due: Deadline): void {
       if (next !== null && next <= due.at) throw new Error(`${data.gameId}: tick left its deadline at ${next} unresolved`);
       return;
     }
+    case 'awayNotice':
+      return noticeAway(cx, due.playerId);
     case 'reconnectExpiry':
       return expireSeat(cx, due.playerId);
     case 'emptyRoom':

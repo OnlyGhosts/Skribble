@@ -23,6 +23,8 @@ export const SPYGAME_REVEAL_SECONDS = 15;
 export const SPYGAME_ROUND_MINUTES = 8;
 /** Seconds a vote stays open before the missing votes count as No. */
 export const SPYGAME_VOTE_SECONDS = 30;
+/** Seconds the round waits for a spy whose phone dropped; then it ends as if they had left. */
+export const SPYGAME_SPY_AWAY_SECONDS = 90;
 
 export const SPYGAME_POINTS = {
   /** The spy names the location on their first / second guess. */
@@ -69,8 +71,6 @@ export const spygameClientMessageSchema = z.discriminatedUnion('t', [
   z.object({ t: z.literal('vote'), yes: z.boolean() }),
   /** Host only, during the reveal: skip the rest of the reveal timer. */
   z.object({ t: z.literal('nextRound') }),
-  /** Host only, during the reveal: abandon the game and take everyone back to the lobby. */
-  z.object({ t: z.literal('endGame') }),
 ]);
 
 export type SpygameClientMessage = z.infer<typeof spygameClientMessageSchema>;

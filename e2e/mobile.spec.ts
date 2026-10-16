@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type BrowserContext, type Locator, type Page } from '@playwright/test';
-import { createParty, enterNameIfAsked, readyAll } from './party';
+import { closeResults, createParty, enterNameIfAsked, leaveLobby, readyAll } from './party';
 
 /**
  * A desktop host and a phone guest (390x844, touch, 3x) share a two-player room. The phone is
@@ -505,12 +505,17 @@ test('the players button opens a sheet with both players and the backdrop closes
   await expect(sheet).toHaveCount(0);
   await expect(phone.page.getByTestId('guess-tiles')).toBeVisible();
 
-  // The options sheet holds the connection pill, the toggles and a Leave button.
+  // The options sheet holds the toggles and the ways out: Leave room (and End game for the host), each a tall row.
   await phone.page.getByTestId('game-menu').click();
   const menu = phone.page.getByTestId('menu-sheet');
   await expect(menu).toBeVisible();
   await expect(menu.getByTestId('leave-room')).toBeVisible();
   await expectTallEnough(menu.getByTestId('leave-room'), 'menu leave button');
+  // Leave room asks first, in plain words; Stay goes back to the menu.
+  await menu.getByTestId('leave-room').click();
+  await expect(menu.getByTestId('game-leave-confirm')).toContainText('Leave the room?');
+  await menu.getByTestId('game-leave-no').click();
+  await expect(menu.getByTestId('leave-room')).toBeVisible();
   await menu.getByTestId('menu-sheet-close').click();
   await expect(menu).toHaveCount(0);
 });
@@ -542,7 +547,7 @@ test('the phone guesser fills every tile with the word, submits with Enter, and 
   await expectInsideViewport(phone.page.getByTestId('overlay-turn-end').locator('.overlay__card'), PORTRAIT, 'turn-end card');
 });
 
-test('the phone draws in the second turn if it has not drawn yet, then the podium fits the screen', async () => {
+test('the phone draws in the second turn if it has not drawn yet, then the results fit the screen', async () => {
   if (!phoneHasDrawn) {
     const drawer = await waitForDrawer();
     expect(drawer).toBe(phone);
@@ -553,22 +558,24 @@ test('the phone draws in the second turn if it has not drawn yet, then the podiu
   for (const p of players) {
     const end = p.page.getByTestId('overlay-game-end');
     await expect(end).toBeVisible({ timeout: 15_000 });
-    await expect(end.getByTestId('podium-entry')).toHaveCount(2);
+    await expect(end.getByTestId('results-entry')).toHaveCount(2);
   }
   await expectInsideViewport(phone.page.getByTestId('overlay-game-end').locator('.overlay__card'), PORTRAIT, 'game-end card');
   await expectNoHorizontalOverflow(phone.page, PORTRAIT.width);
 });
 
-test('leaving from the podium drops the app mode so the game home scrolls again', async () => {
-  // The platform podium covers the game: leaving lives in its options sheet, behind a confirmation.
-  await phone.page.getByTestId('podium-menu').click();
-  await phone.page.getByTestId('podium-leave').click();
+test('closing the results lands in the lobby; leaving from there drops the app mode so the front door scrolls again', async () => {
+  // A tap beside the card does nothing on a phone; Back to the room closes it.
+  await phone.page.touchscreen.tap(6, PORTRAIT.height - 6);
+  await phone.page.waitForTimeout(300);
   await expect(phone.page.getByTestId('overlay-game-end')).toBeVisible();
-  await phone.page.getByTestId('podium-leave-yes').click();
+  await closeResults(phone.page);
+  await expectNoHorizontalOverflow(phone.page, PORTRAIT.width);
+  await leaveLobby(phone.page);
   await expect(phone.page.getByTestId('home-create')).toBeVisible();
   await expect(phone.page).toHaveURL(/\/$/);
   await expect.poll(async () => (await pageMetrics(phone.page)).isApp).toBe(false);
-  await expect(host.page.getByTestId('guess-feed')).toContainText(`${phone.name} left`);
+  await expect(host.page.locator(`[data-testid="player-item"][data-name="${phone.name}"]`)).toHaveCount(0);
 });
 
 test('no page errors were raised in either browser', async () => {

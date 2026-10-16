@@ -1,6 +1,6 @@
 /** Seats: join / rejoin / disconnect / leave, host transfer, kicks and vote-kicks. */
 import type { Avatar } from '../../../shared/platform/avatar.js';
-import { EMPTY_ROOM_TTL_MS } from '../../../shared/platform/constants.js';
+import { AWAY_NOTICE_MS, EMPTY_ROOM_TTL_MS } from '../../../shared/platform/constants.js';
 import type { GameId } from '../../../shared/platform/games.js';
 import { CLOSE_REMOVED } from '../../../shared/platform/protocol.js';
 import type { ActionResult } from './actions.js';
@@ -43,6 +43,9 @@ export function join(cx: Cx, name: string, avatar: Avatar, connectionId: string)
     ready: false,
     sittingOut: false,
     participating: false,
+    awayNoticeAt: null,
+    idle: false,
+    lastSeq: 0,
   };
   data.players.push(player);
   if (!data.hostId) data.hostId = player.id;
@@ -63,9 +66,13 @@ export function rejoin(cx: Cx, token: string, connectionId: string): Seat {
     return { ok: false, code: 'REJOIN_FAILED', message: 'Your seat in this room has expired.' };
   }
   const wasConnected = player.connected;
+  // Back before the game heard of the drop: for the game nothing happened.
+  const gameKnew = (player.awayNoticeAt ?? null) === null;
   player.connected = true;
   player.connectionId = connectionId;
   player.disconnectedAt = null;
+  player.awayNoticeAt = null;
+  player.idle = false;
   // Replacing a live socket keeps the original connection time (host seniority).
   if (!wasConnected) player.connectedAt = cx.now;
   if (data.returningHostId === player.id) {
@@ -80,7 +87,7 @@ export function rejoin(cx: Cx, token: string, connectionId: string): Seat {
   if (!wasConnected) {
     systemMessage(cx, `${player.name} reconnected`, player.id);
     broadcastSnapshot(cx, player.id);
-    runGame(cx, { type: 'playerReconnected', playerId: player.id });
+    if (gameKnew) runGame(cx, { type: 'playerReconnected', playerId: player.id });
   }
   return { ok: true, playerId: player.id };
 }
@@ -88,7 +95,9 @@ export function rejoin(cx: Cx, token: string, connectionId: string): Seat {
 /**
  * The player's socket went away. The seat is kept for RECONNECT_GRACE_MS and a running game goes
  * on (or holds at its next boundary): phones lock and hosting cuts connections, so a dropped
- * socket alone never abandons a game. Only an empty seat (leave, kick, expiry) can.
+ * socket alone never abandons a game. Only an empty seat (leave, kick, expiry) can. Everyone sees
+ * the player away at once; a running game only hears of it AWAY_NOTICE_MS later (noticeAway), so a
+ * reconnect within a blink never stands a hand or deals without them.
  */
 export function connectionClosed(cx: Cx, playerId: string, connectionId: string | undefined): void {
   const { data } = cx;
@@ -100,6 +109,9 @@ export function connectionClosed(cx: Cx, playerId: string, connectionId: string 
   player.connected = false;
   player.connectionId = null;
   player.disconnectedAt = cx.now;
+  player.idle = false;
+  const noticeMs = cx.ctx.awayNoticeMs ?? AWAY_NOTICE_MS;
+  player.awayNoticeAt = data.phase === 'playing' && player.participating && noticeMs > 0 ? cx.now + noticeMs : null;
   // Votes the leaver cast no longer count (only connected players make up the majority); votes
   // against them stay so a reconnect cannot wipe the tally.
   withdrawVotes(cx, player.id);
@@ -108,8 +120,26 @@ export function connectionClosed(cx: Cx, playerId: string, connectionId: string 
   // role is handed back when the host rejoins.
   if (player.id === data.hostId) standInForAbsentHost(cx);
 
-  runGame(cx, { type: 'playerDisconnected', playerId: player.id });
+  if (player.awayNoticeAt === null) runGame(cx, { type: 'playerDisconnected', playerId: player.id });
   if (resolveVotes(cx)) return;
+  broadcastSnapshot(cx);
+}
+
+/** The drop is old enough for the running game to act on: it hears of it now. */
+export function noticeAway(cx: Cx, playerId: string): void {
+  const player = findPlayer(cx.data, playerId);
+  if (!player || (player.awayNoticeAt ?? null) === null) return;
+  player.awayNoticeAt = null;
+  if (player.connected) return;
+  runGame(cx, { type: 'playerDisconnected', playerId: player.id });
+  broadcastSnapshot(cx);
+}
+
+/** The seat's connection went silent (or spoke again): shown on the player, and visible to the game. */
+export function setIdle(cx: Cx, playerId: string, connectionId: string, idle: boolean): void {
+  const player = findPlayer(cx.data, playerId);
+  if (!player || !player.connected || player.connectionId !== connectionId || (player.idle === true) === idle) return;
+  player.idle = idle;
   broadcastSnapshot(cx);
 }
 
@@ -212,9 +242,11 @@ function removePlayer(cx: Cx, playerId: string, how: 'left' | 'kicked', kickReas
 function resetEmptyRoom(cx: Cx): void {
   const { data } = cx;
   data.phase = 'lobby';
-  data.podium = null;
+  data.results = null;
+  data.endRequested = false;
   data.game = null;
   data.waiting = null;
+  data.waitingUntil = null;
   data.votes = [];
   data.kickedTokens = [];
   data.returningHostId = null;

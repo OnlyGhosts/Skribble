@@ -133,6 +133,8 @@ interface TileProps {
   count: number;
   /** Whose turn it is: a thick lime ring and the Playing tag. */
   turn: boolean;
+  /** On turn but not playing it (the phone went quiet): this word in a plain tag instead of Playing. */
+  turnNote?: string;
   line: SeatLine;
   mark: SeatMark;
   /** The settled outcome, kept on show until the next deal. */
@@ -170,7 +172,7 @@ export function tileFigures(tier: TileTier): StakeFormat {
 }
 
 /** One player in the grid; how much it shows depends on the tier (table.css lays each tier out). */
-export function PlayerTile({ playerId, name, avatar, connected, count, turn, line, mark, outcome = null, chips, bet, total, dimmed = false, badge, tag, cards, extra, onOpen, shortBadge = false, data }: TileProps) {
+export function PlayerTile({ playerId, name, avatar, connected, count, turn, turnNote, line, mark, outcome = null, chips, bet, total, dimmed = false, badge, tag, cards, extra, onOpen, shortBadge = false, data }: TileProps) {
   const tier: TileTier = tileTier(count);
   return (
     <div
@@ -211,8 +213,8 @@ export function PlayerTile({ playerId, name, avatar, connected, count, turn, lin
       )}
       {tier === 'full' && cards && <span className="tbl-tile__cards">{cards}</span>}
       {turn ? (
-        <span className="tbl-tile__tag tbl-tile__tag--turn" data-testid="seat-playing">
-          Playing
+        <span className={`tbl-tile__tag${turnNote ? '' : ' tbl-tile__tag--turn'}`} data-testid="seat-playing">
+          {turnNote ?? 'Playing'}
         </span>
       ) : (
         tag && <span className="tbl-tile__tag">{tag}</span>

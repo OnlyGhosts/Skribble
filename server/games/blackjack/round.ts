@@ -1,7 +1,7 @@
 /** The round boundary: the results pause, the next round's betting, the end of the game, the host's End game and the holds. */
 import { RESUME_SETTLE_MS, holdEffects, resumeEffect } from '../waiting.js';
 import { BLACKJACK_RESULTS_MS } from '../../../shared/games/blackjack/protocol.js';
-import { MIN_PLAYERS, activePlayers, adjustChips, connectedActive, dropLegacyShoe, fail, noticeMessage, snapshot, systemMessage, type Gx } from './state.js';
+import { MIN_PLAYERS, activePlayers, adjustChips, connectedActive, dropLegacyShoe, noticeMessage, snapshot, systemMessage, type Gx } from './state.js';
 
 /** Seats a player with the starting stack (at the start: nobody joins the game later). */
 export function seatPlayer(gx: Gx, playerId: string): void {
@@ -38,7 +38,7 @@ export function fillRound(gx: Gx): void {
 /**
  * Straight after a settle the table stays on show for the dealer's reveal (`revealMs`). Then the
  * next round's bets open at once, the settled hands still on show until the deal; or, when the
- * game is over, the final table stays BLACKJACK_RESULTS_MS more before the podium.
+ * game is over, the final table stays BLACKJACK_RESULTS_MS more before the results.
  */
 export function afterSettle(gx: Gx, revealMs: number): void {
   const { data, ctx } = gx;
@@ -56,7 +56,7 @@ export function afterSettle(gx: Gx, revealMs: number): void {
 export function beginRound(gx: Gx): void {
   const { data, ctx } = gx;
   if (ctx.players.length < MIN_PLAYERS) {
-    gx.effects.push({ type: 'abort', reason: 'Not enough players. Back to the lobby.' });
+    gx.effects.push({ type: 'abort', reason: 'Not enough players to go on.' });
     return;
   }
   if (gameIsOver(gx)) return finishGame(gx);
@@ -87,18 +87,22 @@ export function holdBetting(gx: Gx): void {
   hold(gx);
 }
 
-/** The host ends the game: at once between hands (stakes on the table go back), otherwise once the hand in play settles. */
-export function endGame(gx: Gx, playerId: string): void {
-  const { data, ctx } = gx;
-  if (playerId !== ctx.hostId) return fail(gx, playerId, 'Only the host can end the game.');
+/**
+ * The host's End game (the platform's, through the module's `end`): at once between hands (stakes
+ * on the table go back), otherwise once the hand in play settles. A final table already on show
+ * gives way to the results at once.
+ */
+export function endGame(gx: Gx): void {
+  const { data } = gx;
   switch (data.phase.kind) {
-    case 'ending':
     case 'gameOver':
-      return fail(gx, playerId, 'The game is ending already.');
+      return;
+    case 'ending':
+      return finishGame(gx);
     case 'acting':
-      if (data.endRequested) return fail(gx, playerId, 'The game ends after this hand.');
+      if (data.endRequested) return;
       data.endRequested = true;
-      noticeMessage(gx, 'The host ends the game after this hand.');
+      noticeMessage(gx, 'The game ends after this hand.');
       return snapshot(gx);
     case 'betting':
       for (const id of data.order) {

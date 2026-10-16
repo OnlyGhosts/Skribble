@@ -9,9 +9,8 @@ import { useActiveGame } from '../../platform/store/selectors';
 import { TableShell } from '../../platform/table/TableShell';
 import { useTableNow } from '../../platform/table/useTableNow';
 import { ControlPanel } from './components/ControlPanel';
-import { EndGameControl } from './components/EndGame';
 import { Table } from './components/Table';
-import { isInHand, isMyTurn, nameOf, playerOf, useConnected } from './hooks';
+import { isInHand, isMyTurn, nameOf, playerOf, useConnected, useRejoining } from './hooks';
 import { focusOf } from './lib/focus';
 import { tableOf } from './lib/table';
 import { wonOnScreen } from './lib/screen';
@@ -34,6 +33,7 @@ export function PokerScreen({ room, meId, isHost }: GameScreenProps<PokerView, P
   const isPhone = useMediaQuery(PHONE_QUERY);
   useAppMode(isPhone);
   const connected = useConnected();
+  const rejoining = useRejoining();
   const sheet = usePoker((s) => s.sheet);
   const openSheet = usePoker((s) => s.openSheet);
   const stored = usePoker((s) => s.timeline);
@@ -102,9 +102,8 @@ export function PokerScreen({ room, meId, isHost }: GameScreenProps<PokerView, P
       players={<PlayerList room={room} meId={meId} isHost={isHost} mode="game" game={game} />}
       sheet={sheet}
       onSheet={openSheet}
-      endControl={(variant) => isHost && playing && <EndGameControl variant={variant} />}
       table={<Table room={room} view={view} meId={meId} frame={frame} live={timeline} now={now} isPhone={isPhone} focus={focus} clock={clock} />}
-      panel={<ControlPanel view={view} meId={meId} balance={valueAt(timeline, chipsValue(meId), seat?.chips ?? 0, now)} status={panel} canSend={playing && connected} busy={busy} hotkeys={!isPhone} />}
+      panel={<ControlPanel view={view} meId={meId} balance={valueAt(timeline, chipsValue(meId), seat?.chips ?? 0, now)} status={panel} canSend={playing && connected && !rejoining} busy={busy} hotkeys={!isPhone} />}
     />
   );
 }

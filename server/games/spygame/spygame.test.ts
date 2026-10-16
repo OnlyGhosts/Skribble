@@ -4,16 +4,17 @@ import { gameById } from '../../../shared/platform/games.js';
 import { defaultPlatformSettings } from '../../../shared/platform/settings.js';
 import { SPY_LOCATIONS, locationsForMode } from '../../../shared/games/spygame/locations.js';
 import { UNHINGED_LOCATIONS } from '../../../shared/games/spygame/locationTiers.js';
-import { SPYGAME_CANDIDATES, SPYGAME_REVEAL_SECONDS, SPYGAME_ROUND_MINUTES, SPYGAME_VOTE_SECONDS, type SpygameView } from '../../../shared/games/spygame/protocol.js';
+import { SPYGAME_CANDIDATES, SPYGAME_REVEAL_SECONDS, SPYGAME_ROUND_MINUTES, SPYGAME_SPY_AWAY_SECONDS, SPYGAME_VOTE_SECONDS, spygameClientMessageSchema, type SpygameView } from '../../../shared/games/spygame/protocol.js';
 import { RECONNECT_GRACE_MS } from '../../../shared/platform/constants.js';
 import { nextDeadline } from '../../platform/engine/time.js';
 import { viewFor } from '../../platform/engine/view.js';
-import { AVATAR, START, chatTexts, errorsOf, noticeTexts, sim, startGame, type Sim } from '../../platform/engine/testHarness.js';
+import { AVATAR, START, chatTexts, endGame, errorsOf, noticeTexts, sim, standings, startGame, type Sim } from '../../platform/engine/testHarness.js';
 import { RESUME_SETTLE_MS } from '../waiting.js';
 import { spygameModule, type SpygameData } from './module.js';
 
 const ROUND_MS = SPYGAME_ROUND_MINUTES * 60_000;
 const VOTE_MS = SPYGAME_VOTE_SECONDS * 1000;
+const SPY_AWAY_MS = SPYGAME_SPY_AWAY_SECONDS * 1000;
 const REVEAL_MS = SPYGAME_REVEAL_SECONDS * 1000;
 
 const view = (s: Sim, viewer: string | null = null): SpygameView => {
@@ -25,7 +26,7 @@ const data = (s: Sim): SpygameData => s.data.game as SpygameData;
 const score = (s: Sim, id: string): number => s.data.players.find((p) => p.id === id)?.score ?? -1;
 const token = (s: Sim, id: string): string => s.data.players.find((p) => p.id === id)?.token ?? '';
 const disconnect = (s: Sim, id: string, name: string): void => {
-  s.apply({ type: 'connectionClosed', playerId: id, connectionId: `conn-${name}` });
+  s.drop(id, `conn-${name}`);
 };
 const reconnect = (s: Sim, id: string, name: string): void => {
   s.apply({ type: 'rejoin', token: token(s, id), connectionId: `conn-${name}-2` });
@@ -104,7 +105,8 @@ describe('The Spy Game: round setup', () => {
     }
     expect(spies).toEqual([alice, bob, carol, alice, bob]);
     expect(new Set(locations).size).toBe(5);
-    expect(s.data.phase).toBe('ended');
+    expect(s.data.phase).toBe('lobby');
+    expect(s.data.results?.reason).toBe('finished');
   });
 
   it('picks the spy with the rng, so a different rng yields a different spy and location', () => {
@@ -139,7 +141,7 @@ describe('The Spy Game: round setup', () => {
 });
 
 describe('The Spy Game: the location pool follows the room content mode', () => {
-  it('draws from the family pack by default and from every tier in an unhinged room', () => {
+  it('draws from the family pack by default and from the adult tiers alone in an unhinged room', () => {
     const family = sim('spygame', 'ABCD', START, () => 0.99);
     startGame(family, ['Alice', 'Bob', 'Carol']);
     expect(SPY_LOCATIONS.some((l) => l.id === data(family).current.locationId)).toBe(true);
@@ -148,11 +150,14 @@ describe('The Spy Game: the location pool follows the room content mode', () => 
     const unhinged = sim('spygame', 'ABCD', START, () => 0.99);
     startGame(unhinged, ['Alice', 'Bob', 'Carol'], { contentMode: 'unhinged' });
     const pool = locationsForMode('unhinged');
-    // A constant 0.99 lands near the end of the pool, which is the unhinged tier.
+    // A constant 0.99 lands near the end of the pool (cheeky, then unhinged), which is the unhinged tier.
     const picked = pool[Math.floor(0.99 * pool.length)].id;
     expect(UNHINGED_LOCATIONS.some((l) => l.id === picked)).toBe(true);
     expect(data(unhinged).current.locationId).toBe(picked);
-    for (const id of data(unhinged).current.candidates) expect(pool.some((l) => l.id === id)).toBe(true);
+    for (const id of data(unhinged).current.candidates) {
+      expect(pool.some((l) => l.id === id)).toBe(true);
+      expect(SPY_LOCATIONS.some((l) => l.id === id), id).toBe(false);
+    }
     // The agents see the tier location by id, like any other.
     const agent = data(unhinged).current.playerIds.find((id) => id !== data(unhinged).current.spyId) ?? '';
     expect(view(unhinged, agent).locationId).toBe(picked);
@@ -413,21 +418,24 @@ describe('The Spy Game: the clock and the spy\'s connection', () => {
     expect(nextDeadline(s.data)).toBe(s.now + REVEAL_MS);
   });
 
-  it('pauses the clock while the spy is away (everyone sees whom they wait for, and how to end it) and resumes it on rejoin', () => {
+  it('pauses the clock while the spy is away, shows everyone the waiting card with the spy missing, and resumes on rejoin', () => {
     const s = sim('spygame');
     const [alice, bob] = startGame(s, ['Alice', 'Bob', 'Carol', 'Dave']);
     s.now += 60_000;
-    const dropped = s.apply({ type: 'connectionClosed', playerId: alice, connectionId: 'conn-Alice' });
-    // The pause can last the whole reconnect grace, so the room is told how to move on without them.
-    expect(chatTexts(dropped)).toEqual(['Bob is now the host', 'Alice lost connection. The clock is paused until they are back. The host can remove them from the players list.']);
-    expect(data(s).current).toMatchObject({ spyAway: true, clock: { kind: 'paused', remainingMs: ROUND_MS - 60_000 } });
+    const dropped = s.drop(alice, 'conn-Alice');
+    expect(chatTexts(dropped)).toEqual(['Bob is now the host', 'Alice lost connection. The clock is paused.']);
+    expect(data(s).current).toMatchObject({ spyAway: true, spyAwayUntil: s.now + SPY_AWAY_MS, clock: { kind: 'paused', remainingMs: ROUND_MS - 60_000 } });
     expect(view(s, bob).clock).toEqual({ endsAt: null, pausedRemainingMs: ROUND_MS - 60_000, pausedReason: 'spyAway', waitingForId: alice });
-    // No game deadline while paused: only the platform's reconnect grace is pending.
-    expect(spygameModule.nextDeadline(data(s))).toBeNull();
+    // The platform's waiting card, with the spy missing, a limit and (for the host) Remove Alice.
+    expect(viewFor(s.data, bob, s.now).waiting).toEqual({ reason: 'players', missing: [alice], needed: 3, connected: 3, until: s.now + SPY_AWAY_MS });
+    // The only game deadline while paused is the spy's limit.
+    expect(spygameModule.nextDeadline(data(s))).toBe(s.now + SPY_AWAY_MS);
 
     s.now += 20_000;
     reconnect(s, alice, 'Alice');
-    expect(data(s).current).toMatchObject({ spyAway: false, clock: { kind: 'running', endsAt: s.now + ROUND_MS - 60_000 } });
+    expect(viewFor(s.data, bob, s.now).waiting).toBeNull();
+    expect(s.data.waiting).toBeNull();
+    expect(data(s).current).toMatchObject({ spyAway: false, spyAwayUntil: null, clock: { kind: 'running', endsAt: s.now + ROUND_MS - 60_000 } });
     expect(view(s, bob).clock.endsAt).toBe(s.now + ROUND_MS - 60_000);
     s.now += ROUND_MS - 60_000;
     s.tick();
@@ -448,6 +456,88 @@ describe('The Spy Game: the clock and the spy\'s connection', () => {
     expect(data(s).current.clock).toEqual({ kind: 'running', endsAt: s.now + ROUND_MS });
   });
 
+  it('ends the round by itself (spy left) when the away spy is not back in time: agents +1, the hold lifts', () => {
+    const s = sim('spygame');
+    const [alice, bob, carol, dave] = startGame(s, ['Alice', 'Bob', 'Carol', 'Dave']);
+    s.drop(alice, 'conn-Alice');
+    s.now += SPY_AWAY_MS - 1;
+    expect(chatTexts(s.tick())).toEqual([]);
+    expect(data(s).phase).toBe('playing');
+    s.now += 1;
+    const effects = s.tick();
+    expect(chatTexts(effects)).toContain('Alice (the spy) left. The agents win the round. It was the Airplane.');
+    expect(data(s).reveal).toMatchObject({ outcome: 'spyLeft', spyId: alice, points: { [bob]: 1, [carol]: 1, [dave]: 1 } });
+    expect(data(s).current).toMatchObject({ spyAway: false, spyAwayUntil: null });
+    expect(s.data.waiting).toBeNull();
+    expect(viewFor(s.data, bob, s.now).waiting).toBeNull();
+    // Alice keeps her seat (the reconnect grace) and plays from the next round once back.
+    expect(s.data.players.map((p) => p.id)).toContain(alice);
+  });
+
+  it('lets a vote the spy dropped during finish first: no hold over the buttons, and it can still catch the spy', () => {
+    const s = sim('spygame');
+    const [alice, bob, carol, dave] = startGame(s, ['Alice', 'Bob', 'Carol', 'Dave']);
+    s.game(bob, { t: 'accuse', playerId: alice });
+    const dropped = s.drop(alice, 'conn-Alice');
+    // Nothing tells the voters who dropped, and nothing covers the vote.
+    expect(chatTexts(dropped)).toEqual(['Bob is now the host']);
+    expect(s.data.waiting).toBeNull();
+    expect(viewFor(s.data, carol, s.now).waiting).toBeNull();
+    expect(view(s, carol).clock).toMatchObject({ pausedReason: 'vote', waitingForId: null });
+    expect(view(s, carol).vote).toMatchObject({ canVote: true });
+    // The vote's own clock is the only deadline: the spy's limit waits for the vote.
+    expect(spygameModule.nextDeadline(data(s))).toBe(s.now + VOTE_MS);
+    s.now += VOTE_MS - 1000;
+    s.game(carol, { t: 'vote', yes: true });
+    s.game(dave, { t: 'vote', yes: true });
+    expect(data(s).reveal).toMatchObject({ outcome: 'spyCaught', points: { [bob]: 3, [carol]: 1, [dave]: 1 } });
+    expect(s.data.waiting).toBeNull();
+  });
+
+  it('refuses an accusation while the round waits for the spy (the waiting card covers the buttons)', () => {
+    const s = sim('spygame');
+    const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol', 'Dave']);
+    s.drop(alice, 'conn-Alice');
+    const effects = s.game(bob, { t: 'accuse', playerId: carol });
+    expect(errorsOf(effects)).toEqual(['The round is on hold.']);
+    expect(data(s).phase).toBe('playing');
+  });
+
+  it('holds for the spy once a vote they dropped during fails, until their limit from the drop', () => {
+    const voting = sim('spygame');
+    const [alice, bob, carol] = startGame(voting, ['Alice', 'Bob', 'Carol', 'Dave']);
+    voting.game(bob, { t: 'accuse', playerId: carol });
+    const droppedAt = voting.now;
+    voting.drop(alice, 'conn-Alice');
+    expect(data(voting).phase).toBe('voting');
+    voting.now += VOTE_MS;
+    const failed = voting.tick(); // 1-1: fails
+    expect(data(voting).phase).toBe('playing');
+    expect(chatTexts(failed)).toContain('Alice lost connection. The clock is paused.');
+    expect(voting.data.waiting).toEqual([alice]);
+    expect(viewFor(voting.data, bob, voting.now).waiting).toMatchObject({ missing: [alice], until: droppedAt + SPY_AWAY_MS });
+    expect(spygameModule.nextDeadline(data(voting))).toBe(droppedAt + SPY_AWAY_MS);
+    voting.now = droppedAt + SPY_AWAY_MS;
+    voting.tick();
+    expect(data(voting).reveal?.outcome).toBe('spyLeft');
+    expect(voting.data.waiting).toBeNull();
+  });
+
+  it('lifts the hold when the host removes the away spy', () => {
+    const removed = sim('spygame');
+    const [host] = startGame(removed, ['Alice', 'Bob', 'Carol', 'Dave'], { rounds: 3 });
+    const bob2 = removed.playerId('Bob');
+    // Bob is the spy of round two: play round one out first.
+    spyWins(removed);
+    removed.game(host, { t: 'nextRound' });
+    expect(data(removed).current.spyId).toBe(bob2);
+    removed.drop(bob2, 'conn-Bob');
+    expect(removed.data.waiting).toEqual([bob2]);
+    removed.platform(host, { t: 'kick', playerId: bob2 });
+    expect(data(removed).reveal?.outcome).toBe('spyLeft');
+    expect(removed.data.waiting).toBeNull();
+  });
+
   it('ends the round with spyLeft when the spy leaves for good: agents +1', () => {
     const s = sim('spygame');
     const [alice, bob, carol, dave] = startGame(s, ['Alice', 'Bob', 'Carol', 'Dave']);
@@ -461,11 +551,11 @@ describe('The Spy Game: the clock and the spy\'s connection', () => {
     expect(view(s, bob).reveal).toMatchObject({ spyId: alice, spyName: 'Alice' });
   });
 
-  it('names the spy on the reveal when the reconnect grace runs out on them', () => {
+  it('names the spy on the reveal when the round gives up on them', () => {
     const s = sim('spygame');
     const [alice, bob] = startGame(s, ['Alice', 'Bob', 'Carol', 'Dave']);
     disconnect(s, alice, 'Alice');
-    s.now += RECONNECT_GRACE_MS;
+    s.now += SPY_AWAY_MS;
     const effects = s.tick();
     expect(chatTexts(effects)).toContain('Alice (the spy) left. The agents win the round. It was the Airplane.');
     expect(view(s, bob).reveal).toMatchObject({ outcome: 'spyLeft', spyName: 'Alice' });
@@ -504,20 +594,27 @@ describe('The Spy Game: reveal, rounds and the end', () => {
     expect(view(s, alice).reveal).toBeNull();
   });
 
-  it('lets the host end the game from the reveal (back to the lobby), nobody else and never mid-round', () => {
+  it('lets the host end the game at any moment, mid-round too, on the scores so far; nobody else', () => {
     const s = sim('spygame');
-    const [alice, bob] = startGame(s, ['Alice', 'Bob', 'Carol'], { rounds: 3 });
-    expect(s.game(alice, { t: 'endGame' })).toEqual([expect.objectContaining({ msg: { t: 'error', code: 'NOT_ALLOWED', message: 'The game can only be ended from the reveal.' } })]);
-    spyWins(s);
-    expect(s.game(bob, { t: 'endGame' })).toEqual([expect.objectContaining({ msg: { t: 'error', code: 'NOT_ALLOWED', message: 'Only the host can end the game.' } })]);
-    const effects = s.game(alice, { t: 'endGame' });
-    expect(chatTexts(effects)).toContain('The host ended the game. Back to the lobby.');
-    expect(s.data.phase).toBe('lobby');
-    expect(s.data.game).toBeNull();
+    const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol'], { rounds: 3 });
+    // End game is the platform's message now: the game's own schema no longer has one.
+    expect(spygameClientMessageSchema.safeParse({ t: 'endGame' }).success).toBe(false);
+    spyWins(s); // Alice +4
+    s.game(alice, { t: 'nextRound' });
+    expect(data(s)).toMatchObject({ phase: 'playing', round: 2 });
+    expect(errorsOf(endGame(s, bob))).toEqual(['Only the host can do that.']);
+    const effects = endGame(s, alice);
+    expect(chatTexts(effects)).toEqual(['Game over! Alice wins with 4 points.']);
+    expect(s.data).toMatchObject({ phase: 'lobby', game: null, results: { reason: 'host', gameId: 'spygame' } });
+    expect(standings(s)).toEqual([
+      { playerId: alice, score: 4, rank: 1 },
+      { playerId: bob, score: 0, rank: 2 },
+      { playerId: carol, score: 0, rank: 2 },
+    ]);
     expect(s.data.players.map((p) => p.score)).toEqual([0, 0, 0]);
   });
 
-  it('ends the game with the podium after the last round\'s reveal', () => {
+  it('ends the game with the results after the last round\'s reveal', () => {
     const s = sim('spygame');
     const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol'], { rounds: 2 });
     spyWins(s); // Alice +4
@@ -527,17 +624,15 @@ describe('The Spy Game: reveal, rounds and the end', () => {
     expect(s.data.phase).toBe('playing');
     s.now += REVEAL_MS;
     const effects = s.tick();
-    expect(s.data.phase).toBe('ended');
+    expect(s.data.phase).toBe('lobby');
     expect(chatTexts(effects)).toContain('Game over! Alice wins with 5 points.');
-    expect(s.data.podium).toEqual([
+    expect(standings(s)).toEqual([
       { playerId: alice, score: 5, rank: 1 },
       { playerId: carol, score: 1, rank: 2 },
       { playerId: bob, score: 0, rank: 3 },
     ]);
+    expect(s.data.results?.entries.map((e) => e.name)).toEqual(['Alice', 'Carol', 'Bob']);
     expect(nextDeadline(s.data)).toBeNull();
-    // The view still renders under the podium.
-    expect(view(s, bob)).toMatchObject({ phase: 'reveal', locationId: data(s).current.locationId });
-    expect(view(s, bob).reveal?.outcome).toBe('timeUp');
   });
 
   it('survives JSON at every phase', () => {
@@ -623,7 +718,7 @@ describe('The Spy Game: holding for missing players', () => {
     holdAfterRoundOne(s, ['Bob', 'Carol']);
     expect(viewFor(s.data, alice, s.now).waiting).toMatchObject({ missing: [bob, carol], connected: 2 });
     // One more away: the list grows, the chat line is not repeated.
-    const more = s.apply({ type: 'connectionClosed', playerId: dave, connectionId: 'conn-Dave' });
+    const more = s.drop(dave, 'conn-Dave');
     expect(chatTexts(more)).toEqual([]);
     expect(viewFor(s.data, alice, s.now).waiting).toMatchObject({ missing: [bob, carol, dave], connected: 1 });
     // A newcomer only watches: they fill no seat, so the hold goes on.
@@ -674,15 +769,15 @@ describe('The Spy Game: holding for missing players', () => {
     expect(nextDeadline(s.data)).toBe(s.now + ROUND_MS);
   });
 
-  it('lets the host end the game during a hold, since the reveal and its controls stay on screen', () => {
+  it('lets the host end the game during a hold, clearing it', () => {
     const s = sim('spygame');
     const [alice, bob] = startGame(s, ['Alice', 'Bob', 'Carol'], { rounds: 3 });
     holdAfterRoundOne(s, ['Bob']);
     expect(data(s).phase).toBe('waiting');
-    expect(s.game(s.playerId('Carol'), { t: 'endGame' })).toEqual([expect.objectContaining({ msg: { t: 'error', code: 'NOT_ALLOWED', message: 'Only the host can end the game.' } })]);
-    const effects = s.game(alice, { t: 'endGame' });
-    expect(chatTexts(effects)).toContain('The host ended the game. Back to the lobby.');
-    expect(s.data).toMatchObject({ phase: 'lobby', game: null, waiting: null });
+    expect(errorsOf(endGame(s, s.playerId('Carol')))).toEqual(['Only the host can do that.']);
+    const effects = endGame(s, alice);
+    expect(chatTexts(effects).at(-1)).toMatch(/^Game over!/);
+    expect(s.data).toMatchObject({ phase: 'lobby', game: null, waiting: null, results: { reason: 'host' } });
     expect(s.data.players.map((p) => p.id)).toContain(bob);
   });
 
@@ -692,8 +787,8 @@ describe('The Spy Game: holding for missing players', () => {
     const { endedAt } = holdAfterRoundOne(expired, ['Bob']);
     expired.now = endedAt + RECONNECT_GRACE_MS;
     const effects = expired.tick();
-    expect(chatTexts(effects)).toEqual(['Bob left', 'Not enough players. Back to the lobby.']);
-    expect(expired.data).toMatchObject({ phase: 'lobby', game: null, podium: null, waiting: null });
+    expect(chatTexts(effects)).toEqual(['Bob left', 'Not enough players to go on.', 'Game over!']);
+    expect(expired.data).toMatchObject({ phase: 'lobby', game: null, results: { reason: 'players' }, waiting: null });
     expect(expired.data.players.map((p) => p.id)).not.toContain(bob);
     expect(expired.data.players.every((p) => p.score === 0)).toBe(true);
     expect(viewFor(expired.data, alice, expired.now).waiting).toBeNull();

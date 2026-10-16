@@ -717,11 +717,12 @@ describe.skipIf(!hasRedisServer)('RedisDriver with the template game', () => {
     await a.handle(created.seat, msg({ t: 'start' }));
     await vi.waitFor(() => expect(guestWs.last('room').room.phase).toBe('playing'), WAIT);
     for (let i = 0; i < 10; i++) await b.handle(joined.seat, msg({ t: 'click' }));
-    await vi.waitFor(() => expect(hostWs.last('room').room.phase).toBe('ended'), WAIT);
-    await vi.waitFor(() => expect(guestWs.last('room').room.phase).toBe('ended'), WAIT);
-    // The winner's last click ends the game: the podium reaches both instances, nobody is closed, kicked or told the room is gone, and every seat stays.
+    await vi.waitFor(() => expect(hostWs.last('room').room.results).not.toBeNull(), WAIT);
+    await vi.waitFor(() => expect(guestWs.last('room').room.results).not.toBeNull(), WAIT);
+    // The winner's last click ends the game: the results reach both instances in the lobby, nobody is closed, kicked or told the room is gone, and every seat stays.
     for (const ws of [hostWs, guestWs]) {
-      expect(ws.last('room').room.podium).toEqual([
+      expect(ws.last('room').room.phase).toBe('lobby');
+      expect(ws.last('room').room.results?.entries.map(({ playerId, score, rank }) => ({ playerId, score, rank }))).toEqual([
         { playerId: joined.seat.playerId, score: 100, rank: 1 },
         { playerId: created.seat.playerId, score: 0, rank: 2 },
       ]);
@@ -732,13 +733,12 @@ describe.skipIf(!hasRedisServer)('RedisDriver with the template game', () => {
     }
     const stored = JSON.parse((await admin.get(roomKey(created.seat.code))) ?? 'null') as PlatformRoomData | null;
     expect(stored?.players).toHaveLength(2);
-    expect(stored?.phase).toBe('ended');
+    expect(stored?.phase).toBe('lobby');
+    expect(stored?.results?.reason).toBe('finished');
     expect(await admin.exists(roomKey(created.seat.code))).toBe(1);
     // No side store: the room's keys are just the record and the presence keys.
     expect((await admin.keys('*')).filter((k) => k.includes(':side'))).toEqual([]);
-    // The podium stays until the host brings the party back to the lobby, where everyone keeps their seat.
-    await a.handle(created.seat, msg({ t: 'returnToLobby' }));
-    await vi.waitFor(() => expect(guestWs.last('room').room).toMatchObject({ phase: 'lobby', podium: null, gameId: 'template' }), WAIT);
+    expect(guestWs.last('room').room).toMatchObject({ phase: 'lobby', game: null, gameId: 'template' });
     expect(guestWs.last('room').room.players).toHaveLength(2);
   });
 

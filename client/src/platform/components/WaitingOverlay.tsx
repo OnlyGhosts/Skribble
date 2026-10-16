@@ -1,5 +1,6 @@
 import { useRef } from 'react';
 import type { PlayerPublic, RoomState, WaitingState } from '@shared/platform/protocol';
+import { useCountdownSeconds } from '../lib/useCountdown';
 import { useModalFocus } from '../lib/useModalFocus';
 import { kickPlayer, leaveRoom } from '../net/actions';
 import { Avatar } from './Avatar';
@@ -10,6 +11,18 @@ export function waitingTitle(names: string[]): string {
   if (names.length === 0) return 'Waiting for players to reconnect';
   const list = names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
   return `Waiting for ${list} to reconnect`;
+}
+
+/** "1:30": the time a hold with a limit has left. */
+export function clockText(seconds: number): string {
+  const s = Math.max(0, seconds);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
+/** What happens if they stay away: the game goes on by itself when they are back, or ends without them once the time runs out. */
+export function waitingHint(seconds: number | null): string {
+  if (seconds === null) return 'The game carries on by itself as soon as they are back.';
+  return `If they are not back in ${clockText(seconds)}, the game goes on without them.`;
 }
 
 /**
@@ -27,7 +40,7 @@ export function missingPlayers(room: RoomState, waiting: WaitingState, meId: str
 /**
  * Shown by the platform over any game's screen while the game holds at a boundary for players
  * whose phones went dark (`room.waiting`). The game picks up on its own when they are back; the
- * host may remove them instead. A modal dialog like the podium: it takes the focus away from the
+ * host may remove them instead. A modal dialog like the results: it takes the focus away from the
  * screen it covers and keeps Tab inside until it goes away. Nothing renders while there is nobody
  * to name: a nameless "waiting for players" would only flash at the player who just came back.
  */
@@ -35,6 +48,7 @@ export function WaitingOverlay({ room, waiting, isHost, meId = null }: { room: R
   const cardRef = useRef<HTMLDivElement | null>(null);
   const missing = missingPlayers(room, waiting, meId);
   useModalFocus(cardRef, missing.length > 0);
+  const seconds = useCountdownSeconds(waiting.until);
   if (missing.length === 0) return null;
   return (
     <div className="waiting-overlay" role="dialog" aria-modal="true" aria-label="Game paused" data-testid="overlay-waiting" data-connected={waiting.connected} data-needed={waiting.needed}>
@@ -50,10 +64,15 @@ export function WaitingOverlay({ room, waiting, isHost, meId = null }: { room: R
         <h2 className="overlay__title" data-testid="waiting-title">
           {waitingTitle(missing.map((p) => p.name))}
         </h2>
-        <p className="waiting__count" role="status" data-testid="waiting-count">
-          <span className="spinner" aria-hidden="true" /> {`${waiting.connected} of ${waiting.needed} players connected`}
+        {/* The count only helps a hold for numbers; a hold for one player (The Spy Game's spy) is about them alone. */}
+        {waiting.connected < waiting.needed && (
+          <p className="waiting__count" role="status" data-testid="waiting-count">
+            <span className="spinner" aria-hidden="true" /> {`${waiting.connected} of ${waiting.needed} players connected`}
+          </p>
+        )}
+        <p className="overlay__hint" data-testid="waiting-hint" data-until={waiting.until}>
+          {waitingHint(waiting.until === undefined ? null : seconds)}
         </p>
-        <p className="overlay__hint">The game carries on by itself as soon as they are back.</p>
         {isHost && (
           <div className="waiting__remove">
             {missing.map((p) => (

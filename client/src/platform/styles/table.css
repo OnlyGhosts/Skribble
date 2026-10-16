@@ -1883,11 +1883,20 @@
   }
 }
 
-/* Dimmed, not gone: every control keeps its place all game long. */
-.tbl-panel .btn:disabled {
+/* Dimmed, not gone: every control keeps its place all game long. A control that is not on offer
+   for a moment only (aria-disabled) looks the same but still takes the tap, to say why. */
+.tbl-panel .btn:disabled,
+.tbl-panel .btn[aria-disabled='true'] {
   background: var(--color-surface-2);
   border-color: var(--color-surface-2);
   color: var(--color-text-faint);
+}
+
+/* Tapped and on its way: it stays pressed until the table answers, so a second tap is never needed. */
+.tbl-panel .btn[data-sent='true']:disabled {
+  background: var(--color-primary-soft);
+  border-color: var(--color-primary-text);
+  color: var(--color-primary-text);
 }
 
 /* The one big button under the moves (Blackjack's Bet). */

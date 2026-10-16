@@ -50,7 +50,7 @@ describe('room data serialisation (scribble)', () => {
     s.platform(bob, { t: 'chat', text: 'apple' });
     s.game(carol, { t: 'rate', value: 'like' });
     s.platform(bob, { t: 'voteKick', playerId: carol });
-    s.apply({ type: 'connectionClosed', playerId: alice, connectionId: 'conn-Alice' });
+    s.drop(alice, 'conn-Alice');
     expect((s.data.game as ScribbleData).grace.drawerGoneAt).not.toBeNull();
     expect(s.data.players.find((p) => p.id === alice)?.disconnectedAt).toBe(s.now);
     expect(s.data.votes).toHaveLength(1);

@@ -293,38 +293,6 @@
   }
 }
 
-/* ---------- End game (host) ---------- */
-.pk-end {
-  white-space: nowrap;
-}
-
-.pk-end-confirm {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.pk-end-confirm__text {
-  font-weight: 700;
-  font-size: 0.85rem;
-  white-space: nowrap;
-}
-
-.pk-end-confirm--menu {
-  flex-wrap: wrap;
-  padding: var(--space-2) 0;
-}
-
-.pk-end-confirm--menu .pk-end-confirm__text {
-  flex: 1 1 100%;
-  white-space: normal;
-}
-
-.pk-end-confirm--menu .btn {
-  flex: 1;
-  min-height: 44px;
-}
-
 /* ---------- Player list hooks ---------- */
 .player__badge--acting {
   background: var(--color-primary);

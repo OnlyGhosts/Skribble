@@ -45,7 +45,7 @@
   display: block;
   height: var(--wordmark-height, 24px);
   width: auto;
-  aspect-ratio: 885.1 / 115.8;
+  aspect-ratio: 865.8 / 120.2;
   color: var(--color-text);
   flex: none;
 }
@@ -88,7 +88,7 @@
   min-height: 44px;
 }
 
-/* The phone characters drawn on their own (the podium's happy phone). */
+/* The phone characters drawn on their own (the results' happy phone). */
 .mascot {
   display: block;
 }
@@ -605,16 +605,35 @@
   background: var(--color-surface-2);
 }
 
-.avatar__emoji {
-  transform: translateY(1px);
+/* A Fluent Emoji picture (client/public/avatars), sized by the font size around it like the emoji it replaced. */
+.face-img {
+  display: block;
+  flex: none;
+  width: 1.125em;
+  height: 1.125em;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
-/* Every face and colour at once in wrapping grids (no inner scrolling): 44px a choice, 40px only on the narrowest phones. */
+/* The emoji itself, when the picture fails to load. */
+.face-img--text {
+  display: grid;
+  place-items: center;
+  line-height: 1;
+}
+
+/*
+ * Every face and colour at once (no inner scrolling), in full-width grids of equal columns that
+ * divide the lists exactly, each choice at least 44px wide: 50 faces in 5 or 10 columns, 12
+ * colours in 4, 6 or 12 (the dots carry their own margin, so no gap between them).
+ */
 .avatar-picker {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
   min-width: 0;
+  container-type: inline-size;
 }
 
 .avatar-picker__preview {
@@ -625,14 +644,31 @@
 
 .avatar-picker__group {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 4px;
-  max-width: 440px;
 }
 
-@media (max-width: 340px) {
-  .avatar-picker__group {
-    grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+.avatar-picker__colors {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0;
+}
+
+@container (max-width: 263.98px) {
+  .avatar-picker__colors {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* 10 x 44px and 9 gaps of 4px. */
+@container (min-width: 476px) {
+  .avatar-picker__emojis {
+    grid-template-columns: repeat(10, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 528px) {
+  .avatar-picker__colors {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
   }
 }
 
@@ -692,10 +728,9 @@
 
 .emoji-choice {
   width: 100%;
-  aspect-ratio: 1;
-  max-height: 48px;
+  height: 48px;
   border-radius: var(--radius-sm);
-  font-size: 22px;
+  font-size: 28px;
   background: var(--color-surface-2);
   border: 1px solid transparent;
   display: inline-grid;
@@ -843,9 +878,10 @@
   }
 }
 
+/* Under the top bar's first row (back, title, menu: 44px tall plus its padding), so a toast never covers those buttons. */
 .toasts {
   position: fixed;
-  top: calc(var(--space-4) + env(safe-area-inset-top));
+  top: calc(64px + env(safe-area-inset-top));
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -867,7 +903,8 @@
   box-shadow: var(--shadow-lg);
   font-size: 0.875rem;
   font-weight: 500;
-  pointer-events: auto;
+  /* A tap on a toast reaches whatever is under it; only the close button is its own. */
+  pointer-events: none;
   animation: toast-in 160ms var(--ease-out);
 }
 
@@ -899,6 +936,7 @@
 }
 
 .toast__close {
+  pointer-events: auto;
   display: grid;
   place-items: center;
   flex: none;
@@ -1253,9 +1291,202 @@
   gap: 6px;
 }
 
-.menu-sheet__leave {
-  margin-top: var(--space-2);
-  min-height: 48px;
+/* ---------- The ways out of a game: End game (host) and Leave room, each with a confirm step ---------- */
+.exit-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  /* The preference rows above end on their own divider. */
+  margin-top: var(--space-3);
+}
+
+/* A tall row: an icon on a tinted square, the action in bold and what it does under it. */
+.exit-action {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 60px;
+  padding: 8px 14px 8px 8px;
+  border: 1.5px solid var(--color-border-strong);
+  border-radius: var(--radius-item);
+  background: transparent;
+  color: var(--color-text);
+  text-align: left;
+  transition:
+    background-color 100ms ease-out,
+    border-color 100ms ease-out;
+}
+
+button.exit-action:hover {
+  background: var(--color-surface-2);
+}
+
+button.exit-action:active {
+  transform: translateY(1px);
+}
+
+.exit-action__icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-2);
+  color: var(--color-text);
+}
+
+.exit-action__text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.exit-action__text strong {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.exit-action__text small {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
+/* End game is the serious one: the danger colour on its border, icon and label. */
+.exit-action--end {
+  border-color: var(--color-danger);
+  background: var(--color-danger-soft);
+}
+
+button.exit-action--end:hover {
+  background: var(--color-danger-soft);
+  border-color: var(--color-danger-text);
+}
+
+.exit-action--end .exit-action__icon {
+  background: var(--color-danger);
+  color: var(--color-bg);
+}
+
+.exit-action--end .exit-action__text strong {
+  color: var(--color-danger-text);
+}
+
+/* Asked for, ending at the game's next boundary: a note, not a button. */
+.exit-action--pending {
+  border-style: dashed;
+  background: transparent;
+}
+
+/* The confirm step: an icon, the question, what it does, then the action and the way back. */
+.exit-confirm {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: var(--space-2) 0 var(--space-1);
+  text-align: center;
+}
+
+.exit-confirm__icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  margin-bottom: 4px;
+}
+
+.exit-confirm--end .exit-confirm__icon {
+  background: var(--color-danger-soft);
+  color: var(--color-danger-text);
+}
+
+.exit-confirm__title {
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  text-wrap-style: balance;
+}
+
+.exit-confirm__note {
+  max-width: 34ch;
+  color: var(--color-text-muted);
+  font-size: 0.9375rem;
+}
+
+.exit-confirm__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  margin-top: var(--space-3);
+}
+
+.exit-confirm__actions .btn {
+  width: 100%;
+  min-height: 52px;
+}
+
+/* The one solid red button: the moment a game ends for everyone. */
+.btn--danger-solid {
+  background: var(--color-danger);
+  border-color: var(--color-danger);
+  color: var(--color-bg);
+}
+
+.btn--danger-solid:hover:not(:disabled) {
+  background: var(--color-danger-text);
+  border-color: var(--color-danger-text);
+}
+
+/* A desktop asks before ending or leaving in a small centred card, not a sheet across the screen. */
+@media (min-width: 761px) {
+  .sheet--exit {
+    justify-content: center;
+  }
+
+  .sheet--exit .sheet__panel {
+    width: min(440px, calc(100% - 2 * var(--gutter)));
+    margin: 0 auto;
+    border-bottom: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding-bottom: var(--space-4);
+  }
+
+  .sheet--exit .sheet__handle {
+    visibility: hidden;
+  }
+}
+
+/* The desktop top bar's End game, for the host: outlined in the danger colour beside the gear. */
+.gbar-end {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1.5px solid var(--color-danger);
+  background: transparent;
+  color: var(--color-danger-text);
+}
+
+.gbar-end.btn:hover:not(:disabled) {
+  background: var(--color-danger-soft);
+}
+
+.gbar-end--pending {
+  min-height: 36px;
+  padding: 0 12px;
+  border-style: dashed;
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 @keyframes sheet-in {
@@ -1341,7 +1572,7 @@
   padding: 0;
 }
 
-/* ---------- Overlay cards & podium ---------- */
+/* ---------- Overlay cards & the results' podium ---------- */
 .overlay__card {
   display: flex;
   flex-direction: column;
@@ -1735,7 +1966,7 @@
 
 /* The toasts queue below the banner instead of under it. */
 :root:has(.reconnect-banner) .toasts {
-  top: calc(var(--space-4) + env(safe-area-inset-top) + 44px);
+  top: calc(64px + env(safe-area-inset-top) + 44px);
 }
 
 .timer--paused .timer__value,
@@ -1751,22 +1982,25 @@
   height: 14px;
 }
 
-/* ---------- Podium overlay (platform, over any game's screen; above the sheets like the waiting overlay) ---------- */
-.podium-overlay {
+/* ---------- Results popup (platform, over the lobby once a game ends; above the sheets like the waiting overlay) ---------- */
+.results-popup {
   position: fixed;
   inset: 0;
   z-index: 90;
   display: grid;
   place-items: center;
   padding: calc(var(--space-4) + env(safe-area-inset-top)) var(--gutter) calc(var(--space-4) + env(safe-area-inset-bottom));
-  background: var(--overlay-bg);
   animation: fade-in 0.2s ease;
-  overflow-y: auto;
 }
 
-.podium-overlay__footer {
-  flex-wrap: wrap;
-  justify-content: center;
+/* The dimmed page behind the card: a tap on it closes the popup on a desktop. */
+.results-popup__backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  background: var(--overlay-bg);
+  cursor: default;
 }
 
 @media (max-width: 760px) {
@@ -1827,19 +2061,20 @@
   opacity: 0.7;
 }
 
-/* ---------- Podium celebration ---------- */
-.podium-card {
+/* ---------- Results celebration ---------- */
+.results-card {
   position: relative;
-  /* The card never scrolls as a whole: its standings do, and the actions below them stay in view. */
+  /* Never taller than the screen: the standings scroll, Back to the room stays in view. */
+  max-height: calc(var(--app-height, 100dvh) - 2 * var(--space-4) - env(safe-area-inset-top) - env(safe-area-inset-bottom));
   overflow: hidden;
 }
 
 /* The card takes focus when it opens so keyboards start inside it; it is a container, not a control, so no ring. */
-.podium-card:focus-visible {
+.results-card:focus-visible {
   outline: none;
 }
 
-.podium-card__scroll {
+.results-card__scroll {
   width: 100%;
   flex: 1 1 auto;
   min-height: 0;
@@ -1850,32 +2085,42 @@
   gap: var(--space-3);
 }
 
-.podium-card__menu {
+.results-card__close {
   position: absolute;
   top: var(--space-3);
   right: var(--space-3);
 }
 
-.podium-hero {
+.results-card__actions {
+  width: 100%;
+  flex: none;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+
+.results-hero {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 2px;
 }
 
-.podium-hero__title {
-  font-size: 1.6rem;
+.results-hero__kicker {
   margin-top: var(--space-2);
 }
 
-/* The happy phone, small (96px at most), with one short bounce as the podium appears. */
-.podium-hero__mascot {
-  width: auto;
-  height: 96px;
-  animation: podium-bounce 600ms cubic-bezier(0.2, 0.8, 0.2, 1);
+.results-hero__title {
+  font-size: 1.6rem;
 }
 
-@keyframes podium-bounce {
+/* The happy phone, small (96px at most), with one short bounce as the results appear. */
+.results-hero__mascot {
+  width: auto;
+  height: 96px;
+  animation: results-bounce 600ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes results-bounce {
   0% {
     transform: translateY(12px) scale(0.92);
     opacity: 0;
@@ -1889,34 +2134,47 @@
   }
 }
 
-.podium-hero__points {
+.results-hero__points {
   font-family: var(--font-mono);
   font-weight: 600;
   font-size: 0.95rem;
   color: var(--color-text);
 }
 
-.podium-place {
+.results-place {
   font-weight: 600;
   color: var(--color-text-muted);
 }
 
-.podium-place--won {
+.results-place--won {
   color: var(--color-primary-text);
   font-weight: 700;
 }
 
+.results-reason {
+  margin-top: 4px;
+  padding: 2px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-2);
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
 /* Everyone, in order: rank, avatar, name and points. */
-.podium-standings {
+.results-standings {
   width: 100%;
   display: flex;
   flex-direction: column;
+  flex: none;
+  /* My row's tint keeps to the rounded corners. */
+  overflow: hidden;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-item);
   background: var(--color-surface-3);
 }
 
-.podium-standings__row {
+.results-standings__row {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1925,15 +2183,15 @@
   font-size: 0.9rem;
 }
 
-.podium-standings__row + .podium-standings__row {
+.results-standings__row + .results-standings__row {
   border-top: 1px solid var(--color-border);
 }
 
-.podium-standings__row--me {
+.results-standings__row--me {
   background: var(--color-secondary-soft);
 }
 
-.podium-standings__rank {
+.results-standings__rank {
   flex: none;
   width: 18px;
   font-family: var(--font-mono);
@@ -1941,7 +2199,7 @@
   color: var(--color-text-muted);
 }
 
-.podium-standings__name {
+.results-standings__name {
   flex: 1;
   min-width: 0;
   display: flex;
@@ -1949,45 +2207,26 @@
   gap: 6px;
   text-align: left;
   font-weight: 600;
+}
+
+.results-standings__text {
+  min-width: 0;
   overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.podium-standings__you {
+.results-standings__you {
   flex: none;
   font-size: 0.72rem;
   font-weight: 600;
   color: var(--color-secondary-text);
 }
 
-.podium-standings__score {
+.results-standings__score {
   flex: none;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-}
-
-.podium-next {
-  width: 100%;
-  flex: 0 0 auto;
-  /* A very short screen scrolls the actions themselves rather than losing them. */
-  max-height: 70%;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: var(--space-2);
-  padding-top: var(--space-2);
-  border-top: 1px solid var(--color-border);
-}
-
-.podium-next .ready-controls {
-  margin-top: 0;
-}
-
-.podium-next__count {
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: var(--color-text-muted);
 }
 
 .confetti {
@@ -2031,22 +2270,18 @@
     display: none;
   }
 
-  .podium-hero__mascot {
+  .results-hero__mascot {
     animation: none;
   }
 }
 
 @media (max-width: 760px) {
-  .podium-hero__title {
+  .results-hero__title {
     font-size: 1.3rem;
   }
 
-  .podium-hero__mascot {
+  .results-hero__mascot {
     height: 72px;
-  }
-
-  .podium-next .btn {
-    min-height: 44px;
   }
 }
 
@@ -2074,4 +2309,12 @@
 
 .settings-menu__action:hover {
   background: var(--color-surface-2);
+}
+
+.settings-menu__action--danger {
+  color: var(--color-danger-text);
+}
+
+.settings-menu__action--danger:hover {
+  background: var(--color-danger-soft);
 }

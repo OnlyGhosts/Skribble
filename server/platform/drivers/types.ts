@@ -19,12 +19,17 @@ export type OutboundMessage = PlatformServerMessage | WireMessage;
 /** Platform messages handled inside a room (session-level ones are handled by the connection layer). */
 export type PlatformRoomMessage = Exclude<PlatformClientMessage, { t: 'create' | 'join' | 'rejoin' | 'leave' | 'ping' }>;
 
-/** What the connection layer hands to a room: a validated platform message, or a raw game message the room's game validates. */
-export type RoomInbound = { kind: 'platform'; msg: PlatformRoomMessage } | { kind: 'game'; msg: WireMessage };
+/**
+ * What the connection layer hands to a room: a validated platform message, or a raw game message
+ * the room's game validates. `seq` is the client sequence number the frame carried, if any.
+ */
+export type RoomInbound = { kind: 'platform'; msg: PlatformRoomMessage; seq?: number } | { kind: 'game'; msg: WireMessage; seq?: number };
 
 /** The subset of the ws API drivers need; keeps tests free of real sockets. */
 export interface SocketLike {
   readonly readyState: number;
+  /** Bytes queued for the network but not sent yet: a socket that stops reading lets it grow. */
+  readonly bufferedAmount: number;
   send(data: string): void;
   close(code?: number, reason?: string): void;
   terminate(): void;
@@ -37,9 +42,19 @@ export interface SocketLike {
 
 export const SOCKET_OPEN = 1;
 
-/** Serialises a message onto a socket, ignoring sockets that are going away. */
+/**
+ * A socket holding more than this unsent has stopped reading (a stalled phone, a paused tab, a
+ * script): it is cut off rather than buffered without end, and its seat keeps its reconnect grace.
+ */
+export const MAX_BUFFERED_BYTES = 2 * 1024 * 1024;
+
+/** Serialises a message onto a socket, ignoring sockets that are going away and cutting off one that stopped reading. */
 export function sendTo(ws: SocketLike, msg: OutboundMessage): void {
   if (ws.readyState !== SOCKET_OPEN) return;
+  if (ws.bufferedAmount > MAX_BUFFERED_BYTES) {
+    ws.terminate();
+    return;
+  }
   try {
     ws.send(JSON.stringify(msg));
   } catch {
@@ -89,6 +104,8 @@ export interface GameDriver {
   holds(seat: Seat, connectionId: string): boolean;
   /** The connection proved alive (client ping or socket pong). */
   heartbeat(seat: Seat, connectionId: string): void;
+  /** The seat's connection went silent for IDLE_AFTER_MS (`idle` true) or spoke again; ignored when it no longer holds the seat. */
+  idle(seat: Seat, connectionId: string, idle: boolean): MaybePromise<void>;
   preview(code: string): MaybePromise<RoomPreview>;
   health(): MaybePromise<DriverHealth>;
   /** Releases timers and connections; sockets are closed by the caller. */

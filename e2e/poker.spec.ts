@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type BrowserContext, type Locator, type Page } from '@playwright/test';
-import { createParty, expectReadyCount, joinByCode, readyAll } from './party';
+import { closeResults, createParty, expectReadyCount, joinByCode, readyAll } from './party';
 import { tableBots, type TableBot } from './tableBots';
 import { myAreaOnScreen, tilesReadable } from './tableFit';
 
@@ -9,7 +9,7 @@ import { myAreaOnScreen, tilesReadable } from './tableFit';
  * (1/2 pot, Pot, MAX, a typed raise sent with Enter, a call, a fold, checks down) with only the
  * acting page's moves lit, the board coming out street by street, a showdown on the table (no
  * results screen) with the pot paid to the winner; a hand folded round to one player with no cards
- * shown; the podium ranked by chips; and a second game with the desktop shortcuts, the panel at
+ * shown; the results ranked by chips; and a second game with the desktop shortcuts, the panel at
  * 320x568 and the host's End game. Every step checks that each page's hole cards appear on that
  * page only until a showdown shows them, and that the chips equal the platform score. The deck is
  * really shuffled, so the checks hold whatever is dealt. Serial: the tests build on each other.
@@ -402,7 +402,7 @@ test('hand one: a raise through the panel, a call and a fold, the board street b
   for (const p of players) await expect(p.page.getByTestId('hand-indicator')).toHaveAttribute('data-hand', '2', { timeout: 20_000 });
 });
 
-test('hand two: two folds hand the pot over with no cards shown, and the last hand ends on the podium ranked by chips', async () => {
+test('hand two: two folds hand the pot over with no cards shown, and the last hand ends with the results ranked by chips', async () => {
   await holeCardsStayPrivate();
   await chipsConserved();
   const folders: Player[] = [];
@@ -431,15 +431,15 @@ test('hand two: two folds hand the pot over with no cards shown, and the last ha
   for (const p of players) {
     const end = p.page.getByTestId('overlay-game-end');
     await expect(end).toBeVisible({ timeout: 20_000 });
-    await expect(end.getByTestId('podium-entry')).toHaveCount(3);
+    await expect(end.getByTestId('results-entry')).toHaveCount(3);
   }
-  const entries = await host.page.getByTestId('podium-entry').evaluateAll((els) => els.map((el) => ({ rank: Number((el as HTMLElement).dataset.rank), name: el.textContent ?? '' })));
+  const entries = await host.page.getByTestId('results-entry').evaluateAll((els) => els.map((el) => ({ rank: Number((el as HTMLElement).dataset.rank), name: el.textContent ?? '' })));
   for (const entry of entries) {
     const me = players.find((p) => entry.name.includes(p.name));
-    if (!me) throw new Error(`podium entry without a player: ${entry.name}`);
+    if (!me) throw new Error(`results entry without a player: ${entry.name}`);
     expect(entry.rank).toBe(1 + players.filter((p) => chips[p.name] > chips[me.name]).length);
   }
-  await host.page.getByTestId('back-to-lobby').click();
+  for (const p of players) await closeResults(p.page);
   for (const p of players) await expect(p.page.getByTestId('room-code')).toHaveText(roomCode);
 });
 
@@ -477,18 +477,20 @@ test('a second game: the desktop shortcuts, the panel at 320x568, and the host e
   await pia.page.getByTestId('menu-sheet-close').click();
 
   await host.page.getByTestId('end-game').click();
-  await expect(host.page.getByTestId('end-game-confirm')).toBeVisible();
-  await host.page.getByTestId('end-game-cancel').click();
+  await expect(host.page.getByTestId('end-game-confirm')).toContainText('The hand in play is off. Every bet goes back.');
+  await host.page.getByTestId('end-game-no').click();
   await expect(screen(host)).toHaveAttribute('data-phase', 'acting');
   await host.page.getByTestId('end-game').click();
   await host.page.getByTestId('end-game-yes').click();
   for (const p of players) {
     await expect(p.page.getByTestId('overlay-game-end')).toBeVisible();
-    await expect(p.page.getByTestId('podium-entry')).toHaveCount(3);
+    await expect(p.page.getByTestId('results-entry')).toHaveCount(3);
+    await expect(p.page.getByTestId('results-reason')).toHaveText('The host ended the game.');
   }
   // The stakes went back: three stacks of the starting chips, all sharing first place.
-  const ranks = await host.page.getByTestId('podium-entry').evaluateAll((els) => els.map((el) => Number((el as HTMLElement).dataset.rank)));
+  const ranks = await host.page.getByTestId('results-entry').evaluateAll((els) => els.map((el) => Number((el as HTMLElement).dataset.rank)));
   expect(ranks).toEqual([1, 1, 1]);
+  for (const p of players) await closeResults(p.page);
 });
 
 const PHONES = [PORTRAIT, { width: 360, height: 740 }, SMALL];

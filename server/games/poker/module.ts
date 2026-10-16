@@ -1,6 +1,6 @@
 /**
  * Poker's server module: no-limit Texas Hold'em as a pure reducer over PokerData. Chips are the
- * score: every chip movement is a score effect, so the podium ranks the stacks.
+ * score: every chip movement is a score effect, so the results rank the stacks.
  */
 import {
   DEFAULT_POKER_SETTINGS,
@@ -83,9 +83,7 @@ function onMessage(gx: Gx, playerId: string, msg: PokerClientMessage): void {
     case 'allIn':
       return playerMove(gx, playerId, msg);
     case 'next':
-      return next(gx, playerId);
-    case 'endGame':
-      return endGame(gx, playerId);
+      return next(gx, playerId, msg.hand);
   }
 }
 
@@ -130,10 +128,11 @@ export const pokerModule: GameServerModule<PokerSettings, PokerData, PokerView, 
   handle,
   nextDeadline,
   view: viewFor,
-  hostMessages: new Set(['next', 'endGame']),
+  hostMessages: new Set(['next']),
+  end: (ctx, data) => withDraft(data, (draft, effects) => endGame({ ctx, data: draft, effects, shown: { hand: draft.hand, board: draft.community.length } })),
   // One deck seats TABLE_SEATS: the extras wait for a seat in join order (stackedPlayers).
   queuesSeats: true,
-  // A player who never got a seat never played: they stay off the podium.
+  // A player who never got a seat never played: they stay out of the results.
   ranks: (data, playerId) => data.seats[playerId] !== undefined,
 };
 

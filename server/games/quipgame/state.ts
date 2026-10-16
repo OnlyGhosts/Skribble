@@ -57,7 +57,7 @@ export interface QuipgameData {
   /**
    * 'waiting': holding between rounds because fewer than three players are connected while
    * enough still hold seats (the last result stays up under RoomState.waiting). 'over' once the
-   * last result ended and the platform took over with the podium.
+   * last result ended and the platform took over with the results.
    */
   phase: QuipgamePhase | 'waiting' | 'over';
   /** While 'waiting' with enough players connected again: when the next round starts (the settle); null otherwise. */

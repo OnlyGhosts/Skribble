@@ -7,12 +7,11 @@ import { useAppMode } from '../../platform/lib/useViewport';
 import { useActiveGame } from '../../platform/store/selectors';
 import { TableShell } from '../../platform/table/TableShell';
 import { ControlPanel } from './components/ControlPanel';
-import { EndGameControl } from './components/EndGame';
 import { Table } from './components/Table';
-import { isActing, nameOf, pendingBettors, playerOf, useConnected, useTableNow } from './hooks';
+import { isActing, nameOf, pendingBettors, playerOf, useConnected, useRejoining, useTableNow } from './hooks';
 import { focusOf } from './lib/focus';
 import { tableOf, type TableModel } from './lib/table';
-import { animating, frameAt, outcomesShown, snapTimeline, type Timeline } from './lib/timeline';
+import { animating, frameAt, myHandLanded, outcomesShown, snapTimeline, type Timeline } from './lib/timeline';
 import { panelStatus, phaseKicker, roundLabel } from './lib/text';
 import { useBlackjack } from './store';
 
@@ -37,6 +36,9 @@ export function BlackjackScreen({ room, meId, isHost }: GameScreenProps<Blackjac
   const isPhone = useMediaQuery(PHONE_QUERY);
   useAppMode(isPhone);
   const connected = useConnected();
+  const rejoining = useRejoining();
+  const pending = useBlackjack((s) => s.pending);
+  const queued = useBlackjack((s) => s.queuedBet !== null);
   const sheet = useBlackjack((s) => s.sheet);
   const openSheet = useBlackjack((s) => s.openSheet);
   const stored = useBlackjack((s) => s.timeline);
@@ -57,6 +59,8 @@ export function BlackjackScreen({ room, meId, isHost }: GameScreenProps<Blackjac
   const busy = animating(timeline, now);
   // The settled round's reveal is still playing: every part of the screen says it is the dealer's turn.
   const dealerPlaying = Boolean(frame.table?.settled) && !outcomesShown(frame.timeline, now);
+  // My moves wait only for my own cards and the dealer's up card, not for the whole deal to land.
+  const movesReady = myTurn && view.turn !== null && myHandLanded(timeline, table, meId, view.turn.handIndex, now);
   const status = panelStatus({
     phase: view.phase,
     seated: seat !== undefined,
@@ -64,7 +68,8 @@ export function BlackjackScreen({ room, meId, isHost }: GameScreenProps<Blackjac
     connected,
     inRound: view.order.includes(meId),
     hasChips: (seat?.chips ?? 0) + (seat?.bet ?? 0) > 0,
-    betPlaced: (seat?.bet ?? 0) > 0,
+    betPlaced: (seat?.bet ?? 0) > 0 || pending?.kind === 'bet' || queued,
+    betQueued: queued,
     pending: pendingBettors(view)
       .filter((id) => id !== meId)
       .map((id) => nameOf(room, id)),
@@ -74,6 +79,8 @@ export function BlackjackScreen({ room, meId, isHost }: GameScreenProps<Blackjac
     handIndex: view.turn?.handIndex ?? 0,
     handCount: seat?.hands.length ?? 0,
     dealerPlaying,
+    dealing: myTurn && !movesReady,
+    turnAway: view.turn !== null && (view.away ?? []).includes(view.turn.playerId),
   });
   const focus = focusOf({ view, table: frame.table, dealerPlaying, outcomesShown: outcomesShown(frame.timeline, now), meId });
   // Someone else's turn: their face beside "Pia's turn" in the panel.
@@ -105,9 +112,23 @@ export function BlackjackScreen({ room, meId, isHost }: GameScreenProps<Blackjac
       players={<PlayerList room={room} meId={meId} isHost={isHost} mode="game" game={game} />}
       sheet={sheet}
       onSheet={openSheet}
-      endControl={(variant) => isHost && playing && <EndGameControl variant={variant} phase={view.phase} requested={view.endRequested} />}
       table={<Table room={room} view={view} meId={meId} truth={table} frame={frame} now={now} isPhone={isPhone} focus={focus} chipsOf={chipsOf} />}
-      panel={<ControlPanel room={room} view={view} meId={meId} balance={chipsOf(meId)} status={panel} canSend={playing && connected && !held} busy={busy} turnName={turnName} hotkeys={!isPhone} />}
+      panel={
+        <ControlPanel
+          room={room}
+          view={view}
+          meId={meId}
+          balance={chipsOf(meId)}
+          status={panel}
+          canSend={playing && connected && !rejoining && !held}
+          movesReady={movesReady}
+          dealerPlaying={dealerPlaying}
+          pending={pending}
+          queued={queued}
+          turnName={turnName}
+          hotkeys={!isPhone}
+        />
+      }
     />
   );
 }

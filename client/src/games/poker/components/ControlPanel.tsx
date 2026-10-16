@@ -15,7 +15,7 @@ interface Props {
   /** My stack on show (a pot still sliding over is not on it yet). */
   balance: number;
   status: PanelStatus;
-  /** Sends can go out: the game is running and the socket is up. */
+  /** Sends can go out: the game is running, the socket is up and the seat is back (no rejoin in flight). */
   canSend: boolean;
   /** Cards or chips are still moving: the moves wait for them. */
   busy: boolean;
@@ -33,9 +33,11 @@ interface Props {
 export function ControlPanel({ view, meId, balance, status, canSend, busy, hotkeys }: Props) {
   const seat = view.players[meId];
   const raiseText = usePoker((s) => s.raiseText);
+  const pending = usePoker((s) => s.pending);
   const [editing, setEditing] = useState(false);
   const { actions } = view;
-  const myTurn = canSend && !busy && view.phase === 'acting' && view.turn === meId;
+  // A move of mine still waiting for the table's answer holds them all: a second tap never plays twice.
+  const myTurn = canSend && !busy && pending === null && view.phase === 'acting' && view.turn === meId;
   const range = myTurn ? raiseRange(actions) : null;
   const text = raiseText ?? (range ? String(range.min) : '');
   const amount = range ? amountFrom(text, range) : null;
@@ -46,15 +48,16 @@ export function ControlPanel({ view, meId, balance, status, canSend, busy, hotke
   const canWager = range !== null && amount !== null;
   const send = () => {
     if (!canWager || amount === null) return;
-    wager(actions, amount);
+    wager(view, actions, amount);
   };
   const can = {
     fold: myTurn && actions.canFold,
     checkCall: myTurn && (actions.canCall || actions.canCheck),
     allIn: myTurn && actions.canAllIn,
   };
-  const checkOrCall = () => (actions.canCall ? call() : check());
-  useHotkeys(hotkeys, { F: can.fold ? () => void fold() : null, C: can.checkCall ? () => void checkOrCall() : null, R: canWager ? send : null, A: can.allIn ? () => void allIn() : null });
+  const checkOrCall = () => (actions.canCall ? call(view) : check(view));
+  useHotkeys(hotkeys, { F: can.fold ? () => void fold(view) : null, C: can.checkCall ? () => void checkOrCall() : null, R: canWager ? send : null, A: can.allIn ? () => void allIn(view) : null });
+  const sent = (move: string) => pending?.move === move;
 
   const kind = wagerKind(view, range);
   const wagerWord = kind === 'bet' ? 'Bet' : 'Raise';
@@ -101,9 +104,9 @@ export function ControlPanel({ view, meId, balance, status, canSend, busy, hotke
         {range ? `Between ${range.min} and ${range.max} chips` : 'No raise possible'}
       </span>
       <PanelMoves count={3}>
-        <MoveButton label="Fold" icon={<FoldIcon size={16} />} testId="action-fold" enabled={can.fold} onClick={() => void fold()} hotkey={hotkeys ? 'F' : undefined} />
-        <MoveButton label={wagerWord} ariaLabel={wagerAria} icon={<RaiseIcon size={16} />} testId="action-raise" enabled={canWager} onClick={send} hotkey={hotkeys ? 'R' : undefined} data={{ 'data-kind': kind, 'data-amount': amount ?? undefined }} />
-        <MoveButton label="All in" icon={<AllInIcon size={16} />} testId="action-allin" enabled={can.allIn} onClick={() => void allIn()} hotkey={hotkeys ? 'A' : undefined} />
+        <MoveButton label="Fold" icon={<FoldIcon size={16} />} testId="action-fold" enabled={can.fold} onClick={() => void fold(view)} sent={sent('fold')} hotkey={hotkeys ? 'F' : undefined} />
+        <MoveButton label={wagerWord} ariaLabel={wagerAria} icon={<RaiseIcon size={16} />} testId="action-raise" enabled={canWager} onClick={send} sent={sent('bet') || sent('raise')} hotkey={hotkeys ? 'R' : undefined} data={{ 'data-kind': kind, 'data-amount': amount ?? undefined }} />
+        <MoveButton label="All in" icon={<AllInIcon size={16} />} testId="action-allin" enabled={can.allIn} onClick={() => void allIn(view)} sent={sent('allIn')} hotkey={hotkeys ? 'A' : undefined} />
       </PanelMoves>
       <button
         type="button"
@@ -113,6 +116,7 @@ export function ControlPanel({ view, meId, balance, status, canSend, busy, hotke
         aria-keyshortcuts={hotkeys ? 'C' : undefined}
         data-testid={actions.canCall ? 'action-call' : 'action-check'}
         data-amount={actions.canCall ? actions.callAmount : undefined}
+        data-sent={sent('call') || sent('check') || undefined}
       >
         {callLabel}
       </button>

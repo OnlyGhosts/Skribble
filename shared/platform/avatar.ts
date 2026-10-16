@@ -1,4 +1,7 @@
 import { z } from 'zod';
+import { AVATAR_FACES, type AvatarFace } from './avatarFaces.js';
+
+export { AVATAR_FACES, type AvatarFace };
 
 /** Avatar = coloured circle + emoji face. Both fields are indices into these lists. */
 export const AVATAR_COLORS: readonly string[] = [
@@ -6,10 +9,7 @@ export const AVATAR_COLORS: readonly string[] = [
   '#06b6d4', '#3b82f6', '#8b5cf6', '#d946ef', '#ec4899', '#78716c',
 ];
 
-export const AVATAR_EMOJIS: readonly string[] = [
-  '😀', '😎', '🤠', '🥳', '🤖', '👻', '🐱', '🐶', '🦊', '🐼', '🐸', '🐵',
-  '🦄', '🐙', '🐧', '🦖', '🍕', '🌵', '🚀', '🎃', '🐝', '🦋', '🐢', '🦁',
-];
+export const AVATAR_EMOJIS: readonly string[] = AVATAR_FACES.map((f) => f.emoji);
 
 export const avatarSchema = z.object({
   color: z.number().int().min(0).max(AVATAR_COLORS.length - 1),
@@ -29,6 +29,10 @@ export function avatarColor(a: Avatar): string {
   return AVATAR_COLORS[a.color] ?? AVATAR_COLORS[0];
 }
 
+export function avatarFace(a: Avatar): AvatarFace {
+  return AVATAR_FACES[a.emoji] ?? AVATAR_FACES[0];
+}
+
 export function avatarEmoji(a: Avatar): string {
-  return AVATAR_EMOJIS[a.emoji] ?? AVATAR_EMOJIS[0];
+  return avatarFace(a).emoji;
 }

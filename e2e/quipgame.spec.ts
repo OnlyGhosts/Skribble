@@ -1,11 +1,11 @@
 import { expect, test, type Browser, type BrowserContext, type Locator, type Page } from '@playwright/test';
 import { PROMPTS } from '../shared/games/quipgame/prompts';
 import { QUIPGAME_RESULTS_SECONDS } from '../shared/games/quipgame/protocol';
-import { createParty, enterNameIfAsked, readyAll } from './party';
+import { closeResults, createParty, enterNameIfAsked, readyAll } from './party';
 
 /**
  * A whole Quip Game between a desktop host and two phones (390x844, touch): the lobby settings,
- * two writing-and-voting rounds (the second at double points), the ranked final and the podium.
+ * two writing-and-voting rounds (the second at double points), the ranked final and the results.
  * With three players every matchup has exactly one eligible voter, so the result is predictable.
  * Serial: the tests build on each other.
  */
@@ -315,10 +315,9 @@ test('the final: everyone answers, ranks the other two with medals, and the resu
   for (const p of players) {
     const end = p.page.getByTestId('overlay-game-end');
     await expect(end).toBeVisible();
-    await expect(end.getByTestId('podium-entry')).toHaveCount(3);
+    await expect(end.getByTestId('results-entry')).toHaveCount(3);
   }
-  await expect(host.page.getByTestId('back-to-lobby')).toBeVisible();
-  await host.page.getByTestId('back-to-lobby').click();
+  for (const p of players) await closeResults(p.page);
   for (const p of players) await expect(p.page.getByTestId('room-code')).toHaveText(roomCode);
   await readyAll([pia.page, quinn.page]);
   await expect(host.page.getByTestId('start-game')).toBeEnabled();

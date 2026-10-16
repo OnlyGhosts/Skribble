@@ -9,7 +9,11 @@ const ICONS: Record<ToastKind, typeof AlertIcon> = {
   error: AlertIcon,
 };
 
-/** Status toasts: informational ones go after a few seconds, errors stay until dismissed. */
+/**
+ * Status toasts, below the top bar's buttons: every one goes by itself after a few seconds, the
+ * same line twice shows once, and a tap on one passes through to the screen (only its close
+ * button takes it).
+ */
 export function Toasts() {
   const toasts = usePlatformStore((s) => s.toasts);
   const dismiss = usePlatformStore((s) => s.dismissToast);

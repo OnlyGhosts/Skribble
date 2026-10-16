@@ -32,6 +32,8 @@ const S = await import('./lib/screen');
 const { blindsIncreaseLabel, handsLabel } = await import('./SettingsFields');
 const { longestReadout } = await import('../../platform/components/SettingControls');
 const { player, registryOf, resetStore, room, welcome } = await import('../../test/fixtures');
+const PA = await import('./actions');
+const { socket } = await import('../../platform/net/socket');
 
 const NOW = Date.now();
 const c = (rank: Card['rank'], suit: Card['suit'] = 'S'): Card => ({ rank, suit });
@@ -669,11 +671,11 @@ describe('the screen', () => {
     expect(html).toContain('Bet amount');
   });
 
-  it('gives the host End game with a confirmation, and nobody else', () => {
+  it('gives the host the platform\'s End game in the top bar, nobody else, and says what it does mid-hand', () => {
     expect(tagWith(render(pkRoom(hostTurn()), 'host'), 'end-game')).toBeTruthy();
     expect(tagsWith(render(pkRoom(view()), 'bob', false), 'end-game')).toHaveLength(0);
-    usePokerStore.getState().setConfirmEnd(true);
-    expect(tagWith(render(pkRoom(hostTurn()), 'host'), 'end-game-confirm')).toBeTruthy();
+    expect(pokerClient.endGameNote?.(pkRoom(hostTurn()))).toBe('The hand in play is off. Every bet goes back.');
+    expect(pokerClient.endGameNote?.(pkRoom(view({ phase: 'results' })))).toBeNull();
   });
 });
 
@@ -888,5 +890,45 @@ describe('player-list hooks and the store', () => {
     usePokerStore.getState().setRaiseText('50');
     pokerClient.onLeave?.();
     expect(usePokerStore.getState().raiseText).toBeNull();
+  });
+});
+
+describe('a move waiting for its answer', () => {
+  const myTurn = () => view({ actions: { ...NO_ACTIONS, canFold: true, canCall: true, callAmount: 10, canRaise: true, minRaiseTo: 20, maxRaiseTo: 1000, canAllIn: true } });
+
+  it('aims each move at the hand and the latest move on the table, and holds every move until the table answers', () => {
+    const sent: unknown[] = [];
+    vi.spyOn(socket, 'send').mockImplementation((msg: unknown) => {
+      sent.push(msg);
+      return true;
+    });
+    render(pkRoom(myTurn()), 'host');
+    PA.call(myTurn());
+    expect(sent).toEqual([{ t: 'call', hand: 2, move: 2 }]);
+    const held = render(pkRoom(myTurn()), 'host');
+    for (const id of ['action-fold', 'action-raise', 'action-allin', 'action-call']) expect(disabled(held, id), id).toBe(true);
+    expect(attr(tagWith(held, 'action-call'), 'data-sent')).toBe('true');
+    // The answer: my call is the latest move now.
+    const answered = view({ turn: 'bob', lastMove: { kind: 'call', amount: 10, seq: 3, playerId: 'host', street: 'preflop' } });
+    pokerClient.onRoom?.(pkRoom(answered), pkRoom(myTurn()));
+    expect(usePokerStore.getState().pending).toBeNull();
+    vi.restoreAllMocks();
+  });
+
+  it('lets go after a refusal, a rejoin, or PENDING_MS', async () => {
+    vi.useFakeTimers();
+    const { PENDING_MS } = await import('./store');
+    vi.spyOn(socket, 'send').mockReturnValue(true);
+    PA.fold(myTurn());
+    pokerClient.onError?.('NOT_ALLOWED', 'You cannot check: 10 to call.');
+    expect(usePokerStore.getState().pending).toBeNull();
+    PA.fold(myTurn());
+    pokerClient.onWelcome?.(undefined);
+    expect(usePokerStore.getState().pending).toBeNull();
+    PA.fold(myTurn());
+    vi.advanceTimersByTime(PENDING_MS);
+    expect(usePokerStore.getState().pending).toBeNull();
+    vi.restoreAllMocks();
+    vi.useRealTimers();
   });
 });

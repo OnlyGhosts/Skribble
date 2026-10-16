@@ -3,16 +3,18 @@ import { fileURLToPath } from 'node:url';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createElement } from 'react';
 import { renderToString } from 'react-dom/server';
+import type { GameResults, RoomState } from '@shared/platform/protocol';
 import { installBrowserGlobals } from '../../test/env';
 
 installBrowserGlobals();
 
 const { usePlatformStore } = await import('../store/usePlatformStore');
-const { player, resetStore, room, welcome } = await import('../../test/fixtures');
+const { player, registryOf, resetStore, room, welcome } = await import('../../test/fixtures');
 const { SettingsPanel } = await import('./SettingsPanel');
 const { Timer } = await import('./Timer');
-const { PodiumOverlay } = await import('./PodiumOverlay');
-const { WaitingOverlay, missingPlayers, waitingTitle } = await import('./WaitingOverlay');
+const { ResultsPopup } = await import('./ResultsPopup');
+const { EndGameConfirm, ExitActions, LeaveConfirm, endGameNote, leaveNote } = await import('./GameExit');
+const { WaitingOverlay, clockText, missingPlayers, waitingHint, waitingTitle } = await import('./WaitingOverlay');
 const { ReconnectingBanner, reconnectLabel } = await import('./ReconnectingBanner');
 const { gameById } = await import('@shared/platform/games');
 const { Home, cleanName, firstInvalidBox, focusAfterRefusal, homeView, initialGame, previewLine } = await import('../screens/Home');
@@ -28,9 +30,10 @@ const { GamePicker } = await import('./GamePicker');
 const { noOrphan } = await import('../lib/format');
 const { Lobby } = await import('../screens/Lobby');
 const { GAME_LIST } = await import('@shared/platform/games');
-const { AVATAR_COLORS, AVATAR_EMOJIS } = await import('@shared/platform/avatar');
+const { AVATAR_COLORS, AVATAR_FACES } = await import('@shared/platform/avatar');
+const { Avatar } = await import('./Avatar');
 const { arcFraction, remainingMs } = await import('../lib/useCountdown');
-const { GameTopBar, RoundStatus } = await import('./GameTopBar');
+const { GameMenuSheet, GameTopBar, RoundStatus } = await import('./GameTopBar');
 const { CHIP_GAP, CHIP_WIDTH, chipCapacity, chipLayout, chipOrder, chipStatus } = await import('./PlayerChips');
 const { ResultNext, ResultPoints, earnersOf } = await import('./RoundResult');
 
@@ -79,6 +82,22 @@ function tagsWith(html: string, testId: string): string[] {
 
 function attr(tag: string, name: string): string | undefined {
   return tag.match(new RegExp(`${name}="([^"]*)"`))?.[1];
+}
+
+/** The visible text inside the element carrying `data-testid="<id>"` (tags and React's text separators dropped). */
+function textOf(html: string, testId: string): string {
+  const start = html.indexOf(tagWith(html, testId));
+  const tag = tagWith(html, testId).match(/^<(\w+)/)?.[1] ?? 'div';
+  let depth = 0;
+  let i = start;
+  const re = new RegExp(`<(/?)${tag}\\b[^>]*>`, 'g');
+  re.lastIndex = start;
+  for (let m = re.exec(html); m; m = re.exec(html)) {
+    depth += m[1] ? -1 : 1;
+    i = m.index + m[0].length;
+    if (depth === 0) break;
+  }
+  return html.slice(start, i).replace(/<!-- -->/g, '').replace(/<[^>]*>/g, '').replace(/&#x27;/g, "'").trim();
 }
 
 beforeEach(resetStore);
@@ -172,6 +191,23 @@ describe('waiting overlay', () => {
     expect(html.match(/avatar--dimmed/g)).toHaveLength(2);
   });
 
+  it('counts down a hold with a limit (The Spy Game\'s away spy), without the player count when enough are connected', () => {
+    expect(clockText(90)).toBe('1:30');
+    expect(clockText(5)).toBe('0:05');
+    expect(waitingHint(null)).toBe('The game carries on by itself as soon as they are back.');
+    expect(waitingHint(75)).toBe('If they are not back in 1:15, the game goes on without them.');
+    usePlatformStore.setState({ clockOffset: 0 });
+    const spyAway = room({
+      phase: 'playing',
+      players: [player('host'), player('bob', { joinOrder: 1, connected: false }), player('carol', { joinOrder: 2 }), player('dan', { joinOrder: 3 })],
+      waiting: { reason: 'players', missing: ['bob'], needed: 3, connected: 3, until: Date.now() + 90_000 },
+    });
+    const html = renderToString(createElement(WaitingOverlay, { room: spyAway, waiting: spyAway.waiting!, isHost: true }));
+    expect(html).toContain('If they are not back in 1:30, the game goes on without them.');
+    expect(html).not.toContain('data-testid="waiting-count"');
+    expect(html).toContain('Remove bob');
+  });
+
   it('lets the host remove each missing player and explains what that does', () => {
     const html = renderToString(createElement(WaitingOverlay, { room: holding, waiting: holding.waiting!, isHost: true }));
     const buttons = html.match(/<button[^>]*data-testid="waiting-remove"[^>]*>/g) ?? [];
@@ -220,7 +256,7 @@ describe('waiting overlay', () => {
     const css = readFileSync(fileURLToPath(new URL('../styles/components.css', import.meta.url)), 'utf8');
     const sheet = zIndexOf(css, '.sheet');
     expect(zIndexOf(css, '.waiting-overlay')).toBeGreaterThan(sheet);
-    expect(zIndexOf(css, '.podium-overlay')).toBeGreaterThan(sheet);
+    expect(zIndexOf(css, '.results-popup')).toBeGreaterThan(sheet);
     expect(zIndexOf(css, '.waiting-overlay')).toBeLessThan(zIndexOf(css, '.toasts'));
     // The remove buttons keep a 44px target and let a long name wrap instead of overflowing the card.
     const remove = css.slice(css.indexOf('.waiting__remove .btn {'));
@@ -527,8 +563,7 @@ describe('content mode only where it matters', () => {
 });
 
 describe('ready controls', () => {
-  const html = (overrides: Parameters<typeof player>[1], context: 'lobby' | 'podium' = 'lobby') =>
-    renderToString(createElement(ReadyControls, { me: player('bob', { participating: false, ...overrides }), context }));
+  const html = (overrides: Parameters<typeof player>[1]) => renderToString(createElement(ReadyControls, { me: player('bob', { participating: false, ...overrides }) }));
   const buttons = (markup: string) => markup.match(/<button[^>]*>/g) ?? [];
 
   it("not ready: one I'm ready over a secondary Sit this one out button", () => {
@@ -550,7 +585,7 @@ describe('ready controls', () => {
   it('puts extra buttons (the room\'s Change my look) in the same row, sitting out included', () => {
     const extra = createElement('button', { type: 'button', className: 'btn btn--secondary', 'data-testid': 'edit-profile' }, 'Change my look');
     for (const overrides of [{}, { sittingOut: true }]) {
-      const markup = renderToString(createElement(ReadyControls, { me: player('bob', overrides), context: 'lobby', extra }));
+      const markup = renderToString(createElement(ReadyControls, { me: player('bob', overrides), extra }));
       const row = markup.slice(markup.indexOf('ready-controls__more'));
       expect(row).toContain('data-testid="edit-profile"');
     }
@@ -575,16 +610,12 @@ describe('ready controls', () => {
     expect(markup).toContain('You&#x27;ll watch the next game.');
   });
 
-  it('the host is in by pressing Start: in the lobby only the way out is left, on the podium their control says so', () => {
+  it('the host is in by pressing Start: only the way out is left', () => {
     const host = player('host', { participating: false });
-    const lobby = renderToString(createElement(ReadyControls, { me: host, context: 'lobby' }));
+    const lobby = renderToString(createElement(ReadyControls, { me: host }));
     expect(lobby).not.toContain('data-testid="ready-toggle"');
     expect(buttons(lobby)).toHaveLength(1);
     expect(lobby).toContain('Sit this one out');
-    const podium = renderToString(createElement(ReadyControls, { me: host, context: 'podium' }));
-    expect(tagWith(podium, 'ready-toggle')).toContain('disabled');
-    expect(podium).toContain('You start the game');
-    expect(podium).not.toContain('—');
   });
 });
 
@@ -602,17 +633,82 @@ describe('player rows', () => {
 describe('avatar picker', () => {
   it('shows every face and colour at once, with no scrolling box', () => {
     const markup = renderToString(createElement(AvatarPicker, { value: { color: 0, emoji: 0 }, onChange: () => undefined }));
-    expect(markup.match(/class="emoji-choice/g)).toHaveLength(AVATAR_EMOJIS.length);
+    expect(markup.match(/class="emoji-choice/g)).toHaveLength(AVATAR_FACES.length);
     expect(markup.match(/class="swatch/g)).toHaveLength(AVATAR_COLORS.length);
-    expect(AVATAR_EMOJIS).toHaveLength(24);
+    expect(AVATAR_FACES).toHaveLength(50);
     const css = stylesheet('components.css');
     expect(css).not.toMatch(/\.avatar-picker__emojis \{[^}]*(max-height|overflow)/);
-    // 44px a choice wherever there is room; the 40px floor only on the narrowest phones.
-    expect(ruleOf(css, '.avatar-picker__group')).toContain('minmax(44px, 1fr)');
-    const narrow = css.slice(css.indexOf('@media (max-width: 340px)'));
-    expect(narrow).toMatch(/^@media \(max-width: 340px\) \{\s*\.avatar-picker__group \{\s*grid-template-columns: repeat\(auto-fill, minmax\(40px, 1fr\)\);/);
     // A colour dot stays round: square up to 48px, never squashed by a height cap.
     expect(ruleOf(css, '.avatar-picker__group .swatch')).not.toContain('max-height');
+  });
+
+  it('names each face and shows its picture, the chosen one checked', () => {
+    const markup = renderToString(createElement(AvatarPicker, { value: { color: 3, emoji: 42 }, onChange: () => undefined }));
+    const faces = markup.match(/<button[^>]*class="emoji-choice[^"]*"[^>]*>.*?<\/button>/g) ?? [];
+    expect(faces).toHaveLength(50);
+    faces.forEach((button, i) => {
+      expect(button).toContain(`aria-label="${AVATAR_FACES[i].name}"`);
+      // The button's label says what it is, so the picture inside is silent.
+      expect(button).toContain(`src="/avatars/${AVATAR_FACES[i].file}.webp" alt=""`);
+      expect(button).toContain(`aria-checked="${i === 42}"`);
+    });
+    expect(markup).toContain('alt="Your avatar: Dragon face"');
+  });
+
+  it('lays the faces out in full rows only: 5 or 10 equal columns, 4, 6 or 12 for the colours, each at least 44px', () => {
+    const css = stylesheet('components.css');
+    expect(ruleOf(css, '.avatar-picker')).toContain('container-type: inline-size');
+    expect(ruleOf(css, '.avatar-picker__group')).toContain('grid-template-columns: repeat(5, minmax(0, 1fr))');
+    expect(ruleOf(css, '.avatar-picker__colors')).toContain('grid-template-columns: repeat(6, minmax(0, 1fr))');
+    const columns = [...css.matchAll(/@container \((min|max)-width: ([\d.]+)px\) \{\s*\.avatar-picker__(emojis|colors) \{\s*grid-template-columns: repeat\((\d+), minmax\(0, 1fr\)\);/g)].map((m) => ({
+      bound: m[1],
+      width: Number(m[2]),
+      group: m[3],
+      count: Number(m[4]),
+    }));
+    expect(columns).toEqual([
+      { bound: 'max', width: 263.98, group: 'colors', count: 4 },
+      { bound: 'min', width: 476, group: 'emojis', count: 10 },
+      { bound: 'min', width: 528, group: 'colors', count: 12 },
+    ]);
+    // Every count divides its list, and every column switch leaves each choice 44px or more (faces with 4px gaps, colours with none).
+    for (const { bound, width, group, count } of columns) {
+      const items = group === 'emojis' ? AVATAR_FACES.length : AVATAR_COLORS.length;
+      expect(items % count).toBe(0);
+      if (bound === 'min') expect((width - (group === 'emojis' ? 4 * (count - 1) : 0)) / count).toBeGreaterThanOrEqual(44);
+      // Just past a max-width switch the six colour columns take over.
+      else expect(Math.ceil(width) / 6).toBeGreaterThanOrEqual(44);
+    }
+    expect(css).not.toContain('auto-fill, minmax(44px');
+  });
+});
+
+describe('avatar', () => {
+  it('draws the face as its bundled picture on the colour, lazily, sized by the font size', () => {
+    const markup = renderToString(createElement(Avatar, { avatar: { color: 7, emoji: 29 }, size: 'lg' }));
+    expect(markup).toMatch(/^<span class="avatar avatar--lg" style="background:#3b82f6" aria-hidden="true"><img class="face-img" src="\/avatars\/alien\.webp" alt="" width="52" height="52" loading="lazy" decoding="async" draggable="false"\/><\/span>$/);
+    const css = stylesheet('components.css');
+    expect(ruleOf(css, '.face-img')).toContain('width: 1.125em');
+    expect(ruleOf(css, '.face-img')).toContain('height: 1.125em');
+  });
+
+  it('is read out only when given a label, which becomes the alt text', () => {
+    const markup = renderToString(createElement(Avatar, { avatar: { color: 0, emoji: 0 }, label: 'Your avatar: Grinning face' }));
+    expect(markup).not.toContain('aria-hidden');
+    expect(markup).toContain('alt="Your avatar: Grinning face"');
+  });
+
+  it('keeps the old index of every saved avatar and falls back to the first face past the list', () => {
+    expect(renderToString(createElement(Avatar, { avatar: { color: 0, emoji: 23 } }))).toContain('src="/avatars/lion.webp"');
+    expect(renderToString(createElement(Avatar, { avatar: { color: 0, emoji: 77 } }))).toContain('src="/avatars/grinning-face.webp"');
+  });
+
+  it('has a picture for every size an avatar is drawn at, no larger than its 104px file at 2x', () => {
+    const css = stylesheet('components.css');
+    for (const size of ['sm', 'md', 'lg', 'xl']) {
+      const font = Number(ruleOf(css, `.avatar--${size}`).match(/font-size: (\d+)px/)?.[1]);
+      expect(font * 1.125 * 2, size).toBeLessThanOrEqual(104);
+    }
   });
 });
 
@@ -734,38 +830,58 @@ describe('lobby', () => {
   });
 });
 
-describe('podium overlay', () => {
-  const ended = (meId: string) => {
-    const state = room({
-      phase: 'ended',
-      players: [player('host', { score: 10 }), player('bob', { score: 30, joinOrder: 1 }), player('carol', { score: 20, joinOrder: 2 }), player('dan', { score: 0, joinOrder: 3, participating: false, sittingOut: true })],
-      podium: [
-        { playerId: 'bob', score: 30, rank: 1 },
-        { playerId: 'carol', score: 20, rank: 2 },
-        { playerId: 'host', score: 10, rank: 3 },
-      ],
-    });
-    return { room: state, meId };
-  };
+describe('results popup', () => {
+  const AV = { color: 0, emoji: 0 };
+  const results = (overrides: Partial<GameResults> = {}): GameResults => ({
+    id: 'r1',
+    gameId: 'scribble',
+    reason: 'finished',
+    entries: [
+      { playerId: 'bob', name: 'bob', avatar: AV, score: 30, rank: 1 },
+      { playerId: 'carol', name: 'carol', avatar: AV, score: 20, rank: 2 },
+      { playerId: 'host', name: 'host', avatar: AV, score: 10, rank: 3 },
+    ],
+    ...overrides,
+  });
+  const popup = (meId: string | null, r: GameResults = results()) => renderToString(createElement(ResultsPopup, { results: r, meId, onClose: () => undefined }));
 
-  it('celebrates the winner by name and points, tells each player their place, ranks the podium with the winner in the middle and lists everyone', () => {
-    const html = renderToString(createElement(PodiumOverlay, { ...ended('bob'), isHost: false }));
+  it('celebrates the winner by name and points, tells each player their place, ranks the top three with the winner in the middle and lists everyone', () => {
+    const html = popup('bob');
     expect(tagWith(html, 'overlay-game-end')).toContain('data-winner="true"');
+    expect(html).toContain('Scribble · Game over');
     expect(html).toContain('bob wins!');
     expect(html).toContain('>30 points<');
     expect(html).toContain('You won!');
     expect(html).toContain('data-testid="confetti"');
     // The small happy phone, decorative.
-    expect(html).toMatch(/<svg class="mascot podium-hero__mascot"[^>]*aria-hidden="true"/);
-    expect(tagsWith(html, 'podium-step').map((t) => attr(t, 'data-rank'))).toEqual(['2', '1', '3']);
-    expect(tagsWith(html, 'podium-entry').map((t) => attr(t, 'data-rank'))).toEqual(['1', '2', '3']);
-    const third = renderToString(createElement(PodiumOverlay, { ...ended('host'), isHost: true }));
+    expect(html).toMatch(/<svg class="mascot results-hero__mascot"[^>]*aria-hidden="true"/);
+    expect(tagsWith(html, 'results-step').map((t) => attr(t, 'data-rank'))).toEqual(['2', '1', '3']);
+    expect(tagsWith(html, 'results-entry').map((t) => attr(t, 'data-rank'))).toEqual(['1', '2', '3']);
+    expect(tagsWith(html, 'results-entry').map((t) => attr(t, 'data-name'))).toEqual(['bob', 'carol', 'host']);
+    const third = popup('host');
     expect(third).toContain('You came 3rd');
     expect(tagWith(third, 'overlay-game-end')).toContain('data-winner="false"');
-    const second = renderToString(createElement(PodiumOverlay, { ...ended('carol'), isHost: false }));
-    expect(second).toContain('You came 2nd');
-    const spectator = renderToString(createElement(PodiumOverlay, { ...ended('dan'), isHost: false }));
-    expect(spectator).toContain('You watched this one');
+    expect(popup('carol')).toContain('You came 2nd');
+    expect(popup('dan')).toContain('You watched this one');
+    // A game that ran its course needs no reason line.
+    expect(html).not.toContain('data-testid="results-reason"');
+  });
+
+  it('says why a game ended early, and crowns nobody when too few players were left', () => {
+    const host = popup('bob', results({ reason: 'host' }));
+    expect(textOf(host, 'results-reason')).toBe('The host ended the game.');
+    expect(host).toContain('bob wins!');
+    const short = popup('bob', results({ reason: 'players' }));
+    expect(textOf(short, 'results-reason')).toBe('Too few players were left.');
+    expect(short).toContain('Game over');
+    expect(short).not.toContain('bob wins!');
+    expect(short).not.toContain('data-testid="confetti"');
+    expect(short).toContain('You were in the lead');
+    expect(tagsWith(short, 'results-entry')).toHaveLength(3);
+    // Nobody had scored when it was cut short: nobody was in the lead either.
+    const blank = popup('carol', results({ reason: 'players', entries: results().entries.map((e) => ({ ...e, score: 0, rank: 1 })) }));
+    expect(blank).toContain('Nobody scored');
+    expect(blank).not.toContain('in the lead');
   });
 
   it('prints the standings like the headline: grouped thousands and "1 pt" for a single point', async () => {
@@ -773,15 +889,10 @@ describe('podium overlay', () => {
     expect(pointsShort(1)).toBe('1 pt');
     expect(pointsShort(0)).toBe('0 pts');
     expect(pointsShort(1100)).toBe('1,100 pts');
-    const state = room({
-      phase: 'ended',
-      players: [player('host', { score: 1100 }), player('bob', { score: 1, joinOrder: 1 })],
-      podium: [
-        { playerId: 'host', score: 1100, rank: 1 },
-        { playerId: 'bob', score: 1, rank: 2 },
-      ],
-    });
-    const html = renderToString(createElement(PodiumOverlay, { room: state, meId: 'bob', isHost: false }));
+    const html = popup('bob', results({ entries: [
+      { playerId: 'host', name: 'host', avatar: AV, score: 1100, rank: 1 },
+      { playerId: 'bob', name: 'bob', avatar: AV, score: 1, rank: 2 },
+    ] }));
     expect(html).toContain('>1,100 points<');
     expect(html).toContain('>1,100 pts<');
     expect(html).toContain('>1 pt<');
@@ -792,73 +903,143 @@ describe('podium overlay', () => {
     expect(list).toContain('>1,100 pts<');
   });
 
-  it('draws no focus ring around the podium card it focuses on opening (a container, not a control)', () => {
-    expect(ruleOf(stylesheet('components.css'), '.podium-card:focus-visible')).toContain('outline: none');
-  });
-
   it('announces a tie instead of crowning the first of the tied players', () => {
-    const tied = room({
-      phase: 'ended',
-      players: [player('host', { score: 30 }), player('bob', { score: 30, joinOrder: 1 })],
-      podium: [
-        { playerId: 'host', score: 30, rank: 1 },
-        { playerId: 'bob', score: 30, rank: 1 },
-      ],
-    });
-    const html = renderToString(createElement(PodiumOverlay, { room: tied, meId: 'bob', isHost: false }));
+    const html = popup('bob', results({ entries: [
+      { playerId: 'host', name: 'host', avatar: AV, score: 30, rank: 1 },
+      { playerId: 'bob', name: 'bob', avatar: AV, score: 30, rank: 1 },
+    ] }));
     expect(html).toContain('host and bob tie!');
     expect(html).toContain('You tied for the win!');
+    expect(html).toContain('>30 points each<');
     expect(html).not.toContain('host wins!');
   });
 
-  it('offers Ready for the next game to everyone with the count, and Play again / Back to lobby to the host only', () => {
-    const guest = renderToString(createElement(PodiumOverlay, { ...ended('bob'), isHost: false }));
-    expect(tagWith(guest, 'ready-toggle')).toContain('aria-pressed="false"');
-    expect(guest).toContain('Ready for the next game');
-    expect(guest).toContain('data-testid="sitout-toggle"');
-    // The host counts as ready by pressing Start; dan sits out and is not counted.
-    expect(guest).toContain('1 of 3 ready');
-    expect(guest).not.toContain('data-testid="back-to-lobby"');
-    expect(guest).not.toContain('data-testid="play-again"');
-    expect(guest).toContain('host picks what comes next');
-    const host = renderToString(createElement(PodiumOverlay, { ...ended('host'), isHost: true }));
-    expect(host).toContain('data-testid="back-to-lobby"');
-    expect(host).toContain('data-testid="play-again"');
-    // The host is counted as ready (Play again starts the game), and their toggle says so rather than asking.
-    expect(tagWith(host, 'ready-toggle')).toContain('aria-pressed="true"');
-    expect(tagWith(host, 'ready-toggle')).toContain('disabled');
-    expect(host).toContain('You start the game');
-    expect(host).toContain('1 of 3 ready');
-    expect(tagWith(host, 'sitout-toggle')).not.toContain('disabled');
-  });
-
-  it('keeps Ready and the host buttons out of the scrolling standings, so a small phone never hides them below the fold', () => {
-    const html = renderToString(createElement(PodiumOverlay, { ...ended('host'), isHost: true }));
-    const standings = html.indexOf('data-testid="podium-standings"');
-    const standingsEnd = html.indexOf('data-testid="podium-next"');
-    expect(standings).toBeGreaterThan(-1);
-    expect(html.slice(standings, standingsEnd)).toContain('data-testid="podium-entry"');
-    for (const id of ['ready-toggle', 'sitout-toggle', 'play-again', 'back-to-lobby']) expect(html.indexOf(`data-testid="${id}"`)).toBeGreaterThan(standingsEnd);
+  it('closes with Back to the room or the X, and holds no ready, leave or host buttons: the lobby has those', () => {
+    const html = popup('host');
+    expect(textOf(html, 'results-done')).toBe('Back to the room');
+    expect(tagWith(html, 'results-close')).toContain('aria-label="Close"');
+    for (const id of ['ready-toggle', 'sitout-toggle', 'play-again', 'back-to-lobby', 'leave-room', 'podium-menu']) expect(html).not.toContain(`data-testid="${id}"`);
+    // Back to the room stays below the scrolling standings, so a small phone never hides it.
+    expect(html.indexOf('data-testid="results-done"')).toBeGreaterThan(html.lastIndexOf('data-testid="results-entry"'));
     const css = stylesheet('components.css');
-    expect(ruleOf(css, '.podium-card')).toContain('overflow: hidden');
-    expect(ruleOf(css, '.podium-card__scroll')).toContain('overflow-y: auto');
-    expect(ruleOf(css, '.podium-card__scroll')).toContain('min-height: 0');
-    expect(ruleOf(css, '.podium-next')).toContain('flex: 0 0 auto');
+    expect(ruleOf(css, '.results-card')).toContain('overflow: hidden');
+    expect(ruleOf(css, '.results-card__scroll')).toContain('overflow-y: auto');
+    expect(ruleOf(css, '.results-card__scroll')).toContain('min-height: 0');
+    expect(ruleOf(css, '.results-card__actions')).toContain('flex: none');
   });
 
-  it('keeps Leave out of reach: no leave button on the card, only in the closed options sheet behind a confirmation', () => {
-    const html = renderToString(createElement(PodiumOverlay, { ...ended('bob'), isHost: false }));
-    expect(html).not.toContain('data-testid="podium-leave"');
-    expect(html).not.toContain('Leave room');
-    expect(html).toContain('data-testid="podium-menu"');
-  });
-
-  it('is a modal dialog whose card (never a button) takes the focus away from the game screen behind it', () => {
-    const html = renderToString(createElement(PodiumOverlay, { ...ended('host'), isHost: true }));
+  it('is a modal dialog whose card (never a button) takes the focus, with no focus ring around it', () => {
+    const html = popup('host');
     const dialog = tagWith(html, 'overlay-game-end');
     expect(dialog).toContain('role="dialog"');
     expect(dialog).toContain('aria-modal="true"');
-    expect(tagWith(html, 'podium-card')).toContain('tabindex="-1"');
+    expect(tagWith(html, 'results-card')).toContain('tabindex="-1"');
+    expect(ruleOf(stylesheet('components.css'), '.results-card:focus-visible')).toContain('outline: none');
+    // The backdrop is not a stop on the keyboard's way round.
+    expect(tagWith(html, 'results-backdrop')).toContain('tabindex="-1"');
+  });
+
+  it('shows over the lobby once a game ended, and the lobby is back under it when it closes', async () => {
+    const { RoomScreen } = await import('../../App');
+    const { registerGames } = await import('../registry');
+    registerGames(registryOf({ Screen: () => null }));
+    const players = [player('host'), player('bob', { joinOrder: 1 })];
+    const lobby = room({ phase: 'lobby', players, results: results() });
+    const store = usePlatformStore.getState();
+    store.handleServerMessage(welcome('host', room({ phase: 'playing', players })));
+    store.handleServerMessage({ t: 'room', room: lobby });
+    const up = renderToString(createElement(RoomScreen, { room: lobby }));
+    expect(up).toContain('data-testid="lobby"');
+    expect(up).toContain('data-testid="overlay-game-end"');
+    usePlatformStore.getState().closeResults();
+    const closed = renderToString(createElement(RoomScreen, { room: lobby }));
+    expect(closed).toContain('data-testid="lobby"');
+    expect(closed).not.toContain('data-testid="overlay-game-end"');
+    // Closed for good: the next snapshot (or a reload's welcome) of the same results does not bring it back.
+    usePlatformStore.getState().handleServerMessage(welcome('host', room({ phase: 'lobby', players, results: results() })));
+    expect(usePlatformStore.getState().results).toBeNull();
+  });
+});
+
+describe('the ways out of a game', () => {
+  const players = [player('host'), player('bob', { joinOrder: 1 }), player('carol', { joinOrder: 2 }), player('dan', { joinOrder: 3, participating: false })];
+  const playing = (overrides: Parameters<typeof room>[0] = {}) => room({ gameId: 'scribble', phase: 'playing', players, ...overrides });
+
+  it('offers End game to the host only, styled as the serious action, and Leave room to everyone, each saying what it does', () => {
+    const host = renderToString(createElement(ExitActions, { room: playing(), isHost: true, onPick: () => undefined }));
+    expect(tagWith(host, 'end-game')).toContain('exit-action--end');
+    expect(host).toContain('Ends it for everyone');
+    expect(tagWith(host, 'leave-room')).not.toContain('exit-action--end');
+    expect(host).toContain('Only you leave');
+    expect(host.indexOf('data-testid="end-game"')).toBeLessThan(host.indexOf('data-testid="leave-room"'));
+    const guest = renderToString(createElement(ExitActions, { room: playing(), isHost: false, onPick: () => undefined }));
+    expect(guest).not.toContain('data-testid="end-game"');
+    expect(guest).toContain('data-testid="leave-room"');
+    // Asked for already (Blackjack ends after the hand): a note in its place, not a second button.
+    const asked = renderToString(createElement(ExitActions, { room: playing({ endRequested: true }), isHost: true, onPick: () => undefined }));
+    expect(asked).not.toContain('data-testid="end-game"');
+    expect(textOf(asked, 'end-game-requested')).toContain('Ending soon');
+    const css = stylesheet('components.css');
+    expect(ruleOf(css, '.exit-action--end')).toContain('var(--color-danger)');
+    expect(css).toMatch(/\n\.exit-action \{[^}]*min-height: 60px/);
+  });
+
+  it('asks before ending, in short plain words, with the game\'s own note where it has one', () => {
+    const html = renderToString(createElement(EndGameConfirm, { room: playing(), onCancel: () => undefined, testId: 'end-game' }));
+    expect(html).toContain('End the game for everyone?');
+    expect(html).toContain('Everyone sees the scores so far.');
+    expect(textOf(html, 'end-game-yes')).toBe('End game');
+    expect(tagWith(html, 'end-game-yes')).toContain('btn--danger-solid');
+    expect(textOf(html, 'end-game-no')).toBe('Keep playing');
+    expect(endGameNote(playing())).toBe('Everyone sees the scores so far.');
+    for (const text of [html]) expect(text).not.toContain('—');
+  });
+
+  it('asks before leaving, and says whether the game goes on without you', () => {
+    expect(leaveNote(playing(), 'bob')).toBe('The game goes on without you.');
+    // Scribble needs two: with three in it, one leaving leaves enough; with two, it ends.
+    expect(leaveNote(playing({ players: players.slice(0, 2) }), 'bob')).toBe('Too few would be left, so the game ends for everyone.');
+    expect(leaveNote(playing(), 'dan')).toBe('The game goes on. You need the code to come back.');
+    expect(leaveNote(room(), 'bob')).toBe("You'd need the code to come back in.");
+    const html = renderToString(createElement(LeaveConfirm, { room: playing(), meId: 'bob', onCancel: () => undefined, testId: 'game-leave' }));
+    expect(html).toContain('Leave the room?');
+    expect(html).toContain('The game goes on without you.');
+    expect(textOf(html, 'game-leave-yes')).toBe('Leave room');
+    expect(textOf(html, 'game-leave-no')).toBe('Stay');
+  });
+
+  it('puts both in the phone\'s options sheet, under the preferences', () => {
+    usePlatformStore.getState().handleServerMessage(welcome('host', playing()));
+    const host = renderToString(createElement(GameMenuSheet, { open: true, onClose: () => undefined }));
+    expect(host.indexOf('data-testid="sound-toggle"')).toBeGreaterThan(-1);
+    expect(host.indexOf('data-testid="sound-toggle"')).toBeLessThan(host.indexOf('data-testid="end-game"'));
+    expect(host).toContain('data-testid="leave-room"');
+    usePlatformStore.getState().handleServerMessage(welcome('bob', playing()));
+    const guest = renderToString(createElement(GameMenuSheet, { open: true, onClose: () => undefined }));
+    expect(guest).not.toContain('data-testid="end-game"');
+    expect(guest).toContain('data-testid="leave-room"');
+  });
+
+  it('puts End game in the desktop top bar for the host, and both in the gear\'s menu', () => {
+    usePlatformStore.getState().handleServerMessage(welcome('host', playing()));
+    const bar = (state: RoomState) =>
+      renderToString(
+        createElement(GameTopBar, {
+          meta: gameById('scribble'),
+          room: state,
+          isPhone: false,
+          testId: 'scribble-header',
+          status: 'Round 1/3',
+          players: { open: false, onOpen: () => undefined },
+          menu: { open: false, onOpen: () => undefined },
+        }),
+      );
+    const html = bar(playing());
+    expect(textOf(html, 'end-game')).toBe('End game');
+    expect(tagWith(html, 'end-game')).toContain('gbar-end');
+    expect(textOf(bar(playing({ endRequested: true })), 'end-game-requested')).toBe('Ending soon');
+    usePlatformStore.getState().handleServerMessage(welcome('bob', playing()));
+    expect(bar(playing())).not.toContain('data-testid="end-game"');
   });
 });
 

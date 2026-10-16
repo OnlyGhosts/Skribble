@@ -45,6 +45,10 @@ called Scribble), the owner's decisions win. The short version:
   CC0 packs, mono MP3 under 800 KB in all (`client/public/sounds/`, with `CREDITS.md` listing each
   file's pack and original and what plays when). A game's sounds load when its screen mounts;
   the switch in the settings menu mutes everything.
+- **Avatars.** 50 faces drawn as Microsoft Fluent Emoji (the Color style, MIT licence), bundled
+  as 104px WebP pictures (169 KB in all, `client/public/avatars/`, with the licence and a README)
+  so every phone shows the same faces. The list is `shared/platform/avatarFaces.ts`; a saved
+  avatar keeps only its index, so new faces go at the end.
 - **The wordmark is outlined Poppins, not text.** "boredgames" is Poppins Black and ".io" Poppins Regular (SIL OFL). The app inlines it
   (`client/src/platform/components/Wordmark.tsx`, accessible name "boredgames.io"): "bored" and
   ".io" in the text colour, "games" in lime (on light with an ink outline, like the phones').
@@ -87,10 +91,11 @@ Open http://localhost:5173. The Vite dev server proxies `/ws` and `/api` to the 
 
 For the games with words, prompts or places (Scribble, The Spy Game and Quip Game) the
 host also picks a **content mode** for the whole party: *Family* keeps it clean, *Unhinged (18+)*
-is adults only and plays the cheeky packs plus the explicit ones (sex, drink and drugs, bodily
-fluids, death and family shame; never slurs, never jokes aimed at a group, nothing sexual
-involving anyone under 18). The lobby only shows the choice for those games; for the others it
-stays stored, so switching back restores it.
+is adults only and plays only the adult packs, the cheeky ones plus the explicit ones (sex, drink
+and drugs, bodily fluids, death and family shame; never slurs, never jokes aimed at a group,
+nothing sexual involving anyone under 18), with none of the family words or places mixed in. The
+lobby only shows the choice for those games; for the others it stays stored, so switching back
+restores it.
 
 Reload, lock your phone or drop off Wi-Fi and you come back to the same seat with the same name
 and score: a seat survives ten minutes without a connection. A running game never ends over a
@@ -109,7 +114,7 @@ needs does it return everyone to the lobby.
 - **Fair scoring.** Guessers earn 50–400 points by speed. The drawer earns up to 300 points scaled by how many people got it, so drawing clearly for everyone beats racing one fast friend.
 - **Real drawing tools.** Smooth strokes, five brush sizes, 24 colours plus a colour picker, eraser, flood fill, undo and clear, with keyboard shortcuts (`B`, `E`, `F`, `Ctrl+Z`, `[` and `]`).
 - **Host controls and fair play.** Rounds, hints, word choices, custom word lists typed in or uploaded as a .txt file (optionally custom-only), kick, vote-kick, automatic host hand-over. There is no chat to give the word away in: only a guesser who has not got it yet types, and only guesses.
-- **Polish.** Light and dark themes, sound cues, like/dislike the drawing, turn summaries, a podium at the end, and a 1,390-word English list of things you can actually draw.
+- **Polish.** Light and dark themes, sound cues, like/dislike the drawing, turn summaries, a podium at the end, and a 1,390-word English list of things you can actually draw (plus 498 adult ones that make up the whole pack of an Unhinged room).
 
 Each round, every player draws once. The drawer picks one of three words, everyone else types
 guesses straight into the blanks, and the turn ends when time runs out or everyone has guessed.
@@ -180,6 +185,12 @@ cannot read the new id at all: in a room of that game the page goes blank, and r
 helps once Vercel serves the new client. For the Scribble rename (`'skribble'` became
 `'scribble'`), check that the Vercel production deployment is live by the time the Fly workflow
 ends, and promote it by hand if it is not, so that window stays short.
+
+Some changes only work the other way round: the server must go first. The 50 avatar faces and the
+host's End game are one. An older server refuses a face past the first 24 (about half of new
+players could not create or join a room) and the `endGame` message. For such a change, run the
+**Deploy to Fly.io** workflow by hand on the branch before merging it to `main` (the new server
+still serves the old client), then merge; the deploy ends every room either way.
 
 ### The site on Vercel
 
@@ -254,6 +265,7 @@ There is no database to set up: `PORT` is the only required setting, `REDIS_URL`
 | `npm test` | Vitest unit tests (the platform engine and both game modules, protocol helpers, guess matching, codes, the client platform and game modules, the Redis driver across two instances; the Redis tests spawn `redis-server` and are skipped when it is not installed) |
 | `npm run build` | Production build of both halves |
 | `npm run test:e2e` | Playwright end-to-end tests driving several browser contexts through the front door (the four boxes, paste, keys, errors, deep links, the name step, themes, four viewport widths), whole games of Scribble and Click Race, reloads, kicks and phone layouts, plus two server instances sharing a Redis |
+| `node scripts/avatars.mjs [fluentui-emoji clone]` | Redraws the avatar pictures (`client/public/avatars/`) from the Fluent Emoji SVGs, downloaded from the pinned commit unless a local clone is given |
 | `node scripts/brand-icons.mjs` | Regenerates the opaque apple-touch and maskable PNG icons from the app icon (`client/public/icons/icon.svg`) |
 | `npm run check` | Typecheck, unit tests and build in one go |
 

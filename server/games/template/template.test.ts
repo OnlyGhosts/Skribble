@@ -7,7 +7,7 @@ import { defaultPlatformSettings } from '../../../shared/platform/settings.js';
 import type { Effect } from '../../platform/engine/effects.js';
 import { nextDeadline } from '../../platform/engine/time.js';
 import { viewFor } from '../../platform/engine/view.js';
-import { AVATAR, START, chatTexts, errorsOf, sim, startGame } from '../../platform/engine/testHarness.js';
+import { AVATAR, START, chatTexts, endGame, errorsOf, sim, standings, startGame } from '../../platform/engine/testHarness.js';
 import { templateModule, type TemplateData } from './module.js';
 
 const view = (s: { data: Parameters<typeof viewFor>[0]; now: number }, viewer: string | null = null): TemplateView => {
@@ -48,9 +48,9 @@ describe('Click Race', () => {
     for (let i = 0; i < 9; i++) s.game(alice, { t: 'click' });
     expect(s.data.phase).toBe('playing');
     const effects = s.game(alice, { t: 'click' });
-    expect(s.data.phase).toBe('ended');
-    expect(view(s)).toMatchObject({ winnerId: alice, clicks: { [alice]: 10, [bob]: 4 } });
-    expect(s.data.podium).toEqual([
+    expect(s.data.phase).toBe('lobby');
+    expect(s.data.game).toBeNull();
+    expect(standings(s)).toEqual([
       { playerId: alice, score: 100, rank: 1 },
       { playerId: bob, score: 4, rank: 2 },
     ]);
@@ -67,12 +67,30 @@ describe('Click Race', () => {
     for (let i = 0; i < 5; i++) s.game(bob, { t: 'click' });
     s.now += 15_000;
     s.tick();
-    expect(s.data.phase).toBe('ended');
-    expect(view(s).winnerId).toBeNull();
-    expect(s.data.podium).toEqual([
+    expect(s.data.phase).toBe('lobby');
+    expect(s.data.results?.reason).toBe('finished');
+    expect(standings(s)).toEqual([
       { playerId: bob, score: 5, rank: 1 },
       { playerId: alice, score: 0, rank: 2 },
     ]);
+  });
+
+  it('lets the host end the race early: everyone scores their clicks so far, as at the time limit', () => {
+    const s = sim('template');
+    const [alice, bob] = startGame(s, ['Alice', 'Bob'], { targetClicks: 100 });
+    for (let i = 0; i < 3; i++) s.game(bob, { t: 'click' });
+    s.game(alice, { t: 'click' });
+    expect(errorsOf(endGame(s, bob))).toEqual(['Only the host can do that.']);
+    expect(s.data.phase).toBe('playing');
+    const effects = endGame(s, alice);
+    expect(chatTexts(effects)).toEqual(['Game over! Bob wins with 3 points.']);
+    expect(s.data).toMatchObject({ phase: 'lobby', game: null, results: { reason: 'host', gameId: 'template' } });
+    expect(standings(s)).toEqual([
+      { playerId: bob, score: 3, rank: 1 },
+      { playerId: alice, score: 1, rank: 2 },
+    ]);
+    // A second tap, after the game ended, changes nothing and says nothing.
+    expect(endGame(s, alice)).toEqual([]);
   });
 
   it('lets a mid-game joiner watch without a tally or a click of their own', () => {

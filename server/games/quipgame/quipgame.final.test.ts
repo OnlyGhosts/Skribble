@@ -5,7 +5,7 @@ import { defaultPlatformSettings } from '../../../shared/platform/settings.js';
 import { RECONNECT_GRACE_MS } from '../../../shared/platform/constants.js';
 import { QUIPGAME_RESULTS_SECONDS, QUIPGAME_VOTE_SECONDS, QUIPGAME_WRITE_SECONDS } from '../../../shared/games/quipgame/protocol.js';
 import { nextDeadline } from '../../platform/engine/time.js';
-import { AVATAR, START, chatTexts, sim, startGame, type Sim } from '../../platform/engine/testHarness.js';
+import { AVATAR, START, chatTexts, sim, standings, startGame, type Sim } from '../../platform/engine/testHarness.js';
 import { viewFor } from '../../platform/engine/view.js';
 import { RESUME_SETTLE_MS } from '../waiting.js';
 import { quipgameModule, type QuipgameData } from './module.js';
@@ -98,7 +98,7 @@ describe('Quip Game: the final round', () => {
     expect(s.data.players).toHaveLength(5);
   });
 
-  it('sums 1500 / 1000 / 500 per voter, ranks the answers, pays the authors, then ends on the podium', () => {
+  it('sums 1500 / 1000 / 500 per voter, ranks the answers, pays the authors, then ends with the results', () => {
     const s = sim('quipgame');
     const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol']);
     reachFinal(s, alice);
@@ -128,10 +128,9 @@ describe('Quip Game: the final round', () => {
     expect(view(s, alice).canSkip).toBe(true);
     s.now += RESULT_MS;
     s.tick();
-    expect(s.data.phase).toBe('ended');
-    expect(data(s).phase).toBe('over');
-    expect(view(s, alice)).toMatchObject({ phase: 'finalResult', canSkip: false });
-    expect(s.data.podium?.[0]).toMatchObject({ playerId: bob, rank: 1 });
+    expect(s.data.phase).toBe('lobby');
+    expect(s.data.game).toBeNull();
+    expect(standings(s)?.[0]).toMatchObject({ playerId: bob, rank: 1 });
     expect(nextDeadline(s.data)).toBeNull();
   });
 
@@ -176,7 +175,8 @@ describe('Quip Game: the final round', () => {
     ]);
     expect(errors(s.game(bob, { t: 'next' }))).toEqual(['Only the host can skip ahead.']);
     s.game(alice, { t: 'next' });
-    expect(s.data.phase).toBe('ended');
+    expect(s.data.phase).toBe('lobby');
+    expect(s.data.results?.reason).toBe('finished');
 
     const t = sim('quipgame');
     const [x, y, z] = startGame(t, ['Alice', 'Bob', 'Carol']);
@@ -382,8 +382,8 @@ describe('Quip Game: holding for missing players', () => {
     const { droppedAt } = holdAtRoundEnd(expired, alice, [bob]);
     expired.now = droppedAt + RECONNECT_GRACE_MS;
     const effects = expired.tick();
-    expect(chatTexts(effects)).toEqual(['Bob left', 'Not enough players. Back to the lobby.']);
-    expect(expired.data).toMatchObject({ phase: 'lobby', game: null, podium: null, waiting: null });
+    expect(chatTexts(effects)).toEqual(['Bob left', 'Not enough players to go on.', 'Game over!']);
+    expect(expired.data).toMatchObject({ phase: 'lobby', game: null, results: { reason: 'players' }, waiting: null });
     expect(expired.data.players.map((p) => p.id)).not.toContain(bob);
     expect(expired.data.players.every((p) => p.score === 0)).toBe(true);
     expect(viewFor(expired.data, alice, expired.now).waiting).toBeNull();
