@@ -2,9 +2,10 @@ import { expect, test, type Browser, type BrowserContext, type Locator, type Pag
 import { createParty, enterNameIfAsked, gameNameWhole, readyAll } from './party';
 
 /**
- * A whole two-round Spy Game between a desktop host and two phones (390x844, touch): roles,
- * the shared location, the spy's two-column grid, a wrong guess, a failed vote, a passed vote,
- * the reveal, a correct guess in round two and the podium. Serial: the tests build on each other.
+ * A whole two-round Spy Game between a desktop host and two phones (390x844, touch): roles, the
+ * shared location, the spy's grid (three columns of eight on a phone, every place in view), a
+ * wrong guess, a failed vote, a passed vote, the reveal, a correct guess in round two and the
+ * podium. Serial: the tests build on each other.
  */
 test.describe.configure({ mode: 'serial' });
 
@@ -85,6 +86,39 @@ async function noHorizontalOverflow(p: Player): Promise<void> {
  * Runs `check` with the page at phone size. The spy is drawn at random, so the phone-layout
  * assertions must not depend on which player (the desktop host included) is drawn.
  */
+/**
+ * At `size`, with the page and the game's column scrolled to the top, every place tile of `testId`
+ * lies wholly inside the viewport, reads at 11px or more on at most two lines, and is `minHeight` tall.
+ */
+async function allPlacesInView(p: Player, testId: string, size: { width: number; height: number }, minHeight: number): Promise<void> {
+  const before = p.page.viewportSize() ?? DESKTOP;
+  await p.page.setViewportSize(size);
+  try {
+    await expect(p.page.locator('.spy--phone')).toBeVisible();
+    const measure = () =>
+      p.page.evaluate((id) => {
+        window.scrollTo(0, 0);
+        const main = document.querySelector<HTMLElement>('[data-testid="spygame-main"]');
+        if (main) main.scrollTop = 0;
+        const tiles = Array.from(document.querySelectorAll<HTMLElement>(`[data-testid="${id}"]`));
+        const boxes = tiles.map((t) => t.getBoundingClientRect());
+        const names = tiles.map((t) => t.querySelector<HTMLElement>('.spy-tile__name'));
+        return {
+          count: tiles.length,
+          scrolled: window.scrollY + (main?.scrollTop ?? 0),
+          outside: boxes.filter((r) => r.top < 0 || r.left < 0 || r.bottom > window.innerHeight + 0.5 || r.right > window.innerWidth + 0.5).length,
+          small: names.filter((n) => !n || parseFloat(getComputedStyle(n).fontSize) < 11).length,
+          clipped: names.filter((n) => !n || n.scrollHeight > n.clientHeight + 1 || n.scrollWidth > n.clientWidth + 1).length,
+          lowest: Math.min(...boxes.map((r) => r.height)),
+        };
+      }, testId);
+    await expect.poll(measure, { message: `${p.name}: every place in view at ${size.width}x${size.height}` }).toMatchObject({ count: 24, scrolled: 0, outside: 0, small: 0, clipped: 0 });
+    expect((await measure()).lowest, `${p.name}: every place tile is at least ${minHeight}px tall at ${size.width}x${size.height}`).toBeGreaterThanOrEqual(minHeight);
+  } finally {
+    await p.page.setViewportSize(before);
+  }
+}
+
 async function atPhoneSize(p: Player, check: () => Promise<void>): Promise<void> {
   const before = p.page.viewportSize() ?? DESKTOP;
   await p.page.setViewportSize(PORTRAIT);
@@ -113,7 +147,7 @@ test.afterAll(async () => {
   for (const p of players) await p.context.close();
 });
 
-test('the host creates a Spy Game room, two phones join by code and the host tunes the settings', async () => {
+test('the host creates a Spy Game room, two phones join by code and the host sets the rounds', async () => {
   roomCode = await createParty(host.page, host.name, 'spygame');
   await expect(host.page.getByTestId('game-picker-meta')).toContainText('The Spy Game');
   // Three players are needed.
@@ -131,12 +165,10 @@ test('the host creates a Spy Game room, two phones join by code and the host tun
   await expect(host.page.getByTestId('player-item')).toHaveCount(3);
 
   await host.page.getByTestId('settings-rounds').fill('2');
-  await host.page.getByTestId('settings-roundMinutes').fill('3');
-  await host.page.getByTestId('settings-voteSeconds').fill('15');
-  await expect(pia.page.getByTestId('settings-value-rounds')).toHaveText('2');
-  await expect(pia.page.getByTestId('settings-value-roundMinutes')).toHaveText('3 min');
-  await expect(pia.page.getByTestId('settings-value-voteSeconds')).toHaveText('15s');
-  await expect(pia.page.getByTestId('settings-rounds')).toHaveCount(0);
+  await expect(host.page.getByTestId('settings-value-rounds')).toHaveText('2');
+  // The rounds are the only setting: the round clock and the vote window are fixed.
+  for (const id of ['roundMinutes', 'voteSeconds']) await expect(host.page.getByTestId(`settings-${id}`)).toHaveCount(0);
+  await expect(pia.page.getByTestId('settings-panel')).toHaveCount(0);
 
   await expect(host.page.getByTestId('start-game')).toBeDisabled();
   await readyAll([pia.page, quinn.page]);
@@ -147,12 +179,14 @@ test('the host creates a Spy Game room, two phones join by code and the host tun
     await expect(p.page.getByTestId('round-indicator')).toContainText('Round 1');
     await expect(clock(p)).toBeVisible();
   }
-  await expect(host.page.getByTestId('chat-log')).toContainText('Round 1 of 2: look at your phone');
-  // "The Spy Game" stays whole in a phone's top bar, the round beside it on one line.
+  for (const p of players) await expect(p.page.getByTestId('round-indicator')).toContainText('1/2');
+  // A phone's one-row top bar cuts nothing: the round stays on one line beside the clock (the name gives way to them there).
   await gameNameWhole(pia.page);
+  await expect(pia.page.getByTestId('spygame-header').locator('.gbar__name')).toBeHidden();
+  await expect(clock(pia)).toBeVisible();
 });
 
-test('exactly one spy; the agents share the location, the spy sees none and gets 24 tiles in two columns of twelve', async () => {
+test('exactly one spy; the agents share the location, the spy sees none and gets 24 tiles in three columns of eight on a phone', async () => {
   ({ spy, agents } = await castOf());
   expect(agents).toHaveLength(2);
 
@@ -185,9 +219,14 @@ test('exactly one spy; the agents share the location, the spy sees none and gets
       expect(box.height, 'a guess tile is a 44px target').toBeGreaterThanOrEqual(MIN_TARGET);
       expect(box.width, 'a guess tile is a 44px target').toBeGreaterThanOrEqual(MIN_TARGET);
     }
-    expect([...columns.values()]).toEqual([12, 12]);
+    expect([...columns.values()]).toEqual([8, 8, 8]);
     await noHorizontalOverflow(spy);
   });
+  // On a portrait phone all 24 places are in view as the screen opens, for an agent and for the spy.
+  for (const size of [PORTRAIT, { width: 375, height: 667 }]) {
+    await allPlacesInView(agents[0], 'candidate-tile', size, 40);
+    await allPlacesInView(spy, 'guess-tile', size, MIN_TARGET);
+  }
   // The spy's player list is read-only: no accuse buttons.
   await expect(spy.page.locator('button[data-testid="accuse-row"]')).toHaveCount(0);
   await expect(spy.page.getByTestId('accuse-row')).toHaveCount(3);
@@ -217,7 +256,6 @@ test('a wrong guess (two taps) is announced on every screen and rules the tile o
   }
   await expect(tile).toHaveAttribute('data-state', 'ruledOut');
   await expect(tile).toBeDisabled();
-  await expect(host.page.getByTestId('chat-log')).toContainText('The spy guessed wrong! 1 guess left');
   await expect(spy.page.getByTestId('spygame-location')).toHaveCount(0);
 });
 
@@ -253,12 +291,12 @@ test('an accusation pauses the clock and opens the vote sheet; a tie fails and p
   await expect(accuser.page.getByTestId('vote-panel')).toHaveAttribute('data-role', 'accuser');
   await expect(accuser.page.getByTestId('vote-yes')).toHaveCount(0);
   for (const p of players) await expect(clock(p)).toHaveAttribute('data-paused', 'vote');
-  await expect(host.page.getByTestId('chat-log')).toContainText(`${accuser.name} accuses ${spy.name} of being the spy! Vote now.`);
 
   // A No makes it 1-1: a tie fails, the clock resumes, the accuser's accusation is spent.
   await other.page.getByTestId('vote-no').click();
-  await expect(host.page.getByTestId('chat-log')).toContainText('The vote failed. Play on.');
-  await expect(host.page.getByTestId('chat-log')).not.toContainText('The vote failed (');
+  // Nothing else on screen says the vote failed: everyone gets a toast, with no count that could name the spy.
+  for (const p of players) await expect(p.page.getByTestId('toast').filter({ hasText: 'The vote failed. Play on.' })).toBeVisible();
+  await expect(host.page.getByTestId('toast').filter({ hasText: 'The vote failed (' })).toHaveCount(0);
   for (const p of players) {
     await expect(p.page.getByTestId('vote-panel')).toHaveCount(0);
     await expect(clock(p)).not.toHaveAttribute('data-paused', /.+/);
@@ -296,7 +334,7 @@ test('the other agent accuses the spy, the vote passes and the reveal shows spyC
     await expect(p.page.getByTestId('spygame-next-round')).toHaveCount(0);
     await noHorizontalOverflow(p);
   }
-  await expect(host.page.getByTestId('chat-log')).toContainText(`${spy.name} was the spy and got caught!`);
+  await expect(host.page.getByTestId('spygame-reveal')).toContainText(spy.name);
 });
 
 test('the host starts round two; the spy guesses right for +4; the podium lists three players', async () => {

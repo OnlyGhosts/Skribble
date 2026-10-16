@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, type CSSProperties, type FormEvent, type RefObject } from 'react';
+import { useLayoutEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react';
 import { CHAT_MAX_LENGTH } from '@shared/platform/constants';
 import { describeMask, groupMetrics, hintMatches, layoutGuess, type GuessSlot } from '../lib/wordMask';
 import { FINE_POINTER_QUERY, matchesMedia } from '../lib/media';
@@ -17,11 +17,6 @@ export interface GuessTilesProps {
   onSubmit(text: string): boolean;
   /** False while the socket is down: the tiles stay typeable, the Send button waits. */
   canSend: boolean;
-  /**
-   * Shared with another input that takes turns in the same slot: set when this input unmounts
-   * while focused so its replacement takes the focus (and keeps the phone keyboard open).
-   */
-  focusMemory?: RefObject<boolean>;
 }
 
 type LetterSlot = Extract<GuessSlot, { kind: 'letter' }>;
@@ -69,28 +64,20 @@ function tileClass(slot: LetterSlot): string {
  * IME composition and autofill all keep working. The draft is the caller's (its game store), so
  * it survives a remount and can be dropped at turn boundaries.
  */
-export function GuessTiles({ mask, draft, onDraftChange, onSubmit, canSend, focusMemory }: GuessTilesProps) {
+export function GuessTiles({ mask, draft, onDraftChange, onSubmit, canSend }: GuessTilesProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const rowRef = useRef<HTMLSpanElement | null>(null);
   const [focused, setFocused] = useState(false);
 
+  // On desktop-class devices a fresh turn focuses the tiles right away (no keyboard can pop up there).
   useLayoutEffect(() => {
-    const input = inputRef.current;
-    // Take over the focus from the input this one replaces; on desktop-class devices a fresh
-    // turn focuses the tiles right away (no keyboard can pop up there).
-    if (focusMemory?.current || matchesMedia(FINE_POINTER_QUERY)) {
-      if (focusMemory) focusMemory.current = false;
-      input?.focus();
-    }
-    return () => {
-      if (focusMemory) focusMemory.current = input !== null && document.activeElement === input;
-    };
-  }, [focusMemory]);
+    if (matchesMedia(FINE_POINTER_QUERY)) inputRef.current?.focus();
+  }, []);
 
   const { groups, overflow } = layoutGuess(mask, draft);
   useLayoutEffect(() => revealActiveTile(rowRef.current), [mask, draft]);
   const sendable = canSend && draft.trim().length > 0;
-  const descriptionId = 'chat-input-description';
+  const descriptionId = 'guess-input-description';
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -136,7 +123,7 @@ export function GuessTiles({ mask, draft, onDraftChange, onSubmit, canSend, focu
         <input
           ref={inputRef}
           className="guess-tiles__input"
-          data-testid="chat-input"
+          data-testid="guess-input"
           type="text"
           value={draft}
           maxLength={CHAT_MAX_LENGTH}
@@ -158,7 +145,7 @@ export function GuessTiles({ mask, draft, onDraftChange, onSubmit, canSend, focu
       <span id={descriptionId} className="sr-only" aria-live="polite" data-testid="guess-description">
         {describeMask(mask)}
       </span>
-      <button type="submit" className="btn btn--primary guess-form__send" disabled={!sendable} aria-label="Send guess" data-testid="chat-send">
+      <button type="submit" className="btn btn--primary guess-form__send" disabled={!sendable} aria-label="Send guess" data-testid="guess-send">
         <SendIcon size={18} />
       </button>
     </form>

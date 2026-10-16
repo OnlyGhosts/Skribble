@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type { PlayerPublic } from '@shared/platform/protocol';
 import { isReady } from '../lib/party';
 import { PLATFORM_SOUNDS } from '../lib/platformSounds';
@@ -6,8 +7,10 @@ import { CheckIcon } from './Icons';
 
 interface Props {
   me: PlayerPublic;
-  /** Where the controls sit: the lobby card or the podium; only the copy differs. */
+  /** Where the controls sit: the room's footer or the podium; only the copy differs. */
   context: 'lobby' | 'podium';
+  /** More buttons beside "Sit this one out", in the same style (the room's "Change my look"). */
+  extra?: ReactNode;
 }
 
 /** Which controls a player gets between games; never two buttons that do the same job. */
@@ -20,15 +23,21 @@ export function readyState(me: PlayerPublic): ReadyState {
 }
 
 /**
- * The choice everyone makes between games. Not ready: one "I'm ready" plus a small "Sit this one
- * out". Ready: the same button checked ("You're ready", tap to undo) and the same small link.
- * Sitting out: only "Count me in", which comes back in and readies in one tap. The host is in by
- * pressing Start, so on the podium their button is a statement rather than a question, and in the
- * lobby (where Start is on screen) they only get the small link.
+ * The choice everyone makes between games. Not ready: one big "I'm ready" over a row of secondary
+ * buttons, "Sit this one out" first. Ready: the same big button checked ("You're ready", tap to
+ * undo) over the same row. Sitting out: "Count me in", which comes back in and readies in one tap,
+ * replaces "Sit this one out". The host is in by pressing Start, so on the podium their big button
+ * is a statement rather than a question, and in the room (where Start is on screen) they only get
+ * the row.
  */
-export function ReadyControls({ me, context }: Props) {
+export function ReadyControls({ me, context, extra }: Props) {
   const state = readyState(me);
   const ready = state === 'ready' || state === 'host';
+  const sitOut = (
+    <button type="button" className="btn btn--secondary sitout-toggle" aria-pressed={false} onClick={() => setSitOut(true)} data-testid="sitout-toggle">
+      Sit this one out
+    </button>
+  );
   return (
     <div className="ready-controls" data-testid="ready-controls" data-ready={isReady(me)} data-sitting-out={me.sittingOut} data-state={state}>
       {state === 'sittingOut' ? (
@@ -49,13 +58,9 @@ export function ReadyControls({ me, context }: Props) {
             You'll watch the next game.
           </p>
         </>
-      ) : state === 'host' && context === 'lobby' ? (
-        // In the lobby the host's Start button already says they are in; only the way out is left.
-        <button type="button" className="text-btn sitout-toggle" aria-pressed={false} onClick={() => setSitOut(true)} data-testid="sitout-toggle">
-          Sit this one out
-        </button>
       ) : (
-        <>
+        // In the room the host's Start button already says they are in; only the way out is left.
+        !(state === 'host' && context === 'lobby') && (
           <button
             type="button"
             className={`btn btn--lg btn--block ready-toggle${state === 'host' ? ' ready-toggle--host' : ''}${ready ? ' is-ready' : ' btn--primary'}`}
@@ -81,10 +86,13 @@ export function ReadyControls({ me, context }: Props) {
               "I'm ready"
             )}
           </button>
-          <button type="button" className="text-btn sitout-toggle" aria-pressed={false} onClick={() => setSitOut(true)} data-testid="sitout-toggle">
-            Sit this one out
-          </button>
-        </>
+        )
+      )}
+      {(state !== 'sittingOut' || extra) && (
+        <div className="ready-controls__more">
+          {state !== 'sittingOut' && sitOut}
+          {extra}
+        </div>
       )}
     </div>
   );

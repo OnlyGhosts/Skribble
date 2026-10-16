@@ -75,7 +75,7 @@ const FINAL_ANSWERS = [
 function quipRoom(game: QuipgameView, overrides: Partial<QuipgameRoomState> = {}): QuipgameRoomState {
   return {
     ...room({ gameId: 'quipgame', phase: 'playing', players: [player('host'), player('bob', { joinOrder: 1 }), player('carol', { joinOrder: 2 })] }),
-    settings: { allowMidGameJoin: true, contentMode: 'family', ...DEFAULT_QUIPGAME_SETTINGS },
+    settings: { contentMode: 'family', ...DEFAULT_QUIPGAME_SETTINGS },
     game,
     ...overrides,
   } as QuipgameRoomState;
@@ -192,12 +192,41 @@ describe('writing', () => {
     expect(tagWith(full, 'write-counter')).toContain('quip-write__counter--full');
   });
 
-  it('tells a late joiner they are watching, and disables the field once the game has ended', () => {
-    const html = render(quipRoom(view({ isSpectator: true, myPrompts: [], spectators: ['dave'] })), 'dave');
-    expect(tagWith(html, 'quip-spectating')).toBeTruthy();
+  it('tells a spectator they are watching, and disables the field once the game has ended', () => {
+    // In the game but away when the round was dealt: votes now, writes from the next round.
+    const audience = quipRoom(view({ isSpectator: true, myPrompts: [], spectators: ['dave'] }), {
+      players: [player('host'), player('bob', { joinOrder: 1 }), player('carol', { joinOrder: 2 }), player('dave', { joinOrder: 3 })],
+    });
+    const html = render(audience, 'dave');
+    expect(attr(tagWith(html, 'quip-spectating'), 'data-watching')).toBe('false');
+    expect(html).toContain('you write from the next round');
     expect(html).not.toContain('data-testid="write-input"');
+    // A spectator of the whole game (sat out or joined mid-game) plays the next game.
+    const watcher = quipRoom(view({ isSpectator: true, myPrompts: [] }), {
+      players: [player('host'), player('bob', { joinOrder: 1 }), player('carol', { joinOrder: 2 }), player('dave', { joinOrder: 3, participating: false })],
+    });
+    const watching = render(watcher, 'dave');
+    expect(attr(tagWith(watching, 'quip-spectating'), 'data-watching')).toBe('true');
+    expect(watching).toContain('You&#x27;re watching. You can play the next game.');
+    expect(tagWith(watching, 'quip-spectating')).toBeTruthy();
+    expect(watching.slice(watching.indexOf('data-testid="quip-spectating"'))).not.toMatch(/You vote/);
+    const vote = render(quipRoom(view({ phase: 'voting', matchup: MATCHUP, canVote: false, isSpectator: true }), { players: watcher.players }), 'dave');
+    expect(tagsWith(vote, 'vote-submit')).toHaveLength(0);
+    expect(tagWith(vote, 'vote-watching')).toBeTruthy();
+    expect(vote).toContain('You&#x27;re watching. You can play the next game.');
     const over = render(quipRoom(view(), { phase: 'ended' }), 'bob');
     expect(tagWith(over, 'write-input')).toContain('disabled');
+  });
+});
+
+describe('the vote and ranking counts', () => {
+  it('count the connected players in the game only: a spectator of the whole game never votes', async () => {
+    const { voterCount, rankerCount } = await import('./hooks');
+    const state = quipRoom(view(), {
+      players: [player('host'), player('bob', { joinOrder: 1 }), player('carol', { joinOrder: 2 }), player('dave', { joinOrder: 3 }), player('eve', { joinOrder: 4, participating: false })],
+    });
+    expect(voterCount(state, 0)).toBe(2);
+    expect(rankerCount(state, 0)).toBe(4);
   });
 });
 
@@ -372,21 +401,15 @@ describe('player list, chat and cues', () => {
     expect(badge(quipRoom(view(), { game: null }), 'bob')).not.toContain('player__badge');
   });
 
-  it('writes a phase-aware chat placeholder', () => {
-    expect(quipgameClient.chatPlaceholder?.(quipRoom(view()), 'host')).toMatch(/spoilers/i);
-    expect(quipgameClient.chatPlaceholder?.(quipRoom(view({ phase: 'voting' })), 'host')).toMatch(/vote first/i);
-    expect(quipgameClient.chatPlaceholder?.(quipRoom(view(), { game: null }), 'host')).toBeUndefined();
-  });
-
   it('drops drafts, the tapped answer and the picks when the step changes, seeds the picks from a sent ranking, and resets in the lobby', () => {
     usePlatformStore.getState().handleServerMessage(welcome('host', quipRoom(view())));
     const store = useQuipgameStore.getState();
     store.setDraft('r1-p0', 'hmm');
-    store.openSheet('chat');
+    store.openSheet('players');
     snapshot(quipRoom(view({ done: 1 })));
     expect(useQuipgameStore.getState().drafts).toEqual({ 'r1-p0': 'hmm' });
     snapshot(quipRoom(view({ phase: 'voting', matchup: { ...MATCHUP, index: 0 }, canVote: true })));
-    expect(useQuipgameStore.getState()).toMatchObject({ drafts: {}, sheet: 'chat' });
+    expect(useQuipgameStore.getState()).toMatchObject({ drafts: {}, sheet: 'players' });
     useQuipgameStore.getState().selectChoice('a');
     snapshot(quipRoom(view({ phase: 'voting', matchup: { ...MATCHUP, index: 0, votes: 2 }, canVote: true, myVote: 'a' })));
     expect(useQuipgameStore.getState().selectedChoice).toBe('a');
@@ -406,27 +429,25 @@ describe('player list, chat and cues', () => {
 });
 
 describe('settings rows', () => {
-  it('renders the sliders, the toggles and the custom prompt box for the host, read-only values otherwise', () => {
+  it('renders only the custom prompt box with its upload button and its custom-only switch: no clocks, final round or announcer', () => {
     const { settings } = quipRoom(view());
     if (!quipgameClient.SettingsFields) throw new Error('no settings fields');
-    const host = renderToString(createElement(quipgameClient.SettingsFields, { settings, canEdit: true, patch: () => undefined }));
-    expect(tagWith(host, 'settings-writeSeconds')).toContain('min="30"');
-    expect(tagWith(host, 'settings-writeSeconds')).toContain('step="10"');
-    expect(tagWith(host, 'settings-voteSeconds')).toContain('max="60"');
-    expect(tagWith(host, 'settings-resultsSeconds')).toContain('max="20"');
-    for (const id of ['finalRound', 'announcer']) expect(tagWith(host, `settings-${id}`)).not.toContain('disabled');
-    expect(tagWith(host, 'settings-finalRound')).toContain('checked');
+    const host = renderToString(createElement(quipgameClient.SettingsFields, { settings, patch: () => undefined }));
+    for (const id of ['writeSeconds', 'voteSeconds', 'resultsSeconds', 'finalRound', 'announcer']) {
+      expect(tagsWith(host, `settings-${id}`), id).toHaveLength(0);
+      expect(tagsWith(host, `settings-row-${id}`), id).toHaveLength(0);
+    }
+    expect(host).not.toContain('range-field');
     expect(tagWith(host, 'settings-customPrompts')).toBeTruthy();
     expect(tagWith(host, 'settings-customPromptsOnly')).toContain('disabled');
     expect(host).toContain('Add at least 10 custom prompts');
-    const guest = renderToString(createElement(quipgameClient.SettingsFields, { settings, canEdit: false, patch: () => undefined }));
-    expect(guest).not.toContain('data-testid="settings-writeSeconds"');
-    expect(guest).not.toContain('data-testid="settings-customPrompts"');
-    expect(guest).toContain('90s');
-    expect(guest).not.toContain('settings-cheeky');
-    expect(tagWith(guest, 'settings-finalRound')).toContain('disabled');
+    expect(host).not.toContain('setting__value');
+    expect(host).not.toContain('settings-cheeky');
+    expect(tagWith(host, 'settings-customPrompts-upload')).toContain('btn--secondary');
+    expect(host).toContain('Upload a .txt file');
+    expect(tagWith(host, 'settings-customPrompts-file')).toContain('accept=".txt,text/plain"');
     const enough = { ...settings, customPrompts: Array.from({ length: 10 }, (_, i) => `Prompt ${i}`) };
-    const only = renderToString(createElement(quipgameClient.SettingsFields, { settings: enough, canEdit: true, patch: () => undefined }));
+    const only = renderToString(createElement(quipgameClient.SettingsFields, { settings: enough, patch: () => undefined }));
     expect(tagWith(only, 'settings-customPromptsOnly')).not.toContain('disabled');
     expect(only).toContain('10<!-- --> <!-- -->prompts');
   });
@@ -434,6 +455,10 @@ describe('settings rows', () => {
 
 describe('the stylesheet', () => {
   const css = readFileSync(fileURLToPath(new URL('./quipgame.css', import.meta.url)), 'utf8');
+
+  it("folds the announcer's card to its one line on a phone, where the matchup under it shows the same words", () => {
+    expect(css).toMatch(/\.quip--phone \.quip-announce__prompt,\s*\.quip--phone \.quip-announce__answers \{\s*display: none;/);
+  });
 
   it('makes the answer cards 64px targets and keeps the input at 16px or more', () => {
     expect(css).toMatch(/\.quip-answer \{[^}]*min-height: 64px/);

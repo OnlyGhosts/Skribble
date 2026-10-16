@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import type { QuipgameRoomState, QuipgameView } from '@shared/games/quipgame/protocol';
 import { Avatar } from '../../../platform/components/Avatar';
 import { formatPoints } from '../../../platform/lib/format';
+import { WATCHING_TEXT } from '../../../platform/lib/watching';
 import { submitRanking } from '../actions';
 import { playerOf, rankerCount, sameRanking } from '../hooks';
 import { medalFor, rankHint, rankedLine } from '../lib/text';
@@ -11,10 +12,12 @@ import { MegaphoneIcon } from './Icons';
 interface Props {
   room: QuipgameRoomState;
   view: QuipgameView;
+  /** A spectator of the whole game: no ranking, one line saying so. */
+  watching?: boolean;
 }
 
 /** The final's ranking: tap an answer for the next medal, tap it again to take the medal back, then submit. */
-export function FinalVoting({ room, view }: Props) {
+export function FinalVoting({ room, view, watching = false }: Props) {
   const picks = useQuipgame((s) => s.picks);
   const canRank = view.maxPicks > 0 && room.phase === 'playing';
   const submitted = view.myRanking.length > 0;
@@ -45,7 +48,7 @@ export function FinalVoting({ room, view }: Props) {
           {prompt}
         </div>
         <p className="quip-final__hint" data-testid="final-hint">
-          {canRank ? rankHint(view.maxPicks) : submitted ? 'Your ranking is in.' : 'Waiting for the rankings to come in.'}
+          {canRank ? rankHint(view.maxPicks) : submitted ? 'Your ranking is in.' : watching ? WATCHING_TEXT : 'Waiting for the rankings to come in.'}
         </p>
         <ol className="quip-final__list" aria-label="Answers">
           {view.finalAnswers.map((a) => {

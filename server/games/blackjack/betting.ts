@@ -42,9 +42,8 @@ export function dealNow(gx: Gx, playerId: string): void {
 
 /**
  * Deals once nobody is left to wait for and a stake is down. Seats that sat out or are away sit
- * the hand out. With no stake down at all nothing is dealt: everyone still in the game takes a
- * seat in the round (a newcomer who came in behind a stake that has since left the table too) and
- * the table waits, or holds once nobody still in the game is connected to bet.
+ * the hand out. With no stake down at all nothing is dealt: everyone still in the game is back in
+ * the round and the table waits, or holds once nobody still in the game is connected to bet.
  */
 export function dealIfReady(gx: Gx): boolean {
   const { data, ctx } = gx;

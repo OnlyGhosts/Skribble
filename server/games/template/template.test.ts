@@ -7,7 +7,7 @@ import { defaultPlatformSettings } from '../../../shared/platform/settings.js';
 import type { Effect } from '../../platform/engine/effects.js';
 import { nextDeadline } from '../../platform/engine/time.js';
 import { viewFor } from '../../platform/engine/view.js';
-import { AVATAR, START, chatTexts, sim, startGame } from '../../platform/engine/testHarness.js';
+import { AVATAR, START, chatTexts, errorsOf, sim, startGame } from '../../platform/engine/testHarness.js';
 import { templateModule, type TemplateData } from './module.js';
 
 const view = (s: { data: Parameters<typeof viewFor>[0]; now: number }, viewer: string | null = null): TemplateView => {
@@ -75,16 +75,16 @@ describe('Click Race', () => {
     ]);
   });
 
-  it('seats mid-game joiners at zero clicks', () => {
+  it('lets a mid-game joiner watch without a tally or a click of their own', () => {
     const s = sim('template');
     const [alice] = startGame(s, ['Alice', 'Bob'], { targetClicks: 10 });
     s.game(alice, { t: 'click' });
     s.apply({ type: 'join', name: 'Carol', avatar: AVATAR, connectionId: 'c' });
     const carol = s.playerId('Carol');
-    expect(view(s).clicks[carol]).toBe(0);
-    s.game(carol, { t: 'click' });
-    expect(view(s).clicks).toMatchObject({ [alice]: 1, [carol]: 1 });
-    // Leaving mid-race keeps the others going; the leaver's clicks stay in the tally for the view.
+    expect(view(s).clicks[carol]).toBeUndefined();
+    expect(errorsOf(s.game(carol, { t: 'click' }))).toEqual(['You are watching this game.']);
+    expect(view(s).clicks).toEqual({ [alice]: 1, [s.playerId('Bob')]: 0 });
+    // A watcher leaving mid-race changes nothing for the racers.
     s.apply({ type: 'leave', playerId: carol });
     expect(s.data.phase).toBe('playing');
   });

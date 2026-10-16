@@ -46,7 +46,7 @@ export function firstInvalidBox(code: string): number {
 
 /**
  * Where the focus goes once the server has refused a join: the first invalid box when the code
- * itself was the problem, otherwise (full, in progress, offline, timed out) the Join button, so
+ * itself was the problem, otherwise (full, offline, timed out) the Join button, so
  * one Enter retries and a keyboard or screen-reader user never lands on <body> when the name
  * step that had the focus unmounts.
  */
@@ -369,17 +369,28 @@ export function Home({ code: linkedCode, game: linkedGame }: Props) {
   );
 }
 
-/** A quiet line about the room the code names: who is there and what they are playing. */
-function PreviewText({ preview }: { preview: RoomPreview }) {
+/**
+ * A quiet line about the room the code names: who is there and what they are playing. Only a
+ * full room is closed; a game in progress can be joined to watch.
+ */
+export function previewLine(preview: RoomPreview): { text: string; ok: boolean; note?: string } | null {
   if (!preview.exists) return null;
-  const players = `${preview.players} ${preview.players === 1 ? 'player' : 'players'} in the party`;
-  if (!preview.joinable) {
-    return <span className="field__error">{preview.inProgress ? `Game in progress, joining is closed. (${players})` : `Room is full. (${players})`}</span>;
-  }
+  const count = `${preview.players} ${preview.players === 1 ? 'player' : 'players'}`;
+  const players = `${count} in the party`;
+  if (!preview.joinable) return { text: `Room is full. (${players})`, ok: false };
+  const game = gameById(preview.gameId).name;
+  // "3 players" stays together on a narrow phone.
+  return preview.inProgress ? { text: `${game} in progress · ${count.replace(' ', '\u00a0')}.`, ok: true, note: 'Join to watch.' } : { text: `${players} · ${game}`, ok: true };
+}
+
+function PreviewText({ preview }: { preview: RoomPreview }) {
+  const line = previewLine(preview);
+  if (!line) return null;
   return (
-    <span className="field__ok">
-      {players} · {gameById(preview.gameId).name}
-      {preview.inProgress ? ' in progress, you can still join' : ''}
+    <span className={line.ok ? 'field__ok' : 'field__error'}>
+      {line.text}
+      {/* The note never splits: a narrow phone moves it to its own line whole. */}
+      {line.note && <> <span className="code-preview__note">{line.note}</span></>}
     </span>
   );
 }

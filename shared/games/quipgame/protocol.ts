@@ -10,8 +10,21 @@ import type { RoomState } from '../../platform/protocol.js';
 // Rules constants
 // ---------------------------------------------------------------------------
 
-/** Rounds before the optional final: everyone writes two answers per round. */
+/** Rounds before the final: everyone writes two answers per round. Every game ends with the final round. */
 export const QUIPGAME_REGULAR_ROUNDS = 2;
+/** The regular rounds and the final. */
+export const QUIPGAME_TOTAL_ROUNDS = QUIPGAME_REGULAR_ROUNDS + 1;
+
+/*
+ * The clocks are fixed, not settings: change one here to change it everywhere. An announcer is
+ * always picked for every matchup and for the final.
+ */
+/** Seconds to write the round's answers (the final's one answer too); anyone who runs out gets a stand-in answer. */
+export const QUIPGAME_WRITE_SECONDS = 90;
+/** Seconds a matchup's vote, or the final ranking, stays open. */
+export const QUIPGAME_VOTE_SECONDS = 30;
+/** Seconds a result stays up before the game moves on by itself; the host may skip ahead. */
+export const QUIPGAME_RESULTS_SECONDS = 8;
 export const QUIPGAME_ANSWER_MAX_LENGTH = 80;
 
 export const QUIPGAME_POINTS = {
@@ -33,9 +46,6 @@ export const QUIPGAME_MAX_PICKS = QUIPGAME_POINTS.finalPicks.length;
 // ---------------------------------------------------------------------------
 
 export const QUIPGAME_SETTINGS_LIMITS = {
-  writeSeconds: { min: 30, max: 180, step: 10 },
-  voteSeconds: { min: 10, max: 60, step: 5 },
-  resultsSeconds: { min: 4, max: 20 },
   customPrompts: { maxCount: 200, maxLength: 120, minForOnly: 10 },
 } as const;
 
@@ -47,17 +57,11 @@ export function cleanText(text: string): string {
     .trim();
 }
 
+/**
+ * A room or a patch stored with the retired keys (`writeSeconds`, `voteSeconds`, `resultsSeconds`,
+ * `finalRound`, `announcer`) loads and ignores them.
+ */
 export const quipgameSettingsSchema = z.object({
-  /** Seconds to write the round's answers. */
-  writeSeconds: z.number().int().min(QUIPGAME_SETTINGS_LIMITS.writeSeconds.min).max(QUIPGAME_SETTINGS_LIMITS.writeSeconds.max),
-  /** Seconds a matchup (or the final ranking) stays open. */
-  voteSeconds: z.number().int().min(QUIPGAME_SETTINGS_LIMITS.voteSeconds.min).max(QUIPGAME_SETTINGS_LIMITS.voteSeconds.max),
-  /** Seconds a result stays up before the next matchup starts on its own. */
-  resultsSeconds: z.number().int().min(QUIPGAME_SETTINGS_LIMITS.resultsSeconds.min).max(QUIPGAME_SETTINGS_LIMITS.resultsSeconds.max),
-  /** Play a final round where everyone answers one prompt and ranks the answers. */
-  finalRound: z.boolean(),
-  /** Pick a player per matchup to read the prompt and answers out loud. */
-  announcer: z.boolean(),
   /** Extra prompts supplied by the host, one per line. */
   customPrompts: z
     .array(z.string().trim().min(1).max(QUIPGAME_SETTINGS_LIMITS.customPrompts.maxLength))
@@ -69,22 +73,21 @@ export const quipgameSettingsSchema = z.object({
 export type QuipgameSettings = z.infer<typeof quipgameSettingsSchema>;
 
 export const DEFAULT_QUIPGAME_SETTINGS: QuipgameSettings = {
-  writeSeconds: 90,
-  voteSeconds: 30,
-  resultsSeconds: 8,
-  finalRound: true,
-  announcer: false,
   customPrompts: [],
   customPromptsOnly: false,
 };
 
-/** Parses a textarea of custom prompts, one per line (prompts contain commas). Dedupes case-insensitively. */
+/** The entries of a textarea of custom prompts as typed: one per line (prompts contain commas), blanks dropped. */
+export function splitCustomPrompts(text: string): string[] {
+  return text.split('\n').map(cleanText).filter(Boolean);
+}
+
+/** Parses a textarea of custom prompts, one per line. Dedupes case-insensitively. */
 export function parseCustomPrompts(text: string): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
-  for (const raw of text.split('\n')) {
-    const prompt = cleanText(raw);
-    if (!prompt || prompt.length > QUIPGAME_SETTINGS_LIMITS.customPrompts.maxLength) continue;
+  for (const prompt of splitCustomPrompts(text)) {
+    if (prompt.length > QUIPGAME_SETTINGS_LIMITS.customPrompts.maxLength) continue;
     const key = prompt.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);

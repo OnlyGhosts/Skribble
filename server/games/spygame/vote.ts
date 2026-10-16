@@ -1,6 +1,7 @@
 /** Accusations and votes: one accusation per agent per round, a passed vote is the group's single guess. */
+import { SPYGAME_VOTE_SECONDS } from '../../../shared/games/spygame/protocol.js';
 import { endRound, pauseClock, resumeClock } from './round.js';
-import { fail, isRoundPlayer, nameOf, snapshot, systemMessage, type Gx } from './state.js';
+import { fail, isRoundPlayer, nameOf, noticeMessage, snapshot, systemMessage, type Gx } from './state.js';
 
 export function accuse(gx: Gx, playerId: string, accusedId: string): void {
   const { data, ctx } = gx;
@@ -20,7 +21,7 @@ export function accuse(gx: Gx, playerId: string, accusedId: string): void {
     accusedId,
     eligible: current.playerIds.filter((id) => id !== current.spyId && id !== accusedId),
     votes: { [playerId]: true },
-    endsAt: ctx.now + ctx.settings.voteSeconds * 1000,
+    endsAt: ctx.now + SPYGAME_VOTE_SECONDS * 1000,
   };
   data.phase = 'voting';
   systemMessage(gx, `${nameOf(ctx, playerId)} accuses ${nameOf(ctx, accusedId)} of being the spy! Vote now.`);
@@ -67,7 +68,7 @@ export function resolveVote(gx: Gx): void {
     return endRound(gx, v.accusedId === data.current.spyId ? 'spyCaught' : 'wrongAccusation', { accuserId: v.accuserId, accusedId: v.accusedId });
   }
   // Never print the padded count: yes + no is the eligible count, which differs by one when the accused is the spy.
-  systemMessage(gx, 'The vote failed. Play on.');
+  noticeMessage(gx, 'The vote failed. Play on.');
   data.vote = null;
   data.phase = 'playing';
   resumeClock(gx);
@@ -84,7 +85,7 @@ export function voterLeft(gx: Gx, playerId: string): void {
   const v = data.vote;
   if (data.phase !== 'voting' || !v) return;
   if (playerId === v.accusedId || playerId === v.accuserId) {
-    systemMessage(gx, playerId === v.accusedId ? 'The accused left. The vote is off.' : 'The accuser left. The vote is off.');
+    noticeMessage(gx, playerId === v.accusedId ? 'The accused left. The vote is off.' : 'The accuser left. The vote is off.');
     data.current.accusers = data.current.accusers.filter((id) => id !== v.accuserId);
     data.vote = null;
     data.phase = 'playing';

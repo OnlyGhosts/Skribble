@@ -4,12 +4,15 @@ import { voterCount } from '../hooks';
 import { votedLine } from '../lib/text';
 import { useQuipgame, useQuipgameStore } from '../store';
 import { CheckIcon } from '../../../platform/components/Icons';
+import { WATCHING_TEXT } from '../../../platform/lib/watching';
 import { MegaphoneIcon } from './Icons';
 
 interface Props {
   room: QuipgameRoomState;
   view: QuipgameView;
   matchup: QuipgameMatchupView;
+  /** A spectator of the whole game: no vote, one line saying so. */
+  watching?: boolean;
 }
 
 /** The announcer's "read this out" card: the prompt and both answers in large text, above the normal controls. */
@@ -36,7 +39,7 @@ export function Announcer({ matchup }: { matchup: QuipgameMatchupView }) {
  * A matchup: the prompt, answers A and B as two equal cards, then Vote. A tap selects (with a
  * check), Vote sends it; a sent vote can still be changed until the matchup closes. Authors sit tight.
  */
-export function Voting({ room, view, matchup }: Props) {
+export function Voting({ room, view, matchup, watching = false }: Props) {
   const selected = useQuipgame((s) => s.selectedChoice);
   // The pick shows at once; the local one is cleared when the step changes, so the server's echo takes over from there.
   const choice: QuipgameChoice | null = selected ?? view.myVote;
@@ -113,7 +116,7 @@ export function Voting({ room, view, matchup }: Props) {
           </button>
         ) : (
           <p className="quip-vote__note" role="status" data-testid="vote-watching">
-            {room.phase === 'playing' ? 'Reconnect to vote on this one.' : 'The game is over.'}
+            {room.phase !== 'playing' ? 'The game is over.' : watching ? WATCHING_TEXT : 'Reconnect to vote on this one.'}
           </p>
         )}
         <p className="quip-write__status" role="status" data-testid="vote-count" data-votes={matchup.votes} data-voters={voters}>

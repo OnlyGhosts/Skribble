@@ -1,7 +1,7 @@
 /**
  * Click Race: the template client module. Copy this folder for a new game. The platform renders
- * the library card, the game home, the lobby, chat, players and the podium; a module only needs
- * a Screen (and, optionally, settings rows and the hooks listed in platform/game.ts).
+ * the front door, the room, players and the podium; a module only needs a Screen (and,
+ * optionally, settings rows and the hooks listed in platform/game.ts).
  */
 import type { TemplateSettings, TemplateView } from '@shared/games/template/protocol';
 import { gameById } from '@shared/platform/games';

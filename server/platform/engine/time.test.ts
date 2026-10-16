@@ -46,7 +46,8 @@ describe('nextDeadline', () => {
     s.game(alice, { t: 'chooseWord', index: 0 });
     expectAgreement(s); // first hint
 
-    s.advance(25_000);
+    // The 80 s turn reveals its two hints at 26.7 s and 53.3 s.
+    s.advance(30_000);
     s.tick();
     expectAgreement(s); // second hint
 
@@ -54,14 +55,14 @@ describe('nextDeadline', () => {
     expectAgreement(s); // Bob has not guessed, so no all-guessed grace: still the hint
 
     s.apply({ type: 'connectionClosed', playerId: alice });
-    expectAgreement(s); // drawer-gone grace, 20 s, beats the hint at 40 s
+    expectAgreement(s); // drawer-gone grace, 20 s, beats the hint at 53.3 s
 
     s.apply({ type: 'rejoin', token: 'token-1', connectionId: 'a2' });
     s.apply({ type: 'rejoin', token: 'token-3', connectionId: 'c2' });
     s.platform(bob, { t: 'chat', text: 'apple' });
     expectAgreement(s); // drawing continues (Carol has not guessed); next: hint
 
-    s.advance(40_000);
+    s.advance(55_000);
     s.tick();
     expectAgreement(s); // turnEnd -> next turn
 
@@ -95,8 +96,12 @@ describe('nextDeadline', () => {
     expect(pendingDeadlines(s.data).map((d) => d.kind)).toEqual(['reconnectExpiry']);
     expectAgreement(s);
 
+    // A newcomer only watches, so the hold goes on; Bob coming back ends it.
     const join: Action = { type: 'join', name: 'Carol', avatar: AVATAR, connectionId: 'c' };
     s.apply(join);
+    expect((s.data.game as SkribbleData).phase).toMatchObject({ kind: 'turnEnd', held: true });
+    expectAgreement(s);
+    s.apply({ type: 'rejoin', token: s.data.players.find((p) => p.id === bob)?.token ?? '', connectionId: 'b2' });
     expect((s.data.game as SkribbleData).phase.kind).toBe('choosing');
     expectAgreement(s);
     expect(s.now).toBeGreaterThan(START);

@@ -1,5 +1,6 @@
 import { GAME_LIST, gameById, type GameMeta } from '@shared/platform/games';
 import type { RoomState } from '@shared/platform/protocol';
+import { noOrphan } from '../lib/format';
 import { playerCountLabel } from '../lib/party';
 import { selectGame } from '../net/actions';
 import { GameGlyph } from './GameGlyph';
@@ -59,7 +60,7 @@ function GameTile({ game, selected, readonly = false, onSelect }: { game: GameMe
       <span className="game-tile__icon" aria-hidden="true">
         <GameGlyph game={game} size={32} strokeWidth={2} />
       </span>
-      <span className="game-tile__name">{game.name}</span>
+      <span className="game-tile__name">{noOrphan(game.name)}</span>
     </>
   );
   if (readonly) {

@@ -1,7 +1,7 @@
 /** Turn lifecycle: start -> choosing -> drawing (hints) -> turnEnd -> next turn / game over. */
 import { CHOOSE_TIME_SECONDS, TURN_END_SECONDS } from '../../../shared/games/skribble/constants.js';
 import { hintCountFor, hintRevealOrder, hintSchedule } from '../../../shared/games/skribble/hints.js';
-import type { SkribbleServerMessage, TurnEndReason } from '../../../shared/games/skribble/protocol.js';
+import { SKRIBBLE_DRAW_SECONDS, type SkribbleServerMessage, type TurnEndReason } from '../../../shared/games/skribble/protocol.js';
 import { drawerPoints } from '../../../shared/games/skribble/scoring.js';
 import { buildWordPool, pickWords } from '../../../shared/games/skribble/words/index.js';
 import { gameById } from '../../../shared/platform/games.js';
@@ -45,7 +45,7 @@ export function resetCanvas(gx: Gx): void {
 
 /**
  * The turn boundary: the next turn, the next round or the end of the game. With fewer than two
- * players connected it holds at the summary instead (a reconnect or a join calls it again), and
+ * players connected it holds at the summary instead (a reconnect calls it again), and
  * it abandons the game only when fewer than two hold a seat at all.
  */
 export function beginNextTurn(gx: Gx): void {
@@ -143,7 +143,7 @@ function startDrawing(gx: Gx, word: string): void {
   const { data, ctx } = gx;
   const turn = data.turn;
   if (!turn) return;
-  const drawTimeMs = ctx.settings.drawTime * 1000;
+  const drawTimeMs = SKRIBBLE_DRAW_SECONDS * 1000;
   const lower = word.toLowerCase();
   if (!data.usedWords.includes(lower)) data.usedWords.push(lower);
   const hintCount = hintCountFor(word, ctx.settings.hints);

@@ -6,7 +6,7 @@ front door and you are playing within seconds. The host picks the game inside th
 party stays together between games. No accounts, no app store, works in any modern browser on
 desktop and phones, installable as a home-screen app.
 
-Every game added gets the rooms, codes, seats, lobby, chat, kicks, reconnects, scores and the
+Every game added gets the rooms, codes, seats, lobby, notices, kicks, reconnects, scores and the
 podium for free: a game is a pure reducer on the server and a React screen on the client, and
 nothing else. The owner adds games over time; [docs/ADDING_A_GAME.md](docs/ADDING_A_GAME.md) is
 the copy-paste guide for the next one.
@@ -103,24 +103,24 @@ needs does it return everyone to the lobby.
 
 - **Friend codes that are actually readable.** Codes use letters and digits but never `I`, `L`, `O`, `0` or `1`, so nothing gets misread over voice chat. Paste a code or a whole invite link into the join box and it just works.
 - **Type into the blanks.** On your turn to guess, the word-length tiles *are* your input: each letter you type lands in the next slot, spaces and hyphens in the word are skipped for you, revealed hint letters show faintly until you type over them, Enter submits. Uses your phone's normal keyboard, never a custom on-screen one.
-- **Built for phones.** A non-scrolling game layout that keeps the canvas, the chat and the guess bar above the keyboard, a players sheet, landscape support, 44px tap targets, safe-area aware.
+- **Built for phones.** A non-scrolling game layout that keeps the canvas, the guesses and the guess bar above the keyboard, a players sheet, landscape support, 44px tap targets, safe-area aware.
 - **Reconnect without losing your seat.** Come back with the same name, score and the drawing so far. If the drawer drops, the turn waits 20 seconds for them before moving on; if the room is short of players, the game holds at the turn summary until they are back.
 - **Hints that help.** Letters are revealed on a schedule spread over the turn; "close" guesses are flagged privately so you know you're nearly there; `icecream` counts for `ice cream`.
 - **Fair scoring.** Guessers earn 50–400 points by speed. The drawer earns up to 300 points scaled by how many people got it, so drawing clearly for everyone beats racing one fast friend.
 - **Real drawing tools.** Smooth strokes, five brush sizes, 24 colours plus a colour picker, eraser, flood fill, undo and clear, with keyboard shortcuts (`B`, `E`, `F`, `Ctrl+Z`, `[` and `]`).
-- **Host controls and fair play.** Rounds, draw time, hints, word choices, custom word lists (optionally custom-only), mid-game join on or off, kick, vote-kick, automatic host hand-over. The drawer can't type the word into chat; players who've guessed can only chat with each other and the drawer.
+- **Host controls and fair play.** Rounds, hints, word choices, custom word lists typed in or uploaded as a .txt file (optionally custom-only), kick, vote-kick, automatic host hand-over. There is no chat to give the word away in: only a guesser who has not got it yet types, and only guesses.
 - **Polish.** Light and dark themes, sound cues, like/dislike the drawing, turn summaries, a podium at the end, and a 1,390-word English list of things you can actually draw.
 
-Each round, every player draws once. The drawer picks one of three words, everyone else guesses in
-chat (or straight into the blanks on a phone), and the turn ends when time runs out or everyone has
-guessed.
+Each round, every player draws once. The drawer picks one of three words, everyone else types
+guesses straight into the blanks, and the turn ends when time runs out or everyone has guessed.
 
 ## The Spy Game
 
 Three or more players in the same room. Each round one player is secretly the spy; everyone
 else sees the location (one of 24 candidates drawn from the pack in `shared/games/spygame/locations.ts`).
 Questions are asked out loud; the spy has two guesses, the agents one group accusation each
-round (a vote that pauses the clock). Rounds, the round clock and the vote window are set in the lobby.
+round (a vote that pauses the clock). The host sets the number of rounds; the round clock (8 minutes)
+and the vote window (30 seconds) are fixed.
 
 **Location pictures.** Every location has a generated placeholder tile in
 `client/src/games/spygame/assets/locations/<id>.svg`, written by
@@ -143,7 +143,7 @@ verification checklist. In short:
    randomness, never mutates its input and returns the same object when nothing changed. Give the
    cross-game test suites their per-game entry in `server/games/testFixtures.ts` (TypeScript asks).
 4. Copy `client/src/games/template/` and register the module in `client/src/games/index.ts`: a
-   `Screen`, optional `SettingsFields`, optional hooks for the player list, the chat and the
+   `Screen`, optional `SettingsFields`, optional hooks for the player list, chat lines and the
    game's own server messages.
 5. Add an end-to-end test, then set the card's `status` to `'live'`.
 
@@ -281,8 +281,8 @@ api/               server.ts, the Vercel Function that preview deployments talk 
                    exported as an http.Server (Vercel handles the WebSocket upgrade), Redis when a
                    store is connected, no static files. Production uses the Fly.io machine instead.
 client/src/platform/ React 19 + zustand. game.ts is the client contract (GameClientModule: Screen,
-                   SettingsFields, playerBadge/playerMeta/playerClassName, ChatInput, chatPlaceholder,
-                   onServerMessage, onWelcome, onRoom, onChat, onLeave) and registry.ts the slot the
+                   SettingsFields, playerBadge/playerMeta/playerClassName, onServerMessage,
+                   onWelcome, onRoom, onChat, onLeave) and registry.ts the slot the
                    games are installed into by main.tsx (the platform never imports a game). router.ts
                    maps '/' (the front door), '/:slug/:CODE' and legacy '/:CODE' (the front door with
                    the code filled in) and '/:slug' (redirects to '/') with pushState; store/ holds
@@ -337,18 +337,21 @@ Every room has the platform settings; each game adds its own, flat next to them.
 | Platform setting | Default | Range |
 | --- | --- | --- |
 | Content mode | Family | Family or Unhinged (18+); picks the words, prompts and locations of the games that use it |
-| Mid-game join | on | |
 
 There is no max-players setting: a room holds up to 50 seats and every player who is ready takes
-part. Players who sit a game out stay in the party and watch.
+part. Players who sit a game out stay in the party and watch. Anyone who joins while a game is
+running is let in to watch it and plays from the next game on; a player who drops and comes back
+keeps their own seat.
 
 | Scribble | Default | Range |
 | --- | --- | --- |
 | Rounds | 3 | 1–10 |
-| Draw time | 80 s | 20–180 s, in steps of 10 |
 | Hint letters | 2 | 0–5 (never more than half the word) |
 | Word choices | 3 | 2–5 |
 | Custom words | none | up to 500; "custom only" needs at least 10 |
+
+No game has a timing setting: every clock is a named constant in the game's shared protocol
+(Scribble's turn is 80 seconds, `SKRIBBLE_DRAW_SECONDS`), so a timing changes in one place.
 
 | Click Race | Default | Range |
 | --- | --- | --- |

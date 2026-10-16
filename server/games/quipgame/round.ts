@@ -1,6 +1,6 @@
 /** Regular rounds: prompt assignment, the writing phase (answers, resubmission, fallbacks) and moving on. */
 import { FALLBACK_ANSWERS } from '../../../shared/games/quipgame/prompts.js';
-import { QUIPGAME_REGULAR_ROUNDS } from '../../../shared/games/quipgame/protocol.js';
+import { QUIPGAME_REGULAR_ROUNDS, QUIPGAME_WRITE_SECONDS } from '../../../shared/games/quipgame/protocol.js';
 import { RESUME_SETTLE_MS, holdEffects, resumeEffect } from '../waiting.js';
 import { startFinal, startFinalVoting } from './final.js';
 import { drawPrompts } from './prompts.js';
@@ -96,7 +96,7 @@ export function startRound(gx: Gx): void {
   const players = seatRound(gx);
   data.prompts = assignPrompts(gx, players);
   data.phase = 'writing';
-  data.endsAt = ctx.now + ctx.settings.writeSeconds * 1000;
+  data.endsAt = ctx.now + QUIPGAME_WRITE_SECONDS * 1000;
   const extra = data.round === QUIPGAME_REGULAR_ROUNDS ? ' Double points!' : '';
   systemMessage(gx, `Round ${data.round} of ${data.totalRounds}: write your answers!${extra}`);
   snapshot(gx);

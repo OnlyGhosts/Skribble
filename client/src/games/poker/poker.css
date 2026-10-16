@@ -1,81 +1,193 @@
-/* Poker on the platform's card table (platform/styles/table.css): the pot, the board, the seats' bets and my hand. */
+/* Poker on the platform's calm card table (platform/styles/table.css): the places on the table and their sizes. */
 
 /* ---------- The screen: a wider left column, so the raise field keeps room beside 1/2 pot, Pot and MAX ---------- */
 .pk.tbl {
-  grid-template-columns: 340px minmax(0, 1fr) 300px;
+  grid-template-columns: 320px minmax(0, 1fr);
 }
 
-/* ---------- The table: card sizes per place (every card here is 2:3) ---------- */
+/*
+ * ---------- The table: fixed places for the board and the stage, like Blackjack's ----------
+ * The first row (the pot over the board) and the stage (my two cards) have a fixed height, and
+ * the cards in them a fixed size, that depend on the screen alone: never on the street or the
+ * number of players. The banner and the seats in between take what is left. Every card is 2:3.
+ *
+ * --pk-board-w, --pk-mine-w, --pk-aside-w: a card's width on the board, on the stage and beside
+ * it (the winner's hand); --pk-pot-h: the pot's row.
+ */
 .pk-table {
-  --pk-board-w: 64px;
-  --pk-spot-w: 72px;
-  --pk-mine-w: 72px;
+  --pk-board-w: 84px;
+  --pk-mine-w: 84px;
+  --pk-pot-h: 34px;
   --tbl-mini-w: 30px;
+  --pk-aside-w: 40px;
+  --tbl-pill-h: 30px;
+  --tbl-deck-w: 64px;
+  --tbl-owner-w: 120px;
+  --tbl-row-gap: var(--space-3);
+  --tbl-head-h: calc(var(--pk-pot-h) + 8px + var(--pk-board-w) * 1.5 + 4px);
+  /* A fan's height with its pill (overlapping by 30%) and its outline's room. */
+  --tbl-stage-h: calc(var(--tbl-pill-h) * 0.7 + var(--pk-mine-w) * 1.77 + 4px);
 }
 
-/* The top row: the muck, the pot over the board, the deck. */
-.pk-top {
-  align-items: center;
-}
-
-.pk-centre__row {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  min-width: 0;
-}
-
-/* The blinds by the pot on a phone (a desktop has them on the ribbon). */
-.pk-blinds {
-  display: none;
-  font-family: var(--font-mono);
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: var(--color-text-muted);
-  white-space: nowrap;
-}
-
+/* ---------- The top centre: the pot over the board ---------- */
 .pk-centre {
-  grid-column: 2;
+  grid-area: head;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  justify-content: flex-start;
+  gap: 8px;
   min-width: 0;
 }
 
-/* ---------- The spotlight: the player to act, their cards and their bet ---------- */
-.pk-spot__cards {
-  --tbl-w: var(--pk-spot-w);
+.pk-pot {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 4px 10px;
+  height: var(--pk-pot-h);
+  max-width: 100%;
+  min-width: 0;
 }
 
-.pk-spot__cards > .tbl-card + .tbl-card {
-  margin-left: calc(var(--tbl-w) * -0.25);
+.pk-pot__pill.tbl-stake {
+  font-size: calc(var(--pk-pot-h) * 0.5);
 }
 
-.pk-bet--spot {
-  margin-left: 10px;
-  font-size: 0.85rem;
+.pk-pot__pill.is-empty {
+  opacity: 0.6;
 }
 
-.pk-spot__stack {
-  color: var(--color-text);
+/* The blinds by the pot: only where the banner that names them is gone (the shortest phones). */
+/* "Blinds 5/10" on one line: two short words, never split. */
+.pk-pot__blinds {
+  display: none;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--color-text-muted);
 }
 
-.pk-spot__action {
-  color: var(--color-text);
-}
-
-.pk-mine--spot {
-  --pk-mine-w: var(--pk-spot-w);
+/* Side pots: small beside the pill, two lines at the most. */
+.pk-pot__sides {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 8px;
+  max-height: 100%;
+  margin: 0;
   padding: 0;
-  border: 0;
-  background: none;
+  overflow: hidden;
+  list-style: none;
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  line-height: 1.3;
+  color: var(--color-text-muted);
+}
+
+.pk-pot__side {
+  white-space: nowrap;
+}
+
+.pk-board {
+  --tbl-w: var(--pk-board-w);
+  display: flex;
+  justify-content: center;
+  gap: calc(var(--pk-board-w) * 0.1);
+  min-height: calc(var(--tbl-w) * 1.5);
+}
+
+.pk-board > .playing-card {
+  --card-w: var(--tbl-w);
+  --card-h: calc(var(--tbl-w) * 1.5);
+}
+
+/* ---------- The stage: my two cards big in the middle ---------- */
+.pk-mine {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  height: 100%;
+  min-width: 0;
+}
+
+.pk-mine .tbl-hand {
+  --tbl-w: var(--pk-mine-w);
+}
+
+/* The hand's name is longer than a total: a pill sized for words. */
+.pk-mine .tbl-hand__head .tbl-pill {
+  font-family: var(--font-sans);
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.pk-hand--folded .tbl-fan {
+  opacity: 0.4;
+}
+
+/* On the right: my last move, how the hand went, or the winner's hand. */
+.tbl-stage__aside:has(.pk-stage__state, .tbl-flag, .pk-winner) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pk-stage__state {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.pk-stage__state--allin {
+  color: var(--color-warning-text);
+}
+
+.pk .tbl-stage__aside .tbl-flag {
+  font-size: 1.05rem;
+  text-align: center;
+}
+
+.pk-winner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.pk-winner__name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--color-primary-text);
+}
+
+/* The winner's hand small: its name over the cards, so it keeps to the column. */
+.pk-winner .tbl-hand--mini {
+  --tbl-w: var(--pk-aside-w);
+  flex-direction: column;
+  gap: 3px;
+}
+
+/* The hand's kind in words ("Two pair"), on two lines if it must, never cut. */
+.pk-winner .tbl-hand__head .tbl-pill {
+  height: auto;
+  min-height: 18px;
+  max-width: var(--tbl-owner-w);
+  padding: 1px 6px;
+  white-space: normal;
+  text-align: center;
+  font-family: var(--font-sans);
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1.1;
 }
 
 /* ---------- A seat's sheet ---------- */
@@ -88,10 +200,15 @@
 
 .pk-seat-detail__line {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-2) var(--space-3);
   margin: 0;
   font-weight: 700;
+}
+
+.pk-seat-detail__state {
+  color: var(--color-text-muted);
 }
 
 .pk-seat-detail__cards {
@@ -99,90 +216,13 @@
   gap: 8px;
 }
 
-.pk-board > .playing-card,
-.pk-mine__cards > .playing-card {
-  --card-w: var(--tbl-w);
-  --card-h: calc(var(--tbl-w) * 1.5);
-  --card-font: calc(var(--tbl-w) * 0.26 + 2px);
-}
-
-/* ---------- The pot, over the board ---------- */
-.pk-pot {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-}
-
-.pk-pot__pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 32px;
-  padding: 0 12px;
-  border-radius: var(--radius-pill);
-  background: var(--color-surface-3);
-  border: 1px solid var(--color-border-strong);
-  font-family: var(--font-mono);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.pk-pot__pill.is-empty {
-  opacity: 0.6;
-}
-
-.pk-pot__label {
-  font-size: 0.68rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--color-text-faint);
-}
-
-.pk-pot__value {
-  font-size: 0.95rem;
-}
-
-.pk-pot__sides {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 4px 10px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  font-family: var(--font-mono);
-  font-size: 0.66rem;
-  color: var(--color-text-faint);
-  white-space: nowrap;
-}
-
-/* ---------- The board ---------- */
-.pk-board {
-  --tbl-w: var(--pk-board-w);
-  display: flex;
-  justify-content: center;
-  gap: 6px;
-  min-height: calc(var(--tbl-w) * 1.5);
-}
-
-/* ---------- Bets in front of the seats ---------- */
+/* ---------- Bets in front of the seats: the anchor the chips fly to, the pill in it ---------- */
 .pk-bet {
   display: inline-flex;
   align-items: center;
   align-self: center;
   min-width: 1px;
   min-height: 14px;
-  font-size: 0.72rem;
-}
-
-.pk-bet .chip-count {
-  padding: 0 6px 0 3px;
-  border-radius: var(--radius-pill);
-  background: var(--color-surface-3);
-  border: 1px solid var(--color-border);
 }
 
 /* ---------- The other seats: the hole cards on a full tile overlap a little ---------- */
@@ -201,6 +241,14 @@
   background: var(--color-surface-2);
   font-size: 0.9rem;
   animation-name: pk-seat-rise;
+}
+
+/* A narrow tile has no room beside "1,100 chips": the payout rises at the top right instead, clear of the stack. */
+@container tile (max-width: 160px) {
+  .pk .tbl-tile .tbl-payout {
+    top: 3px;
+    bottom: auto;
+  }
 }
 
 @keyframes pk-seat-rise {
@@ -243,91 +291,6 @@
     height: 14px;
     font-size: 0.5rem;
   }
-}
-
-/* ---------- My hand ---------- */
-.pk-mine {
-  --tbl-w: var(--pk-mine-w);
-  align-self: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  padding: 6px 12px;
-}
-
-.pk-mine__top {
-  position: relative;
-  display: flex;
-  justify-content: center;
-  min-height: 24px;
-  max-width: 100%;
-}
-
-.pk-mine__top .tbl-pill {
-  display: block;
-  max-width: 100%;
-  line-height: 22px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-family: var(--font-sans);
-  font-weight: 700;
-}
-
-.pk-mine__cards {
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-  min-height: calc(var(--tbl-w) * 1.5);
-}
-
-.pk-mine__cards--folded {
-  opacity: 0.4;
-}
-
-.pk-mine__foot {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  min-height: 22px;
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: var(--color-text-muted);
-  white-space: nowrap;
-}
-
-.pk-bet--mine {
-  font-size: 0.85rem;
-}
-
-.pk-mine__state--allin {
-  color: var(--color-warning-text);
-}
-
-/* My hand at the bottom lies on its side (cards, then what they make and my bet), so the players keep the height. */
-.pk-mine--bottom {
-  flex-direction: row;
-  gap: 10px;
-  padding: 4px 10px;
-}
-
-.pk-mine--bottom .pk-mine__top {
-  order: 2;
-  min-height: 0;
-}
-
-.pk-mine--bottom .pk-mine__foot {
-  order: 3;
-  flex-direction: column;
-  gap: 2px;
-  min-height: 0;
-}
-
-/* A tight table has the blinds in the top bar (a phone: by the pot); the ribbon goes. */
-.pk-table.tbl-stage--tight .tbl-ribbon {
-  display: none;
 }
 
 /* ---------- End game (host) ---------- */
@@ -395,208 +358,138 @@
   color: var(--color-text-faint);
 }
 
+/* ---------- Screen sizes: the fixed places' sizes go by the screen alone ---------- */
 @media (max-width: 1100px) {
   .pk.tbl {
-    grid-template-columns: 320px minmax(0, 1fr) 260px;
+    grid-template-columns: 300px minmax(0, 1fr);
   }
 
   .pk-table {
-    --pk-board-w: 56px;
-    --pk-spot-w: 62px;
-    --pk-mine-w: 62px;
+    --pk-board-w: 64px;
+    --pk-mine-w: 68px;
+    --tbl-pill-h: 28px;
+    --tbl-deck-w: 54px;
+    --tbl-owner-w: 96px;
   }
 }
 
-/* A desktop: my cards at the bottom a size down from the spotlight's. */
-@media (min-width: 761px) and (min-height: 521px) {
-  .pk-table .pk-mine--bottom {
-    --pk-mine-w: 56px;
-  }
-
-  /* Ten or more others: the board and the spotlight a size down, so the tiles keep their names. */
-  .pk-table.tbl-crowd--small,
-  .pk-table.tbl-crowd--dense {
-    --pk-board-w: 52px;
-    --pk-spot-w: 56px;
+/* A shorter desktop window (a 1280x800 laptop): the cards give the seats some height. */
+@media (min-width: 761px) and (max-height: 860px) {
+  .pk-table {
+    --pk-board-w: 64px;
+    --pk-mine-w: 68px;
+    --tbl-pill-h: 28px;
   }
 }
 
-/* ---------- Phones: my hand on its side (cards, then what they make and my bet) to save height ---------- */
+/* ---------- Phones ---------- */
 @media (max-width: 760px), (min-aspect-ratio: 3/2) and (max-height: 520px) {
   .pk-table {
-    --pk-board-w: 44px;
-    --pk-spot-w: 48px;
-    --pk-mine-w: 50px;
+    --pk-board-w: 52px;
+    --pk-mine-w: 56px;
+    --pk-pot-h: 28px;
     --tbl-mini-w: 22px;
+    --pk-aside-w: 22px;
+    --tbl-pill-h: 24px;
+    --tbl-deck-w: 40px;
+    --tbl-owner-w: 64px;
+    --tbl-row-gap: 6px;
   }
 
-  .pk-pot__pill {
-    height: 26px;
+  .pk-centre {
+    gap: 6px;
   }
 
-  .pk-mine {
-    flex-direction: row;
-    padding: 3px 8px;
-    gap: 8px;
-  }
-
-  .pk-mine__top {
-    order: 2;
-    min-height: 0;
-  }
-
-  .pk-mine__foot {
-    order: 3;
-    flex-direction: column;
-    gap: 2px;
-    min-height: 0;
-  }
-
-  .pk-mine__top .tbl-pill {
-    height: 22px;
-    line-height: 20px;
+  .pk-stage__state {
     font-size: 0.75rem;
-    max-width: 150px;
   }
 
-  .pk-blinds {
-    display: inline;
-  }
-
-  .pk-table .tbl-ribbon {
-    display: none;
+  .pk .tbl-stage__aside .tbl-flag {
+    font-size: 0.9rem;
   }
 }
 
-/* Shorter phones (360x740 and the like): smaller cards all round, the ribbon gone. */
+/* Shorter phones (360x740 and the like): smaller cards all round (the banner's second line goes, table.css). */
 @media (max-width: 760px) and (max-height: 760px) {
   .pk-table {
-    --pk-board-w: 38px;
-    --pk-spot-w: 40px;
-    --pk-mine-w: 42px;
-  }
-
-  .pk-table .tbl-ribbon {
-    display: none;
+    --pk-board-w: 44px;
+    --pk-mine-w: 46px;
   }
 }
 
-/* Short phones and phones on their side: the pot beside the board, compact cards everywhere. */
+/* Short phones (an SE, a phone on its side): the smallest cards (the banner itself goes, table.css). */
 @media (max-width: 760px) and (max-height: 680px), (min-aspect-ratio: 3/2) and (max-height: 520px) {
   .pk-table {
+    --pk-pot-h: 24px;
+    --tbl-pill-h: 22px;
+    --tbl-deck-w: 32px;
+    --tbl-owner-w: 60px;
+    --tbl-row-gap: 4px;
+  }
+
+  /*
+   * The pot beside the board rather than over it, so the seats keep the height: the pot at the
+   * left, the board in the room between it and the deck.
+   */
+  .pk-table {
     --pk-board-w: 30px;
-    --pk-spot-w: 30px;
     --pk-mine-w: 32px;
-    gap: 4px;
+    --tbl-head-h: calc(var(--pk-board-w) * 1.5 + 4px);
+  }
+
+  /* The line under the table's ribbon says whose turn it is: the panel's copy of it goes to a screen reader alone, so the seats keep the height. */
+  .pk .tbl-panel__status--bottom {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    min-height: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 
   .pk-centre {
     flex-direction: row;
-    gap: 6px;
+    align-items: flex-start;
+    gap: 4px;
+    padding-right: calc(var(--tbl-deck-w) * 1.45);
   }
 
-  /* The pot over the blinds, beside the board. */
-  .pk-centre__row {
+  .pk-pot {
     flex-direction: column;
     align-items: flex-start;
-    gap: 1px;
-  }
-
-  .pk-blinds {
-    font-size: 0.62rem;
-  }
-
-  /* The pill says "Pot" to a screen reader; here the coin says it to the eye. */
-  .pk-pot__label {
-    display: none;
-  }
-
-  .pk-pot__pill {
-    height: 24px;
-    padding: 0 8px;
-  }
-
-  /* Side pots stay on show as one compact line. */
-  .pk-pot__sides {
-    flex-wrap: nowrap;
-    max-width: 100%;
-    overflow: hidden;
-    gap: 6px;
-    font-size: 0.6rem;
-    line-height: 1.1;
-  }
-
-  .pk-board {
-    gap: 3px;
-  }
-
-  .pk-table .tbl-deck__stack,
-  .pk-table .tbl-discard__slot {
-    width: 20px;
-    height: 30px;
-  }
-
-  .pk-table .tbl-deck__count {
-    font-size: 0.6rem;
-  }
-
-  .pk-mine {
-    padding: 2px 8px;
-  }
-
-  .pk-mine__top .tbl-pill {
-    height: 20px;
-    line-height: 18px;
-    font-size: 0.72rem;
-    max-width: 130px;
-  }
-
-  .pk-table .tbl-spot {
-    padding: 3px 8px 5px;
-  }
-
-  .pk-table .tbl-spot__label {
-    font-size: 1.05rem;
-  }
-}
-
-/* Narrow phones: my hand's name tag a little shorter so my state beside it stays on screen. */
-@media (max-width: 400px) {
-  .pk-mine {
-    gap: 6px;
-  }
-
-  .pk-mine__top .tbl-pill {
-    max-width: 118px;
-  }
-}
-
-/*
- * The narrowest phones: the board a size down so the pot and the blinds beside it never run into
- * the first card, and my hand's name tag shorter still.
- */
-@media (max-width: 340px) {
-  .pk-table {
-    --pk-board-w: 26px;
-  }
-
-  .pk-board {
     gap: 2px;
+    height: auto;
   }
 
-  .pk-table .tbl-felt__top {
-    gap: 4px;
+  .pk-pot__sides {
+    flex-direction: column;
+    font-size: 0.6rem;
   }
 
-  .pk-mine__top .tbl-pill {
-    max-width: 104px;
+  .pk-pot__blinds {
+    display: block;
   }
-}
 
-/* A tight spotlight: its line says the stake ("Call 20"), so the chip beside the cards goes unseen (the chips still fly to it) and the label keeps the room. */
-.tbl-stage--tight .pk-bet--spot {
-  position: absolute;
-  opacity: 0;
+  .pk-board {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  /* The column beside my cards packs its parts into rows (face and name, then the button and the bet) so it keeps the stage's height. */
+  .pk .tbl-stage__owner {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-content: center;
+    gap: 2px 4px;
+  }
+
+  .pk .tbl-stage__face .avatar {
+    width: 26px;
+    height: 26px;
+    font-size: 15px;
+  }
 }
 
 /* A phone on its side keeps the platform's two columns: the table, then the panel. */

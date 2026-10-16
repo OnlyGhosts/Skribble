@@ -1,9 +1,9 @@
 /** The round boundary: the results pause, the next round's betting, the end of the game, the host's End game and the holds. */
 import { RESUME_SETTLE_MS, holdEffects, resumeEffect } from '../waiting.js';
 import { BLACKJACK_RESULTS_MS } from '../../../shared/games/blackjack/protocol.js';
-import { MIN_PLAYERS, activePlayers, adjustChips, anyBetDown, connectedActive, dropLegacyShoe, fail, snapshot, systemMessage, type Gx } from './state.js';
+import { MIN_PLAYERS, activePlayers, adjustChips, connectedActive, dropLegacyShoe, fail, noticeMessage, snapshot, systemMessage, type Gx } from './state.js';
 
-/** Seats a newcomer (or a player without a seat yet) with the starting stack. */
+/** Seats a player with the starting stack (at the start: nobody joins the game later). */
 export function seatPlayer(gx: Gx, playerId: string): void {
   if (gx.data.seats[playerId]) return;
   gx.data.seats[playerId] = { chips: 0, bet: 0, hands: [], bustedOut: false, sittingOut: false };
@@ -12,9 +12,7 @@ export function seatPlayer(gx: Gx, playerId: string): void {
 
 /**
  * Whether the game is over at this boundary, with the line that says why: the host's End game,
- * every stack gone, or (two or more players) one stack left. The rounds never run out. A newcomer
- * waiting for a seat keeps the game going (they are dealt in next), so the last one standing is
- * always a seated player with chips.
+ * every stack gone, or (two or more players) one stack left. The rounds never run out.
  */
 function gameIsOver(gx: Gx): boolean {
   const { data, ctx } = gx;
@@ -24,27 +22,17 @@ function gameIsOver(gx: Gx): boolean {
     return true;
   }
   if (data.endRequested) return true;
-  const seated = active.filter((p) => data.seats[p.id]);
-  if (ctx.players.length >= 2 && seated.length === 1 && active.length === 1) {
-    systemMessage(gx, `${seated[0].name} is the last one standing.`);
+  if (ctx.players.length >= 2 && active.length === 1) {
+    systemMessage(gx, `${active[0].name} is the last one standing.`);
     return true;
   }
   return false;
 }
 
-/** Seats every newcomer: the table has no seat limit, so a big party all plays. */
-function seatNewcomers(gx: Gx): void {
-  const { data, ctx } = gx;
-  for (const p of activePlayers(ctx, data)) if (!data.seats[p.id]) seatPlayer(gx, p.id);
-}
-
-/** Seats the newcomers and puts every seat still in the game into the round about to be bet on. */
+/** Puts every seat still in the game into the round about to be bet on. */
 export function fillRound(gx: Gx): void {
   const { data, ctx } = gx;
-  seatNewcomers(gx);
-  data.order = activePlayers(ctx, data)
-    .filter((p) => data.seats[p.id])
-    .map((p) => p.id);
+  data.order = activePlayers(ctx, data).map((p) => p.id);
 }
 
 /**
@@ -62,7 +50,7 @@ export function afterSettle(gx: Gx, revealMs: number): void {
 
 /**
  * The next round, or the end of the game (at once: no table is waiting to be seen). With nobody
- * still in the game connected it holds instead (a reconnect or a join calls it again), and it
+ * still in the game connected it holds instead (a reconnect calls it again), and it
  * abandons the game only when no seat is left.
  */
 export function beginRound(gx: Gx): void {
@@ -84,7 +72,6 @@ export function beginRound(gx: Gx): void {
   }
   data.dealer = [];
   data.holeHidden = true;
-  // Only a round that really starts seats the newcomers (with the starting stack).
   fillRound(gx);
   data.phase = { kind: 'betting' };
   systemMessage(gx, `Round ${data.round}: place your bets!`);
@@ -100,17 +87,6 @@ export function holdBetting(gx: Gx): void {
   hold(gx);
 }
 
-/**
- * A newcomer joining while the bets are open and none is down yet is seated at once (nothing has
- * been played, so they bet with everyone); false otherwise (they are seated from the next round).
- */
-export function seatWhileBetting(gx: Gx): boolean {
-  if (gx.data.phase.kind !== 'betting' || anyBetDown(gx.data)) return false;
-  fillRound(gx);
-  snapshot(gx);
-  return true;
-}
-
 /** The host ends the game: at once between hands (stakes on the table go back), otherwise once the hand in play settles. */
 export function endGame(gx: Gx, playerId: string): void {
   const { data, ctx } = gx;
@@ -122,7 +98,7 @@ export function endGame(gx: Gx, playerId: string): void {
     case 'acting':
       if (data.endRequested) return fail(gx, playerId, 'The game ends after this hand.');
       data.endRequested = true;
-      systemMessage(gx, 'The host ends the game after this hand.');
+      noticeMessage(gx, 'The host ends the game after this hand.');
       return snapshot(gx);
     case 'betting':
       for (const id of data.order) {

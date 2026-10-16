@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react';
+
 /**
  * The colours a hand takes on a table: lit while in play, then a solid outline and pill in its
  * outcome's colour (lime win, gold blackjack, red loss or bust, grey push). No glow.
@@ -9,10 +11,15 @@ export function outlineClass(tone: Tone): string {
   return `tbl-outline tbl-outline--${tone}`;
 }
 
-/** A total pill over a hand (or a hand's name), in the hand's tone; a long one ("10/20") is marked `data-long`. */
-export function TotalPill({ tone, children, testId }: { tone: Tone; children: string; testId?: string }) {
+/**
+ * A total pill over a hand (or a hand's name), in the hand's tone; a long one ("10/20") is marked
+ * `data-long`. `lead` goes before the total inside the pill (an outcome's word where there is no
+ * room beside it).
+ */
+export function TotalPill({ tone, children, testId, lead }: { tone: Tone; children: string; testId?: string; lead?: ReactNode }) {
   return (
-    <span className={`tbl-pill tbl-pill--${tone}`} data-testid={testId} data-long={children.length > 3 || undefined}>
+    <span className={`tbl-pill tbl-pill--${tone}`} data-testid={testId} data-long={children.length > 3 || lead ? true : undefined}>
+      {lead}
       {children}
     </span>
   );

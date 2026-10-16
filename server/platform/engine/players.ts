@@ -33,14 +33,9 @@ export function isFull(data: PlatformRoomData): boolean {
   return data.players.length >= ROOM_HARD_CAP;
 }
 
-/** A game is running or its podium is up (the preview badge); joins care only about 'playing', see isJoinable. */
+/** A game is running or its podium is up (the preview badge). Anyone may join either way: mid-game they watch. */
 export function inProgress(data: PlatformRoomData): boolean {
   return data.phase !== 'lobby';
-}
-
-/** Mid-game joins can be switched off; between games (lobby and podium alike) anyone with a seat to spare may join. */
-export function isJoinable(data: PlatformRoomData): boolean {
-  return !isFull(data) && (data.phase !== 'playing' || data.settings.allowMidGameJoin);
 }
 
 export function minPlayers(data: PlatformRoomData): number {

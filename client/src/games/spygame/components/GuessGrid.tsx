@@ -4,15 +4,18 @@ import { guessLocation } from '../actions';
 import { canGuessNow } from '../hooks';
 import { useSpygame } from '../store';
 import { LocationTile } from './LocationTile';
+import { GuessesLeft } from './RoleCard';
 
 /**
- * The spy's 24 candidates in two columns of twelve. One tap highlights a tile, a second tap on the
- * same tile sends the guess; tapping another tile moves the highlight. Wrong guesses stay crossed out.
+ * The spy's 24 candidates (two columns of twelve, three of eight on a portrait phone). One tap
+ * highlights a tile, a second tap on the same tile sends the guess; tapping another tile moves the
+ * highlight. Wrong guesses stay crossed out.
  */
 export function GuessGrid({ view }: { view: SpygameView }) {
   const highlighted = useSpygame((s) => s.highlightedLocation);
   const highlight = useSpygame((s) => s.highlightLocation);
   const canGuess = canGuessNow(view);
+  const picked = canGuess && highlighted ? locationById(highlighted) : undefined;
 
   const tap = (id: string) => {
     if (!canGuess) return;
@@ -27,8 +30,13 @@ export function GuessGrid({ view }: { view: SpygameView }) {
   return (
     <section className="card spy-grid-card" aria-label="Guess the location">
       <header className="spy-grid-card__head">
-        <h2 className="spy-grid-card__title">Where are they?</h2>
-        <p className="spy-grid-card__hint">{canGuess ? 'Tap a place, then tap it again to guess.' : view.phase === 'voting' ? 'A vote is running.' : view.phase === 'playing' ? 'The clock is paused.' : 'The round is over.'}</p>
+        <div className="spy-grid-card__top">
+          <h2 className="spy-grid-card__title">Where are they?</h2>
+          <GuessesLeft view={view} />
+        </div>
+        <p className="spy-grid-card__hint" data-testid="guess-hint">
+          {picked ? `Tap ${picked.name} again to guess.` : canGuess ? 'Tap a place, then tap it again to guess.' : view.phase === 'voting' ? 'A vote is running.' : view.phase === 'playing' ? 'The clock is paused.' : 'The round is over.'}
+        </p>
       </header>
       <ol className="spy-grid spy-grid--guess" data-testid="guess-grid">
         {view.candidates.map((id) => {

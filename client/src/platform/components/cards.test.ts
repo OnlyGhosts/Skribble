@@ -32,6 +32,29 @@ describe('PlayingCard', () => {
     expect(cardName({ rank: '7', suit: 'D' })).toBe('7 of diamonds');
   });
 
+  it('puts one big rank and one big suit at the top left, and nothing else on the face', () => {
+    const ten = renderToString(createElement(PlayingCard, { card: { rank: '10', suit: 'H' }, testId: 'c' }));
+    expect(ten).toContain('<span class="playing-card__corner" aria-hidden="true"><span class="playing-card__rank playing-card__rank--wide">10</span><span class="playing-card__suit">♥</span></span>');
+    expect(ten.match(/♥/g)).toHaveLength(1);
+    expect(ten).not.toContain('playing-card__pip');
+    expect(ten).not.toContain('corner--flip');
+    const css = readFileSync(fileURLToPath(new URL('../styles/cards.css', import.meta.url)), 'utf8');
+    // Sized from the card's width, so they read at every size a table uses.
+    expect(css).toMatch(/\.playing-card__rank \{\s*font-size: calc\(var\(--card-w\) \* 0\.4\);/);
+    expect(css).toMatch(/\.playing-card__suit \{[^}]*font-size: calc\(var\(--card-w\) \* 0\.38\);/);
+  });
+
+  it('backs every face-down card with the boredgames back: a cream border, the lime field and lattice, the phones medallion', () => {
+    const css = readFileSync(fileURLToPath(new URL('../styles/cards.css', import.meta.url)), 'utf8');
+    expect(css).toMatch(/\.playing-card--down \{\s*background: var\(--card-back-border\);/);
+    expect(css).toMatch(/\.playing-card__back \{[^}]*background-color: var\(--card-back-field\);[^}]*background-image: var\(--card-back-mark\), var\(--card-back-lattice\);/);
+    // Vector art only, drawn point-symmetric: the second phone is the first turned half way round.
+    const mark = css.match(/--card-back-mark: url\("data:image\/svg\+xml,([^"]*)"\);/)?.[1] ?? '';
+    expect(mark).toContain("translate(37 50) rotate(-12)");
+    expect(mark).toContain("translate(63 50) rotate(168)");
+    expect(css).toMatch(/--card-back-lattice: url\("data:image\/svg\+xml,/);
+  });
+
   it('keeps a face-down card and an empty slot free of any rank or suit', () => {
     for (const props of [{ card: null }, { card: null, slot: true }]) {
       const html = renderToString(createElement(PlayingCard, props));
@@ -68,15 +91,14 @@ describe('chips', () => {
     expect(html).toContain('chip-count__coin');
   });
 
-  it('gives editors presets and a numeric field, and everyone else the value', () => {
+  it('gives the host presets and a numeric field that holds the value', () => {
     const props = { id: 'stake', label: 'Stake', value: 50, min: 10, max: 500, presets: [10, 50, 100], onCommit: () => undefined };
-    const editor = renderToString(createElement(ChipsSetting, { ...props, canEdit: true }));
+    const editor = renderToString(createElement(ChipsSetting, props));
     expect(editor).toMatch(/data-testid="settings-stake"[^>]*|type="number"[^>]*data-testid="settings-stake"/);
     expect(editor).toContain('inputMode="numeric"');
     expect(editor).toMatch(/aria-pressed="true"[^>]*data-testid="settings-stake-50"/);
     expect(editor).toMatch(/aria-pressed="false"[^>]*data-testid="settings-stake-10"/);
-    const guest = renderToString(createElement(ChipsSetting, { ...props, canEdit: false, display: '50 chips' }));
-    expect(guest).not.toContain('data-testid="settings-stake"');
-    expect(guest).toContain('50 chips');
+    expect(editor).toContain('value="50"');
+    expect(editor).not.toContain('settings-value-stake');
   });
 });

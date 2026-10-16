@@ -19,7 +19,7 @@ const { player, registryOf, resetStore, room, welcome } = await import('../../te
 function race(overrides: Partial<TemplateRoomState> = {}): TemplateRoomState {
   return {
     ...room({ gameId: 'template', phase: 'playing', players: [player('host'), player('bob', { joinOrder: 1 })] }),
-    settings: { allowMidGameJoin: true, contentMode: 'family', targetClicks: 10, timeLimit: 30 },
+    settings: { contentMode: 'family', targetClicks: 10, timeLimit: 30 },
     game: { clicks: { host: 7, bob: 3 }, endsAt: Date.now() + 20_000, winnerId: null },
     ...overrides,
   };
@@ -59,7 +59,7 @@ describe('Click Race screen', () => {
     const button = tagWith(html, 'click-button');
     expect(button).toContain('disabled');
     expect(button).toContain('data-spectating="true"');
-    expect(button).toContain("sitting this one out");
+    expect(button).toContain("watching this race");
     expect(html).toContain('data-testid="race-spectating"');
     const rows = html.match(/<li[^>]*data-testid="race-row"[^>]*>/g) ?? [];
     expect(rows.map((r) => r.match(/data-name="([^"]+)"/)?.[1])).toEqual(['host', 'bob']);
@@ -80,15 +80,13 @@ describe('Click Race screen', () => {
 });
 
 describe('Click Race settings rows', () => {
-  it('renders both sliders with the shared limits for the host, read-only values otherwise', () => {
+  it('renders both sliders with the shared limits, each with its value beside it', () => {
     const { settings } = race();
     if (!templateClient.SettingsFields) throw new Error('no settings fields');
-    const host = renderToString(createElement(templateClient.SettingsFields, { settings, canEdit: true, patch: () => undefined }));
+    const host = renderToString(createElement(templateClient.SettingsFields, { settings, patch: () => undefined }));
     expect(tagWith(host, 'settings-targetClicks')).toContain('min="10"');
     expect(tagWith(host, 'settings-timeLimit')).toContain('max="120"');
-    const guest = renderToString(createElement(templateClient.SettingsFields, { settings, canEdit: false, patch: () => undefined }));
-    expect(guest).not.toContain('data-testid="settings-targetClicks"');
-    expect(tagWith(guest, 'settings-value-timeLimit')).toBeTruthy();
-    expect(guest).toContain('30s');
+    expect(tagWith(host, 'settings-value-timeLimit')).toContain('range-field__value');
+    expect(host).toContain('30s');
   });
 });

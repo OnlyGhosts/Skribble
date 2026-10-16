@@ -62,7 +62,7 @@ export interface QuipgameData {
   phase: QuipgamePhase | 'waiting' | 'over';
   /** While 'waiting' with enough players connected again: when the next round starts (the settle); null otherwise. */
   resumeAt: number | null;
-  /** 1-based current round (0 before the first starts); the final is round QUIPGAME_REGULAR_ROUNDS + 1 when enabled. */
+  /** 1-based current round (0 before the first starts); the final is round QUIPGAME_REGULAR_ROUNDS + 1. */
   round: number;
   totalRounds: number;
   /** Players seated and connected when the round started, in join order; everyone else spectates until the next round. */

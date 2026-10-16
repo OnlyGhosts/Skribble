@@ -58,6 +58,7 @@
   font-size: 2.25rem;
   letter-spacing: -0.02em;
   line-height: 1.1;
+  text-align: center;
 }
 
 .home .code-input {
@@ -126,9 +127,20 @@
   gap: var(--space-2);
 }
 
-/* The status line under the boxes only takes room while it shows something. */
+/* The status line under the boxes only takes room while it shows something; like the heading, it is centred in the column. */
 .code-field {
   gap: 8px;
+}
+
+.home__start .code-preview,
+.home__start .code-preview .field__error,
+.home__create .field__error {
+  justify-content: center;
+  text-align: center;
+}
+
+.code-preview__note {
+  white-space: nowrap;
 }
 
 .code-field .code-preview:empty {

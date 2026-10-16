@@ -71,7 +71,7 @@ export function PodiumOverlay({ room, meId, isHost }: { room: RoomState; meId: s
             )}
             {me && (
               <p className={`podium-place${iWon ? ' podium-place--won' : ''}`} data-testid="podium-place">
-                {place ?? 'You sat this one out'}
+                {place ?? 'You watched this one'}
               </p>
             )}
           </div>

@@ -1,7 +1,7 @@
 /** The acting player's moves on the hand in play (hit, stand, double, split) and the host's Skip. */
 import { handTotal } from '../../../shared/games/blackjack/cards.js';
 import { awayLine, nextHand } from './dealer.js';
-import { actingHand, actionsFor, adjustChips, canSkip, draw, fail, nameOf, settledStatus, snapshot, systemMessage, type Gx, type HandData } from './state.js';
+import { actingHand, actionsFor, adjustChips, canSkip, draw, fail, nameOf, noticeMessage, settledStatus, snapshot, type Gx, type HandData } from './state.js';
 
 const NOT_YOUR_TURN = 'It is not your turn.';
 
@@ -15,7 +15,7 @@ function finishHand(gx: Gx, playerId: string, hand: HandData, status: 'stood' | 
 export function hit(gx: Gx, playerId: string): void {
   const hand = actingHand(gx.data, playerId);
   if (!hand) return fail(gx, playerId, NOT_YOUR_TURN);
-  if (!actionsFor(gx.data, gx.ctx.settings, playerId).canHit) return fail(gx, playerId, 'Split aces take one card each.');
+  if (!actionsFor(gx.data, playerId).canHit) return fail(gx, playerId, 'Split aces take one card each.');
   hand.cards.push(draw(gx));
   // A bust or a 21 moves on by itself; otherwise the player keeps acting.
   const settled = settledStatus(hand);
@@ -25,7 +25,7 @@ export function hit(gx: Gx, playerId: string): void {
 
 export function stand(gx: Gx, playerId: string): void {
   const hand = actingHand(gx.data, playerId);
-  if (!hand || !actionsFor(gx.data, gx.ctx.settings, playerId).canStand) return fail(gx, playerId, NOT_YOUR_TURN);
+  if (!hand || !actionsFor(gx.data, playerId).canStand) return fail(gx, playerId, NOT_YOUR_TURN);
   finishHand(gx, playerId, hand, 'stood');
 }
 
@@ -33,7 +33,7 @@ export function stand(gx: Gx, playerId: string): void {
 export function double(gx: Gx, playerId: string): void {
   const hand = actingHand(gx.data, playerId);
   if (!hand) return fail(gx, playerId, NOT_YOUR_TURN);
-  if (!actionsFor(gx.data, gx.ctx.settings, playerId).canDouble) return fail(gx, playerId, 'You cannot double this hand.');
+  if (!actionsFor(gx.data, playerId).canDouble) return fail(gx, playerId, 'You cannot double this hand.');
   adjustChips(gx, playerId, -hand.bet);
   hand.bet *= 2;
   hand.doubled = true;
@@ -51,7 +51,7 @@ export function split(gx: Gx, playerId: string): void {
   const hand = actingHand(data, playerId);
   const seat = data.seats[playerId];
   if (!hand || !seat || data.phase.kind !== 'acting') return fail(gx, playerId, NOT_YOUR_TURN);
-  if (!actionsFor(data, ctx.settings, playerId).canSplit) return fail(gx, playerId, 'You cannot split this hand.');
+  if (!actionsFor(data, playerId).canSplit) return fail(gx, playerId, 'You cannot split this hand.');
   adjustChips(gx, playerId, -hand.bet);
   const aces = hand.cards[0].rank === 'A';
   const right: HandData = { cards: [hand.cards[1]], bet: hand.bet, status: 'waiting', doubled: false, fromSplit: true, splitAces: aces };
@@ -80,7 +80,7 @@ export function skip(gx: Gx, playerId: string, target: { playerId: string; handI
   const actor = data.phase.playerId;
   const hand = actingHand(data, actor);
   if (!hand) return nextHand(gx);
-  systemMessage(gx, `${nameOf(ctx, playerId)} stood ${nameOf(ctx, actor)}'s hand.`);
+  noticeMessage(gx, `${nameOf(ctx, playerId)} stood ${nameOf(ctx, actor)}'s hand.`);
   finishHand(gx, actor, hand, 'stood');
 }
 
@@ -91,6 +91,6 @@ export function standAway(gx: Gx, playerId: string): void {
   const hand = actingHand(data, playerId);
   if (!hand) return nextHand(gx);
   hand.status = 'stood';
-  systemMessage(gx, awayLine(gx, playerId));
+  noticeMessage(gx, awayLine(gx, playerId));
   nextHand(gx, new Set([playerId]));
 }

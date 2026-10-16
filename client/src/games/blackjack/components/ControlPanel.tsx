@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import type { BlackjackActions, BlackjackRoomState, BlackjackView } from '@shared/games/blackjack/protocol';
 import { useHotkeys } from '../../../platform/lib/hotkeys';
 import { AmountField } from '../../../platform/table/AmountField';
-import { MoveButton, PanelLabelRow, PanelMoves, PanelShell, StatusAction, type PanelStatus } from '../../../platform/table/ControlPanel';
+import { MoveButton, PanelLabelRow, PanelMoves, PanelShell, StatusAction, WatchingPanel, type PanelStatus } from '../../../platform/table/ControlPanel';
+import { DoubleIcon, HitIcon, SplitIcon, StandIcon } from '../../../platform/table/Icons';
 import { dealNow, double, hit, placeBet, sitOut, skipTurn, split, stand } from '../actions';
+import { suggestedMove, type MoveId } from '../lib/advice';
 import { betAmount, betWindow, defaultBet, doubleBet, halfBet, suggestedBet } from '../lib/bet';
 import { HOTKEY_HINT } from '../lib/text';
 import { useBlackjack, useBlackjackStore } from '../store';
@@ -26,18 +28,19 @@ interface Props {
 }
 
 interface Move {
-  id: 'hit' | 'stand' | 'split' | 'double';
+  id: MoveId;
   key: keyof BlackjackActions;
   label: string;
   hotkey: string;
+  icon: ReactNode;
   send(): boolean;
 }
 
-const MOVES: Record<Move['id'], Move> = {
-  hit: { id: 'hit', key: 'canHit', label: 'Hit', hotkey: 'H', send: hit },
-  stand: { id: 'stand', key: 'canStand', label: 'Stand', hotkey: 'S', send: stand },
-  split: { id: 'split', key: 'canSplit', label: 'Split', hotkey: 'P', send: split },
-  double: { id: 'double', key: 'canDouble', label: 'Double', hotkey: 'D', send: double },
+const MOVES: Record<MoveId, Move> = {
+  hit: { id: 'hit', key: 'canHit', label: 'Hit', hotkey: 'H', icon: <HitIcon size={16} />, send: hit },
+  stand: { id: 'stand', key: 'canStand', label: 'Stand', hotkey: 'S', icon: <StandIcon size={16} />, send: stand },
+  split: { id: 'split', key: 'canSplit', label: 'Split', hotkey: 'P', icon: <SplitIcon size={16} />, send: split },
+  double: { id: 'double', key: 'canDouble', label: 'Double', hotkey: 'D', icon: <DoubleIcon size={16} />, send: double },
 };
 
 /** After my Skip moves the play on, how long Skip stays dimmed for the next hand: a quick second tap must not stand it too. */
@@ -79,9 +82,10 @@ export function TableAction({ view, turnName, skipped, onSkip }: TableActionProp
 }
 
 /**
- * The control panel, the same place all game long: the bet amount with 1/2, 2x and MAX, then Hit
- * and Stand, Split and Double, then one big Bet. Every control is always there; what is not on
- * offer right now is dimmed. The amount is remembered between rounds.
+ * The control panel, the same place all game long: the bet amount (my stack beside its label) with
+ * 1/2, 2x and MAX, then Hit and Stand, Split and Double, then one big Bet, and a quiet status line
+ * with Sit out, Deal now or Skip. Every control is always there; what is not on offer right now is
+ * dimmed. On my turn the sensible move takes the lime. The amount is remembered between rounds.
  */
 export function ControlPanel({ room, view, meId, balance, status, canSend, busy, turnName, hotkeys }: Props) {
   const settings = room.settings;
@@ -119,9 +123,16 @@ export function ControlPanel({ room, view, meId, balance, status, canSend, busy,
   const keyed = (move: Move) => (moveOn(move) ? () => void move.send() : null);
   useHotkeys(hotkeys, { Space: canBet ? bet : null, H: keyed(MOVES.hit), S: keyed(MOVES.stand), D: keyed(MOVES.double), P: keyed(MOVES.split) });
 
-  const moveButton = (move: Move, primary = false) => (
-    <MoveButton label={move.label} testId={`action-${move.id}`} enabled={moveOn(move)} onClick={() => move.send()} primary={primary} hotkey={hotkeys ? move.hotkey : undefined} />
+  // My turn: the usual play for the hand in play takes the lime; Bet goes quiet until the next round.
+  const myHand = myTurn && view.turn ? seat?.hands[view.turn.handIndex] : undefined;
+  const lit = myHand && !busy ? suggestedMove(myHand.cards, view.dealer.cards[0], view.actions) : null;
+  const moveButton = (move: Move) => (
+    <MoveButton label={move.label} icon={move.icon} testId={`action-${move.id}`} enabled={moveOn(move)} onClick={() => move.send()} primary={lit === move.id && moveOn(move)} hotkey={hotkeys ? move.hotkey : undefined} />
   );
+
+  const tableAction = canSend && !busy && <TableAction view={view} turnName={turnName} skipped={skipped} onSkip={setSkipped} />;
+  // A spectator of the whole game has no moves: one line, and a watching host keeps Deal now and Skip.
+  if (status.state === 'spectating') return <WatchingPanel testId="bj-panel" action={tableAction} />;
 
   return (
     <PanelShell
@@ -131,8 +142,9 @@ export function ControlPanel({ room, view, meId, balance, status, canSend, busy,
       testId="bj-panel"
       data={{ 'data-min': range?.min, 'data-max': range?.max, 'data-amount': amount ?? undefined }}
       hint={hotkeys && HOTKEY_HINT}
-      action={canSend && !busy && <TableAction view={view} turnName={turnName} skipped={skipped} onSkip={setSkipped} />}
+      action={tableAction}
       actionSlot
+      statusAt="bottom"
     >
       <PanelLabelRow label="Bet amount" htmlFor="bj-bet-amount" balance={balance} truth={seat?.chips ?? 0} />
       <AmountField
@@ -158,8 +170,8 @@ export function ControlPanel({ room, view, meId, balance, status, canSend, busy,
       <span id="bj-bet-range" className="sr-only">
         {range ? `Any bet from 1 to ${range.max} chips` : 'No chips to bet'}
       </span>
-      <PanelMoves>
-        {moveButton(MOVES.hit, true)}
+      <PanelMoves count={4}>
+        {moveButton(MOVES.hit)}
         {moveButton(MOVES.stand)}
         {moveButton(MOVES.split)}
         {moveButton(MOVES.double)}

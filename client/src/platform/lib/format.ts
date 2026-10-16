@@ -7,7 +7,6 @@ const FRIENDLY_ERRORS: Record<JoinErrorCode, string> = {
   INVALID_CODE: `That doesn't look like a room code. ${roomCodeHint()}`,
   ROOM_NOT_FOUND: "We couldn't find a room with that code. Double-check it or ask your friend for a fresh link.",
   ROOM_FULL: 'That room is full right now. Ask the host to raise the player limit.',
-  GAME_IN_PROGRESS: "A game is running in that room and the host isn't letting people join mid-game.",
   REJOIN_FAILED: "Couldn't rejoin your previous seat. The room may have closed.",
   INVALID_MESSAGE: 'Something went wrong with that request.',
   NOT_ALLOWED: "You can't do that right now.",
@@ -88,4 +87,12 @@ export function parseChipAmount(text: string, min: number, max: number): number 
 /** A score in a list: "1,100 pts", and "1 pt" for a single point. */
 export function pointsShort(score: number): string {
   return `${score.toLocaleString('en-US')} ${score === 1 ? 'pt' : 'pts'}`;
+}
+
+/**
+ * A short label with its last two words joined by a no-break space ("The Spy Game" wraps as
+ * "The / Spy Game", never leaving "Game" alone), for a box too narrow for text-wrap to fix.
+ */
+export function noOrphan(text: string): string {
+  return text.replace(/ (\S+)$/, ' $1');
 }

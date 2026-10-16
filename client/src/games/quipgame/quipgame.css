@@ -14,11 +14,6 @@
   margin: 0 auto;
 }
 
-/* Wide desktops: the column stays centred in the first track, the chat takes a right column. */
-.quip--wide {
-  grid-template-columns: minmax(0, 1fr) 340px;
-}
-
 .quip__top {
   grid-column: 1 / -1;
   width: 100%;
@@ -37,22 +32,6 @@
   gap: var(--space-3);
   padding: 2px;
   scrollbar-width: thin;
-}
-
-.quip__aside {
-  grid-row: 2;
-  grid-column: 2;
-  width: 100%;
-  min-height: 200px;
-  display: flex;
-  flex-direction: column;
-  padding: var(--space-3);
-}
-
-.quip__chat-sheet {
-  display: flex;
-  flex-direction: column;
-  height: min(60vh, 520px);
 }
 
 /* ---------- Shared pieces ---------- */
@@ -325,6 +304,20 @@ button.quip-answer--selected:disabled {
   display: flex;
   align-items: flex-start;
   gap: 10px;
+}
+
+/*
+ * On a phone the announcer's card is one line: the matchup right under it shows the prompt and the
+ * answers large already, and with an announcer in every game the full card pushed Vote off the screen.
+ */
+.quip--phone .quip-announce {
+  gap: 0;
+  padding: 10px 12px;
+}
+
+.quip--phone .quip-announce__prompt,
+.quip--phone .quip-announce__answers {
+  display: none;
 }
 
 .quip-announce__label {
@@ -641,7 +634,7 @@ button.quip-final__answer--own:disabled {
   background: var(--color-success);
 }
 
-/* ---------- Phone layout: compact header, one scrolling column, sheets for players and chat ---------- */
+/* ---------- Phone layout: compact header, one scrolling column, sheets for players and options ---------- */
 @media (max-width: 760px), (min-aspect-ratio: 3/2) and (max-height: 520px) {
   .quip {
     display: flex;

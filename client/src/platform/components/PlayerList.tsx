@@ -61,7 +61,7 @@ export function PlayerList({ room, meId, isHost, mode, game }: Props) {
             <span className="player__avatar">
               <Avatar avatar={p.avatar} size="md" dimmed={!p.connected} />
               {spectating ? (
-                <span className="player__badge player__badge--spectator" title="Sitting this one out" aria-label="Sitting this one out">
+                <span className="player__badge player__badge--spectator" title="Watching this game" aria-label="Watching this game">
                   <EyeIcon size={11} />
                 </span>
               ) : (
@@ -82,7 +82,7 @@ export function PlayerList({ room, meId, isHost, mode, game }: Props) {
                 <span className="player__meta">
                   {spectating ? (
                     <span className="player__status player__status--sitting-out" data-testid="player-sitting-out">
-                      sitting out
+                      watching
                     </span>
                   ) : (
                     <span className="player__score" data-testid="player-score">
@@ -94,18 +94,8 @@ export function PlayerList({ room, meId, isHost, mode, game }: Props) {
                 </span>
               )}
             </span>
-            {status && (
-              <span className={`player__status player__status--${status.state}`} data-testid="player-status">
-                {status.state === 'ready' && (
-                  <span className="player__check" aria-hidden="true">
-                    <CheckIcon size={15} strokeWidth={2.6} />
-                  </span>
-                )}
-                {status.label}
-              </span>
-            )}
-            {/* Your own row keeps the kick button's width empty, so every status lines up. */}
-            {isMe && <span className="player__actions player__actions--spacer" aria-hidden="true" />}
+            {/* In a game your own row keeps the kick button's width empty, so every row's buttons line up. */}
+            {isMe && !status && <span className="player__actions player__actions--spacer" aria-hidden="true" />}
             {!isMe && (
               <span className="player__actions">
                 {confirming ? (
@@ -138,6 +128,17 @@ export function PlayerList({ room, meId, isHost, mode, game }: Props) {
                     <KickIcon size={15} />
                   </button>
                 )}
+              </span>
+            )}
+            {/* Last, so the ready tick sits at the right end of the row whatever the row's buttons. */}
+            {status && (
+              <span className={`player__status player__status--${status.state}`} data-testid="player-status">
+                {status.state === 'ready' && (
+                  <span className="player__check" aria-hidden="true">
+                    <CheckIcon size={15} strokeWidth={2.6} />
+                  </span>
+                )}
+                {status.label}
               </span>
             )}
           </li>

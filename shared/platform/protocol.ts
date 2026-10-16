@@ -36,7 +36,7 @@ export interface PlayerPublic {
   ready: boolean;
   /** The player chose to sit the next game out; they stay in the party as a spectator. */
   sittingOut: boolean;
-  /** True while this player is in the running game (ready, not sitting out, within the game's seat limit, or a mid-game joiner). */
+  /** True while this player is in the running game (ready, not sitting out, within the game's seat limit). A mid-game joiner watches. */
   participating: boolean;
 }
 
@@ -94,9 +94,10 @@ export type ChatKind =
   | 'guessed' // a message only a subset sees (Skribble: players who already solved the word)
   | 'correct' // "Alice guessed the word!"
   | 'close' // a private nudge ("'aple' is close!")
-  | 'hint'; // "The word was: apple"
+  | 'hint' // "The word was: apple"
+  | 'notice'; // an event the screen does not show otherwise ("Ann is now the host"); the client toasts it
 
-export const CHAT_KINDS: readonly ChatKind[] = ['chat', 'system', 'guessed', 'correct', 'close', 'hint'];
+export const CHAT_KINDS: readonly ChatKind[] = ['chat', 'system', 'guessed', 'correct', 'close', 'hint', 'notice'];
 
 export interface ChatMessage {
   id: number;
@@ -171,7 +172,6 @@ export type ErrorCode =
   | 'INVALID_CODE'
   | 'ROOM_NOT_FOUND'
   | 'ROOM_FULL'
-  | 'GAME_IN_PROGRESS'
   | 'REJOIN_FAILED'
   | 'INVALID_MESSAGE'
   | 'NOT_ALLOWED'

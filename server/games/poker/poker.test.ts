@@ -1,6 +1,6 @@
 /** Poker's rules through the pure engine: blinds and the button, every move, the streets, side pots, the showdown, chips as the score, holds and the edges. */
 import { describe, expect, it } from 'vitest';
-import type { PokerView } from '../../../shared/games/poker/protocol.js';
+import { POKER_ACT_SECONDS, POKER_RESULTS_SECONDS, type PokerView } from '../../../shared/games/poker/protocol.js';
 import { settleRevealMs } from '../../../shared/games/poker/reveal.js';
 import { cardOf, freshDeck, shuffle } from '../../../shared/platform/cards.js';
 import { gameById } from '../../../shared/platform/games.js';
@@ -8,14 +8,14 @@ import { defaultPlatformSettings } from '../../../shared/platform/settings.js';
 import type { Effect } from '../../platform/engine/effects.js';
 import { nextDeadline } from '../../platform/engine/time.js';
 import { viewFor } from '../../platform/engine/view.js';
-import { AVATAR, START, chatTexts, errorsOf, sim, startGame, type Sim } from '../../platform/engine/testHarness.js';
+import { AVATAR, START, chatTexts, noticeTexts, errorsOf, sim, startGame, type Sim } from '../../platform/engine/testHarness.js';
 import { RESUME_SETTLE_MS } from '../waiting.js';
 import { pokerModule, type PokerData } from './module.js';
 import { buildPots, splitPot } from './pots.js';
 
-// The fixture: one hand, blinds 5/10 from 1000 chips, 10 s to act, 4 s of results.
-const ACT_MS = 10_000;
-const RESULTS_MS = 4_000;
+// The fixture: one hand, blinds 5/10 from 1000 chips; the clocks are the fixed ones.
+const ACT_MS = POKER_ACT_SECONDS * 1000;
+const RESULTS_MS = POKER_RESULTS_SECONDS * 1000;
 
 const data = (s: Sim): PokerData => s.data.game as PokerData;
 const view = (s: Sim, viewer: string | null = null): PokerView => {
@@ -57,7 +57,7 @@ const tick = (s: Sim, ms: number): Effect[] => {
   expectScoresMatchChips(s);
   return effects;
 };
-/** What is left of the results pause: the reveal allowance plus resultsSeconds from the settle. */
+/** What is left of the results pause: the reveal allowance plus the results time from the settle. */
 const resultsLeft = (s: Sim): number => {
   const { phase } = data(s);
   return phase.kind === 'results' ? phase.endsAt - s.now : RESULTS_MS;
@@ -163,7 +163,28 @@ describe('Poker: the table', () => {
     expect(settings.normalize?.({ ...settings.defaults, startingChips: 1000, smallBlind: 80 })).toMatchObject({ smallBlind: 80 });
     expect(settings.schema.safeParse({ ...settings.defaults, hands: 0, blindsIncreaseEvery: 0 }).success).toBe(true);
     expect(settings.schema.safeParse({ ...settings.defaults, hands: 101 }).success).toBe(false);
-    expect(settings.schema.safeParse({ ...settings.defaults, actSeconds: 9 }).success).toBe(false);
+  });
+});
+
+describe('Poker: settings', () => {
+  it('has no clocks to set: 25 s to act and 8 s of results, the old defaults, and old clock keys are dropped from a patch', () => {
+    const { settings } = pokerModule;
+    expect(POKER_ACT_SECONDS).toBe(25);
+    expect(POKER_RESULTS_SECONDS).toBe(8);
+    expect(Object.keys(settings.defaults).sort()).toEqual(['blindsIncreaseEvery', 'hands', 'smallBlind', 'startingChips']);
+    const patch = settings.patchSchema.safeParse({ actSeconds: 9, resultsSeconds: 99, hands: 3 });
+    expect(patch.success && patch.data).toEqual({ hands: 3 });
+  });
+
+  it('plays a room stored with short clocks on the fixed ones', () => {
+    const s = sim('poker');
+    const [alice, bob] = startGame(s, ['Alice', 'Bob'], { actSeconds: 10, resultsSeconds: 4 });
+    s.data = { ...s.data, settings: { ...s.data.settings, actSeconds: 10, resultsSeconds: 4 } };
+    expect(data(s).phase).toEqual({ kind: 'acting', endsAt: START + 25_000 });
+    act(s, alice, { t: 'call' });
+    expect(data(s).phase).toEqual({ kind: 'acting', endsAt: s.now + 25_000 });
+    act(s, bob, { t: 'fold' });
+    expect(data(s).phase).toMatchObject({ kind: 'results', endsAt: s.now + settleRevealMs({ holeCards: 0, boardFrom: 0, boardTo: 0, contested: false }) + 8_000 });
   });
 });
 
@@ -472,6 +493,7 @@ describe('Poker: timeouts', () => {
     expect(nextDeadline(s.data)).toBe(s.now + ACT_MS);
     const checked = tick(s, ACT_MS);
     expect(chatTexts(checked)).toEqual(['Carol ran out of time and checks.']);
+    expect(noticeTexts(checked)).toEqual(['Carol ran out of time and checks.']);
     expect(data(s)).toMatchObject({ street: 'flop', toAct: [bob, carol, alice] });
     act(s, bob, { t: 'bet', amount: 20 });
     const folded = tick(s, ACT_MS);
@@ -741,7 +763,7 @@ describe('Poker: hands and the game', () => {
     const s = sim('poker');
     const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol'], { hands: 0 });
     s.apply({ type: 'leave', playerId: alice });
-    // Bob is host now and plays; Dave joins mid-game and watches until the next hand.
+    // Bob is host now and plays.
     expect(s.data.hostId).toBe(bob);
     act(s, bob, { t: 'fold' });
     expect(view(s).phase).toBe('results');
@@ -752,20 +774,19 @@ describe('Poker: hands and the game', () => {
 });
 
 describe('Poker: seats coming and going', () => {
-  it('seats a mid-game joiner with the starting stack from the next hand', () => {
+  it('lets a mid-game joiner watch the whole game: no seat, no stack, no cards, hand after hand', () => {
     const s = sim('poker');
     const [alice, bob] = startGame(s, ['Alice', 'Bob'], { hands: 0 });
     s.apply({ type: 'join', name: 'Carol', avatar: AVATAR, connectionId: 'c' });
     const carol = s.playerId('Carol');
-    expect(view(s).players[carol]).toEqual({ chips: 0, bet: 0, committed: 0, status: 'out', isDealer: false, isTurn: false, lastAction: null, busted: false, waitingForSeat: false });
-    expect(errorsOf(act(s, carol, { t: 'call' }))).toEqual(['It is not your turn.']);
+    expect(view(s).players[carol]).toBeUndefined();
+    expect(errorsOf(act(s, carol, { t: 'call' }))).toEqual(['You are watching this game.']);
     act(s, alice, { t: 'fold' });
     tickResults(s);
-    expect(data(s)).toMatchObject({ hand: 2, order: [alice, bob, carol], dealerId: bob });
-    // Carol is the small blind of her first hand.
-    expect(data(s).seats[carol]).toMatchObject({ chips: 995, bet: 5 });
-    expect(score(s, carol)).toBe(995);
-    expect(data(s).seats[carol].cards).toHaveLength(2);
+    expect(data(s)).toMatchObject({ hand: 2, order: [alice, bob], dealerId: bob });
+    expect(data(s).seats[carol]).toBeUndefined();
+    expect(score(s, carol)).toBe(0);
+    expect(view(s, carol).myCards).toEqual([]);
   });
 
   it('folds a player who leaves mid-hand, leaves their chips in the pot and moves the action on', () => {

@@ -1,5 +1,5 @@
 /** Matchups: one prompt, two anonymous answers, everyone else votes; then the result with the points. */
-import type { QuipgameChoice } from '../../../shared/games/quipgame/protocol.js';
+import { QUIPGAME_RESULTS_SECONDS, QUIPGAME_VOTE_SECONDS, type QuipgameChoice } from '../../../shared/games/quipgame/protocol.js';
 import { scoreMatchup } from '../../../shared/games/quipgame/scoring.js';
 import { answerById, award, currentMatchup, fail, matchupAuthors, multiplierFor, pickAnnouncer, promptById, snapshot, systemMessage, type Gx, type MatchupData } from './state.js';
 
@@ -7,9 +7,9 @@ export function startMatchup(gx: Gx, index: number): void {
   const { data, ctx } = gx;
   data.phase = 'voting';
   data.matchupIndex = index;
-  data.endsAt = ctx.now + ctx.settings.voteSeconds * 1000;
+  data.endsAt = ctx.now + QUIPGAME_VOTE_SECONDS * 1000;
   const m = data.matchups[index];
-  m.announcerId = ctx.settings.announcer ? pickAnnouncer(gx, matchupAuthors(data, m)) : null;
+  m.announcerId = pickAnnouncer(gx, matchupAuthors(data, m));
   if (!resolveIfComplete(gx)) snapshot(gx);
 }
 
@@ -77,7 +77,7 @@ export function resolveMatchup(gx: Gx): void {
   if (a) award(gx, a.authorId, score.a);
   if (b) award(gx, b.authorId, score.b);
   data.phase = 'result';
-  data.endsAt = ctx.now + ctx.settings.resultsSeconds * 1000;
+  data.endsAt = ctx.now + QUIPGAME_RESULTS_SECONDS * 1000;
   const nameA = a?.authorName ?? 'Someone';
   const nameB = b?.authorName ?? 'Someone';
   switch (score.outcome) {

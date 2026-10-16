@@ -1,9 +1,12 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
+import { looksLikeText, mergeWordFile, wordFileProblem, wordFileSummary } from '../lib/wordFile';
+import { UploadIcon } from './Icons';
 
 /**
- * Building blocks for settings panels, shared by the platform fields and the games' own
- * `SettingsFields`: a labelled row with the current value, a debounced range slider and a toggle.
- * Test ids follow the field name: settings-row-<id>, settings-value-<id>, settings-<id>.
+ * Building blocks for the host's settings panel, shared by the platform fields and the games' own
+ * `SettingsFields`: a titled setting with its control, a debounced range slider that shows its
+ * value, a toggle and a word list. The chosen option is the readout: the title row carries no
+ * value of its own. Test ids follow the field name: settings-row-<id>, settings-<id>.
  */
 
 const RANGE_DEBOUNCE_MS = 150;
@@ -13,18 +16,12 @@ interface RowProps {
   hint?: string;
   control?: ReactNode;
   testId: string;
-  value: string;
 }
 
-export function SettingRow({ label, hint, control, testId, value }: RowProps) {
+export function SettingRow({ label, hint, control, testId }: RowProps) {
   return (
     <div className="setting" data-testid={`settings-row-${testId}`}>
-      <div className="setting__head">
-        <span className="setting__label">{label}</span>
-        <span className="setting__value" data-testid={`settings-value-${testId}`}>
-          {value}
-        </span>
-      </div>
+      <span className="setting__label">{label}</span>
       {control}
       {hint && <p className="setting__hint">{hint}</p>}
     </div>
@@ -41,52 +38,127 @@ interface RangeProps {
   label: string;
   /** Changes with every server snapshot; a snapshot that echoes an unchanged value still resyncs the thumb. */
   revision: unknown;
+  /** The readout beside the slider ("80s", "Never"); the number itself by default. Keep it short: every slider in the panel gets the widest one's width. */
+  format?(v: number): string;
 }
 
-/** Range input that tracks the drag immediately but sends at most one patch per short pause. */
-export function RangeControl({ id, value, min, max, step = 1, onCommit, label, revision }: RangeProps) {
+/** The widest readout, in characters, a slider can show over its whole range. */
+export function longestReadout(min: number, max: number, step: number, format: (v: number) => string): number {
+  let longest = 0;
+  for (let v = min; v <= max; v += step) longest = Math.max(longest, format(v).length);
+  return longest;
+}
+
+interface ReadoutWidths {
+  /** The widest readout of every slider in the scope, in characters. */
+  chars: number;
+  report(key: string, chars: number | null): void;
+}
+
+const ReadoutWidthContext = createContext<ReadoutWidths | null>(null);
+
+/**
+ * Gives every slider inside it one readout width, the widest any of them can show, so the tracks
+ * line up down the panel and none changes length as its value moves.
+ */
+export function ReadoutWidthScope({ children }: { children: ReactNode }) {
+  const [widths, setWidths] = useState<Record<string, number>>({});
+  const report = useCallback((key: string, chars: number | null) => {
+    setWidths((all) => {
+      if (chars === null) {
+        if (!(key in all)) return all;
+        const { [key]: _gone, ...rest } = all;
+        return rest;
+      }
+      return all[key] === chars ? all : { ...all, [key]: chars };
+    });
+  }, []);
+  const chars = Math.max(0, ...Object.values(widths));
+  const value = useMemo(() => ({ chars, report }), [chars, report]);
+  return <ReadoutWidthContext.Provider value={value}>{children}</ReadoutWidthContext.Provider>;
+}
+
+/** The readout's width: the scope's shared one, or this slider's own widest outside a scope. */
+function useReadoutChars(own: number): number {
+  const scope = useContext(ReadoutWidthContext);
+  const key = useId();
+  const report = scope?.report;
+  useLayoutEffect(() => {
+    if (!report) return undefined;
+    report(key, own);
+    return () => report(key, null);
+  }, [report, key, own]);
+  return Math.max(own, scope?.chars ?? 0);
+}
+
+/**
+ * Range input that tracks the drag immediately but sends at most one patch per short pause, and
+ * at once when the thumb is let go (the native change event). Its value reads beside it
+ * (`settings-value-<id>`) and follows the thumb while it moves.
+ */
+export function RangeControl({ id, value, min, max, step = 1, onCommit, label, revision, format = String }: RangeProps) {
   const [local, setLocal] = useState(value);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const commitRef = useRef(onCommit);
+  commitRef.current = onCommit;
+  const readoutChars = useReadoutChars(longestReadout(min, max, step, format));
   useEffect(() => setLocal(value), [value]);
   // The server may refuse a patch and echo the old value: with no pending drag, follow it.
   useEffect(() => {
     if (timer.current === null) setLocal(value);
   }, [value, revision]);
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    const input = inputRef.current;
+    if (!input) return undefined;
+    // React's onChange is the input event; the native change event fires once the drag ends.
+    const release = () => {
+      if (timer.current === null) return;
+      clearTimeout(timer.current);
+      timer.current = null;
+      commitRef.current(Number(input.value));
+    };
+    input.addEventListener('change', release);
+    return () => {
+      input.removeEventListener('change', release);
       if (timer.current !== null) clearTimeout(timer.current);
-    },
-    [],
-  );
+    };
+  }, []);
   return (
-    <input
-      id={id}
-      className="range"
-      type="range"
-      min={min}
-      max={max}
-      step={step}
-      value={local}
-      aria-label={label}
-      aria-valuetext={String(local)}
-      data-testid={`settings-${id}`}
-      onChange={(e) => {
-        const v = Number(e.target.value);
-        setLocal(v);
-        if (timer.current !== null) clearTimeout(timer.current);
-        timer.current = setTimeout(() => {
-          timer.current = null;
-          onCommit(v);
-        }, RANGE_DEBOUNCE_MS);
-      }}
-    />
+    <div className="range-field">
+      <input
+        ref={inputRef}
+        id={id}
+        className="range"
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={local}
+        aria-label={label}
+        aria-valuetext={format(local)}
+        data-testid={`settings-${id}`}
+        onChange={(e) => {
+          const v = Number(e.target.value);
+          setLocal(v);
+          if (timer.current !== null) clearTimeout(timer.current);
+          timer.current = setTimeout(() => {
+            timer.current = null;
+            onCommit(v);
+          }, RANGE_DEBOUNCE_MS);
+        }}
+      />
+      <output className="range-field__value" htmlFor={id} aria-hidden="true" data-testid={`settings-value-${id}`} style={{ width: `calc(${readoutChars}ch + 18px)` }}>
+        {format(local)}
+      </output>
+    </div>
   );
 }
 
-/** A range row in one go: the slider for editors, the value for everyone. */
-export function RangeSetting(props: Omit<RangeProps, 'id'> & { id: string; canEdit: boolean; display?: string; hint?: string; rowLabel?: string }) {
-  const { id, canEdit, display, hint, rowLabel, ...range } = props;
-  return <SettingRow label={rowLabel ?? range.label} testId={id} value={display ?? String(range.value)} hint={hint} control={canEdit && <RangeControl id={id} {...range} />} />;
+/** A range setting in one go: the title, the slider with its value, the hint. */
+export function RangeSetting(props: RangeProps & { hint?: string; rowLabel?: string }) {
+  const { hint, rowLabel, ...range } = props;
+  return <SettingRow label={rowLabel ?? range.label} testId={range.id} hint={hint} control={<RangeControl {...range} />} />;
 }
 
 interface ToggleProps {
@@ -114,30 +186,43 @@ export function ToggleSetting({ id, checked, disabled, onChange, label, hint }: 
 const WORD_LIST_DEBOUNCE_MS = 500;
 /** How long a local word-list edit outranks the server copy while its echo is in flight. */
 const PENDING_EDIT_GRACE_MS = 3000;
+const WORDS = { one: 'word', many: 'words' };
 
 interface WordListProps {
   id: string;
   label: string;
   /** The server's list. */
   words: readonly string[];
-  canEdit: boolean;
   /** The game's parser: free text to the normalised list the server would store. */
   parse(text: string): string[];
+  /** How the parser splits typed text into entries, so an upload can say what it left out. */
+  split(text: string): string[];
   onCommit(words: string[]): void;
   placeholder?: string;
   maxLength?: number;
+  /** What one entry is called ("word" by default; Quip Game's are prompts). */
+  noun?: { one: string; many: string };
+  autoCapitalize?: 'off' | 'sentences';
+}
+
+interface UploadStatus {
+  ok: boolean;
+  text: string;
 }
 
 /**
- * A free-text word list (custom words): editors type comma or newline separated words into a
- * textarea that patches the server after a short pause; everyone else reads the list. Test ids:
- * settings-row-<id>, settings-<id>-count, settings-<id>.
+ * A free-text list (custom words): the host types comma or newline separated entries into a
+ * textarea that patches the server after a short pause, or adds a .txt file's entries to it. Test
+ * ids: settings-row-<id>, settings-<id> (the box), settings-<id>-count, settings-<id>-upload (the
+ * button), settings-<id>-file (its file input), settings-<id>-upload-status.
  */
-export function WordListSetting({ id, label, words, canEdit, parse, onCommit, placeholder, maxLength }: WordListProps) {
+export function WordListSetting({ id, label, words, parse, split, onCommit, placeholder, maxLength, noun = WORDS, autoCapitalize = 'off' }: WordListProps) {
   const [text, setText] = useState(() => words.join('\n'));
   const [focused, setFocused] = useState(false);
+  const [upload, setUpload] = useState<UploadStatus | null>(null);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   const editedAt = useRef<number | null>(null);
+  const fileRef = useRef<HTMLInputElement | null>(null);
 
   // Keep the textarea in step with the server unless the host is mid-edit or waiting for the
   // echo of an edit they just made.
@@ -169,44 +254,72 @@ export function WordListSetting({ id, label, words, canEdit, parse, onCommit, pl
 
   const onChange = (value: string) => {
     setText(value);
+    setUpload(null);
     editedAt.current = Date.now();
     if (debounce.current !== null) clearTimeout(debounce.current);
     debounce.current = setTimeout(() => flush(value), WORD_LIST_DEBOUNCE_MS);
   };
 
-  const count = canEdit ? parse(text).length : words.length;
+  const onFile = async (e: ChangeEvent<HTMLInputElement>) => {
+    const input = e.currentTarget;
+    const file = input.files?.[0];
+    // The same file picked again must still fire a change.
+    input.value = '';
+    if (!file) return;
+    const problem = wordFileProblem(file);
+    if (problem) return setUpload({ ok: false, text: problem });
+    let fileText: string;
+    try {
+      fileText = await file.text();
+    } catch {
+      return setUpload({ ok: false, text: "Couldn't read that file. Try another one." });
+    }
+    if (!looksLikeText(fileText)) return setUpload({ ok: false, text: 'Pick a plain .txt file.' });
+    const merged = mergeWordFile(text, fileText, { split, parse });
+    setText(merged.text);
+    editedAt.current = Date.now();
+    flush(merged.text);
+    setUpload({ ok: true, text: wordFileSummary(merged, noun) });
+  };
+
+  const count = parse(text).length;
 
   return (
     <div className="setting" data-testid={`settings-row-${id}`}>
-      <div className="setting__head">
-        <label className="setting__label" htmlFor={id}>
-          {label}
-        </label>
-        <span className="setting__value" data-testid={`settings-${id}-count`}>
-          {count} {count === 1 ? 'word' : 'words'}
+      <label className="setting__label" htmlFor={id}>
+        {label}
+      </label>
+      <textarea
+        id={id}
+        className="textarea"
+        data-testid={`settings-${id}`}
+        rows={3}
+        placeholder={placeholder}
+        autoCapitalize={autoCapitalize}
+        autoCorrect="off"
+        autoComplete="off"
+        value={text}
+        maxLength={maxLength}
+        onChange={(e) => onChange(e.target.value)}
+        onFocus={() => setFocused(true)}
+        onBlur={() => {
+          setFocused(false);
+          if (debounce.current !== null) flush(text);
+        }}
+      />
+      <div className="word-list__foot">
+        <span className="setting__hint" data-testid={`settings-${id}-count`}>
+          {count} {count === 1 ? noun.one : noun.many}
         </span>
+        <button type="button" className="btn btn--secondary btn--sm word-list__upload" onClick={() => fileRef.current?.click()} data-testid={`settings-${id}-upload`}>
+          <UploadIcon size={16} /> Upload a .txt file
+        </button>
+        <input ref={fileRef} className="sr-only" type="file" accept=".txt,text/plain" tabIndex={-1} aria-hidden="true" onChange={(e) => void onFile(e)} data-testid={`settings-${id}-file`} />
       </div>
-      {canEdit ? (
-        <textarea
-          id={id}
-          className="textarea"
-          data-testid={`settings-${id}`}
-          rows={3}
-          placeholder={placeholder}
-          autoCapitalize="off"
-          autoCorrect="off"
-          autoComplete="off"
-          value={text}
-          maxLength={maxLength}
-          onChange={(e) => onChange(e.target.value)}
-          onFocus={() => setFocused(true)}
-          onBlur={() => {
-            setFocused(false);
-            if (debounce.current !== null) flush(text);
-          }}
-        />
-      ) : (
-        <p className="setting__readonly-words">{words.length ? words.join(', ') : 'None'}</p>
+      {upload && (
+        <p className={upload.ok ? 'field__ok' : 'field__error'} role="status" data-testid={`settings-${id}-upload-status`}>
+          {upload.text}
+        </p>
       )}
     </div>
   );

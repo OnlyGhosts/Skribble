@@ -11,9 +11,13 @@ import { parseWordList } from '../../platform/words.js';
 // Settings
 // ---------------------------------------------------------------------------
 
+/**
+ * Seconds each drawing turn lasts. Fixed, not a setting: change it here to change it everywhere.
+ */
+export const SKRIBBLE_DRAW_SECONDS = 80;
+
 export const SKRIBBLE_SETTINGS_LIMITS = {
   rounds: { min: 1, max: 10 },
-  drawTime: { min: 20, max: 180, step: 10 },
   hints: { min: 0, max: 5 },
   wordChoices: { min: 2, max: 5 },
   customWords: { maxCount: 500, maxLength: 32, minForOnly: 10 },
@@ -22,11 +26,10 @@ export const SKRIBBLE_SETTINGS_LIMITS = {
 export const LANGUAGES = ['en'] as const;
 export type Language = (typeof LANGUAGES)[number];
 
+/** A room or a patch stored with the retired `drawTime` key loads and ignores it. */
 export const skribbleSettingsSchema = z.object({
   /** Number of rounds; every player draws once per round. */
   rounds: z.number().int().min(SKRIBBLE_SETTINGS_LIMITS.rounds.min).max(SKRIBBLE_SETTINGS_LIMITS.rounds.max),
-  /** Seconds each drawing turn lasts. */
-  drawTime: z.number().int().min(SKRIBBLE_SETTINGS_LIMITS.drawTime.min).max(SKRIBBLE_SETTINGS_LIMITS.drawTime.max),
   /** How many letters are revealed (spread over the turn) as hints. */
   hints: z.number().int().min(SKRIBBLE_SETTINGS_LIMITS.hints.min).max(SKRIBBLE_SETTINGS_LIMITS.hints.max),
   /** How many words the drawer picks from. */
@@ -44,7 +47,6 @@ export type SkribbleSettings = z.infer<typeof skribbleSettingsSchema>;
 
 export const DEFAULT_SKRIBBLE_SETTINGS: SkribbleSettings = {
   rounds: 3,
-  drawTime: 80,
   hints: 2,
   wordChoices: 3,
   language: 'en',
@@ -146,6 +148,8 @@ export interface SkribblePlayerView {
 }
 
 export interface SkribbleView {
+  /** Server epoch ms the game began, stamped on its first chat lines too (0 when unknown). */
+  startedAt: number;
   phase: SkribblePhase;
   /** 1-based current round. */
   round: number;

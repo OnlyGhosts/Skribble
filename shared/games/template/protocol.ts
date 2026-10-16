@@ -29,7 +29,7 @@ export type TemplateClientMessage = z.infer<typeof templateClientMessageSchema>;
 export type TemplateServerMessage = never;
 
 export interface TemplateView {
-  /** Clicks so far, by player id (0 for players who joined mid-game). */
+  /** Clicks so far, by player id. */
   clicks: Record<string, number>;
   /** Epoch ms (server clock) when the race ends. */
   endsAt: number;

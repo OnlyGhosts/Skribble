@@ -9,14 +9,13 @@ installBrowserGlobals();
 
 const { usePlatformStore } = await import('../store/usePlatformStore');
 const { player, resetStore, room, welcome } = await import('../../test/fixtures');
-const { Chat } = await import('./Chat');
 const { SettingsPanel } = await import('./SettingsPanel');
 const { Timer } = await import('./Timer');
 const { PodiumOverlay } = await import('./PodiumOverlay');
 const { WaitingOverlay, missingPlayers, waitingTitle } = await import('./WaitingOverlay');
 const { ReconnectingBanner, reconnectLabel } = await import('./ReconnectingBanner');
 const { gameById } = await import('@shared/platform/games');
-const { Home, cleanName, firstInvalidBox, focusAfterRefusal, homeView, initialGame } = await import('../screens/Home');
+const { Home, cleanName, firstInvalidBox, focusAfterRefusal, homeView, initialGame, previewLine } = await import('../screens/Home');
 const { Wordmark } = await import('./Wordmark');
 const { WORDMARK_BOX, WORDMARK_GEAR_CENTRE, WORDMARK_GEAR_POSITION } = await import('../brand/wordmark');
 const { PlayerList } = await import('./PlayerList');
@@ -26,6 +25,7 @@ const { connectionLabel, shownConnectionLabel } = await import('./ConnectionPill
 const { ReadyControls, readyState } = await import('./ReadyControls');
 const { AvatarPicker } = await import('./AvatarPicker');
 const { GamePicker } = await import('./GamePicker');
+const { noOrphan } = await import('../lib/format');
 const { Lobby } = await import('../screens/Lobby');
 const { GAME_LIST } = await import('@shared/platform/games');
 const { AVATAR_COLORS, AVATAR_EMOJIS } = await import('@shared/platform/avatar');
@@ -267,9 +267,18 @@ describe('front door', () => {
   it('sends the focus to the first invalid box for a code error and to Join room for every other refusal, never to <body>', () => {
     expect(focusAfterRefusal('ROOM_NOT_FOUND', 'AB2K')).toBe(0);
     expect(focusAfterRefusal('INVALID_CODE', 'AB')).toBe(2);
-    for (const code of ['ROOM_FULL', 'GAME_IN_PROGRESS', 'OFFLINE', 'TIMEOUT', 'RATE_LIMITED', 'INTERNAL'] as const) {
+    for (const code of ['ROOM_FULL', 'OFFLINE', 'TIMEOUT', 'RATE_LIMITED', 'INTERNAL'] as const) {
       expect(focusAfterRefusal(code, 'AB2K'), code).toBe('join');
     }
+  });
+
+  it('previews a running game as open to watch, and only a full room as closed', () => {
+    const base = { exists: true, gameId: 'poker', players: 3, maxPlayers: 23 } as const;
+    expect(previewLine({ ...base, inProgress: false, joinable: true })).toEqual({ text: '3 players in the party · Poker', ok: true });
+    expect(previewLine({ ...base, inProgress: true, joinable: true })).toEqual({ text: 'Poker in progress · 3\u00a0players.', ok: true, note: 'Join to watch.' });
+    expect(previewLine({ ...base, players: 1, inProgress: true, joinable: false })).toEqual({ text: 'Room is full. (1 player in the party)', ok: false });
+    expect(previewLine({ exists: false })).toBeNull();
+    for (const p of [true, false]) expect(previewLine({ ...base, inProgress: p, joinable: true })?.text).not.toMatch(/closed/);
   });
 
   it('has no tagline, sub-line or footer: the logo, Join a room and Create a room only', () => {
@@ -441,6 +450,10 @@ describe('wordmark and mascots', () => {
     const html = renderToString(createElement(GamePicker, { room: room(), isHost: true }));
     for (const g of GAME_LIST.filter((x) => x.status === 'live')) expect(html).toContain(`data-glyph="${g.id}"`);
     expect(html).toContain('Scribble');
+    // A name of more words keeps its last two together, so a narrow tile never leaves "Game" alone.
+    expect(html).toContain('The Spy\u00a0Game');
+    expect(noOrphan('Adults only. Crude and filthy.')).toBe('Adults only. Crude and\u00a0filthy.');
+    expect(noOrphan('Scribble')).toBe('Scribble');
     expect(html).not.toContain('✏️');
     expect(tagWith(html, 'game-tile')).toContain('aria-checked="true"');
     // Three to a row, a short last row stretching to fill; the picked tile is the lilac fill with ink.
@@ -451,51 +464,47 @@ describe('wordmark and mascots', () => {
   });
 });
 
-describe('chat while reconnecting', () => {
-  it('keeps the input enabled (so it keeps focus and the keyboard) and disables only Send', () => {
-    usePlatformStore.getState().handleServerMessage(welcome('bob', room()));
-    usePlatformStore.setState({ connection: 'reconnecting' });
-    const html = renderToString(createElement(Chat));
-    expect(tagWith(html, 'chat-input')).not.toContain('disabled');
-    expect(tagWith(html, 'chat-input')).toContain('placeholder="Chat..."');
-    expect(tagWith(html, 'chat-send')).toContain('disabled');
-  });
-});
-
 describe('platform settings', () => {
   it('offers the two content modes (no Cheeky) to the host, with the adults-only tag on Unhinged', () => {
-    const html = renderToString(createElement(SettingsPanel, { room: room(), isHost: true, game: null }));
+    const html = renderToString(createElement(SettingsPanel, { room: room(), game: null }));
     expect(html).not.toContain('settings-maxPlayers');
     expect(tagWith(html, 'settings-contentMode')).toContain('data-value="family"');
     for (const mode of ['family', 'unhinged']) expect(tagWith(html, `content-mode-${mode}`)).not.toContain('disabled');
     expect(html).not.toContain('content-mode-cheeky');
     expect(html).not.toContain('Cheeky');
-    expect(html).toContain('Clean content for any table.');
-    expect(html).toContain('Adults only. Crude and filthy.');
+    // Each blurb keeps its last two words together: no word alone on its last line.
+    expect(html).toContain('Clean content for any\u00a0table.');
+    expect(html).toContain('Adults only. Crude and\u00a0filthy.');
     expect(tagWith(html, 'content-mode-family')).toContain('aria-checked="true"');
     expect(html).toContain('18+');
     expect(html).toContain('Adults only');
-    expect(tagWith(html, 'settings-allowMidGameJoin')).not.toContain('disabled');
+    // Joining mid-game always means watching: there is no switch for it.
+    expect(html).not.toContain('allowMidGameJoin');
+    expect(html).not.toContain('mid-game');
   });
 
-  it('keeps the adults-only tag legible in both themes and leaves read-only cards undimmed', () => {
+  it('keeps the adults-only tag legible in both themes', () => {
     const css = stylesheet('lobby.css');
     const tag = ruleOf(css, '.content-mode__age');
     expect(tag).toContain('color: var(--color-danger-text)');
     expect(tag).toContain('background: var(--color-danger-soft)');
     expect(tag).not.toContain('#fff');
-    expect(ruleOf(css, '.content-mode:disabled')).not.toContain('opacity');
   });
 
-  it('renders read-only values for non-hosts', () => {
+  it('echoes no chosen value beside a title (the picked card says it) and gives every setting the same rhythm', () => {
     const unhinged = room({ settings: { ...room().settings, contentMode: 'unhinged' } });
-    const html = renderToString(createElement(SettingsPanel, { room: unhinged, isHost: false, game: null }));
-    expect(tagWith(html, 'settings-value-contentMode')).toBeTruthy();
-    expect(html).toContain('Unhinged');
-    for (const mode of ['family', 'unhinged']) expect(tagWith(html, `content-mode-${mode}`)).toContain('disabled');
+    const html = renderToString(createElement(SettingsPanel, { room: unhinged, game: null }));
+    expect(html).not.toContain('setting__value');
+    expect(html).not.toContain('settings-value-contentMode');
     expect(tagWith(html, 'content-mode-unhinged')).toContain('aria-checked="true"');
-    expect(tagWith(html, 'settings-allowMidGameJoin')).toContain('disabled');
-    expect(html).toContain('Only the host can change settings.');
+    expect(html).not.toContain('Only the host can change settings.');
+    const css = stylesheet('components.css');
+    // 12px from a title to its options, 24px from one setting to the next.
+    expect(css).toMatch(/\n\.settings \{[^}]*gap: var\(--space-5\)/);
+    expect(css).toMatch(/\n\.setting \{[^}]*gap: var\(--space-3\)/);
+    expect(css).not.toContain('.setting__value');
+    // A slider's value sits in the control, in the text colour rather than the brand's.
+    expect(ruleOf(css, '.range-field__value')).toContain('color: var(--color-text)');
   });
 });
 
@@ -503,7 +512,7 @@ describe('content mode only where it matters', () => {
   it('shows the content mode for the games that read it and hides it (keeping the stored value) for the others', () => {
     for (const g of GAME_LIST) {
       const r = room({ gameId: g.id, settings: { ...room().settings, contentMode: 'unhinged' } });
-      const html = renderToString(createElement(SettingsPanel, { room: r, isHost: true, game: null }));
+      const html = renderToString(createElement(SettingsPanel, { room: r, game: null }));
       expect(html.includes('data-testid="settings-contentMode"'), g.id).toBe(g.contentModes);
       expect(r.settings.contentMode).toBe('unhinged');
     }
@@ -511,7 +520,7 @@ describe('content mode only where it matters', () => {
 
   it("reads a stale 'cheeky' snapshot as Family", () => {
     const stale = room({ settings: { ...room().settings, contentMode: 'cheeky' as 'family' } });
-    const html = renderToString(createElement(SettingsPanel, { room: stale, isHost: true, game: null }));
+    const html = renderToString(createElement(SettingsPanel, { room: stale, game: null }));
     expect(tagWith(html, 'settings-contentMode')).toContain('data-value="family"');
     expect(tagWith(html, 'content-mode-family')).toContain('aria-checked="true"');
   });
@@ -522,18 +531,32 @@ describe('ready controls', () => {
     renderToString(createElement(ReadyControls, { me: player('bob', { participating: false, ...overrides }), context }));
   const buttons = (markup: string) => markup.match(/<button[^>]*>/g) ?? [];
 
-  it("not ready: one I'm ready plus a small Sit this one out", () => {
+  it("not ready: one I'm ready over a secondary Sit this one out button", () => {
     const markup = html({});
     expect(readyState(player('bob'))).toBe('notReady');
     expect(buttons(markup)).toHaveLength(2);
     expect(tagWith(markup, 'ready-toggle')).toContain('aria-pressed="false"');
     expect(markup).toContain('I&#x27;m ready');
-    expect(tagWith(markup, 'sitout-toggle')).toContain('text-btn');
+    expect(tagWith(markup, 'sitout-toggle')).toContain('btn btn--secondary');
     expect(markup).toContain('Sit this one out');
     expect(markup).not.toContain('Count me in');
+    // The secondary buttons share one row, equal widths, each at least 44px tall.
+    const css = stylesheet('lobby.css');
+    expect(ruleOf(css, '.ready-controls__more')).toContain('grid-auto-columns: minmax(0, 1fr)');
+    expect(ruleOf(css, '.ready-controls__more .btn')).toContain('min-height: 44px');
+    expect(stylesheet('components.css')).not.toContain('.text-btn');
   });
 
-  it("ready: the same button checked (You're ready, tap to undo) and the same small Sit this one out", () => {
+  it('puts extra buttons (the room\'s Change my look) in the same row, sitting out included', () => {
+    const extra = createElement('button', { type: 'button', className: 'btn btn--secondary', 'data-testid': 'edit-profile' }, 'Change my look');
+    for (const overrides of [{}, { sittingOut: true }]) {
+      const markup = renderToString(createElement(ReadyControls, { me: player('bob', overrides), context: 'lobby', extra }));
+      const row = markup.slice(markup.indexOf('ready-controls__more'));
+      expect(row).toContain('data-testid="edit-profile"');
+    }
+  });
+
+  it("ready: the same button checked (You're ready, tap to undo) and the same Sit this one out", () => {
     const markup = html({ ready: true });
     expect(buttons(markup)).toHaveLength(2);
     expect(tagWith(markup, 'ready-toggle')).toContain('aria-pressed="true"');
@@ -644,6 +667,70 @@ describe('lobby', () => {
     expect(markup.match(/class="player__check"/g)).toHaveLength(2);
     expect(markup).toContain('Sitting out');
     expect(tagWith(markup, 'player-count')).toContain('sr-only');
+    // The status is the row's last item, so the tick and "Ready" sit at its right end, after the kick button.
+    const bob = markup.slice(markup.indexOf('data-player-id="bob"'));
+    expect(bob.indexOf('data-testid="votekick-player"')).toBeLessThan(bob.indexOf('data-testid="player-status"'));
+    expect(bob.indexOf('data-testid="player-status"')).toBeLessThan(bob.indexOf('</li>'));
+    expect(markup).not.toContain('player__actions--spacer');
+  });
+
+  const enter = (meId: string, state = room()) => {
+    usePlatformStore.getState().handleServerMessage(welcome(meId, state));
+    return renderToString(createElement(Lobby, { room: state, game: null }));
+  };
+
+  it('gives only the host the settings and the game grid; a guest sees the next game, the players and their own buttons', () => {
+    const host = enter('host');
+    expect(tagWith(host, 'settings-panel')).toBeTruthy();
+    expect(tagsWith(host, 'game-tile').length).toBeGreaterThan(1);
+    expect(host).not.toContain('lobby__grid--guest');
+    const guest = enter('bob');
+    expect(guest).not.toContain('data-testid="settings-panel"');
+    expect(guest).not.toContain('settings-contentMode');
+    expect(guest).not.toContain('content-mode');
+    expect(guest).toContain('lobby__grid--guest');
+    expect(tagsWith(guest, 'game-tile')).toHaveLength(1);
+    expect(tagWith(guest, 'game-picker-note')).toBeTruthy();
+    for (const id of ['room-bar', 'copy-code', 'share-invite', 'player-list', 'ready-toggle', 'sitout-toggle', 'edit-profile']) expect(tagWith(guest, id), id).toBeTruthy();
+  });
+
+  it('hands the settings to the new host as soon as the host changes', () => {
+    const before = room({ players: [player('host'), player('bob', { joinOrder: 1 })] });
+    expect(enter('bob', before)).not.toContain('data-testid="settings-panel"');
+    const after = room({ hostId: 'bob', players: [player('bob', { joinOrder: 1, isHost: true })] });
+    usePlatformStore.getState().handleServerMessage({ t: 'room', room: after });
+    const markup = renderToString(createElement(Lobby, { room: after, game: null }));
+    expect(tagWith(markup, 'settings-panel')).toBeTruthy();
+    expect(tagsWith(markup, 'game-tile').length).toBeGreaterThan(1);
+    expect(tagWith(markup, 'start-game')).toBeTruthy();
+  });
+
+  it('has no chat: no chat box, log or input for the host or a guest', () => {
+    for (const id of ['host', 'bob']) {
+      const markup = enter(id);
+      for (const gone of ['chat-log', 'chat-input', 'chat-send', 'chat-toggle', 'lobby__chat']) expect(markup, `${id} ${gone}`).not.toContain(gone);
+      expect(markup).not.toMatch(/>Chat</);
+    }
+  });
+
+  it('turns Sit this one out and Change my look into secondary buttons beside each other, under Ready or Start', () => {
+    for (const id of ['host', 'bob']) {
+      const markup = enter(id);
+      const footer = markup.slice(markup.indexOf('data-testid="lobby-footer"'));
+      const row = footer.slice(footer.indexOf('ready-controls__more'));
+      expect(tagWith(row, 'sitout-toggle'), id).toContain('btn btn--secondary');
+      expect(tagWith(row, 'edit-profile'), id).toContain('btn btn--secondary');
+      expect(row.indexOf('data-testid="sitout-toggle"')).toBeLessThan(row.indexOf('data-testid="edit-profile"'));
+      expect(footer.indexOf(id === 'host' ? 'data-testid="start-game"' : 'data-testid="ready-toggle"')).toBeLessThan(footer.indexOf('ready-controls__more'));
+    }
+  });
+
+  it('centres the logo on a phone, the connection pill out of the flow so it never pushes the logo aside', () => {
+    const css = stylesheet('lobby.css');
+    const phone = mediaBlock(css, '(max-width: 760px), (min-aspect-ratio: 3/2) and (max-height: 520px)');
+    expect(phone).toMatch(/\.lobby \.site-header \{[^}]*justify-content: center/);
+    expect(phone).toMatch(/\.lobby \.site-header__actions \{[^}]*position: absolute/);
+    expect(phone).toMatch(/\.lobby \.settings-menu--logo \.settings-menu__panel \{[^}]*left: calc\(50% - /);
   });
 });
 
@@ -678,7 +765,7 @@ describe('podium overlay', () => {
     const second = renderToString(createElement(PodiumOverlay, { ...ended('carol'), isHost: false }));
     expect(second).toContain('You came 2nd');
     const spectator = renderToString(createElement(PodiumOverlay, { ...ended('dan'), isHost: false }));
-    expect(spectator).toContain('You sat this one out');
+    expect(spectator).toContain('You watched this one');
   });
 
   it('prints the standings like the headline: grouped thousands and "1 pt" for a single point', async () => {
@@ -778,7 +865,7 @@ describe('podium overlay', () => {
 describe('GameTopBar', () => {
   const noop = () => undefined;
   const players = [player('host'), player('bob', { joinOrder: 1 }), player('carol', { joinOrder: 2, connected: false }), player('dan', { joinOrder: 3, participating: false })];
-  const bar = (isPhone: boolean, chat: boolean) =>
+  const bar = (isPhone: boolean) =>
     renderToString(
       createElement(GameTopBar, {
         meta: gameById('spygame'),
@@ -789,17 +876,17 @@ describe('GameTopBar', () => {
         statusData: { 'data-round': 2 },
         clock: createElement('span', { 'data-testid': 'clock' }),
         players: { label: 'Scores', open: false, onOpen: noop },
-        chat: chat ? { open: false, onOpen: noop } : undefined,
         menu: { open: false, onOpen: noop },
       }),
     );
 
-  it('reads back, name and round, chat and options on the first row, then the player chips and the timer ring', () => {
-    const html = bar(true, true);
+  it('reads back, name and round and options on the first row, then the player chips and the timer ring; there is no chat button', () => {
+    const html = bar(true);
     expect(html).toContain('The Spy Game');
     expect(attr(tagWith(html, 'round-indicator'), 'data-round')).toBe('2');
     expect(html).toContain('Round 2/5');
-    const order = ['game-back', 'round-indicator', 'chat-toggle', 'game-menu', 'players-toggle', 'clock'].map((id) => html.indexOf(`data-testid="${id}"`));
+    expect(html).not.toContain('chat-toggle');
+    const order = ['game-back', 'round-indicator', 'game-menu', 'players-toggle', 'clock'].map((id) => html.indexOf(`data-testid="${id}"`));
     expect(order.every((i) => i > -1)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
     expect(tagWith(html, 'players-toggle')).toContain('aria-label="Scores (4)"');
@@ -822,38 +909,46 @@ describe('GameTopBar', () => {
   });
 
   it('gives every player a chip with a status badge: the platform says Ready, Away and Watching', () => {
-    const html = bar(true, false);
+    const html = bar(true);
     const chips = tagsWith(html, 'player-chip');
     expect(chips.map((c) => attr(c, 'data-label'))).toEqual(['Ready', 'Ready', 'Away', 'Watching']);
     expect(chips.map((c) => attr(c, 'data-status'))).toEqual(['ready', 'ready', 'muted', 'muted']);
   });
 
-  it('packs into one row when compact (a card table on a phone): a players button with the count, no chips and no clock', () => {
-    const html = renderToString(
-      createElement(GameTopBar, {
-        meta: gameById('blackjack'),
-        room: room({ gameId: 'blackjack', phase: 'playing', players }),
-        isPhone: true,
-        testId: 'blackjack-header',
-        status: 'Round 2',
-        clock: createElement('span', { 'data-testid': 'clock' }),
-        players: { open: false, onOpen: noop },
-        chat: { open: false, onOpen: noop },
-        menu: { open: false, onOpen: noop },
-        compact: true,
-      }),
-    );
+  it('packs into one row when compact (a card table on a phone): a players button with the count and no chips', () => {
+    const compact = (clock?: ReturnType<typeof createElement>) =>
+      renderToString(
+        createElement(GameTopBar, {
+          meta: gameById('blackjack'),
+          room: room({ gameId: 'blackjack', phase: 'playing', players }),
+          isPhone: true,
+          testId: 'blackjack-header',
+          status: 'Round 2',
+          clock,
+          players: { open: false, onOpen: noop },
+          menu: { open: false, onOpen: noop },
+          compact: true,
+        }),
+      );
+    const html = compact();
     expect(tagWith(html, 'blackjack-header')).toContain('gbar--compact');
     expect(tagWith(html, 'players-toggle')).toContain('aria-label="Players (4)"');
     expect(html).toContain('gbar__count-n">4<');
     expect(tagsWith(html, 'player-chip')).toHaveLength(0);
-    expect(html).not.toContain('data-testid="clock"');
-    const order = ['game-back', 'round-indicator', 'players-toggle', 'chat-toggle', 'game-menu'].map((id) => html.indexOf(`data-testid="${id}"`));
+    expect(html).not.toContain('gbar__clock');
+    const order = ['game-back', 'round-indicator', 'players-toggle', 'game-menu'].map((id) => html.indexOf(`data-testid="${id}"`));
     expect([...order].sort((x, y) => x - y)).toEqual(order);
+    // A clock (The Spy Game's round clock) sits small in the same row, before the players button.
+    const clocked = compact(createElement('span', { 'data-testid': 'clock' }));
+    expect(clocked).toContain('gbar__clock gbar__clock--row');
+    const withClock = ['round-indicator', 'clock', 'players-toggle', 'game-menu'].map((id) => clocked.indexOf(`data-testid="${id}"`));
+    expect(withClock.every((i) => i >= 0)).toBe(true);
+    expect([...withClock].sort((x, y) => x - y)).toEqual(withClock);
+    expect(tagsWith(clocked, 'player-chip')).toHaveLength(0);
   });
 
-  it('has the gear and no options button on a desktop, and no chat button where the chat is on screen', () => {
-    const html = bar(false, false);
+  it('has the gear and no options button on a desktop, and no chat button', () => {
+    const html = bar(false);
     expect(html).toContain('data-testid="settings-menu"');
     expect(html).toContain('data-testid="game-back"');
     expect(html).not.toContain('data-testid="game-menu"');

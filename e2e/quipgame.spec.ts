@@ -1,5 +1,6 @@
 import { expect, test, type Browser, type BrowserContext, type Locator, type Page } from '@playwright/test';
 import { PROMPTS } from '../shared/games/quipgame/prompts';
+import { QUIPGAME_RESULTS_SECONDS } from '../shared/games/quipgame/protocol';
 import { createParty, enterNameIfAsked, readyAll } from './party';
 
 /**
@@ -15,6 +16,8 @@ const PORTRAIT = { width: 390, height: 844 };
 const MIN_TARGET = 44;
 const MIN_ANSWER_HEIGHT = 64;
 const PACK = new Set(PROMPTS.map((p) => p.text));
+/** Long enough to see a result run out on its own (the fixed results time) and the next step arrive. */
+const AFTER_RESULT = { timeout: QUIPGAME_RESULTS_SECONDS * 1000 + 7_000 };
 
 interface Player {
   name: string;
@@ -127,7 +130,7 @@ async function voterOf(): Promise<Player> {
 
 /** Plays one matchup: the voter picks `choice`, the result names both authors and pays the winner `pool`. */
 async function playMatchup(index: number, choice: 'a' | 'b', pool: number, skip: boolean): Promise<Reveal> {
-  for (const p of players) await expect(p.page.locator(`[data-testid="quip-voting"][data-matchup="${index}"]`)).toBeVisible();
+  for (const p of players) await expect(p.page.locator(`[data-testid="quip-voting"][data-matchup="${index}"]`)).toBeVisible(AFTER_RESULT);
   const voter = await voterOf();
   const authors = players.filter((p) => p !== voter);
   for (const a of authors) {
@@ -135,6 +138,9 @@ async function playMatchup(index: number, choice: 'a' | 'b', pool: number, skip:
     await expect(a.page.locator('button[data-testid="vote-answer"]')).toHaveCount(0);
   }
   await expect(voter.page.getByTestId('vote-count')).toHaveAttribute('data-votes', '0');
+  // The announcer is always on: with three players the one voter also reads the matchup out, above the vote.
+  await expect(voter.page.getByTestId('quip-announcer')).toBeVisible();
+  for (const a of authors) await expect(a.page.getByTestId('quip-announcer')).toHaveCount(0);
   const button = voter.page.locator(`button[data-testid="vote-answer"][data-choice="${choice}"]`);
   await expect(button).toBeEnabled();
   // A tap selects (with a check); Vote sends it.
@@ -174,7 +180,7 @@ test.afterAll(async () => {
   for (const p of players) await p.context.close();
 });
 
-test('the host creates a Quip Game room, two phones join by code and the host tunes the settings', async () => {
+test('the host creates a Quip Game room and two phones join by code; there are no clocks or rounds to set', async () => {
   roomCode = await createParty(host.page, host.name, 'quipgame');
   await expect(host.page.getByTestId('site-header').getByRole('img', { name: 'boredgames.io' })).toBeVisible();
   await expect(host.page.getByTestId('game-picker-meta')).toContainText('Quip Game');
@@ -190,17 +196,13 @@ test('the host creates a Quip Game room, two phones join by code and the host tu
   }
   await expect(host.page.getByTestId('player-item')).toHaveCount(3);
 
-  await host.page.getByTestId('settings-writeSeconds').fill('30');
-  await host.page.getByTestId('settings-voteSeconds').fill('15');
-  await host.page.getByTestId('settings-resultsSeconds').fill('4');
-  await expect(host.page.getByTestId('settings-finalRound')).toBeChecked();
+  // The clocks are fixed, and every game has the final round and an announcer.
+  for (const id of ['writeSeconds', 'voteSeconds', 'resultsSeconds', 'finalRound', 'announcer']) await expect(host.page.getByTestId(`settings-${id}`)).toHaveCount(0);
+  await expect(host.page.getByTestId('settings-customPrompts')).toBeVisible();
   await expect(host.page.getByTestId('settings-customPromptsOnly')).toBeDisabled();
-  await expect(pia.page.getByTestId('settings-value-writeSeconds')).toHaveText('30s');
-  await expect(pia.page.getByTestId('settings-value-voteSeconds')).toHaveText('15s');
-  await expect(pia.page.getByTestId('settings-value-resultsSeconds')).toHaveText('4s');
-  await expect(pia.page.getByTestId('settings-writeSeconds')).toHaveCount(0);
-  await expect(pia.page.getByTestId('settings-cheeky')).toHaveCount(0);
-  await expect(pia.page.getByTestId('settings-value-contentMode')).toHaveText('Family');
+  await expect(host.page.getByTestId('settings-cheeky')).toHaveCount(0);
+  await expect(host.page.getByTestId('settings-contentMode')).toHaveAttribute('data-value', 'family');
+  await expect(pia.page.getByTestId('settings-panel')).toHaveCount(0);
 
   await expect(host.page.getByTestId('start-game')).toBeDisabled();
   await readyAll([pia.page, quinn.page]);
@@ -212,7 +214,6 @@ test('the host creates a Quip Game room, two phones join by code and the host tu
     await expect(p.page.getByTestId('round-indicator')).toHaveAttribute('data-total', '3');
     await expect(p.page.getByTestId('quipgame-header').getByTestId('timer')).toBeVisible();
   }
-  await expect(host.page.getByTestId('chat-log')).toContainText('Round 1 of 3: write your answers!');
 });
 
 test('round one: the phone layout fits, everyone writes two answers and the room moves on to voting', async () => {
@@ -224,11 +225,11 @@ test('round one: the phone layout fits, everyone writes two answers and the room
     await expect(input).toHaveAttribute('enterkeyhint', 'done');
     await expect(input).toHaveAttribute('maxlength', '80');
     expect((await boxOf(p.page.getByTestId('write-submit'))).height).toBeGreaterThanOrEqual(MIN_TARGET);
-    for (const id of ['players-toggle', 'chat-toggle', 'game-menu']) expect((await boxOf(p.page.getByTestId(id))).height).toBeGreaterThanOrEqual(MIN_TARGET);
+    await expect(p.page.getByTestId('chat-toggle')).toHaveCount(0);
+    for (const id of ['players-toggle', 'game-menu']) expect((await boxOf(p.page.getByTestId(id))).height).toBeGreaterThanOrEqual(MIN_TARGET);
   }
   // The first phone writes one answer and sees the second prompt slide in; the waiting card lists both answers with Edit.
   await writeRound(2, 'r1-');
-  await expect(host.page.getByTestId('chat-log')).toContainText("Everyone's in. Time to vote!");
   for (const p of players) await expect(p.page.locator('[data-testid="quipgame-screen"][data-phase="voting"]')).toBeVisible();
 });
 
@@ -240,12 +241,10 @@ test('round one: three matchups with one voter each; authors are revealed with 1
     for (let i = 0; i < 2; i++) expect((await boxOf(cards.nth(i))).height, 'an answer card is at least 64px tall').toBeGreaterThanOrEqual(MIN_ANSWER_HEIGHT);
   }
   const first = await playMatchup(0, 'a', 1000, true);
-  await expect(host.page.getByTestId('chat-log')).toContainText(`${first.a.name} took it 1-0 (+1000)`);
-  // The other two results run their four seconds out on their own.
+  // The other two results run their eight seconds out on their own.
   await playMatchup(1, 'b', 1000, false);
   await playMatchup(2, 'a', 1000, false);
-  for (const p of players) await expect(p.page.getByTestId('round-indicator')).toHaveAttribute('data-round', '2');
-  await expect(host.page.getByTestId('chat-log')).toContainText('Round 2 of 3: write your answers! Double points!');
+  for (const p of players) await expect(p.page.getByTestId('round-indicator')).toHaveAttribute('data-round', '2', AFTER_RESULT);
   // Three matchups at 1000 each: the scores add up to 3000 whoever won them.
   const scores = await scoresOn(host);
   expect(scores.reduce((a, b) => a + b, 0)).toBe(3000);
@@ -256,13 +255,11 @@ test('round two doubles the pool: 2000 to each winner; then the final round open
   await playMatchup(0, 'b', 2000, true);
   await playMatchup(1, 'a', 2000, true);
   const last = await playMatchup(2, 'b', 2000, false);
-  await expect(host.page.getByTestId('chat-log')).toContainText(`${last.b.name} took it 1-0 (+2000)`);
   for (const p of players) {
-    await expect(p.page.locator('[data-testid="quipgame-screen"][data-phase="finalWriting"]')).toBeVisible();
+    await expect(p.page.locator('[data-testid="quipgame-screen"][data-phase="finalWriting"]')).toBeVisible(AFTER_RESULT);
     await expect(p.page.getByTestId('round-indicator')).toHaveAttribute('data-round', '3');
     await expect(p.page.getByTestId('write-progress')).toHaveAttribute('data-total', '1');
   }
-  await expect(host.page.getByTestId('chat-log')).toContainText('Final round: one prompt, everyone answers!');
   const scores = await scoresOn(host);
   expect(scores.reduce((a, b) => a + b, 0)).toBe(9000);
 });
@@ -312,7 +309,6 @@ test('the final: everyone answers, ranks the other two with medals, and the resu
   expect(rows[0].rank).toBe('1');
   expect(rows[0].medal).toBe('🥇');
   expect(rows.every((r) => r.points > 0)).toBe(true);
-  await expect(host.page.getByTestId('chat-log')).toContainText('Final ranking: 1.');
   await expect(host.page.getByTestId('quip-next')).toContainText('Show results');
   await host.page.getByTestId('quip-next').click();
 

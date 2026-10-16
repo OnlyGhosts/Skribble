@@ -1,7 +1,7 @@
 /** Per-recipient projections of PlatformRoomData onto the wire protocol. */
 import type { PlayerPublic, RoomPreview, RoomState, WaitingState, WelcomeMessage } from '../../../shared/platform/protocol.js';
 import { moduleFor } from './module.js';
-import { findPlayer, gameSeatLimit, inProgress, isJoinable, minPlayers, participants, platformPlayers, platformSpectators, sortedPlayers } from './players.js';
+import { findPlayer, gameSeatLimit, isFull, minPlayers, participants, platformPlayers, platformSpectators, sortedPlayers } from './players.js';
 import { upgradeRoomData, type PlatformPlayerData, type PlatformRoomData } from './state.js';
 
 export function publicPlayer(p: PlatformPlayerData, hostId: string): PlayerPublic {
@@ -64,8 +64,9 @@ export function previewOf(data: PlatformRoomData): RoomPreview {
     gameId: data.gameId,
     players: data.players.length,
     maxPlayers: gameSeatLimit(data),
-    inProgress: inProgress(data),
-    joinable: isJoinable(data),
+    // Only a running game has anything to watch; a newcomer on the podium is an ordinary member.
+    inProgress: data.phase === 'playing',
+    joinable: !isFull(data),
   };
 }
 

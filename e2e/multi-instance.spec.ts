@@ -65,8 +65,8 @@ async function drawStroke(page: Page, fromX: number, toX: number, y = 0.5): Prom
   await page.mouse.up();
 }
 
-async function sendChat(page: Page, text: string): Promise<void> {
-  const input = page.getByTestId('chat-input');
+async function sendGuess(page: Page, text: string): Promise<void> {
+  const input = page.getByTestId('guess-input');
   await input.fill(text);
   await input.press('Enter');
 }
@@ -127,14 +127,13 @@ test('the host creates a room on instance A and the guest joins it by code on in
 
   await expect(host.page.getByTestId('player-item')).toHaveCount(2);
   await expect(guest.page.getByTestId('player-item')).toHaveCount(2);
-  await expect(host.page.getByTestId('chat-log')).toContainText(`${guest.name} joined`);
+  await expect(host.page.locator(`[data-testid="player-item"][data-name="${guest.name}"]`)).toHaveCount(1);
 });
 
-test('settings set on A show on B, and the game starts with one round of 80 seconds', async () => {
+test('settings set on A reach the game B plays, and it starts with one round', async () => {
   await host.page.getByTestId('settings-rounds').fill('1');
-  await host.page.getByTestId('settings-drawTime').fill('80');
-  await expect(guest.page.getByTestId('settings-value-rounds')).toHaveText('1');
-  await expect(guest.page.getByTestId('settings-value-drawTime')).toHaveText('80s');
+  await expect(host.page.getByTestId('settings-value-rounds')).toHaveText('1');
+  await expect(guest.page.getByTestId('settings-panel')).toHaveCount(0);
 
   await readyAll([guest.page]);
   await host.page.getByTestId('start-game').click();
@@ -144,6 +143,8 @@ test('settings set on A show on B, and the game starts with one round of 80 seco
   await drawer.page.getByTestId('word-choice').first().click();
   await expect(drawer.page.getByTestId('toolbar')).toBeVisible();
   await expect(guesser.page.getByTestId('word-mask')).toBeVisible();
+  // The one round the host set on A is the game B plays.
+  await expect(guest.page.getByTestId('round-indicator')).toContainText('1/1');
 });
 
 test('strokes drawn on one instance appear on the other, and undo blanks them again', async () => {
@@ -158,12 +159,12 @@ test('strokes drawn on one instance appear on the other, and undo blanks them ag
 
 test('a correct guess sent to the other instance ends the turn for both', async () => {
   const word = await readWord(drawer.page);
-  await sendChat(guesser.page, 'not even close');
-  await expect(drawer.page.getByTestId('chat-log')).toContainText('not even close');
+  await sendGuess(guesser.page, 'not even close');
+  await expect(drawer.page.getByTestId('guess-feed')).toContainText('not even close');
 
-  await sendChat(guesser.page, word);
+  await sendGuess(guesser.page, word);
   for (const p of [host, guest]) {
-    await expect(p.page.getByTestId('chat-log')).toContainText(`${guesser.name} guessed the word!`);
+    await expect(p.page.getByTestId('guess-feed')).toContainText(`${guesser.name} guessed the word!`);
     await expect(p.page.getByTestId('overlay-turn-end')).toBeVisible();
     await expect(p.page.getByTestId('overlay-turn-end')).toContainText(word);
   }
@@ -215,7 +216,7 @@ test('the second drawer draws, is cut off, and rejoins through the other instanc
   const before = await nonWhitePixels(watcher.page);
   await drawStroke(back.page, 0.6, 0.9, 0.7);
   await expect.poll(() => nonWhitePixels(watcher.page), { timeout: 3_000 }).toBeGreaterThan(before);
-  await sendChat(watcher.page, secondWord);
+  await sendGuess(watcher.page, secondWord);
   await expect(back.page.getByTestId('overlay-turn-end')).toBeVisible();
 });
 

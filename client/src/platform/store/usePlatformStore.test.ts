@@ -32,6 +32,16 @@ describe('messages after leaving', () => {
   });
 });
 
+describe('notices', () => {
+  it('pops a notice line up as a toast, since there is no chat to read it in; other lines and a welcome\'s history never do', () => {
+    state().handleServerMessage({ ...welcome('bob', room()), chat: [chatLine(1, 'notice', 'Old news')] });
+    expect(state().toasts).toEqual([]);
+    state().handleServerMessage({ t: 'chat', message: chatLine(2, 'system', 'Ann joined') });
+    state().handleServerMessage({ t: 'chat', message: chatLine(3, 'notice', 'Ann voted to kick Bo (1/2)') });
+    expect(state().toasts.map((t) => [t.kind, t.text])).toEqual([['info', 'Ann voted to kick Bo (1/2)']]);
+  });
+});
+
 describe('leaving a room', () => {
   it('lands on the front door after leaving and tells the game module', () => {
     const onLeave = vi.fn();

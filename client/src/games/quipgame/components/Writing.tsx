@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, type FormEvent } from 'react';
 import { QUIPGAME_ANSWER_MAX_LENGTH, cleanText, type QuipgameView } from '@shared/games/quipgame/protocol';
 import { EditIcon } from '../../../platform/components/Icons';
+import { WATCHING_TEXT } from '../../../platform/lib/watching';
 import { submitAnswer } from '../actions';
 import { promptNumber, promptToWrite } from '../hooks';
 import { doneLine, waitingLine } from '../lib/text';
@@ -130,13 +131,16 @@ export function Writing({ view, open }: Props) {
   );
 }
 
-/** Late joiners watch the writing and vote once the answers are in. */
-export function Spectating({ view }: { view: QuipgameView }) {
+/**
+ * Players not in this round watch the writing: the round's audience (away when it was dealt) votes
+ * once the answers are in; a spectator of the whole game (`watching`) plays the next game.
+ */
+export function Spectating({ view, watching = false }: { view: QuipgameView; watching?: boolean }) {
   return (
-    <section className="card quip-write quip-write--waiting" aria-label="Watching" data-testid="quip-spectating">
-      <p className="quip-kicker">Watching this round</p>
+    <section className="card quip-write quip-write--waiting" aria-label="Watching" data-testid="quip-spectating" data-watching={watching}>
+      <p className="quip-kicker">{watching ? 'Watching' : 'Watching this round'}</p>
       <h2 className="quip-write__title">The others are writing</h2>
-      <p className="quip-write__text">You vote on their answers in a moment, and you write from the next round.</p>
+      <p className="quip-write__text">{watching ? WATCHING_TEXT : 'You vote on their answers in a moment, and you write from the next round.'}</p>
       <p className="quip-write__status" role="status" data-testid="write-done" data-done={view.done} data-total={view.total}>
         {doneLine(view.done, view.total)}
       </p>

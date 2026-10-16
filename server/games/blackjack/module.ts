@@ -17,7 +17,7 @@ import { defineSettings, withDraft, type GameEvent, type GameResult, type GameSe
 import { bet, dealIfReady, dealNow, sitOut } from './betting.js';
 import { nextHand } from './dealer.js';
 import { double, hit, skip, split, stand, standAway } from './play.js';
-import { beginRound, endGame, finishGame, resumeIfHeld, seatPlayer, seatWhileBetting, settleDue, snapshotOrResume } from './round.js';
+import { beginRound, endGame, finishGame, resumeIfHeld, seatPlayer, settleDue, snapshotOrResume } from './round.js';
 import { findPlayer, type BlackjackData, type Ctx, type Gx } from './state.js';
 import { viewFor } from './view.js';
 
@@ -51,12 +51,6 @@ function handle(ctx: Ctx, data: BlackjackData, event: GameEvent<BlackjackClientM
         return onMessage(gx, event.playerId, event.msg);
       case 'chat':
         return;
-      case 'playerJoined':
-        // A newcomer takes a seat (and the starting stack) only when the next round starts, so a
-        // game ending first never ranks someone who did not play; bets open with none down yet
-        // seat them at once, as nothing has been played.
-        if (seatWhileBetting(gx)) return;
-        return snapshotOrResume(gx);
       case 'playerLeft':
         return onPlayerLeft(gx, event.playerId);
       case 'playerDisconnected':

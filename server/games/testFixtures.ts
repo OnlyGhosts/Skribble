@@ -26,19 +26,20 @@ export const TEST_WORDS = ['apple', 'banana', 'cherry', 'dragon', 'eagle', 'falc
 
 export const GAME_TEST_FIXTURES: Readonly<Record<GameId, GameTestFixture>> = {
   skribble: {
-    settings: { customWords: TEST_WORDS, customWordsOnly: true, rounds: 1, drawTime: 60, hints: 2, wordChoices: 3 },
-    longSettings: { drawTime: 180, rounds: 10 },
+    settings: { customWords: TEST_WORDS, customWordsOnly: true, rounds: 1, hints: 2, wordChoices: 3 },
+    longSettings: { rounds: 10 },
     validMessage: { t: 'chooseWord', index: 0 },
   },
   spygame: {
-    settings: { rounds: 1, roundMinutes: 3, voteSeconds: 15 },
-    longSettings: { rounds: 10, roundMinutes: 15 },
+    settings: { rounds: 1 },
+    longSettings: { rounds: 10 },
     // With rng () => 0 the host is round one's spy, 'airplane' is the location and 'beach' a decoy: a wrong first guess.
     validMessage: { t: 'guess', locationId: 'beach' },
   },
   quipgame: {
-    settings: { writeSeconds: 30, voteSeconds: 10, resultsSeconds: 4, finalRound: false },
-    longSettings: { writeSeconds: 180, voteSeconds: 60, resultsSeconds: 20 },
+    // The clocks are fixed and every game ends with the final round: there is nothing to shorten or lengthen.
+    settings: {},
+    longSettings: {},
     // With rng () => 0 the shuffled writing order ends with the host, who therefore writes prompt r1-p0.
     validMessage: { t: 'answer', promptId: 'r1-p0', text: 'banana' },
   },
@@ -52,9 +53,9 @@ export const GAME_TEST_FIXTURES: Readonly<Record<GameId, GameTestFixture>> = {
     hostEnd: { t: 'endGame' },
   },
   poker: {
-    // One hand with the shortest clocks: rng () => 0 gives the host the button, so they act first preflop (heads-up and three-handed alike).
-    settings: { startingChips: 1000, smallBlind: 5, blindsIncreaseEvery: 0, hands: 1, actSeconds: 10, resultsSeconds: 4 },
-    longSettings: { startingChips: 100_000, smallBlind: 1, blindsIncreaseEvery: 0, hands: 0, actSeconds: 60, resultsSeconds: 20 },
+    // One hand (the clocks are fixed): rng () => 0 gives the host the button, so they act first preflop (heads-up and three-handed alike).
+    settings: { startingChips: 1000, smallBlind: 5, blindsIncreaseEvery: 0, hands: 1 },
+    longSettings: { startingChips: 100_000, smallBlind: 1, blindsIncreaseEvery: 0, hands: 0 },
     validMessage: { t: 'call' },
   },
   template: {

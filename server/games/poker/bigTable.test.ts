@@ -1,4 +1,4 @@
-/** Poker at a big party: 23 seats (one deck: 46 hole cards and a 5-card board), newcomers waiting for a free seat, and a full table played to a showdown with side pots. */
+/** Poker at a big party: 23 seats (one deck: 46 hole cards and a 5-card board), the extras ready at the start waiting for a free seat, and a full table played to a showdown with side pots. */
 import { describe, expect, it } from 'vitest';
 import type { PokerView } from '../../../shared/games/poker/protocol.js';
 import { cardOf } from '../../../shared/platform/cards.js';
@@ -44,7 +44,7 @@ describe('Poker: a big table', () => {
     expect(TABLE_SEATS * 2 + 5).toBeLessThanOrEqual(52);
   });
 
-  it('seats 23 players at the start; the extras wait their turn for a seat, ahead of anyone who joins later', () => {
+  it('seats 23 players at the start; the extras wait their turn for a seat, and anyone who joins later only watches', () => {
     const s = sim('poker');
     const ids = startGame(s, names(25), { hands: 0 });
     expect(data(s).order).toEqual(ids.slice(0, 23));
@@ -61,7 +61,7 @@ describe('Poker: a big table', () => {
     s.apply({ type: 'leave', playerId: ids[5] });
     expect(view(s).players[ids[23]]).toMatchObject({ waitingForSeat: false });
     expect(view(s).players[ids[24]]).toMatchObject({ waitingForSeat: true });
-    expect(view(s).players[late]).toMatchObject({ waitingForSeat: true });
+    expect(view(s).players[late]).toBeUndefined();
     foldAround(s);
     tickResults(s);
     expect(data(s).order).toHaveLength(23);
@@ -86,40 +86,32 @@ describe('Poker: a big table', () => {
     expect(podium).not.toContain(late);
   });
 
-  it('keeps a mid-game joiner watching while 23 seats hold chips, and seats them from the first hand after a seat frees up', () => {
+  it('keeps a mid-game joiner watching the whole game, even once a seat frees up', () => {
     const s = sim('poker');
     const ids = startGame(s, names(23), { hands: 0 });
     const late = join(s, 'Late');
-    const later = join(s, 'Later');
-    expect(view(s).players[late]).toMatchObject({ status: 'out', chips: 0, waitingForSeat: true });
-    expect(view(s).players[later]).toMatchObject({ waitingForSeat: true });
-    expect(errorsOf(s.game(late, { t: 'call' }))).toEqual(['It is not your turn.']);
+    expect(view(s).players[late]).toBeUndefined();
+    expect(errorsOf(s.game(late, { t: 'call' }))).toEqual(['You are watching this game.']);
     foldAround(s);
     tickResults(s);
-    // The table is still full: nobody new is dealt in.
     expect(data(s)).toMatchObject({ hand: 2 });
     expect(data(s).order).toEqual(ids);
-    expect(data(s).seats[late]).toBeUndefined();
     expect(view(s, late).myCards).toEqual([]);
 
-    // A player leaves: the first in line gets the seat from the next hand, the second keeps waiting.
+    // A player leaves: the seat stays empty, as nobody is queued for it.
     s.apply({ type: 'leave', playerId: ids[7] });
-    expect(view(s).players[late]).toMatchObject({ waitingForSeat: false });
-    expect(view(s).players[later]).toMatchObject({ waitingForSeat: true });
     foldAround(s);
     tickResults(s);
     expect(data(s).hand).toBe(3);
-    expect(data(s).order).toHaveLength(23);
-    expect(data(s).order).toContain(late);
-    expect(data(s).order).not.toContain(later);
-    expect(data(s).seats[late].cards).toHaveLength(2);
-    expect(s.data.players.find((p) => p.id === late)?.score).toBe(data(s).seats[late].chips + data(s).seats[late].bet);
+    expect(data(s).order).toHaveLength(22);
+    expect(data(s).order).not.toContain(late);
+    expect(data(s).seats[late]).toBeUndefined();
   });
 
-  it('gives a busted player’s seat to the next newcomer', () => {
+  it('gives a busted player’s seat to the next one queued since the start', () => {
     const s = sim('poker');
-    const ids = startGame(s, names(23), { hands: 0, startingChips: 100, smallBlind: 5 });
-    const late = join(s, 'Late');
+    const ids = startGame(s, names(24), { hands: 0, startingChips: 100, smallBlind: 5 });
+    const late = ids[23];
     // The first to act shoves aces, the big blind calls with seven-deuce, everyone else folds: the big blind busts.
     const [first] = data(s).toAct;
     const bb = ids[2];

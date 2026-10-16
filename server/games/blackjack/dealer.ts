@@ -2,7 +2,7 @@
 import { dealerShouldHit, handTotal, revealAllowanceMs, settleHand } from '../../../shared/games/blackjack/cards.js';
 import type { HandOutcome, HandStatus } from '../../../shared/games/blackjack/protocol.js';
 import { afterSettle } from './round.js';
-import { adjustChips, autoStatus, draw, isConnected, nameOf, snapshot, systemMessage, type Gx, type SettledHand } from './state.js';
+import { adjustChips, autoStatus, draw, isConnected, nameOf, noticeMessage, snapshot, systemMessage, type Gx, type SettledHand } from './state.js';
 
 export function awayLine(gx: Gx, playerId: string): string {
   return `${nameOf(gx.ctx, playerId)} is away and stands.`;
@@ -21,14 +21,14 @@ export function nextHand(gx: Gx, away: Set<string> = new Set()): void {
     for (let index = 0; index < seat.hands.length; index++) {
       const hand = seat.hands[index];
       if (hand.status !== 'waiting') continue;
-      const auto = autoStatus(ctx.settings, seat, hand);
+      const auto = autoStatus(seat, hand);
       if (auto) {
         hand.status = auto;
         continue;
       }
       if (!isConnected(ctx, id)) {
         hand.status = 'stood';
-        if (!away.has(id)) systemMessage(gx, awayLine(gx, id));
+        if (!away.has(id)) noticeMessage(gx, awayLine(gx, id));
         away.add(id);
         continue;
       }
@@ -42,11 +42,11 @@ export function nextHand(gx: Gx, away: Set<string> = new Set()): void {
 
 /** The hole card shows; the dealer draws only while a standing hand is waiting on the outcome. */
 function dealerPlays(gx: Gx): void {
-  const { data, ctx } = gx;
+  const { data } = gx;
   data.holeHidden = false;
   const standing = data.order.some((id) => data.seats[id].hands.some((h) => h.status === 'stood'));
   if (standing) {
-    while (dealerShouldHit(data.dealer, ctx.settings.dealerHitsSoft17)) data.dealer.push(draw(gx));
+    while (dealerShouldHit(data.dealer)) data.dealer.push(draw(gx));
   }
   const house = handTotal(data.dealer).total;
   systemMessage(gx, house > 21 ? `The dealer busts with ${house}.` : `The dealer ${standing ? 'stands on' : 'shows'} ${house}.`);
@@ -67,7 +67,7 @@ export function settleRound(gx: Gx, peeked: boolean): void {
   for (const id of data.order) {
     const seat = data.seats[id];
     settled[id] = seat.hands.map((hand) => {
-      const { outcome, payout } = settleHand(hand.cards, hand.bet, hand.fromSplit, data.dealer, ctx.settings.blackjackPayout);
+      const { outcome, payout } = settleHand(hand.cards, hand.bet, hand.fromSplit, data.dealer);
       adjustChips(gx, id, payout);
       return { ...hand, cards: [...hand.cards], status: hand.status === 'bust' ? 'bust' : STATUS_OF[outcome], outcome, payout };
     });

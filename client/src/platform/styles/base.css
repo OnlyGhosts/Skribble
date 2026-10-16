@@ -58,6 +58,41 @@ h3,
   line-height: 1.2;
 }
 
+/*
+ * No orphans: running copy keeps at least two words on its last line, headings balance their
+ * lines. Only the style is set (the longhand), so a line kept to one row (white-space: nowrap)
+ * stays on one row: the `text-wrap` shorthand would switch wrapping back on.
+ */
+p,
+li,
+label,
+.btn,
+.field__hint,
+.field__ok,
+.field__error,
+.code-preview,
+.setting__hint,
+.toggle__hint,
+.overlay__hint,
+.banner,
+.toast__text,
+.quip-prompt,
+.content-mode__blurb,
+.game-tile__name,
+.tbl-turn__text,
+.tbl-turn__sub {
+  text-wrap-style: pretty;
+}
+
+h1,
+h2,
+h3,
+.card__title,
+.overlay__title,
+.display {
+  text-wrap-style: balance;
+}
+
 button,
 input,
 textarea,

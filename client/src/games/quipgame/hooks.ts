@@ -44,12 +44,13 @@ export function promptNumber(view: QuipgameView, prompt: QuipgamePromptView): nu
 }
 
 /** Voters a matchup is waiting on: everyone connected but the two authors (whoever they are). */
+/** Who can vote on a matchup: the connected players in the game but its two authors (spectators of the whole game never vote). */
 export function voterCount(room: QuipgameRoomState, votes: number): number {
-  return Math.max(votes, room.players.filter((p) => p.connected).length - 2);
+  return Math.max(votes, room.players.filter((p) => p.connected && p.participating).length - 2);
 }
 
 export function rankerCount(room: QuipgameRoomState, ranked: number): number {
-  return Math.max(ranked, room.players.filter((p) => p.connected).length);
+  return Math.max(ranked, room.players.filter((p) => p.connected && p.participating).length);
 }
 
 export function sameRanking(a: readonly string[], b: readonly string[]): boolean {

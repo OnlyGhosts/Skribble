@@ -1,7 +1,7 @@
 /**
- * Quip Game's client module: the screen, the settings rows, the player-list badges, the chat
- * placeholder and the cues (sound, haptics, local state) that react to snapshots. Snapshots carry
- * everything, so there are no server messages to handle.
+ * Quip Game's client module: the screen, the settings rows, the player-list badges and the cues
+ * (sound, haptics, local state) that react to snapshots. Snapshots carry everything, so there are
+ * no server messages to handle.
  */
 import type { QuipgameSettings, QuipgameView } from '@shared/games/quipgame/protocol';
 import { gameById } from '@shared/platform/games';
@@ -12,7 +12,6 @@ import { vibrate } from '../../platform/lib/haptics';
 import { playCue } from '../../platform/lib/sound';
 import { EyeIcon, PenIcon } from './components/Icons';
 import { RESULT_PHASES, WRITING_PHASES, phaseEntered, stepChanged } from './hooks';
-import { chatPlaceholderFor } from './lib/text';
 import { QuipGameScreen } from './Screen';
 import { QuipgameSettingsFields } from './SettingsFields';
 import { clearQuipgameSounds, playRevealSounds } from './sfx';
@@ -66,10 +65,6 @@ export const quipgameClient = defineGameClient<QuipgameView, QuipgameSettings>({
         : { label: 'Writing', icon: <PenIcon {...CHIP_ICON} />, tone: 'active' };
     }
     return view.voted.includes(player.id) ? { label: 'Voted', icon: <CheckIcon {...CHIP_ICON} strokeWidth={3} />, tone: 'done' } : null;
-  },
-
-  chatPlaceholder(room) {
-    return room.game ? chatPlaceholderFor(room.game.phase) : undefined;
   },
 
   onRoom(room, prev) {

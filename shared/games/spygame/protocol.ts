@@ -16,6 +16,13 @@ export const SPYGAME_CANDIDATES = 24;
 export const SPYGAME_GUESSES = 2;
 /** How long the reveal stays up before the next round starts on its own. */
 export const SPYGAME_REVEAL_SECONDS = 15;
+/*
+ * The clocks are fixed, not settings: change one here to change it everywhere.
+ */
+/** Minutes on the round clock; when it runs out the agents win the round. */
+export const SPYGAME_ROUND_MINUTES = 8;
+/** Seconds a vote stays open before the missing votes count as No. */
+export const SPYGAME_VOTE_SECONDS = 30;
 
 export const SPYGAME_POINTS = {
   /** The spy names the location on their first / second guess. */
@@ -35,22 +42,17 @@ export const SPYGAME_POINTS = {
 
 export const SPYGAME_SETTINGS_LIMITS = {
   rounds: { min: 1, max: 10 },
-  roundMinutes: { min: 3, max: 15 },
-  voteSeconds: { min: 15, max: 60, step: 5 },
 } as const;
 
+/** A room or a patch stored with the retired `roundMinutes` and `voteSeconds` keys loads and ignores them. */
 export const spygameSettingsSchema = z.object({
   /** Rounds per game; one spy per round. */
   rounds: z.number().int().min(SPYGAME_SETTINGS_LIMITS.rounds.min).max(SPYGAME_SETTINGS_LIMITS.rounds.max),
-  /** Minutes on the round clock. */
-  roundMinutes: z.number().int().min(SPYGAME_SETTINGS_LIMITS.roundMinutes.min).max(SPYGAME_SETTINGS_LIMITS.roundMinutes.max),
-  /** Seconds a vote stays open before missing votes count as No. */
-  voteSeconds: z.number().int().min(SPYGAME_SETTINGS_LIMITS.voteSeconds.min).max(SPYGAME_SETTINGS_LIMITS.voteSeconds.max),
 });
 
 export type SpygameSettings = z.infer<typeof spygameSettingsSchema>;
 
-export const DEFAULT_SPYGAME_SETTINGS: SpygameSettings = { rounds: 5, roundMinutes: 8, voteSeconds: 30 };
+export const DEFAULT_SPYGAME_SETTINGS: SpygameSettings = { rounds: 5 };
 
 // ---------------------------------------------------------------------------
 // Messages

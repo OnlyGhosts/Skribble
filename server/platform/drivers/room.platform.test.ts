@@ -66,7 +66,8 @@ describe.each(GAME_IDS)('platform room (%s)', (gameId: GameId) => {
       const h = harness();
       const alice = h.join('Alice');
       const { settings } = h.transport.last(alice, 'welcome').room;
-      expect(settings).toMatchObject({ allowMidGameJoin: true, contentMode: 'family' });
+      expect(settings).toMatchObject({ contentMode: 'family' });
+      expect(settings).not.toHaveProperty('allowMidGameJoin');
       expect(settings).toMatchObject(GAMES[gameId].settings.defaults as Record<string, unknown>);
     });
 
@@ -101,7 +102,11 @@ describe.each(GAME_IDS)('platform room (%s)', (gameId: GameId) => {
       h.room.leave(alice);
       expect(h.room.playerCount).toBe(2);
       expect(h.room.hostPlayerId).toBe(carol);
-      expect(h.transport.chats(bob).map((c) => c.text)).toEqual(['Alice left', 'Carol is now the host']);
+      // The host change is a notice (a toast: there is no chat on screen to read it in).
+      expect(h.transport.chats(bob)).toEqual([
+        { kind: 'system', text: 'Alice left' },
+        { kind: 'notice', text: 'Carol is now the host' },
+      ]);
       expect(h.transport.last(carol, 'room').room.players.find((p) => p.name === 'Carol')?.isHost).toBe(true);
       expect(h.token(alice)).toBe('');
     });
@@ -118,8 +123,8 @@ describe.each(GAME_IDS)('platform room (%s)', (gameId: GameId) => {
       expect(h.room.hostPlayerId).toBe(carol);
       expect(h.transport.chats(carol).map((c) => c.text)).toEqual(['Carol is now the host']);
       expect(h.transport.last(carol, 'room').room.hostId).toBe(carol);
-      h.send(carol, { t: 'updateSettings', settings: { allowMidGameJoin: false } });
-      expect(h.room.settings.allowMidGameJoin).toBe(false);
+      h.send(carol, { t: 'updateSettings', settings: { contentMode: 'unhinged' } });
+      expect(h.room.settings.contentMode).toBe('unhinged');
 
       // The original host gets the role back when they come back...
       h.transport.clear();
@@ -388,7 +393,7 @@ describe.each(GAME_IDS)('platform room (%s)', (gameId: GameId) => {
         expect(h.room.getPlayer(bob)).toBeUndefined();
         expect(h.transport.chats(alice).slice(-2)).toEqual([
           { kind: 'system', text: 'Bob left' },
-          { kind: 'system', text: 'Not enough players. Back to the lobby.' },
+          { kind: 'notice', text: 'Not enough players. Back to the lobby.' },
         ]);
         const state = h.transport.last(alice, 'room').room;
         expect(state.game).toBeNull();
@@ -458,7 +463,7 @@ describe.each(GAME_IDS)('platform room (%s)', (gameId: GameId) => {
       expect(h.transport.errors(alice)).toEqual(['NOT_ALLOWED']);
       h.send(alice, { t: 'voteKick', playerId: dave });
       // others = 3 connected excluding Dave -> need 2 votes.
-      expect(h.transport.chats(bob)).toEqual([{ kind: 'system', text: 'Alice voted to kick Dave (1/2)' }]);
+      expect(h.transport.chats(bob)).toEqual([{ kind: 'notice', text: 'Alice voted to kick Dave (1/2)' }]);
       h.send(alice, { t: 'voteKick', playerId: dave });
       expect(h.transport.chats(bob)).toHaveLength(1);
       expect(h.room.playerCount).toBe(4);
@@ -471,7 +476,7 @@ describe.each(GAME_IDS)('platform room (%s)', (gameId: GameId) => {
       h.room.rejoin(h.token(alice), 'conn-Alice-2');
       h.transport.clear();
       h.send(bob, { t: 'voteKick', playerId: dave });
-      expect(h.transport.chats(carol)).toEqual([{ kind: 'system', text: 'Bob voted to kick Dave (1/2)' }]);
+      expect(h.transport.chats(carol)).toEqual([{ kind: 'notice', text: 'Bob voted to kick Dave (1/2)' }]);
       h.send(carol, { t: 'voteKick', playerId: dave });
       expect(h.room.playerCount).toBe(3);
       expect(h.transport.last(dave, 'kicked').reason).toMatch(/vote/);
@@ -508,7 +513,7 @@ describe.each(GAME_IDS)('platform room (%s)', (gameId: GameId) => {
       // Connected others: Bob, Carol -> 2 needed, and Alice's vote is gone.
       h.send(bob, { t: 'voteKick', playerId: dave });
       expect(h.room.playerCount).toBe(4);
-      expect(h.transport.chats(bob)).toEqual([{ kind: 'system', text: 'Bob voted to kick Dave (1/2)' }]);
+      expect(h.transport.chats(bob)).toEqual([{ kind: 'notice', text: 'Bob voted to kick Dave (1/2)' }]);
       expect(h.transport.ofType(dave, 'kicked')).toHaveLength(0);
     });
 
@@ -522,7 +527,7 @@ describe.each(GAME_IDS)('platform room (%s)', (gameId: GameId) => {
       // Others = 4 -> 3 needed.
       h.send(alice, { t: 'voteKick', playerId: eve });
       h.send(bob, { t: 'voteKick', playerId: eve });
-      expect(h.transport.chats(carol).at(-1)).toEqual({ kind: 'system', text: 'Bob voted to kick Eve (2/3)' });
+      expect(h.transport.chats(carol).at(-1)).toEqual({ kind: 'notice', text: 'Bob voted to kick Eve (2/3)' });
       expect(h.room.playerCount).toBe(5);
       h.room.leave(dave);
       // Others = 3 -> 2 needed: the two standing votes now carry.
@@ -552,7 +557,7 @@ describe.each(GAME_IDS)('platform room (%s)', (gameId: GameId) => {
       // A vote in progress whose electorate shrinks to one other player is not decided by that one vote.
       h.room.rejoin(h.token(carol), 'conn-Carol-2');
       h.send(bob, { t: 'voteKick', playerId: alice });
-      expect(h.transport.chats(alice).at(-1)).toEqual({ kind: 'system', text: 'Bob voted to kick Alice (1/2)' });
+      expect(h.transport.chats(alice).at(-1)).toEqual({ kind: 'notice', text: 'Bob voted to kick Alice (1/2)' });
       h.room.handleDisconnect(carol);
       expect(h.room.playerCount).toBe(3);
       expect(h.room.hostPlayerId).toBe(alice);
@@ -585,8 +590,8 @@ describe.each(GAME_IDS)('platform room (%s)', (gameId: GameId) => {
       expect(h.room.settings.contentMode).toBe('family');
       h.transport.clear();
 
-      h.send(alice, { t: 'updateSettings', settings: { contentMode: 'unhinged', allowMidGameJoin: false } });
-      expect(h.room.settings).toMatchObject({ contentMode: 'unhinged', allowMidGameJoin: false });
+      h.send(alice, { t: 'updateSettings', settings: { contentMode: 'unhinged' } });
+      expect(h.room.settings).toMatchObject({ contentMode: 'unhinged' });
       expect(h.transport.ofType(bob, 'room')).toHaveLength(1);
       expect(h.transport.last(bob, 'room').room.settings.contentMode).toBe('unhinged');
       // The retired room cap is an unknown key now: stripped, never a limit.
@@ -604,30 +609,18 @@ describe.each(GAME_IDS)('platform room (%s)', (gameId: GameId) => {
       expect(h.transport.errors(alice)).toEqual(['INVALID_MESSAGE', 'INVALID_MESSAGE']);
       expect(h.room.settings.contentMode).toBe('unhinged');
       h.transport.clear();
+      // The retired mid-game join switch is stripped like any unknown key.
       h.send(alice, { t: 'updateSettings', settings: { bogus: true, allowMidGameJoin: false } });
       expect(h.transport.errors(alice)).toEqual([]);
       expect(h.room.settings).not.toHaveProperty('bogus');
-      expect(h.room.settings.allowMidGameJoin).toBe(false);
+      expect(h.room.settings).not.toHaveProperty('allowMidGameJoin');
 
       readyUp(h, h.room.getState(null).players.map((p) => p.id));
       h.send(alice, { t: 'start' });
       expect(h.room.phase).toBe('playing');
-      h.send(alice, { t: 'updateSettings', settings: { allowMidGameJoin: true } });
+      h.send(alice, { t: 'updateSettings', settings: { contentMode: 'family' } });
       expect(h.transport.errors(alice)).toEqual(['NOT_ALLOWED']);
-      expect(h.room.settings.allowMidGameJoin).toBe(false);
-    });
-
-    it('respects allowMidGameJoin', () => {
-      const h = harness();
-      startGame(h, ['Alice', 'Bob']);
-      const carol = h.join('Carol');
-      expect(h.transport.last(carol, 'welcome').room.phase).toBe('playing');
-      expect(h.transport.last(carol, 'welcome').room.game).not.toBeNull();
-
-      const closed = harness();
-      startGame(closed, ['Alice', 'Bob'], { allowMidGameJoin: false });
-      expect(closed.room.join('Carol', AVATAR, 'c')).toMatchObject({ ok: false, code: 'GAME_IN_PROGRESS' });
-      expect(closed.room.isJoinable).toBe(false);
+      expect(h.room.settings.contentMode).toBe('unhinged');
     });
 
     it('updates profiles in the lobby only', () => {
@@ -702,7 +695,7 @@ describe.each(GAME_IDS)('platform room (%s)', (gameId: GameId) => {
       expect(h.room.state.version).toBeGreaterThan(0);
       const state = h.transport.last(bob, 'room').room;
       expect(state.gameId).toBe(other);
-      expect(state.settings).toEqual({ allowMidGameJoin: true, contentMode: 'unhinged', ...(GAMES[other].settings.defaults as Record<string, unknown>) });
+      expect(state.settings).toEqual({ contentMode: 'unhinged', ...(GAMES[other].settings.defaults as Record<string, unknown>) });
       for (const key of Object.keys(GAMES[gameId].settings.defaults as Record<string, unknown>)) {
         if (!(key in (GAMES[other].settings.defaults as Record<string, unknown>))) expect(state.settings).not.toHaveProperty(key);
       }
@@ -776,7 +769,7 @@ describe.each(GAME_IDS)('platform room (%s)', (gameId: GameId) => {
       expect(h.player(bob).sittingOut).toBe(false);
     });
 
-    it('seats a mid-game joiner in the game at once, and refuses game messages from spectators', () => {
+    it('lets a mid-game joiner into the party to watch, and refuses game messages from spectators', () => {
       const h = harness();
       const alice = h.join('Alice');
       const bob = h.join('Bob');
@@ -787,12 +780,71 @@ describe.each(GAME_IDS)('platform room (%s)', (gameId: GameId) => {
       h.send(alice, { t: 'start' });
       expect(h.room.phase).toBe('playing');
       expect(h.player(carol).participating).toBe(false);
-      const dave = h.join('Dave');
-      expect(h.transport.last(dave, 'welcome').room.players.find((p) => p.id === dave)).toMatchObject({ participating: true, ready: false, sittingOut: false });
+      const game = structuredClone(h.room.state.game);
+      expect(previewOf(h.room.state)).toMatchObject({ inProgress: true, joinable: true });
+
+      const join = h.room.join('Dave', AVATAR, 'conn-Dave');
+      expect(join.ok).toBe(true);
+      const dave = h.room.getState(null).players.find((p) => p.name === 'Dave')?.id ?? '';
+      const welcome = h.transport.last(dave, 'welcome').room;
+      expect(welcome.phase).toBe('playing');
+      expect(welcome.game).not.toBeNull();
+      expect(welcome.players.find((p) => p.id === dave)).toMatchObject({ participating: false, ready: false, sittingOut: false });
+      // The game never hears of the newcomer: its state is exactly as it was.
+      expect(h.room.state.game).toEqual(game);
+
       h.transport.clear();
-      h.room.handleMessage(carol, { kind: 'game', msg: GAME_TEST_FIXTURES[gameId].validMessage });
-      expect(h.transport.errors(carol)).toEqual(['NOT_ALLOWED']);
-      expect(h.transport.last(carol, 'error').message).toBe('You are sitting this game out.');
+      for (const watcher of [carol, dave]) {
+        h.room.handleMessage(watcher, { kind: 'game', msg: GAME_TEST_FIXTURES[gameId].validMessage });
+        expect(h.transport.errors(watcher)).toEqual(['NOT_ALLOWED']);
+        expect(h.transport.last(watcher, 'error').message).toBe('You are watching this game.');
+      }
+      expect(h.room.state.game).toEqual(game);
+    });
+
+    it('gives a player who drops and comes back mid-game their own seat, not a spectator\'s', () => {
+      const h = harness();
+      const [alice, bob] = startGame(h, ['Alice', 'Bob', 'Carol']);
+      h.room.handleDisconnect(bob);
+      vi.advanceTimersByTime(5000);
+      expect(h.room.rejoin(h.token(bob), 'conn-Bob-2').ok).toBe(true);
+      expect(h.player(bob)).toMatchObject({ participating: true, connected: true });
+      expect(h.transport.last(bob, 'welcome').room.players.find((p) => p.id === bob)?.participating).toBe(true);
+      // A second tab (the same seat on a new socket) is the same player too.
+      expect(h.room.rejoin(h.token(alice), 'conn-Alice-2').ok).toBe(true);
+      expect(h.player(alice).participating).toBe(true);
+      // And plays on from it.
+      h.transport.clear();
+      h.room.handleMessage(alice, { kind: 'game', msg: GAME_TEST_FIXTURES[gameId].validMessage });
+      expect(h.transport.errors(alice)).toEqual([]);
+    });
+
+    it('plays a mid-game joiner in the next game once this one ends', () => {
+      const h = harness();
+      const [alice] = startGame(h, ['Alice', 'Bob']);
+      const dave = h.join('Dave');
+      expect(h.player(dave).participating).toBe(false);
+      runToEnd(h, alice, 60 * 60_000);
+      expect(h.room.phase).toBe('ended');
+      // Never on the podium of a game they only watched, but an ordinary member who can ready up.
+      expect(h.room.state.podium?.map((e) => e.playerId)).not.toContain(dave);
+      h.send(dave, { t: 'ready', ready: true });
+      expect(h.transport.errors(dave)).toEqual([]);
+      h.send(alice, { t: 'returnToLobby' });
+      expect(h.player(dave)).toMatchObject({ participating: false, ready: true });
+      readyUp(h, h.room.getState(null).players.map((p) => p.id).filter((id) => id !== alice));
+      h.send(alice, { t: 'start' });
+      expect(h.room.phase).toBe('playing');
+      expect(h.player(dave).participating).toBe(true);
+    });
+
+    it('turns newcomers away mid-game only at the room cap', () => {
+      const h = harness();
+      startGame(h, ['Alice', 'Bob']);
+      fill(h, h.room.playerCount, ROOM_HARD_CAP);
+      expect(h.room.playerCount).toBe(ROOM_HARD_CAP);
+      expect(h.room.join('Zed', AVATAR, 'z')).toMatchObject({ ok: false, code: 'ROOM_FULL' });
+      expect(previewOf(h.room.state)).toMatchObject({ inProgress: true, joinable: false });
     });
 
     it('decides vote-kicks by the connected players in the game, spectators aside', () => {
@@ -811,7 +863,7 @@ describe.each(GAME_IDS)('platform room (%s)', (gameId: GameId) => {
       // Others in the game, excluding Bob: Alice, Carol and the fillers.
       const needed = Math.max(2, Math.floor((2 + guests.length) / 2) + 1);
       h.send(alice, { t: 'voteKick', playerId: bob });
-      expect(h.transport.chats(carol)).toEqual([{ kind: 'system', text: `Alice voted to kick Bob (1/${needed})` }]);
+      expect(h.transport.chats(carol)).toEqual([{ kind: 'notice', text: `Alice voted to kick Bob (1/${needed})` }]);
       // Spectators neither vote nor count towards the majority.
       h.send(dave, { t: 'voteKick', playerId: bob });
       expect(h.transport.errors(dave)).toEqual(['NOT_ALLOWED']);
@@ -819,7 +871,7 @@ describe.each(GAME_IDS)('platform room (%s)', (gameId: GameId) => {
       expect(h.room.playerCount).toBe(Math.max(4, meta.minPlayers + 1));
       h.send(carol, { t: 'voteKick', playerId: bob });
       if (needed === 2) expect(h.room.getPlayer(bob)).toBeUndefined();
-      else expect(h.transport.chats(alice).at(-1)).toEqual({ kind: 'system', text: `Carol voted to kick Bob (2/${needed})` });
+      else expect(h.transport.chats(alice).at(-1)).toEqual({ kind: 'notice', text: `Carol voted to kick Bob (2/${needed})` });
     });
   });
 

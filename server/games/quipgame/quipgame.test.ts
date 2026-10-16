@@ -3,16 +3,16 @@ import { describe, expect, it } from 'vitest';
 import { gameById } from '../../../shared/platform/games.js';
 import { defaultPlatformSettings } from '../../../shared/platform/settings.js';
 import { FALLBACK_ANSWERS, PROMPTS } from '../../../shared/games/quipgame/prompts.js';
-import { DEFAULT_QUIPGAME_SETTINGS, QUIPGAME_ANSWER_MAX_LENGTH } from '../../../shared/games/quipgame/protocol.js';
+import { DEFAULT_QUIPGAME_SETTINGS, QUIPGAME_ANSWER_MAX_LENGTH, QUIPGAME_RESULTS_SECONDS, QUIPGAME_VOTE_SECONDS, QUIPGAME_WRITE_SECONDS } from '../../../shared/games/quipgame/protocol.js';
 import { nextDeadline } from '../../platform/engine/time.js';
 import { AVATAR, START, chatTexts, sim, startGame } from '../../platform/engine/testHarness.js';
 import { drawPrompts, promptPool } from './prompts.js';
 import type { Gx } from './state.js';
-import { answerText, authors, castVotes, data, disconnect, errorCodes, errors, lcg, matchup, nameOf, playRound, reconnect, score, view, voters, writeAll } from './testHarness.js';
+import { answerText, authors, castVotes, data, disconnect, errorCodes, errors, lcg, matchup, nameOf, playRound, reconnect, score, startWithAudience, view, voters, writeAll } from './testHarness.js';
 
-const WRITE_MS = 30_000; // the fixture's writeSeconds
-const VOTE_MS = 10_000; // the fixture's voteSeconds
-const RESULT_MS = 4_000; // the fixture's resultsSeconds
+const WRITE_MS = QUIPGAME_WRITE_SECONDS * 1000;
+const VOTE_MS = QUIPGAME_VOTE_SECONDS * 1000;
+const RESULT_MS = QUIPGAME_RESULTS_SECONDS * 1000;
 const NAMES = ['Alice', 'Bob', 'Carol', 'Dave', 'Erin', 'Fay', 'Gus', 'Hal'];
 
 /** The platform's part of a room's flat settings. */
@@ -23,7 +23,7 @@ describe('Quip Game: round setup', () => {
     const s = sim('quipgame', 'ABCD', START, lcg(n));
     const ids = startGame(s, NAMES.slice(0, n));
     const g = data(s);
-    expect(g).toMatchObject({ phase: 'writing', round: 1, totalRounds: 2, roundPlayers: ids, matchups: [], answers: [], final: null, endsAt: START + WRITE_MS });
+    expect(g).toMatchObject({ phase: 'writing', round: 1, totalRounds: 3, roundPlayers: ids, matchups: [], answers: [], final: null, endsAt: START + WRITE_MS });
     expect(g.prompts).toHaveLength(n);
     expect(new Set(g.prompts.map((p) => p.text)).size).toBe(n);
     for (const p of g.prompts) {
@@ -38,7 +38,7 @@ describe('Quip Game: round setup', () => {
     }
     expect(view(s, null)).toMatchObject({ isSpectator: true, myPrompts: [], spectators: [] });
     expect(nextDeadline(s.data)).toBe(START + WRITE_MS);
-    expect(chatTexts(s.effects)).toContain('Round 1 of 2: write your answers!');
+    expect(chatTexts(s.effects)).toContain('Round 1 of 3: write your answers!');
   });
 
   it('shuffles the writing order but publishes the round players in join order, so the list gives nothing away', () => {
@@ -51,9 +51,9 @@ describe('Quip Game: round setup', () => {
     expect(view(s, carol).myPrompts.map((p) => p.id)).toEqual(['r1-p1', 'r1-p2']);
   });
 
-  it('counts three rounds with the final enabled and announces double points in round two', () => {
+  it('counts three rounds, the last one the final, and announces double points in round two', () => {
     const s = sim('quipgame');
-    const [alice] = startGame(s, ['Alice', 'Bob', 'Carol'], { finalRound: true });
+    const [alice] = startGame(s, ['Alice', 'Bob', 'Carol']);
     expect(view(s, alice)).toMatchObject({ round: 1, totalRounds: 3, multiplier: 1 });
     writeAll(s);
     playRound(s, alice);
@@ -103,7 +103,7 @@ describe('Quip Game: the prompt pool', () => {
 
   it('keeps prompts unique across a whole game', () => {
     const s = sim('quipgame', 'ABCD', START, lcg(3));
-    const [alice] = startGame(s, ['Alice', 'Bob', 'Carol'], { finalRound: true });
+    const [alice] = startGame(s, ['Alice', 'Bob', 'Carol']);
     const seen: string[] = [];
     for (let round = 1; round <= 3; round++) {
       seen.push(...data(s).prompts.map((p) => p.text));
@@ -157,10 +157,15 @@ describe('Quip Game: writing', () => {
     expect(errorCodes(s.game(alice, { t: 'answer', promptId: 'r1-p0', text: 'x'.repeat(QUIPGAME_ANSWER_MAX_LENGTH) }))).toEqual([]);
     expect(errors(s.game(alice, { t: 'answer', promptId: 'r1-p1', text: 'not mine' }))).toEqual(["That's not one of your prompts."]);
     expect(errors(s.game(carol, { t: 'answer', promptId: 'nope', text: 'what' }))).toEqual(["That's not one of your prompts."]);
+    // A newcomer watches the game; the round's audience (in the game, away at the deal) watches the writing.
     s.apply({ type: 'join', name: 'Dave', avatar: AVATAR, connectionId: 'conn-Dave' });
     const dave = s.playerId('Dave');
-    expect(view(s, dave)).toMatchObject({ isSpectator: true, myPrompts: [], spectators: [dave] });
-    expect(errors(s.game(dave, { t: 'answer', promptId: 'r1-p0', text: 'hello' }))).toEqual(['You are watching this round.']);
+    expect(view(s, dave)).toMatchObject({ isSpectator: true, myPrompts: [], spectators: [] });
+    expect(errors(s.game(dave, { t: 'answer', promptId: 'r1-p0', text: 'hello' }))).toEqual(['You are watching this game.']);
+    const t = sim('quipgame');
+    const [, , , erin] = startWithAudience(t, ['Alice', 'Bob', 'Carol'], 'Erin');
+    expect(view(t, erin)).toMatchObject({ isSpectator: true, myPrompts: [], spectators: [erin] });
+    expect(errors(t.game(erin, { t: 'answer', promptId: 'r1-p0', text: 'hello' }))).toEqual(['You are watching this round.']);
   });
 
   it('ends early once everyone has written, with the matchups built and a system line', () => {
@@ -238,10 +243,13 @@ describe('Quip Game: matchups and votes', () => {
 
   it('refuses the authors, counts spectators, lets a voter change their mind and shows the live count', () => {
     const s = sim('quipgame');
-    const [alice, bob, carol, dave] = startGame(s, ['Alice', 'Bob', 'Carol', 'Dave']);
+    const [alice, bob, carol, dave, erin] = startWithAudience(s, ['Alice', 'Bob', 'Carol', 'Dave'], 'Erin');
     writeAll(s);
-    s.apply({ type: 'join', name: 'Erin', avatar: AVATAR, connectionId: 'conn-Erin' });
-    const erin = s.playerId('Erin');
+    // A newcomer watches the whole game: no vote of their own.
+    s.apply({ type: 'join', name: 'Fay', avatar: AVATAR, connectionId: 'conn-Fay' });
+    const fay = s.playerId('Fay');
+    expect(view(s, fay)).toMatchObject({ isSpectator: true, canVote: false });
+    expect(errors(s.game(fay, { t: 'vote', choice: 'a' }))).toEqual(['You are watching this game.']);
     expect(authors(s)).toEqual([alice, bob]);
     expect(voters(s)).toEqual([carol, dave, erin]);
     expect(errors(s.game(alice, { t: 'vote', choice: 'a' }))).toEqual(["This one's yours. Sit tight."]);
@@ -483,13 +491,28 @@ describe('Quip Game: results and the flow between rounds', () => {
     expect(authors(s)).toEqual([carol, alice]);
   });
 
-  it('starts round two after the last matchup and ends the game after round two without a final', () => {
+  it('starts round two after the last matchup, then always the final round', () => {
     const s = sim('quipgame');
     const [alice] = startGame(s, ['Alice', 'Bob', 'Carol']);
     writeAll(s);
     playRound(s, alice);
-    expect(data(s)).toMatchObject({ phase: 'writing', round: 2, totalRounds: 2, matchupIndex: 0, matchups: [], answers: [] });
+    expect(data(s)).toMatchObject({ phase: 'writing', round: 2, totalRounds: 3, matchupIndex: 0, matchups: [], answers: [] });
     expect(data(s).prompts.map((p) => p.id)).toEqual(['r2-p0', 'r2-p1', 'r2-p2']);
+    writeAll(s);
+    playRound(s, alice);
+    expect(s.data.phase).toBe('playing');
+    expect(data(s)).toMatchObject({ phase: 'finalWriting', round: 3, totalRounds: 3 });
+    expect(chatTexts(s.effects)).toContain('Final round: one prompt, everyone answers!');
+  });
+
+  it('ends a game stored while the final round was a switch, turned off, after round two', () => {
+    const s = sim('quipgame');
+    const [alice] = startGame(s, ['Alice', 'Bob', 'Carol']);
+    // A room saved mid-game before the switch went: its game data counts two rounds, its settings carry the old keys.
+    s.data = { ...s.data, settings: { ...s.data.settings, finalRound: false, writeSeconds: 30 }, game: { ...data(s), totalRounds: 2 } };
+    writeAll(s);
+    playRound(s, alice);
+    expect(data(s)).toMatchObject({ phase: 'writing', round: 2, totalRounds: 2, endsAt: s.now + WRITE_MS });
     writeAll(s);
     playRound(s, alice);
     expect(s.data.phase).toBe('ended');
@@ -501,11 +524,9 @@ describe('Quip Game: results and the flow between rounds', () => {
     expect(chatTexts(s.effects).some((t) => t.startsWith('Game over!'))).toBe(true);
   });
 
-  it('seats mid-game joiners as spectators who vote now and write from the next round', () => {
+  it('lets the audience of a round vote now and write from the next round', () => {
     const s = sim('quipgame');
-    const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol']);
-    s.apply({ type: 'join', name: 'Dave', avatar: AVATAR, connectionId: 'conn-Dave' });
-    const dave = s.playerId('Dave');
+    const [alice, bob, carol, dave] = startWithAudience(s, ['Alice', 'Bob', 'Carol'], 'Dave');
     expect(view(s, dave)).toMatchObject({ isSpectator: true, roundPlayers: [alice, bob, carol], spectators: [dave], total: 3 });
     writeAll(s);
     expect(view(s, dave).canVote).toBe(true);
@@ -513,5 +534,18 @@ describe('Quip Game: results and the flow between rounds', () => {
     expect(data(s).roundPlayers).toEqual([alice, bob, carol, dave]);
     expect(view(s, dave)).toMatchObject({ isSpectator: false, spectators: [], total: 4 });
     expect(view(s, dave).myPrompts).toHaveLength(2);
+  });
+
+  it('keeps a mid-game joiner watching every round: no vote, no prompts, never a round player', () => {
+    const s = sim('quipgame');
+    const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol']);
+    s.apply({ type: 'join', name: 'Dave', avatar: AVATAR, connectionId: 'conn-Dave' });
+    const dave = s.playerId('Dave');
+    expect(view(s, dave)).toMatchObject({ isSpectator: true, roundPlayers: [alice, bob, carol], spectators: [], total: 3 });
+    writeAll(s);
+    expect(view(s, dave).canVote).toBe(false);
+    playRound(s, alice);
+    expect(data(s).roundPlayers).toEqual([alice, bob, carol]);
+    expect(view(s, dave)).toMatchObject({ isSpectator: true, myPrompts: [] });
   });
 });

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_SKRIBBLE_SETTINGS,
+  SKRIBBLE_DRAW_SECONDS,
   SKRIBBLE_SETTINGS_LIMITS,
   normalizeSkribbleSettings,
   parseCustomWords,
@@ -15,10 +16,19 @@ describe('skribble settings schema', () => {
     expect(patchSchema.safeParse({}).success).toBe(true);
     expect(patchSchema.safeParse({ rounds: 0 }).success).toBe(false);
     expect(patchSchema.safeParse({ rounds: SKRIBBLE_SETTINGS_LIMITS.rounds.max + 1 }).success).toBe(false);
-    expect(patchSchema.safeParse({ drawTime: 19 }).success).toBe(false);
     expect(patchSchema.safeParse({ language: 'xx' }).success).toBe(false);
     expect(patchSchema.safeParse({ rounds: 2.5 }).success).toBe(false);
     expect(patchSchema.safeParse({ customWords: ['x'.repeat(SKRIBBLE_SETTINGS_LIMITS.customWords.maxLength + 1)] }).success).toBe(false);
+  });
+
+  it('has no draw time setting: the turn is the old default, 80 s, and a stored drawTime is ignored', () => {
+    expect(SKRIBBLE_DRAW_SECONDS).toBe(80);
+    expect(DEFAULT_SKRIBBLE_SETTINGS).not.toHaveProperty('drawTime');
+    expect(SKRIBBLE_SETTINGS_LIMITS).not.toHaveProperty('drawTime');
+    // Even a value the old schema refused is dropped, not refused: a stored room or an old client may still send it.
+    expect(patchSchema.safeParse({ drawTime: 19, rounds: 2 })).toMatchObject({ success: true, data: { rounds: 2 } });
+    const stored = skribbleSettingsSchema.safeParse({ ...DEFAULT_SKRIBBLE_SETTINGS, drawTime: 180 });
+    expect(stored.success && stored.data).toEqual(DEFAULT_SKRIBBLE_SETTINGS);
   });
 });
 

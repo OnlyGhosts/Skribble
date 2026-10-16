@@ -53,7 +53,7 @@ function view(overrides: Partial<SpygameView> = {}): SpygameView {
 function spyRoom(game: SpygameView, overrides: Partial<SpygameRoomState> = {}): SpygameRoomState {
   return {
     ...room({ gameId: 'spygame', phase: 'playing', players: [player('host'), player('bob', { joinOrder: 1 }), player('carol', { joinOrder: 2 }), player('dave', { joinOrder: 3 })] }),
-    settings: { allowMidGameJoin: true, contentMode: 'family', rounds: 2, roundMinutes: 3, voteSeconds: 15 },
+    settings: { contentMode: 'family', rounds: 2 },
     game,
     ...overrides,
   } as SpygameRoomState;
@@ -130,15 +130,31 @@ describe('the screen per role', () => {
     expect(attr(tagWith(html, 'spygame-wrong-guess'), 'data-guesses-left')).toBe('1');
   });
 
-  it('tells a mid-round joiner they are watching and shows the reference grid without a tick', () => {
+  it('tells a player away at the deal they join the next round, and shows the reference grid without a tick', () => {
     const state = spyRoom(view({ role: 'spectator', locationId: null, spectators: ['eve'] }), {
       players: [player('host'), player('bob', { joinOrder: 1 }), player('carol', { joinOrder: 2 }), player('dave', { joinOrder: 3 }), player('eve', { joinOrder: 4 })],
     });
     state.game!.players.eve = { hasAccused: false, isAccused: false, isSpectator: true };
     const html = render(state, 'eve');
     expect(attr(tagWith(html, 'spygame-role'), 'data-role')).toBe('spectator');
+    expect(attr(tagWith(html, 'spygame-role'), 'data-watching')).toBe('false');
+    expect(html).toContain('You&#x27;ll join the next round');
     expect(tagsWith(html, 'candidate-tile').some((t) => attr(t, 'data-state') === 'real')).toBe(false);
+    expect(html).not.toContain('Stay vague');
     expect(html).toContain('data-testid="players-toggle"');
+  });
+
+  it('tells a spectator of the whole game (sat out or joined mid-game) they can play the next game', () => {
+    const state = spyRoom(view({ role: 'spectator', locationId: null }), {
+      players: [player('host'), player('bob', { joinOrder: 1 }), player('carol', { joinOrder: 2 }), player('dave', { joinOrder: 3 }), player('eve', { joinOrder: 4, participating: false })],
+    });
+    const html = render(state, 'eve');
+    expect(attr(tagWith(html, 'spygame-role'), 'data-watching')).toBe('true');
+    expect(html).toContain('You&#x27;re watching');
+    expect(html).toContain('You can play the next game.');
+    expect(html).not.toContain('next round');
+    expect(attr(tagWith(html, 'accuse-list'), 'data-interactive')).toBe('false');
+    expect(tagsWith(html, 'guess-tile')).toHaveLength(0);
   });
 
   it('freezes the clock with the kept time while a vote runs and while the spy is away', () => {
@@ -216,9 +232,9 @@ describe('voting', () => {
     expect(tagWith(html, 'vote')).toContain('spy-vote--sheet');
   });
 
-  it('closes the chat sheet when the vote sheet opens and renders the vote sheet above the other sheets', () => {
+  it('closes the players sheet when the vote sheet opens and renders the vote sheet above the other sheets', () => {
     usePlatformStore.getState().handleServerMessage(welcome('dave', spyRoom(view())));
-    useSpygameStore.getState().openSheet('chat');
+    useSpygameStore.getState().openSheet('players');
     snapshot(voting('agent'));
     expect(useSpygameStore.getState()).toMatchObject({ voteSheetOpen: true, sheet: null });
     // Were a sheet open anyway, the vote sheet comes last in the tree and stacks on top.
@@ -349,7 +365,7 @@ describe('snapshot cues and local state', () => {
     snapshot(spyRoom(view({ round: 2, spyGuessed: ['beach'], guessesLeft: 1 })));
     expect(useSpygameStore.getState().highlightedLocation).toBeNull();
     useSpygameStore.getState().highlightPlayer('host');
-    useSpygameStore.getState().openSheet('chat');
+    useSpygameStore.getState().openSheet('menu');
     snapshot(spyRoom(view(), { phase: 'lobby', game: null }));
     expect(useSpygameStore.getState()).toMatchObject({ highlightedPlayer: null, sheet: null });
     spygameClient.onLeave?.();
@@ -377,7 +393,10 @@ describe('snapshot cues and local state', () => {
     useSpygameStore.getState().highlightLocation('airplane');
     snapshot(spyRoom(spyView()));
     expect(useSpygameStore.getState().highlightedLocation).toBe('airplane');
-    expect(render(spyRoom(spyView()), 'host')).toContain('Tap again to confirm');
+    const picked = render(spyRoom(spyView()), 'host');
+    expect(picked).toContain('Tap again to confirm');
+    // The grid's head says it too, by name: a portrait phone hides the line inside the tile.
+    expect(picked).toMatch(/data-testid="guess-hint"[^>]*>Tap Airplane again to guess\.</);
   });
 
   it('toasts what a scrolled phone would miss: a wrong guess, a vote one cannot join, the spy-away pause', () => {
@@ -403,27 +422,18 @@ describe('snapshot cues and local state', () => {
     expect(texts()).toHaveLength(before);
     expect(useSpygameStore.getState().voteSheetOpen).toBe(true);
   });
-
-  it('writes a role-aware chat placeholder', () => {
-    expect(spygameClient.chatPlaceholder?.(spyRoom(view({ role: 'spy' })), 'host')).toMatch(/ask out loud/i);
-    expect(spygameClient.chatPlaceholder?.(spyRoom(view()), 'bob')).toMatch(/out loud/i);
-    expect(spygameClient.chatPlaceholder?.(spyRoom(view(), { game: null }), 'bob')).toBeUndefined();
-  });
 });
 
 describe('settings rows', () => {
-  it('renders the three sliders with the shared limits for the host and read-only values otherwise', () => {
+  it('renders the rounds slider with the shared limits and its value, and no clocks', () => {
     const { settings } = spyRoom(view());
     if (!spygameClient.SettingsFields) throw new Error('no settings fields');
-    const host = renderToString(createElement(spygameClient.SettingsFields, { settings, canEdit: true, patch: () => undefined }));
+    const host = renderToString(createElement(spygameClient.SettingsFields, { settings, patch: () => undefined }));
     expect(tagWith(host, 'settings-rounds')).toContain('min="1"');
     expect(tagWith(host, 'settings-rounds')).toContain('max="10"');
-    expect(tagWith(host, 'settings-roundMinutes')).toContain('max="15"');
-    expect(tagWith(host, 'settings-voteSeconds')).toContain('step="5"');
-    const guest = renderToString(createElement(spygameClient.SettingsFields, { settings, canEdit: false, patch: () => undefined }));
-    expect(guest).not.toContain('data-testid="settings-rounds"');
-    expect(guest).toContain('3 min');
-    expect(guest).toContain('15s');
+    expect(host).toMatch(/data-testid="settings-value-rounds"[^>]*>2</);
+    for (const id of ['roundMinutes', 'voteSeconds']) expect(tagsWith(host, `settings-${id}`), id).toHaveLength(0);
+    expect(host.match(/class="range"/g)).toHaveLength(1);
   });
 });
 
@@ -439,6 +449,18 @@ describe('the stylesheet', () => {
     expect(css).toMatch(/\.spy-tile__name \{[^}]*overflow-wrap: normal/);
     expect(css).not.toMatch(/hyphens: auto/);
     expect(css).toMatch(/\.spy-tile--real:not\(\.spy-tile--lg\) \.spy-tile__body,\s*\.spy-tile--ruledOut:not\(\.spy-tile--lg\) \.spy-tile__body \{\s*padding-right: 28px/);
+  });
+
+  it('fits all 24 places on a portrait phone: three columns of eight rows sharing the first screen, never under the minimum', () => {
+    const portrait = css.slice(css.indexOf('@media (max-width: 760px) and (orientation: portrait) {'));
+    expect(portrait).toMatch(/\.spy--phone \.spy__first \{[^}]*min-height: 100%/);
+    expect(portrait).toMatch(/\.spy--phone \.spy-grid \{[^}]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);\s*grid-template-rows: repeat\(8, minmax\(var\(--spy-row-min\), 1fr\)\)/);
+    expect(portrait).toMatch(/--spy-row-min: 40px/);
+    // The picture shows only in a tile tall enough for it; the name is never under 11px.
+    expect(portrait).toMatch(/@container \(min-height: 64px\)/);
+    expect(portrait).toMatch(/\.spy--phone \.spy-grid \.spy-tile__name \{[^}]*font-size: 0\.75rem/);
+    // Elsewhere the first screen's parts sit straight in the column.
+    expect(css).toMatch(/\n\.spy__first \{\s*display: contents;/);
   });
 
   it('keeps notices in view in the scrolling column and the reveal footer reachable', () => {

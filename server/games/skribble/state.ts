@@ -36,13 +36,15 @@ export type PhaseData =
       /**
        * True while the next turn waits for disconnected players (endsAt no longer fires): fewer
        * than two are connected but enough still hold seats. The platform shows RoomState.waiting
-       * over this summary; a reconnect or a join resumes the game.
+       * over this summary; a reconnect resumes the game.
        */
       held: boolean;
     }
   | { kind: 'gameOver' };
 
 export interface SkribbleData {
+  /** Epoch ms the game began. A game stored before this was kept has none. */
+  startedAt?: number;
   phase: PhaseData;
   turn: TurnData | null;
   /** Identifies the current canvas (the side store's stamp): fresh on every reset. */

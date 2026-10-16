@@ -2,8 +2,9 @@
  * The card-table pieces Blackjack and Poker share: the animation queue (planning from a previous
  * timeline, the discards before a new table, the backlog snap, shown numbers stepping to the
  * truth, departures, marks, flights), the desktop shortcuts, and the components (the panel shell,
- * the amount field, the moves, the players grid and its tiles, the spotlight, the deck, the ribbon, the outcome pieces, a card
- * turning over, the chips in the air and the screen shell). Runs in node through react-dom/server.
+ * the amount field, the moves, the players grid and its tiles, the line under the ribbon, the stage, the deck, the ribbon, the outcome pieces, a hand's
+ * stepped fan, the stack and stake labels, a card turning over, the chips in the air and the screen shell). Runs in node
+ * through react-dom/server.
  */
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -18,11 +19,16 @@ installBrowserGlobals();
 const T = await import('./timeline');
 const { hotkeyOf, typingIn } = await import('../lib/hotkeys');
 const { AmountField } = await import('./AmountField');
-const { MoveButton, PanelLabelRow, PanelMoves, PanelShell, releaseClickedButton } = await import('./ControlPanel');
+const { MoveButton, PanelLabelRow, PanelMoves, PanelShell, WatchingPanel, releaseClickedButton } = await import('./ControlPanel');
+const { WATCHING_TEXT, isWatching } = await import('../lib/watching');
 const { PlayerTile, PlayersGrid } = await import('./PlayersGrid');
-const { Spotlight } = await import('./Spotlight');
+const { TurnLine } = await import('./TurnLine');
+const { TableStage } = await import('./TableStage');
 const G = await import('./grid');
-const { Deck, DiscardTray } = await import('./Deck');
+const { Deck, DiscardCorner } = await import('./Deck');
+const { HandFan, OutcomeFlag } = await import('./HandFan');
+const { StackCount, StakePill } = await import('./Stakes');
+const S = await import('./stakes');
 const { TableRibbon } = await import('./Ribbon');
 const { PayoutFloat, TotalPill, outlineClass } = await import('./Outcome');
 const { TableCard } = await import('./TableCard');
@@ -152,21 +158,6 @@ describe('the players grid', () => {
     }
   });
 
-  it('packs a table tight on a short phone, on a shorter phone from five others, and anywhere (a desktop too) from ten', async () => {
-    const { isTight } = await import('./stage');
-    expect(isTight(true, true, 1)).toBe(true);
-    expect(isTight(true, false, 9)).toBe(false);
-    // 360x740 with five to nine others: the compact tiles used to be squeezed into 60px slivers.
-    expect(isTight(true, false, 5, true)).toBe(true);
-    expect(isTight(true, false, 4, true)).toBe(false);
-    expect(isTight(true, false, 10)).toBe(true);
-    expect(isTight(true, false, 49)).toBe(true);
-    // A desktop with 23 or 49 others gave its grid 14px tiles under a mostly empty spotlight.
-    expect(isTight(false, false, 23)).toBe(true);
-    expect(isTight(false, false, 49)).toBe(true);
-    expect(isTight(false, true, 9)).toBe(false);
-  });
-
   it('never spreads tiles narrower than they read: names, totals and the Playing tag stay whole', () => {
     // Six players on a 360x740 phone, a short grid: five 60px columns read "Har", "Pl"; now never under 64px.
     const fit = G.fitGrid(5, { width: 326, height: 57 });
@@ -194,25 +185,6 @@ describe('the players grid', () => {
     expect(block).toMatch(/\.tbl-tile--small \.tbl-tile__total \{\s*position: absolute;\s*top: 1px;\s*right: 1px;/);
     // The avatar shrinks with a short tile rather than overflow it.
     expect(css).toMatch(/\.tbl-tile--small \{\s*\/\*[^*]*\*\/\s*--face: min\(24px, max\(16px, calc\(100cqh - 19px\)\)\);/);
-  });
-
-  it('never cuts a short name in the spotlight label: "Ada\'s turn", not "A…\'s turn"', () => {
-    const css = readFileSync(join(import.meta.dirname, '../styles/table.css'), 'utf8');
-    // One rule for the name (a later one used to reset the minimum to 0), and a short name never shrinks.
-    expect(css.match(/\n\.tbl-spot__name \{/g)).toHaveLength(1);
-    expect(css).toMatch(/\n\.tbl-spot__name \{\s*min-width: min\(5ch, 100%\);/);
-    expect(css).toMatch(/\.tbl-spot__name--short \{\s*flex: none;/);
-    const avatar = { color: 1, emoji: 2 };
-    const label = (name: string) => html(createElement(Spotlight, { subject: 't', kind: 'turn', tone: 'active', who: { id: 'p', name, avatar, connected: true }, label: `${name}'s turn`, clock: null }));
-    expect(label('Ada')).toContain('tbl-spot__name tbl-spot__name--short">Ada<');
-    expect(label('Christopher')).toContain('class="tbl-spot__name">Christopher<');
-  });
-
-  it('keeps the space after the name: a flex row drops it at the start of a span ("Piawins 40")', () => {
-    const avatar = { color: 1, emoji: 2 };
-    const out = html(createElement(Spotlight, { subject: 'r', kind: 'result', tone: 'win', who: { id: 'p', name: 'Pia', avatar, connected: true }, label: 'Pia wins 40', clock: null }));
-    expect(out).toContain('tbl-spot__name tbl-spot__name--short">Pia<');
-    expect(out).toContain('class="tbl-spot__rest"> wins 40<');
   });
 
   it('lifts the ends of a desktop row less as the tiles get smaller (the arc costs height)', () => {
@@ -284,7 +256,7 @@ describe('the components', () => {
           inputTestId: 'amount',
           clearTestId: 'clear',
         }),
-        createElement(PanelMoves, { key: 'm', children: [createElement(MoveButton, { key: 'h', label: 'Hit', testId: 'hit', enabled: true, onClick: noop, primary: true, hotkey: 'H' }), createElement(MoveButton, { key: 's', label: 'Stand', testId: 'stand', enabled: false, onClick: noop })] }),
+        createElement(PanelMoves, { key: 'm', count: 2, children: [createElement(MoveButton, { key: 'h', label: 'Hit', testId: 'hit', enabled: true, onClick: noop, primary: true, hotkey: 'H' }), createElement(MoveButton, { key: 's', label: 'Stand', testId: 'stand', enabled: false, onClick: noop })] }),
         ],
       }),
     );
@@ -343,41 +315,65 @@ describe('the components', () => {
     expect(html(createElement(PlayerTile, { ...props, count: 30 }))).toContain('tbl-tile--dense');
   });
 
-  it('the spotlight: whose turn it is with their avatar, the label, who is next and the clock, the hand under them', () => {
-    const avatar = { color: 1, emoji: 2 };
-    const out = html(
-      createElement(Spotlight, {
-        subject: 'turn:p1',
-        kind: 'turn',
-        tone: 'active',
-        who: { id: 'p1', name: 'Pia', avatar, connected: true },
-        label: "Pia's turn",
-        next: 'Quinn',
-        clock: createElement('span', { 'data-testid': 'timer' }),
-        children: createElement('i', null, 'hand'),
-      }),
-    );
-    expect(out).toMatch(/class="tbl-spot tbl-spot--turn tbl-spot--tone-active tbl-spot--stack" aria-label="Spotlight" data-testid="spotlight" data-subject="turn:p1" data-kind="turn" data-player-id="p1"/);
-    // A long name gives way before "'s turn" does.
-    expect(out).toContain('<span class="tbl-spot__name tbl-spot__name--short">Pia</span><span class="tbl-spot__rest">&#x27;s turn</span>');
-    expect(out).toContain('data-testid="spot-next">Next: <!-- -->Quinn');
-    expect(out).toContain('data-table-anchor="seat:p1"');
-    expect(out).toContain('data-testid="timer"');
-    expect(out).toContain('<i>hand</i>');
-    // Nothing to follow: no body, no avatar.
-    const idle = html(createElement(Spotlight, { subject: 'idle', kind: 'idle', tone: 'neutral', label: 'Game over', clock: null }));
-    expect(idle).not.toContain('tbl-spot__body');
-    expect(idle).not.toContain('avatar');
+  it('the line under the ribbon: whose turn it is in its tone, the quieter second part, the clock before it', () => {
+    const out = html(createElement(TurnLine, { text: "Pia's turn", tone: 'other', state: 'turn', sub: 'Quinn raises to 40', clock: createElement('span', { 'data-testid': 'timer' }) }));
+    expect(out).toMatch(/^<p class="tbl-turn tbl-turn--other" data-testid="table-turn" data-state="turn"><span class="tbl-turn__clock"><span data-testid="timer"><\/span><\/span><span class="tbl-turn__text">Pia&#x27;s turn<\/span><span class="tbl-turn__sub" data-testid="turn-sub">Quinn raises to 40<\/span><\/p>$/);
+    const plain = html(createElement(TurnLine, { text: 'Your turn', tone: 'go', state: 'mine' }));
+    expect(plain).not.toContain('tbl-turn__sub');
+    expect(plain).not.toContain('tbl-turn__clock');
   });
 
-  it('the deck and the discards, the ribbon, the pill, the outline and the payout', () => {
+  it('the stage: whose hand on the left (their face the chips fly from), the hand in the middle, the extra on the right', () => {
+    const avatar = { color: 1, emoji: 2 };
+    const other = html(
+      createElement(TableStage, {
+        variant: 'other',
+        label: "Pia's hand",
+        who: { avatar, connected: true, name: 'Pia', anchor: 'seat:p1' },
+        owner: createElement('b', null, 'Bet 10'),
+        aside: createElement('i', null, 'mine'),
+        data: { 'data-player-id': 'p1' },
+        children: createElement('u', null, 'hand'),
+      }),
+    );
+    expect(other).toMatch(/^<section class="tbl-stage tbl-stage--other" aria-label="Pia&#x27;s hand" data-testid="hand-stage" data-player-id="p1"><div class="tbl-stage__owner is-turn"><span class="tbl-stage__face" data-table-anchor="seat:p1">/);
+    expect(other).toContain('<span class="tbl-stage__name">Pia</span><b>Bet 10</b></div><div class="tbl-stage__centre"><u>hand</u></div><div class="tbl-stage__aside"><i>mine</i></div>');
+    // Nobody's hand yet: the columns keep their places, empty.
+    const none = html(createElement(TableStage, { variant: 'none', label: 'Hands' }));
+    expect(none).toContain('<div class="tbl-stage__owner"></div><div class="tbl-stage__centre"></div><div class="tbl-stage__aside"></div>');
+  });
+
+  it('lays the moves two to a row, three in one row, and tells a phone how many to put in its one row', () => {
+    const moves = (count: number) => html(createElement(PanelMoves, { count, children: [] }));
+    expect(moves(4)).toBe('<div class="tbl-panel__moves" style="--moves:4" role="group" aria-label="Your moves"></div>');
+    expect(moves(3)).toContain('class="tbl-panel__moves tbl-panel__moves--3" style="--moves:3"');
+    const css = readFileSync(join(import.meta.dirname, '../styles/table.css'), 'utf8');
+    expect(css).toMatch(/\.tbl-panel__moves \{\s*grid-template-columns: repeat\(var\(--moves, 2\), minmax\(0, 1fr\)\);/);
+  });
+
+  it("wraps a long status line in a desktop panel rather than cutting it, and keeps a phone's on one line", () => {
+    const css = readFileSync(join(import.meta.dirname, '../styles/table.css'), 'utf8');
+    expect(css).toMatch(/@media \(min-width: 761px\) \{\s*\.tbl-panel__status--bottom \{\s*white-space: normal;\s*\}\s*\.tbl-panel__status--bottom \.tbl-panel__status-text \{\s*flex-shrink: 1;\s*overflow: visible;/);
+    expect(css).toMatch(/\.tbl-panel__status \{[^}]*white-space: nowrap;/);
+  });
+
+  it('lays a calm table out in four rows: the centre piece and the stage fixed, the ribbon and the seats between', () => {
+    const css = readFileSync(join(import.meta.dirname, '../styles/table.css'), 'utf8');
+    expect(css).toMatch(/\.tbl-felt--calm \{\s*display: grid;\s*grid-template-columns: minmax\(0, 1fr\);\s*grid-template-rows: var\(--tbl-head-h\) auto minmax\(0, 1fr\) var\(--tbl-stage-h\);\s*grid-template-areas: 'head' 'ribbon' 'seats' 'stage';/);
+    // Whose turn it is stays, even where the banner goes.
+    expect(css).toMatch(/\.tbl-felt--calm > \.tbl-ribbon \{\s*grid-area: ribbon;\s*display: flex;/);
+    expect(css).toMatch(/\.tbl-felt--calm \.tbl-ribbon__band \{\s*display: none;/);
+  });
+  it('the deck, the ribbon, the pill, the outline and the payout', () => {
     expect(html(createElement(Deck, { remaining: 268, name: 'shoe', testId: 'shoe' }))).toMatch(/data-testid="shoe" data-remaining="268" aria-label="268 cards in the shoe"[\s\S]*data-table-deck=""[\s\S]*268</);
     // An endless deck: the stack and no count.
     const endless = html(createElement(Deck, { name: 'shoe', testId: 'shoe' }));
     expect(endless).toMatch(/data-testid="shoe" aria-label="The shoe"[\s\S]*data-table-deck=""/);
     expect(endless).not.toContain('tbl-deck__count');
-    expect(html(createElement(DiscardTray, { discarded: 0 }))).not.toContain('tbl-stack');
-    expect(html(createElement(DiscardTray, { discarded: 45, label: 'Muck' }))).toMatch(/aria-label="Muck"[\s\S]*data-table-discard=""[\s\S]*tbl-stack__card/);
+    // In the corner the deck only peeks out: the count is said, not shown.
+    const corner = html(createElement(Deck, { remaining: 40, name: 'deck', testId: 'deck', corner: true }));
+    expect(corner).toMatch(/class="tbl-deck tbl-deck--corner" data-testid="deck" data-remaining="40" aria-label="40 cards in the deck"/);
+    expect(corner).not.toContain('tbl-deck__count');
     expect(html(createElement(TableRibbon, { main: 'BLACKJACK PAYS 3 TO 2', sub: 'DEALER STANDS ON 17' }))).toContain('tbl-ribbon__sub');
     expect(html(createElement(TableRibbon, { main: 'NO LIMIT' }))).not.toContain('tbl-ribbon__sub');
     expect(html(createElement(TotalPill, { tone: 'win', testId: 'pill', children: '21' }))).toBe('<span class="tbl-pill tbl-pill--win" data-testid="pill">21</span>');
@@ -401,6 +397,95 @@ describe('the components', () => {
     expect(out).toMatch(/class="tbl-flights" aria-hidden="true"/);
     expect(out).toContain('1,200');
     expect(out).toContain('visibility:hidden');
+  });
+});
+
+describe('a spectator of the whole game', () => {
+  it('is anyone not playing in it, and reads one line in place of the controls', () => {
+    const players = [{ id: 'a', participating: true }, { id: 'b', participating: false }];
+    expect(isWatching(players, 'a')).toBe(false);
+    expect(isWatching(players, 'b')).toBe(true);
+    expect(isWatching(players, 'nobody')).toBe(true);
+    const panel = html(createElement(WatchingPanel, { testId: 'pk-panel' }));
+    expect(panel).toContain('data-watching="true"');
+    expect(panel).toContain('data-state="spectating"');
+    expect(panel).toContain(WATCHING_TEXT.replace("'", '&#x27;'));
+    expect(panel).not.toContain('<button');
+    expect(panel).not.toContain('<input');
+    // A watching host keeps their table control beside the line.
+    const host = html(createElement(WatchingPanel, { testId: 'bj-panel', action: createElement('button', { 'data-testid': 'deal-now' }, 'Deal now') }));
+    expect(host).toContain('data-testid="deal-now"');
+  });
+
+  it('wraps the line rather than cutting it', () => {
+    const css = readFileSync(join(import.meta.dirname, '../styles/table.css'), 'utf8');
+    const rule = css.slice(css.indexOf('.tbl-panel__status--watching {'), css.indexOf('}', css.indexOf('.tbl-panel__status--watching {')));
+    expect(rule).toContain('white-space: normal');
+    expect(WATCHING_TEXT).not.toContain('\u2014');
+  });
+});
+
+describe('the stack and the stake', () => {
+  it('words the stack as chips and the stake as a labelled figure, in full or short', () => {
+    expect(S.stackText(1000)).toBe('1,000 chips');
+    expect(S.stackText(1)).toBe('1 chip');
+    expect(S.stackText(0)).toBe('0 chips');
+    expect(S.stackText(12_500, 'short')).toBe('13k chips');
+    expect(S.stackText(1_250, 'short')).toBe('1.3k chips');
+    expect(S.stakeText(10)).toBe('Bet 10');
+    expect(S.stakeText(1_500)).toBe('Bet 1,500');
+    expect(S.stakeText(120, 'Pot')).toBe('Pot 120');
+    expect(S.stakeText(25_000, 'Bet', 'short')).toBe('Bet 25k');
+  });
+
+  it('renders the stack as a bold figure and a word, the stake as its own pill: never two bare numbers side by side', () => {
+    expect(html(createElement(StackCount, { value: 1000, testId: 'stack' }))).toBe('<span class="tbl-stackcount" data-testid="stack" data-chips="1000"><span class="tbl-stackcount__value">1,000</span> <span class="tbl-stackcount__word">chips</span></span>');
+    expect(html(createElement(StackCount, { value: 1 }))).toContain('>chip<');
+    expect(html(createElement(StakePill, { value: 10, testId: 'bet' }))).toBe('<span class="tbl-stake tbl-stake--bet" data-testid="bet" data-bet="10"><span class="tbl-stake__word">Bet</span> <span class="tbl-stake__value">10</span></span>');
+    expect(html(createElement(StakePill, { value: 120, word: 'Pot', kind: 'pot' }))).toContain('tbl-stake tbl-stake--pot');
+    // The stake is the gold pill, the stack plain words: told apart by shape and colour, not just position.
+    const css = readFileSync(join(import.meta.dirname, '../styles/table.css'), 'utf8');
+    expect(css).toMatch(/\.tbl-stake \{[^}]*border: 1\.5px solid var\(--color-warning\);[^}]*background: var\(--color-warning-soft\);/);
+    expect(css).toMatch(/\.tbl-stackcount__value \{[^}]*font-weight: 800;/);
+  });
+});
+
+describe('a hand', () => {
+  const card = (rank: string) => createElement('span', { key: rank, className: 'playing-card', 'data-rank': rank });
+
+  it('fans its cards in steps with the total over the top right corner, and keeps one height however many cards', () => {
+    const out = html(createElement(HandFan, { tone: 'active', total: '15', totalTestId: 'total', label: 'Hand 1: 15', testId: 'hand', children: [card('8'), card('7')] }));
+    expect(out).toMatch(/^<div role="group" class="tbl-hand tbl-hand--big tbl-hand--active" style="--fan:2" aria-label="Hand 1: 15" data-testid="hand" data-tone="active">/);
+    expect(out).toMatch(/<div class="tbl-hand__head"><span class="tbl-pill tbl-pill--active" data-testid="total">15<\/span><\/div><div class="tbl-fan">/);
+    expect(out).toContain('<span class="tbl-fan__card" style="--i:0"><span class="playing-card" data-rank="8">');
+    expect(out).toContain('<span class="tbl-fan__card" style="--i:1">');
+    // Five cards: the fan says so (its step shrinks past four), and a pill comes only with a total.
+    const five = html(createElement(HandFan, { tone: 'neutral', total: null, label: 'Hand', testId: 'hand', children: ['2', '3', '4', '5', '6'].map(card) }));
+    expect(five).toContain('style="--fan:5"');
+    expect(five).not.toContain('tbl-pill');
+    const css = readFileSync(join(import.meta.dirname, '../styles/table.css'), 'utf8');
+    expect(css).toMatch(/\.tbl-fan__card \+ \.tbl-fan__card \{\s*margin-left: calc\(var\(--fan-dx\) - var\(--tbl-w\)\);/);
+    expect(css).toMatch(/--fan-dx: calc\(var\(--tbl-w\) \* var\(--fan-step\)\);/);
+    expect(css).toMatch(/:root \{\s*--fan-step: 0\.44;/);
+  });
+
+  it('shows how it ended: every card outlined and the pill in the outcome colour, the word beside the pill', () => {
+    const won = html(createElement(HandFan, { tone: 'win', total: '20', label: 'Hand', testId: 'hand', flag: createElement(OutcomeFlag, { tone: 'win', word: 'Win', extra: '+20', testId: 'outcome' }), children: [card('K'), card('Q')] }));
+    expect(won).toContain('tbl-hand--win');
+    expect(won).toContain('<span class="tbl-flag tbl-flag--win"><span data-testid="outcome">Win</span> +20</span><span class="tbl-pill tbl-pill--win">20</span>');
+    const css = readFileSync(join(import.meta.dirname, '../styles/table.css'), 'utf8');
+    for (const tone of ['win', 'blackjack', 'loss', 'bust', 'push']) expect(css).toContain(`.tbl-hand--${tone} .tbl-fan .playing-card`);
+    expect(css).toMatch(/\.tbl-hand--win \{\s*--hand-outcome: var\(--color-primary-text\);/);
+    expect(css).toMatch(/\.tbl-hand--bust \{\s*--hand-outcome: var\(--color-danger\);/);
+    // The chip beside the pill is a flex box, which drops the space before "+20": a gap keeps "Win +20" apart.
+    expect(css).toMatch(/\.tbl-hand__head \.tbl-flag \{\s*display: inline-flex;\s*align-items: center;\s*\/\*[^*]*\*\/\s*gap: 0\.3em;/);
+  });
+
+  it('a calm table: the deck tucked in its corner, the discards past the other one', () => {
+    expect(html(createElement(Deck, { name: 'shoe', testId: 'shoe', corner: true }))).toMatch(/^<div class="tbl-deck tbl-deck--corner" data-testid="shoe"/);
+    expect(html(createElement(DiscardCorner, { discarded: 12 }))).toBe('<span class="tbl-discard-corner" data-testid="discard-tray" data-discarded="12" data-table-discard="" aria-hidden="true"></span>');
+    // Every card back in a stack is the boredgames back.
+    expect(html(createElement(Deck, { name: 'shoe', testId: 'shoe' }))).toContain('<span class="tbl-stack__card" style="transform:translate(0px, 0px)"><span class="playing-card__back"></span></span>');
   });
 });
 

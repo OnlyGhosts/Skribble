@@ -13,7 +13,7 @@ import { playCue } from '../../platform/lib/sound';
 import { usePlatformStore } from '../../platform/store/usePlatformStore';
 import { AlertIcon, EyeIcon, SpyIcon } from './components/Icons';
 import { canGuessNow, isNewRound, nameOf, roundEnded, spyWentAway, voteEnded, voteStarted, wrongGuessAdded } from './hooks';
-import { chatPlaceholderFor, voteNotice, waitingNotice, wrongGuessNotice } from './lib/text';
+import { voteNotice, waitingNotice, wrongGuessNotice } from './lib/text';
 import { SpyGameScreen } from './Screen';
 import { SpygameSettingsFields } from './SettingsFields';
 import { spygameSounds as sfx } from './sounds';
@@ -68,10 +68,6 @@ export const spygameClient = defineGameClient<SpygameView, SpygameSettings>({
   playerMeta(room, player) {
     const points = room.game?.reveal?.points[player.id] ?? 0;
     return points > 0 ? <span className="player__turn-points">{formatPoints(points)}</span> : null;
-  },
-
-  chatPlaceholder(room) {
-    return room.game ? chatPlaceholderFor(room.game.role, room.game.phase) : undefined;
   },
 
   onRoom(room, prev) {

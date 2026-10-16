@@ -5,7 +5,7 @@ import { gameById } from '@shared/platform/games';
 import type { RoomState } from '@shared/platform/protocol';
 import { SITE_NAME } from '@shared/platform/site';
 import { AvatarPicker } from '../components/AvatarPicker';
-import { Chat } from '../components/Chat';
+import { BottomSheet } from '../components/BottomSheet';
 import { GamePicker } from '../components/GamePicker';
 import { CopyIcon, EditIcon, LinkIcon, LogoutIcon, PlayIcon, ShareIcon } from '../components/Icons';
 import { PlayerList } from '../components/PlayerList';
@@ -15,6 +15,7 @@ import { SiteHeader } from '../components/SiteHeader';
 import type { AnyGameClientModule } from '../game';
 import { copyText } from '../lib/clipboard';
 import { canStart, listNames, notReadyPlayers, readyLine, readyPlayers } from '../lib/party';
+import { useLive } from '../lib/useLive';
 import { leaveRoom, startGame, updateProfile } from '../net/actions';
 import { inviteLink } from '../router';
 import { selectIsHost, selectMe } from '../store/selectors';
@@ -26,9 +27,9 @@ interface Props {
 }
 
 export function Lobby({ room, game }: Props) {
-  const me = usePlatformStore(selectMe);
-  const isHost = usePlatformStore(selectIsHost);
-  const playerId = usePlatformStore((s) => s.playerId);
+  const me = useLive(usePlatformStore, selectMe);
+  const isHost = useLive(usePlatformStore, selectIsHost);
+  const playerId = useLive(usePlatformStore, (s) => s.playerId);
   const addToast = usePlatformStore((s) => s.addToast);
   const playAgainPending = usePlatformStore((s) => s.playAgainPending);
   const setPlayAgainPending = usePlatformStore((s) => s.setPlayAgainPending);
@@ -48,6 +49,11 @@ export function Lobby({ room, game }: Props) {
   }, [playAgainPending, setPlayAgainPending]);
 
   const host = room.players.find((p) => p.id === room.hostId);
+  const changeLook = (
+    <button type="button" className="btn btn--secondary" onClick={() => setEditing(true)} aria-haspopup="dialog" aria-expanded={editing} data-testid="edit-profile">
+      <EditIcon size={18} /> Change my look
+    </button>
+  );
   const link = inviteLink(meta, room.code);
 
   const copy = async (text: string, label: string) => {
@@ -70,7 +76,7 @@ export function Lobby({ room, game }: Props) {
   };
 
   return (
-    <div className="lobby" data-testid="lobby">
+    <div className={`lobby${isHost ? '' : ' lobby--guest'}`} data-testid="lobby">
       <SiteHeader
         menuActions={[
           { label: 'Copy invite link', icon: <LinkIcon size={18} />, onSelect: () => void copy(link, 'Invite link'), testId: 'copy-link' },
@@ -101,7 +107,8 @@ export function Lobby({ room, game }: Props) {
         </button>
       </section>
 
-      <div className="lobby__grid">
+      {/* Only the host sees the settings: everyone else sees what is next, who is here and their own buttons. */}
+      <div className={`lobby__grid${isHost ? '' : ' lobby__grid--guest'}`}>
         <div className="lobby__col">
           <GamePicker room={room} isHost={isHost} />
 
@@ -118,53 +125,41 @@ export function Lobby({ room, game }: Props) {
                 No one else is here yet. Share the code.
               </p>
             )}
-            {me && isHost && <ReadyControls me={me} context="lobby" />}
-            {me && (
-              <div className="profile-edit">
-                <button type="button" className="text-btn" onClick={() => setEditing((v) => !v)} aria-expanded={editing} data-testid="edit-profile">
-                  <EditIcon size={16} /> {editing ? 'Done' : 'Change my look'}
-                </button>
-                {editing && <ProfileEditor me={{ name: me.name, avatar: me.avatar }} onClose={() => setEditing(false)} />}
+          </section>
+        </div>
+
+        {isHost && (
+          <div className="lobby__col">
+            <section className="card lobby__settings" aria-labelledby="settings-heading">
+              <div className="card__head">
+                <h2 className="card__title" id="settings-heading">
+                  Settings
+                </h2>
               </div>
-            )}
-          </section>
-        </div>
-
-        <div className="lobby__col">
-          <section className="card lobby__settings" aria-labelledby="settings-heading">
-            <div className="card__head">
-              <h2 className="card__title" id="settings-heading">
-                Settings
-              </h2>
-              {isHost && <span className="pill pill--accent">Host</span>}
-            </div>
-            <SettingsPanel room={room} isHost={isHost} game={game} />
-          </section>
-
-          <section className="card lobby__chat" aria-label="Lobby chat">
-            <div className="card__head">
-              <h2 className="card__title">Chat</h2>
-            </div>
-            <Chat />
-          </section>
-        </div>
+              <SettingsPanel room={room} game={game} />
+            </section>
+          </div>
+        )}
       </div>
 
       <div className="lobby__footer" ref={startRef} data-testid="lobby-footer">
         <div className="lobby__footer-inner">
-          {isHost ? (
-            <StartControls room={room} />
-          ) : (
-            <>
-              {me && <ReadyControls me={me} context="lobby" />}
-              <p className="lobby__waiting" data-testid="waiting-for-host">
-                Waiting for {host?.name ?? 'the host'} to start {meta.name}
-                <span className="ellipsis" aria-hidden="true" />
-              </p>
-            </>
+          {isHost && <StartControls room={room} />}
+          {me && <ReadyControls me={me} context="lobby" extra={changeLook} />}
+          {!isHost && (
+            <p className="lobby__waiting" data-testid="waiting-for-host">
+              Waiting for {host?.name ?? 'the host'} to start {meta.name}
+              <span className="ellipsis" aria-hidden="true" />
+            </p>
           )}
         </div>
       </div>
+
+      {me && (
+        <BottomSheet open={editing} title="Change my look" onClose={() => setEditing(false)} testId="profile-sheet" className="sheet--narrow">
+          <ProfileEditor me={{ name: me.name, avatar: me.avatar }} onClose={() => setEditing(false)} />
+        </BottomSheet>
+      )}
     </div>
   );
 }
@@ -247,7 +242,7 @@ function ProfileEditor({ me, onClose }: { me: { name: string; avatar: AvatarData
       <AvatarPicker value={avatar} onChange={setAvatar} compact />
       <button
         type="button"
-        className="btn btn--primary btn--sm"
+        className="btn btn--primary btn--block"
         disabled={!clean}
         onClick={() => {
           updateProfile(clean !== me.name ? clean : undefined, avatar);

@@ -5,7 +5,7 @@
  */
 import {
   DEFAULT_QUIPGAME_SETTINGS,
-  QUIPGAME_REGULAR_ROUNDS,
+  QUIPGAME_TOTAL_ROUNDS,
   normalizeQuipgameSettings,
   quipgameClientMessageSchema,
   quipgameSettingsSchema,
@@ -30,7 +30,7 @@ function start(ctx: Ctx): Result {
     phase: 'result',
     resumeAt: null,
     round: 0,
-    totalRounds: QUIPGAME_REGULAR_ROUNDS + (ctx.settings.finalRound ? 1 : 0),
+    totalRounds: QUIPGAME_TOTAL_ROUNDS,
     roundPlayers: [],
     prompts: [],
     answers: [],
@@ -56,10 +56,8 @@ function handle(ctx: Ctx, data: QuipgameData, event: GameEvent<QuipgameClientMes
         return onPlayerAway(gx, event.playerId, event.type === 'playerLeft');
       case 'tick':
         return onTick(gx);
-      case 'playerJoined':
       case 'playerReconnected':
-        // A mid-round joiner spectates (they are not among the round's players) and a returning player
-        // simply resumes with the next snapshot; between rounds, either may end a hold.
+        // A returning player simply resumes with the next snapshot; between rounds they may end a hold.
         return resumeIfHeld(gx);
       case 'chat':
         // Chat is just chat.

@@ -1,14 +1,15 @@
 import type { PokerRoomState, PokerView } from '@shared/games/poker/protocol';
-import { Chips } from '../../../platform/components/Chips';
+import { tileTier } from '../../../platform/table/grid';
 import { PayoutFloat } from '../../../platform/table/Outcome';
-import { PlayerTile, PlayersGrid, SeatSheet, type SeatLine, type SeatMark } from '../../../platform/table/PlayersGrid';
+import { PlayerTile, PlayersGrid, SeatSheet, tileFigures, type SeatLine, type SeatMark } from '../../../platform/table/PlayersGrid';
+import { StackCount, StakePill } from '../../../platform/table/Stakes';
 import { TableCard } from '../../../platform/table/TableCard';
 import { playerOf } from '../hooks';
 import { holeOnScreen, sameCard, winningCards, wonOnScreen } from '../lib/screen';
 import type { PokerTable } from '../lib/table';
 import { shortChips } from '../../../platform/lib/format';
 import { betAnchor, betValue, chipsValue, outcomesShown, paidOut, valueAt, type Timeline } from '../lib/timeline';
-import { categoryLabel, formatChips, lastActionLabel, payoutText } from '../lib/text';
+import { categoryLabel, lastActionLabel, payoutText } from '../lib/text';
 import { usePoker, usePokerStore } from '../store';
 import { DealerButton } from './DealerButton';
 
@@ -82,9 +83,9 @@ function SeatDetail({ view, id, meId, table, timeline, now, leaving }: { view: P
   return (
     <div className="pk-seat-detail" data-testid="seat-detail" data-player-id={id}>
       <p className="pk-seat-detail__line">
-        <Chips value={seat?.chips ?? 0} size={14} />
-        {(seat?.bet ?? 0) > 0 && <span>{`Bet ${formatChips(seat?.bet ?? 0)}`}</span>}
-        {line.text && <span>{line.text}</span>}
+        <StackCount value={seat?.chips ?? 0} />
+        {(seat?.bet ?? 0) > 0 && <StakePill value={seat?.bet ?? 0} />}
+        {line.text && <span className="pk-seat-detail__state">{line.text}</span>}
       </p>
       {cards.length > 0 && (
         <div className="pk-seat-detail__cards">
@@ -98,9 +99,11 @@ function SeatDetail({ view, id, meId, table, timeline, now, leaving }: { view: P
 }
 
 /**
- * The other players as tiles round the table from my left, never scrolling: stack, the bet in
- * front of them, the dealer button and their last move; folded and busted seats dimmed, all in
- * tagged, the seat to act lit with the lime ring, a winner outlined in lime.
+ * The other players as compact seats round the table from my left, never scrolling: the stack in
+ * words ("990 chips"), the bet this street as its own pill ("Bet 10"), the dealer button, their
+ * backs and their last move; folded and busted seats dimmed, all in tagged, the seat to act lit
+ * with the lime ring, a winner outlined in lime. A tile too small for the words keeps the stack
+ * as its badge (the bet is left to the seat's sheet there).
  */
 export function Seats({ room, view, ids, meId, table, timeline, live, now, leaving, wide }: Props) {
   const turnId = view.phase === 'acting' ? (view.turn ?? undefined) : undefined;
@@ -109,6 +112,7 @@ export function Seats({ room, view, ids, meId, table, timeline, live, now, leavi
   const openSeat = usePokerStore.getState().openSeat;
   const openPlayer = open !== null && ids.includes(open) ? playerOf(room, open) : undefined;
   if (ids.length === 0) return null;
+  const tier = tileTier(ids.length);
   return (
     <>
       <PlayersGrid count={ids.length} label="Other players" wide={wide}>
@@ -136,15 +140,15 @@ export function Seats({ room, view, ids, meId, table, timeline, live, now, leavi
               chips={stack}
               bet={
                 <span className="pk-bet" data-table-anchor={betAnchor(id)} data-testid="seat-bet" data-bet={bet}>
-                  {bet > 0 && <Chips value={bet} size={11} />}
+                  {bet > 0 && <StakePill value={bet} format={tileFigures(tier)} />}
                 </span>
               }
               total={{ text: shortChips(stack), tone: won > 0 ? 'win' : 'neutral' }}
+              shortBadge
               dimmed={seat.busted || seat.status === 'folded' || !view.order.includes(id)}
               badge={seat.isDealer && <DealerButton testId="seat-dealer" />}
               tag={seat.status === 'allIn' && !seat.busted ? 'All in' : null}
               onOpen={() => openSeat(id)}
-              compactLine
               data={{ 'data-chips': seat.chips, 'data-bet': seat.bet, 'data-status': status, 'data-dealer': seat.isDealer, 'data-outcome': won > 0 ? 'win' : undefined, 'data-payout': won > 0 ? won : undefined }}
               cards={holeOnScreen(table, timeline, id, meId, now).map((c) => (
                 <TableCard key={`${timeline.id}:${c.key}`} card={c.card} size="sm" motion={c.motion} leaving={leaving || c.leaving} flipping={c.flipping} highlight={c.card !== null && best.some((b) => c.card !== null && sameCard(b, c.card))} testId="seat-card" />

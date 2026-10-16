@@ -125,8 +125,8 @@ async function drawStroke(page: Page): Promise<void> {
   await page.mouse.up();
 }
 
-async function sendChat(page: Page, text: string): Promise<void> {
-  const input = page.getByTestId('chat-input');
+async function sendGuess(page: Page, text: string): Promise<void> {
+  const input = page.getByTestId('guess-input');
   await input.fill(text);
   await input.press('Enter');
 }
@@ -228,7 +228,7 @@ async function phoneDrawsOneTurn(): Promise<void> {
   expect(await nonWhitePixels(phone.page)).toBeGreaterThan(0);
   await expect.poll(() => nonWhitePixels(host.page), { timeout: 3_000, message: 'the host canvas receives the stroke' }).toBeGreaterThan(0);
 
-  await sendChat(host.page, word);
+  await sendGuess(host.page, word);
   await expect(phone.page.getByTestId('overlay-turn-end')).toBeVisible();
   await expect(phone.page.getByTestId('overlay-turn-end')).toContainText(word);
   await expectInsideViewport(phone.page.getByTestId('overlay-turn-end').locator('.overlay__card'), PORTRAIT, 'turn-end card');
@@ -288,7 +288,7 @@ test('the phone lobby fits the viewport, with 44px buttons and a share button', 
   await expect.poll(async () => (await pageMetrics(phone.page)).scrollY, { message: 'lobby starts at the top' }).toBe(0);
   await expectNoHorizontalOverflow(phone.page, PORTRAIT.width);
   expect((await pageMetrics(phone.page)).isApp, 'the lobby page may scroll').toBe(false);
-  for (const id of ['copy-code', 'share-invite', 'settings-menu', 'ready-toggle', 'sitout-toggle']) {
+  for (const id of ['copy-code', 'share-invite', 'settings-menu', 'ready-toggle', 'sitout-toggle', 'edit-profile']) {
     await expect(phone.page.getByTestId(id)).toBeVisible();
     await expectTallEnough(phone.page.getByTestId(id), id);
   }
@@ -299,14 +299,14 @@ test('the phone lobby fits the viewport, with 44px buttons and a share button', 
     await expectTallEnough(phone.page.getByTestId(id), id);
   }
   await phone.page.keyboard.press('Escape');
-  await expectTallEnough(phone.page.getByTestId('chat-send'), 'lobby chat send');
+  // No chat in the room, and no settings for a guest.
+  await expect(phone.page.getByTestId('chat-input')).toHaveCount(0);
+  await expect(phone.page.getByTestId('settings-panel')).toHaveCount(0);
 });
 
-test('the host sets one round of 80 seconds and starts', async () => {
+test('the host sets one round and starts', async () => {
   await host.page.getByTestId('settings-rounds').fill('1');
-  await host.page.getByTestId('settings-drawTime').fill('80');
-  await expect(phone.page.getByTestId('settings-value-rounds')).toHaveText('1');
-  await expect(phone.page.getByTestId('settings-value-drawTime')).toHaveText('80s');
+  await expect(host.page.getByTestId('settings-value-rounds')).toHaveText('1');
   await readyAll([phone.page]);
   await host.page.getByTestId('start-game').click();
 });
@@ -335,7 +335,7 @@ test('the phone guesser types into the blanks: one tile per letter, no header ma
   await expect(phone.page.getByTestId('word-mask')).toBeHidden();
   await expect(host.page.getByTestId('word-plain')).toBeVisible();
 
-  const input = phone.page.getByTestId('chat-input');
+  const input = phone.page.getByTestId('guess-input');
   await expect(input).toHaveAttribute('enterkeyhint', 'send');
   await expect(input).toHaveAttribute('autocapitalize', 'off');
   await expect(input).toHaveAttribute('autocorrect', 'off');
@@ -376,14 +376,14 @@ test('the phone guesser types into the blanks: one tile per letter, no header ma
 
 test('the phone layout never scrolls: portrait, with the keyboard open, and in landscape', async () => {
   const canvas = phone.page.getByTestId('canvas');
-  const log = phone.page.getByTestId('chat-log');
+  const log = phone.page.getByTestId('guess-feed');
   const guessBar = phone.page.getByTestId('guess-form');
 
   // Portrait: everything on one screen.
   await expectNoHorizontalOverflow(phone.page, PORTRAIT.width);
   expect((await pageMetrics(phone.page)).scrollY).toBe(0);
   const canvasBox = await expectInsideViewport(canvas, PORTRAIT, 'canvas');
-  const logBox = await expectInsideViewport(log, PORTRAIT, 'chat log');
+  const logBox = await expectInsideViewport(log, PORTRAIT, 'guess feed');
   const barBox = await expectInsideViewport(guessBar, PORTRAIT, 'guess bar');
   expect(canvasBox.width, 'the canvas uses the phone width').toBeGreaterThanOrEqual(PORTRAIT.width - 40);
   expect(logBox.y).toBeGreaterThanOrEqual(canvasBox.y + canvasBox.height);
@@ -402,11 +402,11 @@ test('the phone layout never scrolls: portrait, with the keyboard open, and in l
   await expectNoHorizontalOverflow(phone.page, KEYBOARD.width);
   const keyboardCanvas = await expectInsideViewport(canvas, KEYBOARD, 'canvas with keyboard');
   expect(keyboardCanvas.height, 'the canvas is still readable with the keyboard').toBeGreaterThan(120);
-  await expectInsideViewport(log, KEYBOARD, 'chat log with keyboard');
-  await expect(phone.page.getByTestId('chat-input')).toBeFocused();
+  await expectInsideViewport(log, KEYBOARD, 'guess feed with keyboard');
+  await expect(phone.page.getByTestId('guess-input')).toBeFocused();
 
   // Smaller phones with the keyboard open: still the portrait layout (never mistaken for landscape),
-  // the canvas stays readable above the guess bar and the chat log gives way first.
+  // the canvas stays readable above the guess bar and the guess feed gives way first.
   for (const size of SMALL_KEYBOARDS) {
     await phone.page.setViewportSize(size);
     await expect
@@ -423,8 +423,8 @@ test('the phone layout never scrolls: portrait, with the keyboard open, and in l
     expect(smallCanvas.height, `the canvas is still readable at ${label}`).toBeGreaterThan(120);
     expect(smallHeader.height, `the header keeps to one row at ${label}`).toBeLessThan(70);
     expect(smallBar.y, `the guess bar is below the canvas at ${label} (portrait layout)`).toBeGreaterThanOrEqual(smallCanvas.y + smallCanvas.height - 1);
-    await expectInsideViewport(phone.page.getByTestId('chat-send'), size, `send button at ${label}`);
-    await expect(phone.page.getByTestId('chat-input')).toBeFocused();
+    await expectInsideViewport(phone.page.getByTestId('guess-send'), size, `send button at ${label}`);
+    await expect(phone.page.getByTestId('guess-input')).toBeFocused();
   }
 
   // Landscape phone: canvas and guess bar side by side, still no scrolling.
@@ -452,7 +452,7 @@ test('the phone layout never scrolls: portrait, with the keyboard open, and in l
     }, { message: 'guess bar bottom in landscape with the keyboard open' })
     .toBeLessThanOrEqual(LANDSCAPE_KEYBOARD.height + 0.5);
   await expectInsideViewport(guessBar, LANDSCAPE_KEYBOARD, 'landscape keyboard guess bar');
-  await expectInsideViewport(phone.page.getByTestId('chat-send'), LANDSCAPE_KEYBOARD, 'landscape keyboard send button');
+  await expectInsideViewport(phone.page.getByTestId('guess-send'), LANDSCAPE_KEYBOARD, 'landscape keyboard send button');
   await expectInsideViewport(canvas, LANDSCAPE_KEYBOARD, 'landscape keyboard canvas');
 
   // Back to portrait for the rest of the run.
@@ -515,10 +515,10 @@ test('the players button opens a sheet with both players and the backdrop closes
   await expect(menu).toHaveCount(0);
 });
 
-test('the phone guesser fills every tile with the word, submits with Enter and keeps a focused chat input', async () => {
+test('the phone guesser fills every tile with the word, submits with Enter, and the guess bar gives way to a short line', async () => {
   const letters = lettersOf(currentWord);
   const tiles = phone.page.getByTestId('guess-tile');
-  const input = phone.page.getByTestId('chat-input');
+  const input = phone.page.getByTestId('guess-input');
   await phone.page.getByTestId('guess-tiles').click();
   await expect(input).toBeFocused();
   await input.fill(currentWord);
@@ -528,16 +528,14 @@ test('the phone guesser fills every tile with the word, submits with Enter and k
   await expect(phone.page.getByTestId('guess-overflow')).toHaveCount(0);
 
   await phone.page.keyboard.press('Enter');
-  const correct = phone.page.locator('[data-testid="chat-message"][data-kind="correct"]');
+  const correct = phone.page.locator('[data-testid="feed-line"][data-kind="correct"]');
   await expect(correct.last()).toContainText(`${phone.name} guessed the word!`);
-  await expect(host.page.getByTestId('chat-log')).toContainText(`${phone.name} guessed the word!`);
+  await expect(host.page.getByTestId('guess-feed')).toContainText(`${phone.name} guessed the word!`);
   await expect(phone.page.getByTestId('word-plain')).toContainText(currentWord);
   await expect(phone.page.getByTestId('guess-tiles')).toHaveCount(0);
-  // The plain chat input takes over under the same test id and keeps the focus (the keyboard stays open).
-  await expect(input).toBeVisible();
-  await expect(input).toBeFocused();
-  await expect(input).toHaveAttribute('enterkeyhint', 'send');
-  await expectInsideViewport(input, PORTRAIT, 'plain chat input');
+  // Nothing more to type: no chat input takes over, a short line sits where the guess bar was.
+  await expect(input).toHaveCount(0);
+  await expectInsideViewport(phone.page.getByTestId('guess-idle'), PORTRAIT, 'the line in place of the guess bar');
   // The phone was the only guesser, so the turn is over.
   await expect(phone.page.getByTestId('overlay-turn-end')).toBeVisible();
   await expect(phone.page.getByTestId('overlay-turn-end')).toContainText(currentWord);
@@ -570,7 +568,7 @@ test('leaving from the podium drops the app mode so the game home scrolls again'
   await expect(phone.page.getByTestId('home-create')).toBeVisible();
   await expect(phone.page).toHaveURL(/\/$/);
   await expect.poll(async () => (await pageMetrics(phone.page)).isApp).toBe(false);
-  await expect(host.page.getByTestId('chat-log')).toContainText(`${phone.name} left`);
+  await expect(host.page.getByTestId('guess-feed')).toContainText(`${phone.name} left`);
 });
 
 test('no page errors were raised in either browser', async () => {

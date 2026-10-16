@@ -8,18 +8,21 @@
 
 export type HandSlot = 'full' | 'chip';
 
-/** The narrowest a full hand still reads: its total, three cards fanned at the smallest card size, its outline. */
-export const MIN_FULL_HAND_PX = { mine: 118, spot: 84 } as const;
+/** Where a row of hands sits: my hands on the stage, another player's there on their turn, or mine small beside theirs. */
+export type HandPlace = 'mine' | 'stage' | 'aside';
+
+/** The narrowest a full hand still reads: three cards fanned at the smallest card size, its pill over them, its outline. */
+export const MIN_FULL_HAND_PX: Record<HandPlace, number> = { mine: 72, stage: 64, aside: 72 };
 /**
- * A chip's smallest readable size: its two-digit total (the big totals' font in my row, a tile's
- * in the spotlight) inside its pill, and (given the height) its stake under it.
+ * A chip's smallest readable size: its two-digit total (the big totals' font on the stage, a
+ * tile's beside it) inside its pill.
  */
-export const MIN_CHIP_PX = { width: 34, height: 24, spot: 28 } as const;
+export const MIN_CHIP_PX = { width: 34, height: 24, stage: 28 } as const;
 /** The gap between two hands, and between two chips. */
 export const HAND_GAP_PX = 8;
 export const CHIP_GAP_PX = 4;
-/** The spotlight's chips stay in this many rows, so it never grows tall. */
-export const SPOT_CHIP_ROWS = 2;
+/** Another player's chips on the stage stay in this many rows. */
+export const STAGE_CHIP_ROWS = 2;
 
 /** How many of `size` px (with `gap` between) fit in `space` px; at least one. */
 export function fitCount(space: number, size: number, gap = CHIP_GAP_PX): number {

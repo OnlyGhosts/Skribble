@@ -25,7 +25,7 @@ const CHAT_CAP = 300;
 const MAX_TOASTS = 4;
 /** Informational toasts go after this long; errors stay until dismissed. */
 const TOAST_MS = 4000;
-const JOIN_ERROR_CODES: ReadonlySet<ErrorCode> = new Set<ErrorCode>(['ROOM_NOT_FOUND', 'ROOM_FULL', 'GAME_IN_PROGRESS', 'INVALID_CODE']);
+const JOIN_ERROR_CODES: ReadonlySet<ErrorCode> = new Set<ErrorCode>(['ROOM_NOT_FOUND', 'ROOM_FULL', 'INVALID_CODE']);
 
 interface PlatformState {
   connection: ConnectionStatus;
@@ -129,6 +129,8 @@ export const usePlatformStore = create<PlatformStore>()((set, get) => ({
         break;
       case 'chat':
         set((s) => ({ chat: appendChat(s.chat, msg.message) }));
+        // There is no chat on screen: an event only a line tells about pops up instead (a welcome's history never does).
+        if (msg.message.kind === 'notice') get().addToast('info', msg.message.text);
         break;
       case 'error': {
         if (msg.code === 'REJOIN_FAILED') {

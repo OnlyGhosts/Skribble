@@ -84,3 +84,8 @@ export function pushChat(cx: Cx, kind: ChatKind, text: string, to: Recipients, f
 export function systemMessage(cx: Cx, text: string, except?: string): void {
   pushChat(cx, 'system', text, except === undefined ? 'all' : { except: [except] });
 }
+
+/** A line every client shows as a toast: an event nothing else on screen tells the players about. */
+export function noticeMessage(cx: Cx, text: string, except?: string): void {
+  pushChat(cx, 'notice', text, except === undefined ? 'all' : { except: [except] });
+}

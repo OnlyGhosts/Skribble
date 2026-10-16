@@ -2,7 +2,7 @@
 import type { QuipgameChoice, QuipgameView } from '../../../shared/games/quipgame/protocol.js';
 import type { Effect } from '../../platform/engine/effects.js';
 import { viewFor } from '../../platform/engine/view.js';
-import type { Sim } from '../../platform/engine/testHarness.js';
+import { AVATAR, readyUp, type Sim } from '../../platform/engine/testHarness.js';
 import type { QuipgameData } from './module.js';
 import { currentMatchup, matchupAuthors, type MatchupData } from './state.js';
 
@@ -41,8 +41,25 @@ export function matchup(s: Sim): MatchupData {
 /** The current matchup's authors in A/B order. */
 export const authors = (s: Sim): string[] => matchupAuthors(data(s), matchup(s));
 
-/** Seated, connected non-authors in join order. */
-export const voters = (s: Sim): string[] => s.data.players.filter((p) => p.connected && !authors(s).includes(p.id)).map((p) => p.id);
+/** Participating, connected non-authors in join order (a spectator of the whole game never votes). */
+export const voters = (s: Sim): string[] => s.data.players.filter((p) => p.participating && p.connected && !authors(s).includes(p.id)).map((p) => p.id);
+
+/**
+ * Starts the game with `names` plus `audience`, a player in the game who is away when round one
+ * deals its prompts and back straight after: the round's audience, who votes but writes nothing.
+ */
+export function startWithAudience(s: Sim, names: string[], audience: string): string[] {
+  const ids = [...names, audience].map((name, i) => {
+    s.apply(i === 0 ? { type: 'create', gameId: 'quipgame', name, avatar: AVATAR, connectionId: `conn-${name}` } : { type: 'join', name, avatar: AVATAR, connectionId: `conn-${name}` });
+    return s.data.players[i].id;
+  });
+  readyUp(s, ids.slice(1));
+  const away = ids[ids.length - 1];
+  disconnect(s, away);
+  s.platform(ids[0], { t: 'start' });
+  reconnect(s, away);
+  return ids;
+}
 
 /** A player's answer text in tests: who wrote it and to which prompt, so results can be checked by text. */
 export const answerText = (s: Sim, id: string, promptId: string): string => `${nameOf(s, id)} on ${promptId}`;

@@ -1,18 +1,4 @@
-import type { QuipgamePhase, QuipgameView } from '@shared/games/quipgame/protocol';
-
-export function chatPlaceholderFor(phase: QuipgamePhase): string {
-  switch (phase) {
-    case 'writing':
-    case 'finalWriting':
-      return 'No spoilers while you write…';
-    case 'voting':
-    case 'finalVoting':
-      return 'Vote first, then chat…';
-    case 'result':
-    case 'finalResult':
-      return 'Say it to their face…';
-  }
-}
+import type { QuipgameView } from '@shared/games/quipgame/protocol';
 
 export function roundLabel(view: QuipgameView, long: boolean): string {
   const final = view.phase.startsWith('final');

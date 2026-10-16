@@ -1,5 +1,5 @@
 /**
- * Skribble's client module: the game screen, its settings rows, the player-list and chat hooks,
+ * Skribble's client module: the game screen, its settings rows, the player-list and guess hooks,
  * and the handling of its own server messages (the drawing stream) and lifecycle events.
  */
 import type { SkribbleRoomState, SkribbleSettings, SkribbleView } from '@shared/games/skribble/protocol';
@@ -13,11 +13,9 @@ import { vibrate } from '../../platform/lib/haptics';
 import { ONLOOKER_VOLUME, createSoundSchedule, playCue } from '../../platform/lib/sound';
 import { usePlatformStore } from '../../platform/store/usePlatformStore';
 import { skribbleCanvas } from './canvas';
-import { SkribbleChatInput } from './components/ChatInput';
 import { PencilIcon } from './components/Icons';
 import { SkribbleSettingsFields } from './components/SettingsFields';
 import { drawerIdOf, hasGuessed, isNewTurn } from './hooks';
-import { placeholderFor } from './lib/format';
 import { SkribbleScreen } from './Screen';
 import { skribbleSounds as sfx } from './sounds';
 import { useSkribbleStore } from './store';
@@ -26,6 +24,16 @@ import './styles/skribble.css';
 /** The turn's sting waits for the buzzer when the clock ran out. */
 const BUZZER_MS = 350;
 const sounds = createSoundSchedule();
+
+/**
+ * Where this game's guess feed starts: after the last line from before the game (the lobby's, an
+ * earlier game's and the start announcements, which share the game's start time).
+ */
+function feedStart(game: SkribbleView | null): number {
+  let from = 0;
+  for (const line of usePlatformStore.getState().chat) if (line.ts <= (game?.startedAt ?? 0)) from = Math.max(from, line.id);
+  return from;
+}
 
 function isDrawerOf(room: SkribbleRoomState, player: PlayerPublic): boolean {
   return drawerIdOf(room.game) === player.id;
@@ -36,7 +44,6 @@ export const skribbleClient = defineGameClient<SkribbleView, SkribbleSettings>({
   Screen: SkribbleScreen,
   sounds: sfx,
   SettingsFields: SkribbleSettingsFields,
-  ChatInput: SkribbleChatInput,
 
   playerBadge(room, player) {
     if (isDrawerOf(room, player)) {
@@ -74,12 +81,6 @@ export const skribbleClient = defineGameClient<SkribbleView, SkribbleSettings>({
     return hasGuessed(room.game, player.id) && !isDrawerOf(room, player) ? 'player--guessed' : undefined;
   },
 
-  chatPlaceholder(room, meId) {
-    const kind = room.game?.phase.kind;
-    const participating = room.players.find((p) => p.id === meId)?.participating ?? false;
-    return placeholderFor(kind, meId !== null && drawerIdOf(room.game) === meId, hasGuessed(room.game, meId), participating);
-  },
-
   /** The drawing stream is the platform canvas's. */
   onServerMessage(raw) {
     return skribbleCanvas.handleServerMessage(raw);
@@ -98,6 +99,8 @@ export const skribbleClient = defineGameClient<SkribbleView, SkribbleSettings>({
     // brought the authoritative canvas along, so it is never wiped here.
     if (prev && ((next?.kind === 'choosing' && before?.kind !== 'choosing') || (room.phase === 'lobby' && prev.phase !== 'lobby'))) skribbleCanvas.store.getState().clear();
     if (isNewTurn(prev, room) || room.phase === 'lobby') store.setGuessDraft('');
+    // A game starting under this player's eyes, or a welcome into a running one: the feed holds only this game's lines.
+    if (room.phase === 'playing' && (!prev || prev.phase !== 'playing')) store.setFeedFrom(feedStart(room.game));
     if (next?.kind === 'choosing' && next.drawerId === me && !(before?.kind === 'choosing' && before.drawerId === me)) playCue('yourTurn');
     if (prev && next?.kind === 'drawing' && before?.kind === 'choosing') sfx.play('chosen', { volume: next.drawerId === me ? 1 : ONLOOKER_VOLUME });
     // A welcome without a room before it (a join during the summary) never replays the end of a turn.

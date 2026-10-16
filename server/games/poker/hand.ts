@@ -1,9 +1,9 @@
 /** Hand and game lifecycle: the boundary between hands, seating, blind increases, holds, the host's controls and the end. */
 import { RESUME_SETTLE_MS, holdEffects, resumeEffect } from '../waiting.js';
 import { chooseDealer, dealHand } from './dealing.js';
-import { IDLE_HANDS_LIMIT, MIN_PLAYERS, adjustChips, bigBlind, fail, findPlayer, isHeld, nameOf, removeSeat, snapshot, stackedPlayers, systemMessage, type Gx } from './state.js';
+import { IDLE_HANDS_LIMIT, MIN_PLAYERS, adjustChips, bigBlind, fail, findPlayer, isHeld, nameOf, noticeMessage, removeSeat, snapshot, stackedPlayers, systemMessage, type Gx } from './state.js';
 
-/** Seats a newcomer (or a player without a seat yet) with the starting stack. */
+/** Seats a player without a seat yet (one queued for a free seat) with the starting stack. */
 export function seatPlayer(gx: Gx, playerId: string): void {
   if (gx.data.seats[playerId]) return;
   gx.data.seats[playerId] = { chips: 0, bet: 0, committed: 0, cards: [], status: 'out', lastAction: null, gone: false };
@@ -13,7 +13,7 @@ export function seatPlayer(gx: Gx, playerId: string): void {
 /**
  * The hand boundary: the next hand, or the end of the game once one player holds every chip,
  * after the last hand, or at the host's word. With fewer than two stacked players connected it
- * holds at the results instead (a reconnect or a join calls it again), and it abandons the game
+ * holds at the results instead (a reconnect calls it again), and it abandons the game
  * when too few seats are left at all, or too few stacks because a player left with chips.
  */
 export function beginHand(gx: Gx): void {
@@ -36,13 +36,13 @@ export function beginHand(gx: Gx): void {
   }
   if (ctx.settings.hands > 0 && data.hand >= ctx.settings.hands) return finishGame(gx);
   if (data.idleHands >= IDLE_HANDS_LIMIT) {
-    systemMessage(gx, `Nobody played for ${IDLE_HANDS_LIMIT} hands. The game is over.`);
+    noticeMessage(gx, `Nobody played for ${IDLE_HANDS_LIMIT} hands. The game is over.`);
     return finishGame(gx);
   }
   if (stacked.filter((p) => p.connected).length < MIN_PLAYERS) return hold(gx);
   if (isHeld(data)) gx.effects.push(resumeEffect());
 
-  // Only a hand that really starts seats the newcomers (with the starting stack), while seats are free.
+  // Only a hand that really starts seats the queued players (with the starting stack), while seats are free.
   for (const p of stacked) seatPlayer(gx, p.id);
   data.hand += 1;
   data.results = null;
@@ -51,7 +51,7 @@ export function beginHand(gx: Gx): void {
   const every = ctx.settings.blindsIncreaseEvery;
   if (every > 0 && data.hand > 1 && (data.hand - 1) % every === 0) {
     data.smallBlind *= 2;
-    systemMessage(gx, `Blinds up: ${data.smallBlind}/${bigBlind(data)}.`);
+    noticeMessage(gx, `Blinds up: ${data.smallBlind}/${bigBlind(data)}.`);
   }
   for (const seat of Object.values(data.seats)) {
     seat.bet = 0;
@@ -88,7 +88,7 @@ export function endGame(gx: Gx, playerId: string): void {
       seat.committed = 0;
     }
     data.toAct = [];
-    systemMessage(gx, `${nameOf(ctx, playerId)} ended the game. The hand is void and every stake goes back.`);
+    noticeMessage(gx, `${nameOf(ctx, playerId)} ended the game. The hand is void and every stake goes back.`);
   } else if (data.phase.held) gx.effects.push(resumeEffect());
   finishGame(gx);
 }

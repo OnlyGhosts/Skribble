@@ -20,11 +20,6 @@ export function isActing(view: BlackjackView | null, playerId: string | null): b
   return playerId !== null && view !== null && view.phase === 'acting' && view.turn?.playerId === playerId;
 }
 
-/** In this round's deal (bet placed or still to place) rather than watching it. */
-export function isInRound(view: BlackjackView | null, playerId: string | null): boolean {
-  return playerId !== null && view !== null && view.order.includes(playerId);
-}
-
 /** The seats the deal still waits for (connected, no bet, not sitting out). */
 export function pendingBettors(view: BlackjackView): string[] {
   return view.phase === 'betting' ? view.waitingFor : [];

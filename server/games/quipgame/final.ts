@@ -1,5 +1,5 @@
 /** The final round: one prompt for everyone, then everyone ranks the anonymous answers. */
-import { QUIPGAME_MAX_PICKS } from '../../../shared/games/quipgame/protocol.js';
+import { QUIPGAME_MAX_PICKS, QUIPGAME_RESULTS_SECONDS, QUIPGAME_VOTE_SECONDS, QUIPGAME_WRITE_SECONDS } from '../../../shared/games/quipgame/protocol.js';
 import { pickPoints } from '../../../shared/games/quipgame/scoring.js';
 import { drawPrompts } from './prompts.js';
 import { answerById, award, fail, pickAnnouncer, shuffle, snapshot, systemMessage, type FinalData, type FinalResultData, type Gx, type QuipgameData } from './state.js';
@@ -15,7 +15,7 @@ export function startFinal(gx: Gx): void {
   const [text] = drawPrompts(gx, 1);
   data.prompts = [{ id: `r${data.round}-p0`, text, authorIds: [...data.roundPlayers] }];
   data.phase = 'finalWriting';
-  data.endsAt = ctx.now + ctx.settings.writeSeconds * 1000;
+  data.endsAt = ctx.now + QUIPGAME_WRITE_SECONDS * 1000;
   systemMessage(gx, 'Final round: one prompt, everyone answers!');
   snapshot(gx);
 }
@@ -27,10 +27,10 @@ export function startFinalVoting(gx: Gx): void {
     data.answers.map((a) => a.id),
     ctx.rng,
   );
-  final.announcerId = ctx.settings.announcer ? pickAnnouncer(gx, []) : null;
+  final.announcerId = pickAnnouncer(gx, []);
   data.final = final;
   data.phase = 'finalVoting';
-  data.endsAt = ctx.now + ctx.settings.voteSeconds * 1000;
+  data.endsAt = ctx.now + QUIPGAME_VOTE_SECONDS * 1000;
   if (!resolveIfRanked(gx)) snapshot(gx);
 }
 
@@ -99,7 +99,7 @@ export function resolveFinal(gx: Gx): void {
     if (a) award(gx, a.authorId, entry.points);
   }
   data.phase = 'finalResult';
-  data.endsAt = ctx.now + ctx.settings.resultsSeconds * 1000;
+  data.endsAt = ctx.now + QUIPGAME_RESULTS_SECONDS * 1000;
   const line = final.result.map((e) => `${e.rank}. ${answerById(data, e.answerId)?.authorName ?? 'Someone'} (${e.points})`).join(', ');
   systemMessage(gx, `Final ranking: ${line}`);
   snapshot(gx);

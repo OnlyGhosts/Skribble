@@ -4,7 +4,7 @@ import { gameById, type GameId } from '../../../shared/platform/games.js';
 import type { PodiumEntry } from '../../../shared/platform/protocol.js';
 import { defaultPlatformSettings, platformSettingsPatchSchema, platformSettingsSchema, type PlatformSettings } from '../../../shared/platform/settings.js';
 import { applyGameResult, gameCtx } from './delegate.js';
-import { broadcastSnapshot, fail, requireHost, requirePhase, systemMessage, type Cx } from './messaging.js';
+import { broadcastSnapshot, fail, noticeMessage, requireHost, requirePhase, systemMessage, type Cx } from './messaging.js';
 import { moduleFor } from './module.js';
 import { findPlayer, gameSeatLimit, hasEnoughSeated, minPlayers, participants, readyPlayers, sortedPlayers } from './players.js';
 import type { RoomSettingsData } from './state.js';
@@ -36,7 +36,7 @@ export function updateProfile(cx: Cx, playerId: string, name: string | undefined
 
 /**
  * The party moves to another game: its settings start from that game's defaults while the
- * platform settings (content mode, mid-game joins) and everyone's ready flags carry over.
+ * platform settings (the content mode) and everyone's ready flags carry over.
  */
 export function selectGame(cx: Cx, playerId: string, gameId: GameId): void {
   if (!requireHost(cx, playerId) || !requirePhase(cx, playerId, 'lobby', 'The game can only be changed in the lobby.')) return;
@@ -175,7 +175,7 @@ export function resetToLobby(cx: Cx): void {
  */
 export function ensureEnoughSeated(cx: Cx): boolean {
   if (cx.data.phase !== 'playing' || hasEnoughSeated(cx.data)) return false;
-  systemMessage(cx, 'Not enough players. Back to the lobby.');
+  noticeMessage(cx, 'Not enough players. Back to the lobby.');
   resetToLobby(cx);
   return true;
 }

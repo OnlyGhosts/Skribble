@@ -1,12 +1,12 @@
 /**
  * The contract between the platform shell and a game's client module. The platform renders the
- * library, the game home, the lobby, chat, players, settings and the podium; the module supplies
+ * front door, the room, players, settings and the podium; the module supplies
  * what happens on screen while the room is 'playing' or 'ended' and reacts to its own messages.
  *
  * `V` is the game's per-recipient view (RoomState.game), `S` its settings (flat next to the
  * platform settings in RoomState.settings).
  */
-import type { ComponentType, ReactNode, RefObject } from 'react';
+import type { ComponentType, ReactNode } from 'react';
 import type { GameMeta } from '@shared/platform/games';
 import type { ChatMessage, PlayerPublic, RoomState, WireMessage } from '@shared/platform/protocol';
 import type { PlatformSettings } from '@shared/platform/settings';
@@ -18,22 +18,11 @@ export interface GameScreenProps<V = unknown, S = Record<string, unknown>> {
   isHost: boolean;
 }
 
+/** The host's settings rows: only the host's room shows settings, so every row is editable. */
 export interface SettingsFieldsProps<S = Record<string, unknown>> {
   settings: PlatformSettings & S;
-  /** False for everyone but the host: render read-only values. */
-  canEdit: boolean;
   /** Sends one flat settings patch (game fields only; the platform fields have their own controls). */
   patch(partial: Partial<S>): void;
-}
-
-export interface ChatInputProps {
-  /**
-   * Shared between the inputs that take turns at the bottom of the chat: set by an input that
-   * unmounts while focused so its replacement takes the focus (and keeps the phone keyboard open).
-   */
-  focusMemory: RefObject<boolean>;
-  /** The platform's own input form; render it whenever the game has nothing special to show. */
-  defaultInput: ReactNode;
 }
 
 /**
@@ -67,16 +56,13 @@ export interface GameClientModule<V = unknown, S = Record<string, unknown>> {
   playerStatus?(room: RoomState<V, S>, player: PlayerPublic): PlayerStatus | null;
   /** Extra class for the player's row (Skribble: the green "guessed" tint). */
   playerClassName?(room: RoomState<V, S>, player: PlayerPublic): string | undefined;
-  /** Replaces the chat input (Skribble's type-into-the-blanks guess bar). */
-  ChatInput?: ComponentType<ChatInputProps>;
-  chatPlaceholder?(room: RoomState<V, S>, meId: string | null): string | undefined;
   /** A server message that is not a platform message; return true when handled. */
   onServerMessage?(msg: WireMessage): boolean;
   /** `welcome.extra`, the game's bootstrap (Skribble: the canvas history). The room is already in the store. */
   onWelcome?(extra: unknown): void;
   /** Every snapshot, welcome included; `prev` is null when this one enters the room. */
   onRoom?(room: RoomState<V, S>, prev: RoomState<V, S> | null): void;
-  /** A freshly appended chat line (history from a welcome does not count). */
+  /** A freshly appended chat line (history from a welcome does not count): Scribble's guesses and the game's lines. */
   onChat?(message: ChatMessage): void;
   /** The room is being left (leave, kick, seat lost): drop local game state, flush what must still go out. */
   onLeave?(): void;

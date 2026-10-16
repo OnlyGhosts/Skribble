@@ -1,9 +1,11 @@
 /**
  * Blackjack's table rules, pure and shared by both sides: the endless deck, hand totals with soft
  * aces, naturals, the dealer's drawing policy and the payouts. Randomness is passed in, never read.
+ * The house rules are fixed, with no settings: the dealer stands on every 17, soft ones too; a
+ * natural pays 3 to 2; doubling and splitting are always allowed (BLACKJACK_RULES in protocol.ts).
  */
 import { freshDeck } from '../../platform/cards.js';
-import type { BlackjackPayout, Card, CardRank, HandOutcome } from './protocol.js';
+import type { Card, CardRank, HandOutcome } from './protocol.js';
 
 export const BLACKJACK = 21;
 export const DEALER_STANDS_AT = 17;
@@ -64,11 +66,9 @@ export function revealAllowanceMs(dealerCards: number): number {
   return REVEAL_HOLE_MS + REVEAL_CARD_MS * Math.max(0, dealerCards - 2);
 }
 
-/** The dealer draws under 17, and on a soft 17 only when the table says so. */
-export function dealerShouldHit(cards: readonly Card[], hitsSoft17: boolean): boolean {
-  const { total, soft } = handTotal(cards);
-  if (total < DEALER_STANDS_AT) return true;
-  return total === DEALER_STANDS_AT && soft && hitsSoft17;
+/** The dealer draws under 17 and stands on every 17, a soft one included. */
+export function dealerShouldHit(cards: readonly Card[]): boolean {
+  return handTotal(cards).total < DEALER_STANDS_AT;
 }
 
 /** The 52 cards every draw picks from. */
@@ -83,9 +83,9 @@ export function drawCard(rng: () => number): Card {
   return { ...card };
 }
 
-/** The whole-chip winnings on a natural: 3:2 or 6:5 of the stake, rounded down. */
-export function naturalWinnings(bet: number, payout: BlackjackPayout): number {
-  return payout === '3:2' ? Math.floor((bet * 3) / 2) : Math.floor((bet * 6) / 5);
+/** The whole-chip winnings on a natural: 3 to 2 of the stake, rounded down. */
+export function naturalWinnings(bet: number): number {
+  return Math.floor((bet * 3) / 2);
 }
 
 export interface Settlement {
@@ -99,11 +99,11 @@ export interface Settlement {
  * holds; a natural beats everything but a dealer natural (a push); a dealer natural beats every
  * other hand; a dealer bust pays every standing hand; otherwise the higher total wins.
  */
-export function settleHand(cards: readonly Card[], bet: number, fromSplit: boolean, dealer: readonly Card[], payout: BlackjackPayout): Settlement {
+export function settleHand(cards: readonly Card[], bet: number, fromSplit: boolean, dealer: readonly Card[]): Settlement {
   const player = handTotal(cards).total;
   if (player > BLACKJACK) return { outcome: 'loss', payout: 0 };
   const dealerNatural = isNatural(dealer);
-  if (isNatural(cards, fromSplit)) return dealerNatural ? { outcome: 'push', payout: bet } : { outcome: 'blackjack', payout: bet + naturalWinnings(bet, payout) };
+  if (isNatural(cards, fromSplit)) return dealerNatural ? { outcome: 'push', payout: bet } : { outcome: 'blackjack', payout: bet + naturalWinnings(bet) };
   if (dealerNatural) return { outcome: 'loss', payout: 0 };
   const house = handTotal(dealer).total;
   if (house > BLACKJACK || player > house) return { outcome: 'win', payout: bet * 2 };

@@ -55,10 +55,3 @@ export function waitingNotice(spyName: string): string {
 export function voteNotice(accuserName: string, accusedName: string, meAccused: boolean): string {
   return meAccused ? `${accuserName} accuses you of being the spy! The others are voting.` : `${accuserName} accuses ${accusedName} of being the spy. Vote now`;
 }
-
-export function chatPlaceholderFor(role: SpygameRole, phase: SpygamePhase): string {
-  if (phase === 'reveal') return 'Well played? Say so…';
-  if (role === 'spy') return 'Blend in… (ask out loud)';
-  if (role === 'spectator') return 'Watching. Chat with the room';
-  return 'Ask your questions out loud…';
-}

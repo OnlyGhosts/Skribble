@@ -1,5 +1,5 @@
 /** The streets of a hand: opening the betting, closing it (uncalled bets refunded), the board and the run-out. */
-import type { PokerStreet } from '../../../shared/games/poker/protocol.js';
+import { POKER_ACT_SECONDS, type PokerStreet } from '../../../shared/games/poker/protocol.js';
 import { awardUncontested, showdown } from './results.js';
 import { adjustChips, bigBlind, contenders, draw, seatsIn, snapshot, streetIdle, type Gx } from './state.js';
 
@@ -27,7 +27,7 @@ export function openStreet(gx: Gx): void {
   data.toAct = ring.filter((id) => data.seats[id].status === 'in');
   data.answered = {};
   if (streetIdle(data)) return endStreet(gx);
-  data.phase = { kind: 'acting', endsAt: ctx.now + ctx.settings.actSeconds * 1000 };
+  data.phase = { kind: 'acting', endsAt: ctx.now + POKER_ACT_SECONDS * 1000 };
   snapshot(gx);
 }
 

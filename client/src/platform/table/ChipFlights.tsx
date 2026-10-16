@@ -7,7 +7,7 @@ import type { Flight } from './timeline';
 /** The marker on the places chips fly between: `data-table-anchor="pot"`, `"seat:<id>"`, `"bet:<id>"`. */
 export const ANCHOR_ATTR = 'data-table-anchor';
 
-/** The centre of the first element marked `anchor` (the spotlight's comes before the seat's tile). */
+/** The centre of the first element marked `anchor` (a hand on show in the middle comes before the seat's tile). */
 function centreOf(doc: Document, anchor: string): { x: number; y: number } | null {
   const el = doc.querySelector(`[${ANCHOR_ATTR}="${CSS.escape(anchor)}"]`);
   if (!el) return null;

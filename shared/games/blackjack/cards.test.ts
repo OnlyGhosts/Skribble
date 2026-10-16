@@ -38,19 +38,17 @@ describe('hand totals', () => {
 
 describe('the dealer', () => {
   it('draws under 17 and stands on hard 17 and above', () => {
-    expect(dealerShouldHit(cards('10S', '6H'), false)).toBe(true);
-    expect(dealerShouldHit(cards('10S', '7H'), false)).toBe(false);
-    expect(dealerShouldHit(cards('10S', '7H'), true)).toBe(false);
-    expect(dealerShouldHit(cards('AS', '7H'), false)).toBe(false);
-    expect(dealerShouldHit(cards('AS', '8H'), true)).toBe(false);
+    expect(dealerShouldHit(cards('10S', '6H'))).toBe(true);
+    expect(dealerShouldHit(cards('AS', '5H'))).toBe(true);
+    expect(dealerShouldHit(cards('10S', '7H'))).toBe(false);
+    expect(dealerShouldHit(cards('AS', '7H'))).toBe(false);
+    expect(dealerShouldHit(cards('AS', '8H'))).toBe(false);
   });
 
-  it('draws on a soft 17 only when the table says so', () => {
-    expect(dealerShouldHit(cards('AS', '6H'), false)).toBe(false);
-    expect(dealerShouldHit(cards('AS', '6H'), true)).toBe(true);
-    expect(dealerShouldHit(cards('AS', '3H', '3D'), true)).toBe(true);
-    // A soft 17 that has become a hard 17 stands either way.
-    expect(dealerShouldHit(cards('AS', '6H', '10D'), true)).toBe(false);
+  it('stands on a soft 17: the house rule is fixed', () => {
+    expect(dealerShouldHit(cards('AS', '6H'))).toBe(false);
+    expect(dealerShouldHit(cards('AS', '3H', '3D'))).toBe(false);
+    expect(dealerShouldHit(cards('AS', '6H', '10D'))).toBe(false);
   });
 });
 
@@ -110,13 +108,10 @@ describe('the endless deck', () => {
 });
 
 describe('payouts', () => {
-  it('pays a natural 3:2 or 6:5 in whole chips, rounded down', () => {
-    expect(naturalWinnings(10, '3:2')).toBe(15);
-    expect(naturalWinnings(15, '3:2')).toBe(22);
-    expect(naturalWinnings(1, '3:2')).toBe(1);
-    expect(naturalWinnings(10, '6:5')).toBe(12);
-    expect(naturalWinnings(5, '6:5')).toBe(6);
-    expect(naturalWinnings(7, '6:5')).toBe(8);
+  it('pays a natural 3 to 2 in whole chips, rounded down', () => {
+    expect(naturalWinnings(10)).toBe(15);
+    expect(naturalWinnings(15)).toBe(22);
+    expect(naturalWinnings(1)).toBe(1);
   });
 
   it('settles every hand against the dealer', () => {
@@ -124,23 +119,22 @@ describe('payouts', () => {
     const dealerBust = cards('KS', '6H', '9D');
     const dealerNatural = cards('AS', 'KH');
     // A bust loses whatever the dealer holds.
-    expect(settleHand(cards('KS', '9H', '5D'), 10, false, dealerBust, '3:2')).toEqual({ outcome: 'loss', payout: 0 });
+    expect(settleHand(cards('KS', '9H', '5D'), 10, false, dealerBust)).toEqual({ outcome: 'loss', payout: 0 });
     // Higher wins 1:1, lower loses, equal pushes.
-    expect(settleHand(cards('KS', 'AH', '10D'), 10, false, dealer20, '3:2')).toEqual({ outcome: 'win', payout: 20 });
-    expect(settleHand(cards('KS', '9H'), 10, false, dealer20, '3:2')).toEqual({ outcome: 'loss', payout: 0 });
-    expect(settleHand(cards('KS', 'JH'), 10, false, dealer20, '3:2')).toEqual({ outcome: 'push', payout: 10 });
+    expect(settleHand(cards('KS', 'AH', '10D'), 10, false, dealer20)).toEqual({ outcome: 'win', payout: 20 });
+    expect(settleHand(cards('KS', '9H'), 10, false, dealer20)).toEqual({ outcome: 'loss', payout: 0 });
+    expect(settleHand(cards('KS', 'JH'), 10, false, dealer20)).toEqual({ outcome: 'push', payout: 10 });
     // A dealer bust pays every standing hand.
-    expect(settleHand(cards('2S', '3H'), 10, false, dealerBust, '3:2')).toEqual({ outcome: 'win', payout: 20 });
-    // A natural pays extra, unless the dealer has one too.
-    expect(settleHand(cards('AS', 'KH'), 10, false, dealer20, '3:2')).toEqual({ outcome: 'blackjack', payout: 25 });
-    expect(settleHand(cards('AS', 'KH'), 10, false, dealer20, '6:5')).toEqual({ outcome: 'blackjack', payout: 22 });
-    expect(settleHand(cards('AS', 'KH'), 10, false, dealerNatural, '3:2')).toEqual({ outcome: 'push', payout: 10 });
+    expect(settleHand(cards('2S', '3H'), 10, false, dealerBust)).toEqual({ outcome: 'win', payout: 20 });
+    // A natural pays 3 to 2, unless the dealer has one too.
+    expect(settleHand(cards('AS', 'KH'), 10, false, dealer20)).toEqual({ outcome: 'blackjack', payout: 25 });
+    expect(settleHand(cards('AS', 'KH'), 10, false, dealerNatural)).toEqual({ outcome: 'push', payout: 10 });
     // A dealer natural beats a 21 made of three cards and a 21 after a split.
-    expect(settleHand(cards('7S', '7H', '7D'), 10, false, dealerNatural, '3:2')).toEqual({ outcome: 'loss', payout: 0 });
-    expect(settleHand(cards('AS', 'KH'), 10, true, dealerNatural, '3:2')).toEqual({ outcome: 'loss', payout: 0 });
+    expect(settleHand(cards('7S', '7H', '7D'), 10, false, dealerNatural)).toEqual({ outcome: 'loss', payout: 0 });
+    expect(settleHand(cards('AS', 'KH'), 10, true, dealerNatural)).toEqual({ outcome: 'loss', payout: 0 });
     // 21 after a split is an ordinary 21: it pays 1:1 and pushes a dealer 21.
-    expect(settleHand(cards('AS', 'KH'), 10, true, dealer20, '3:2')).toEqual({ outcome: 'win', payout: 20 });
-    expect(settleHand(cards('AS', 'KH'), 10, true, cards('7S', '7H', '7D'), '3:2')).toEqual({ outcome: 'push', payout: 10 });
+    expect(settleHand(cards('AS', 'KH'), 10, true, dealer20)).toEqual({ outcome: 'win', payout: 20 });
+    expect(settleHand(cards('AS', 'KH'), 10, true, cards('7S', '7H', '7D'))).toEqual({ outcome: 'push', payout: 10 });
   });
 });
 

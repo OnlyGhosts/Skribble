@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_QUIPGAME_SETTINGS,
   QUIPGAME_ANSWER_MAX_LENGTH,
+  QUIPGAME_RESULTS_SECONDS,
   QUIPGAME_SETTINGS_LIMITS,
+  QUIPGAME_TOTAL_ROUNDS,
+  QUIPGAME_VOTE_SECONDS,
+  QUIPGAME_WRITE_SECONDS,
   answerTextSchema,
   normalizeQuipgameSettings,
   parseCustomPrompts,
@@ -17,17 +21,23 @@ describe('quipgame settings schema', () => {
   it('accepts the defaults and rejects out-of-range values', () => {
     expect(quipgameSettingsSchema.safeParse(DEFAULT_QUIPGAME_SETTINGS).success).toBe(true);
     expect(patchSchema.safeParse({}).success).toBe(true);
-    expect(patchSchema.safeParse({ writeSeconds: 29 }).success).toBe(false);
-    expect(patchSchema.safeParse({ writeSeconds: 181 }).success).toBe(false);
-    expect(patchSchema.safeParse({ voteSeconds: 9 }).success).toBe(false);
-    expect(patchSchema.safeParse({ resultsSeconds: 21 }).success).toBe(false);
-    expect(patchSchema.safeParse({ resultsSeconds: 4.5 }).success).toBe(false);
-    expect(patchSchema.safeParse({ announcer: 'yes' }).success).toBe(false);
+    expect(patchSchema.safeParse({ customPromptsOnly: 'yes' }).success).toBe(false);
     // The retired per-game cheeky switch is an unknown key now: stripped, not refused (stored rooms may still carry it).
     expect(patchSchema.safeParse({ cheeky: true })).toMatchObject({ success: true, data: {} });
     expect(patchSchema.safeParse({ customPrompts: ['x'.repeat(QUIPGAME_SETTINGS_LIMITS.customPrompts.maxLength + 1)] }).success).toBe(false);
     expect(patchSchema.safeParse({ customPrompts: Array.from({ length: 201 }, (_, i) => `p${i}`) }).success).toBe(false);
     expect(patchSchema.safeParse({ maxPlayers: 3 })).toMatchObject({ success: true, data: {} });
+  });
+
+  it('has no clocks, final round or announcer to set: the clocks are the old defaults and both are always on', () => {
+    expect([QUIPGAME_WRITE_SECONDS, QUIPGAME_VOTE_SECONDS, QUIPGAME_RESULTS_SECONDS]).toEqual([90, 30, 8]);
+    expect(QUIPGAME_TOTAL_ROUNDS).toBe(3);
+    expect(Object.keys(DEFAULT_QUIPGAME_SETTINGS).sort()).toEqual(['customPrompts', 'customPromptsOnly']);
+    // Even values the old schema refused are dropped, not refused: a stored room or an old client may still send them.
+    const retired = { writeSeconds: 29, voteSeconds: 9, resultsSeconds: 4.5, finalRound: false, announcer: 'yes' };
+    expect(patchSchema.safeParse({ ...retired, customPromptsOnly: true })).toMatchObject({ success: true, data: { customPromptsOnly: true } });
+    const stored = quipgameSettingsSchema.safeParse({ ...DEFAULT_QUIPGAME_SETTINGS, ...retired });
+    expect(stored.success && stored.data).toEqual(DEFAULT_QUIPGAME_SETTINGS);
   });
 });
 

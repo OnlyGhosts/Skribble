@@ -16,8 +16,10 @@ const { GuessInput } = await import('./components/GuessInput');
 const { WordDisplay } = await import('./components/WordDisplay');
 const { SkribbleSettingsFields } = await import('./components/SettingsFields');
 const { SkribbleScreen } = await import('./Screen');
-const { placeholderFor } = await import('./lib/format');
-const { player, registryOf, resetStore, room, welcome } = await import('../../test/fixtures');
+const { guessBoxLine } = await import('./lib/format');
+const { GuessBox } = await import('./components/GuessBox');
+const { GuessFeed } = await import('./components/GuessFeed');
+const { chatLine, player, registryOf, resetStore, room, welcome } = await import('../../test/fixtures');
 const { drawingPhase, inTurn, resetSkribbleStore } = await import('./test/fixtures');
 
 const stroke = (id: number): CanvasAction => ({ kind: 'stroke', id, tool: 'brush', color: '#000000', size: 6, points: [1, 1, 2, 2], done: true });
@@ -177,7 +179,7 @@ describe('drawing through an outage', () => {
   });
 });
 
-describe('player list and chat hooks', () => {
+describe('player list hooks', () => {
   it('badges the drawer and the players who guessed, and tints the guessers’ rows', () => {
     const state = inTurn(drawingPhase('host'), { players: { host: { guessedThisTurn: true, turnPoints: 40 }, bob: { guessedThisTurn: true, turnPoints: 120 } } });
     const host = player('host');
@@ -188,40 +190,78 @@ describe('player list and chat hooks', () => {
     expect(skribbleClient.playerClassName?.(state, bob)).toBe('player--guessed');
     expect(renderToString(createElement('div', null, skribbleClient.playerMeta?.(state, bob)))).toContain('+120');
   });
+});
 
-  it('tells the drawer that only players who guessed can read them', () => {
-    expect(placeholderFor('drawing', true, true)).toBe('Chat with players who guessed...');
-    expect(placeholderFor('drawing', false, false)).toBe('Type your guess...');
-    expect(placeholderFor('drawing', false, true)).toBe('Chat with players who guessed...');
-    expect(placeholderFor('lobby', true, false)).toBe('Chat...');
-    expect(placeholderFor('drawing', false, false, false)).toBe("You're watching this one. Chat...");
-    const state = inTurn(drawingPhase('host'), { players: { bob: { guessedThisTurn: true, turnPoints: 0 } } }, { players: [player('host'), player('bob', { joinOrder: 1 }), player('carol', { joinOrder: 2 })] });
-    expect(skribbleClient.chatPlaceholder?.(state, 'host')).toBe('Chat with players who guessed...');
-    expect(skribbleClient.chatPlaceholder?.(state, 'bob')).toBe('Chat with players who guessed...');
-    expect(skribbleClient.chatPlaceholder?.(state, 'carol')).toBe('Type your guess...');
-    const spectated = inTurn(drawingPhase('host'), {}, { players: [player('host'), player('bob', { joinOrder: 1 }), player('rae', { joinOrder: 2, participating: false, sittingOut: true })] });
-    expect(skribbleClient.chatPlaceholder?.(spectated, 'rae')).toBe("You're watching this one. Chat...");
-    expect(skribbleClient.chatPlaceholder?.(spectated, 'bob')).toBe('Type your guess...');
+describe('the guess box and the guess feed', () => {
+  const players = [player('host'), player('bob', { joinOrder: 1 }), player('carol', { joinOrder: 2 }), player('rae', { joinOrder: 3, participating: false, sittingOut: true })];
+  const solved = () => inTurn(drawingPhase('host'), { players: { bob: { guessedThisTurn: true, turnPoints: 0 } } }, { players });
+
+  it('gives only an unsolved guesser the tiles; the drawer, a solver and a spectator read one short line instead', () => {
+    for (const [id, tiles] of [['host', false], ['bob', false], ['carol', true], ['rae', false]] as const) {
+      enter(solved(), id);
+      const html = renderToString(createElement(GuessBox));
+      expect(html.includes('data-testid="guess-input"'), id).toBe(tiles);
+      expect(html.includes('data-testid="guess-idle"'), id).toBe(!tiles);
+    }
+    expect(guessBoxLine('drawing', true, true)).toBe('Guesses show up here');
+    expect(guessBoxLine('drawing', false, true)).toBe('You got it! Others are still guessing');
+    // A spectator of the whole game reads the same line in every phase.
+    for (const phase of ['choosing', 'drawing', 'turnEnd']) expect(guessBoxLine(phase, false, false, false)).toBe("You're watching. You can play the next game.");
+    expect(guessBoxLine('choosing', true, false)).toBe('Pick a word to draw');
+    expect(guessBoxLine('choosing', false, false)).toBe('Get ready to guess');
+    expect(guessBoxLine('turnEnd', false, false)).toBe('Next turn soon');
+  });
+
+  it("lists this game's guesses and lines, never the lines from before it started or the notices", () => {
+    enter(room({ players }) as SkribbleRoomState, 'bob');
+    for (const id of [1, 2]) platform().handleServerMessage({ t: 'chat', message: chatLine(id, 'system') });
+    // The game starts on screen (its start lines share its start time): what was said before it stays out of the feed.
+    snapshot(inTurn(drawingPhase('host'), { startedAt: 2, players: { bob: { guessedThisTurn: true, turnPoints: 0 } } }, { players }));
+    expect(skribble().feedFrom).toBe(2);
+    platform().handleServerMessage({ t: 'chat', message: { ...chatLine(3, 'chat', 'apple'), playerId: 'carol', name: 'Carol' } });
+    platform().handleServerMessage({ t: 'chat', message: chatLine(4, 'close', "'aple' is close!") });
+    platform().handleServerMessage({ t: 'chat', message: chatLine(5, 'correct', 'Carol guessed the word!') });
+    platform().handleServerMessage({ t: 'chat', message: chatLine(6, 'notice', 'Ann is now the host') });
+    platform().handleServerMessage({ t: 'chat', message: chatLine(7, 'hint', 'The word was: pear') });
+    const html = renderToString(createElement(GuessFeed));
+    expect([...html.matchAll(/data-kind="(\w+)"/g)].map((m) => m[1])).toEqual(['chat', 'close', 'correct', 'hint']);
+    expect(html).toContain('Carol');
+    expect(html).not.toContain('line 1');
+    // The notice popped up as a toast instead.
+    expect(platform().toasts.map((t) => t.text)).toContain('Ann is now the host');
+  });
+
+  it("shows a welcome into a running game only this game's lines, never the lobby's or an earlier game's", () => {
+    const game = inTurn(drawingPhase('host'), { startedAt: 5, players: { bob: { guessedThisTurn: true, turnPoints: 0 } } }, { players });
+    const history = [chatLine(2, 'system', 'Hana joined'), chatLine(4, 'chat', 'old guess'), chatLine(5, 'system', 'The game has started!'), chatLine(8, 'chat', 'banana'), chatLine(9, 'notice', 'Old news')];
+    platform().handleServerMessage({ ...welcome('rae', game), chat: history });
+    skribbleClient.onRoom?.(game, null);
+    expect(skribble().feedFrom).toBe(5);
+    const html = renderToString(createElement(GuessFeed));
+    expect(html).toContain('banana');
+    for (const before of ['Hana joined', 'old guess', 'The game has started!']) expect(html).not.toContain(before);
+    expect(html).not.toContain('Old news');
+    expect(platform().toasts).toHaveLength(0);
   });
 });
 
 describe('guess tiles for assistive tech and narrow bars', () => {
   it('keeps the input enabled while reconnecting and disables only Send', () => {
     usePlatformStore.setState({ connection: 'reconnecting' });
-    const html = renderToString(createElement(GuessInput, { mask: '_____', focusMemory: { current: false } }));
-    expect(tagWith(html, 'chat-input')).not.toContain('disabled');
-    expect(tagWith(html, 'chat-send')).toContain('disabled');
+    const html = renderToString(createElement(GuessInput, { mask: '_____' }));
+    expect(tagWith(html, 'guess-input')).not.toContain('disabled');
+    expect(tagWith(html, 'guess-send')).toContain('disabled');
   });
 
   it('describes the word shape and revealed hints to the real input', () => {
     usePlatformStore.setState({ connection: 'connected' });
-    const html = renderToString(createElement(GuessInput, { mask: 'a__l_', focusMemory: { current: false } }));
-    expect(tagWith(html, 'chat-input')).toContain('aria-describedby="chat-input-description"');
+    const html = renderToString(createElement(GuessInput, { mask: 'a__l_' }));
+    expect(tagWith(html, 'guess-input')).toContain('aria-describedby="guess-input-description"');
     expect(html).toContain('5 letters. Revealed: A blank blank L blank.');
   });
 
   it('tells each tile group how many letters it holds so the tiles can shrink to fit', () => {
-    const html = renderToString(createElement(GuessInput, { mask: '__________ ___-_', focusMemory: { current: false } }));
+    const html = renderToString(createElement(GuessInput, { mask: '__________ ___-_' }));
     expect(html).toContain('--letters:10;--seps:0');
     expect(html).toContain('--letters:4;--seps:1');
     // The row knows the whole phrase too: short viewports fit it on one line instead of wrapping.
@@ -314,11 +354,17 @@ describe('platform hold', () => {
 });
 
 describe('settings rows', () => {
-  it('renders the sliders for the host with the shared limits', () => {
+  it('renders the sliders for the host with the shared limits, and no draw time', () => {
     const settings = (room() as SkribbleRoomState).settings;
-    const html = renderToString(createElement(SkribbleSettingsFields, { settings, canEdit: true, patch: () => undefined }));
+    const html = renderToString(createElement(SkribbleSettingsFields, { settings, patch: () => undefined }));
     expect(tagWith(html, 'settings-rounds')).toContain('min="1"');
-    expect(tagWith(html, 'settings-drawTime')).toContain('step="10"');
+    expect(html).not.toContain('drawTime');
+    expect(html.match(/class="range"/g)).toHaveLength(3);
     expect(tagWith(html, 'settings-customWordsOnly')).toContain('disabled');
+    // Each slider shows its own value; the custom words get a count and an upload button.
+    const none = renderToString(createElement(SkribbleSettingsFields, { settings: { ...settings, hints: 0 }, patch: () => undefined }));
+    expect(none).toMatch(/data-testid="settings-value-hints"[^>]*>None</);
+    expect(tagWith(html, 'settings-customWords-upload')).toContain('btn--secondary');
+    expect(html).toMatch(/data-testid="settings-customWords-count"[^>]*>0<!-- --> <!-- -->words</);
   });
 });

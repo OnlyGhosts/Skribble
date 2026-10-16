@@ -36,6 +36,11 @@
   scrollbar-width: thin;
 }
 
+/* The column's first screen (portrait phones lay it out below); elsewhere its parts sit straight in the column. */
+.spy__first {
+  display: contents;
+}
+
 .spy__aside {
   grid-row: 2;
   grid-column: 2;
@@ -52,16 +57,7 @@
 .spy__accuse-card--desktop {
   flex: 0 1 auto;
   min-height: 0;
-  max-height: 55%;
   overflow-y: auto;
-}
-
-.spy__chat {
-  flex: 1 1 0;
-  min-height: 200px;
-  display: flex;
-  flex-direction: column;
-  padding: var(--space-3);
 }
 
 .spy__banner {
@@ -150,7 +146,7 @@
 }
 
 .spy-role__guesses {
-  align-self: flex-start;
+  flex: none;
   background: var(--color-secondary-soft);
   color: var(--color-secondary-text);
 }
@@ -347,6 +343,13 @@ button.spy-tile:disabled {
   flex-direction: column;
   gap: 2px;
   margin-bottom: var(--space-3);
+}
+
+.spy-grid-card__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
 }
 
 .spy-grid-card__title {
@@ -702,13 +705,6 @@ button.spy-accuse__row:disabled {
   background: var(--color-text-faint);
 }
 
-/* ---------- Chat in a sheet (phones) ---------- */
-.spy__chat-sheet {
-  display: flex;
-  flex-direction: column;
-  height: min(60vh, 520px);
-}
-
 /*
  * The agents' reference grid has room for four columns of six on a desktop. Keyed on the layout
  * class rather than the width: a landscape phone is wider than the breakpoint but shows the grid in
@@ -725,7 +721,7 @@ button.spy-accuse__row:disabled {
   }
 }
 
-/* ---------- Phone layout: header, one scrolling column, sheets for players and chat ---------- */
+/* ---------- Phone layout: header, one scrolling column, sheets for players and options ---------- */
 @media (max-width: 760px), (min-aspect-ratio: 3/2) and (max-height: 520px) {
   .spy {
     display: flex;
@@ -790,6 +786,202 @@ button.spy-accuse__row:disabled {
   }
 }
 
+/*
+ * Portrait phones: every candidate place is in view as the screen opens. The column's first screen
+ * is at least the column's height; the role card and the grid's head take what they need and the
+ * grid's eight rows of three share the rest equally, never under --spy-row-min, so a taller phone
+ * gets taller tiles (with their picture once there is room for it). The players to accuse follow
+ * below the fold.
+ */
+@media (max-width: 760px) and (orientation: portrait) {
+  .spy--phone .spy__first {
+    flex: none;
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .spy--phone .spy-role {
+    gap: 6px;
+    padding: 10px 12px;
+  }
+
+  .spy--phone .spy-role__guesses {
+    font-size: 0.75rem;
+  }
+
+  .spy--phone .spy-role__title {
+    font-size: 1.15rem;
+  }
+
+  .spy--phone .spy-role__head {
+    gap: var(--space-2);
+  }
+
+  .spy--phone .spy-role__mark {
+    width: 30px;
+    height: 30px;
+  }
+
+  .spy--phone .spy-role__text {
+    font-size: 0.85rem;
+  }
+
+  .spy--phone .spy-tile--lg {
+    gap: 10px;
+  }
+
+  .spy--phone .spy-tile--lg .spy-tile__picture {
+    width: 64px;
+    height: 48px;
+  }
+
+  .spy--phone .spy-tile--lg .spy-tile__name {
+    font-size: 1.2rem;
+  }
+
+  .spy--phone .spy-grid-card {
+    flex: 1 0 auto;
+    display: flex;
+    flex-direction: column;
+    padding: 10px;
+  }
+
+  .spy--phone .spy-grid-card__head {
+    gap: 0;
+    margin-bottom: 8px;
+  }
+
+  .spy--phone .spy-grid-card__title {
+    font-size: 0.95rem;
+  }
+
+  .spy--phone .spy-grid-card__hint {
+    font-size: 0.78rem;
+  }
+
+  .spy--phone .spy-grid {
+    --spy-row-min: 40px;
+    flex: 1 0 auto;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-rows: repeat(8, minmax(var(--spy-row-min), 1fr));
+    gap: 5px;
+  }
+
+  /* Each tile is a size container: its picture shows only when the tile is tall enough for it. */
+  .spy--phone .spy-grid li {
+    container-type: size;
+  }
+
+  .spy--phone .spy-grid .spy-tile {
+    height: 100%;
+    min-height: 0;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: center;
+    gap: 3px;
+    padding: 4px 6px;
+  }
+
+  .spy--phone .spy-grid .spy-tile__picture {
+    display: none;
+  }
+
+  .spy--phone .spy-grid .spy-tile__name {
+    font-size: 0.75rem;
+    line-height: 1.15;
+  }
+
+  /* The confirm hint would take a line the name needs: the grid's head says it instead. */
+  .spy--phone .spy-grid .spy-tile__hint {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  /* The marks sit on the tile's corner, clear of the name. */
+  .spy--phone .spy-grid .spy-tile--real .spy-tile__body,
+  .spy--phone .spy-grid .spy-tile--ruledOut .spy-tile__body {
+    padding-right: 0;
+  }
+
+  .spy--phone .spy-grid .spy-tile__mark {
+    top: -6px;
+    right: -6px;
+    transform: none;
+    width: 20px;
+    height: 20px;
+  }
+
+  .spy--phone .spy-grid .spy-tile__mark svg {
+    width: 12px;
+    height: 12px;
+  }
+
+  @container (min-height: 64px) {
+    .spy--phone .spy-grid .spy-tile {
+      justify-content: flex-start;
+      padding: 3px 3px 5px;
+    }
+
+    .spy--phone .spy-grid .spy-tile__picture {
+      position: relative;
+      display: block;
+      flex: 1 1 0;
+      min-height: 0;
+      width: 100%;
+      height: auto;
+      border-radius: 7px;
+    }
+
+    .spy--phone .spy-grid .spy-tile__picture img {
+      position: absolute;
+      inset: 0;
+    }
+
+    .spy--phone .spy-grid .spy-tile__emoji {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+    }
+
+    .spy--phone .spy-grid .spy-tile__body {
+      padding: 0 3px;
+    }
+  }
+}
+
+/* Short portrait phones (an SE): tighter spacing and a smaller hero picture leave the rows their room. */
+@media (max-width: 760px) and (orientation: portrait) and (max-height: 600px) {
+  .spy--phone .spy__main,
+  .spy--phone .spy__first {
+    gap: 6px;
+  }
+
+  .spy--phone .spy-role {
+    padding: 8px 10px;
+  }
+
+  .spy--phone .spy-tile--lg .spy-tile__picture {
+    width: 48px;
+    height: 36px;
+  }
+
+  .spy--phone .spy-grid-card {
+    padding: 8px;
+  }
+
+  .spy--phone .spy-grid {
+    --spy-row-min: 38px;
+    gap: 4px;
+  }
+}
+
 /* Landscape phones: the column scrolls beside nothing; keep the header to one tidy row. */
 @media (min-aspect-ratio: 3/2) and (max-height: 520px) {
   .spy__main {
@@ -798,12 +990,14 @@ button.spy-accuse__row:disabled {
     align-content: flex-start;
   }
 
-  .spy__main > * {
+  /* The first screen's parts sit straight in the row (.spy__first is display: contents here). */
+  .spy__main > *,
+  .spy__first > * {
     flex: 1 1 calc(50% - var(--space-2));
     min-width: 0;
   }
 
-  .spy__main > .spy__banner {
+  .spy__first > .spy__banner {
     flex-basis: 100%;
   }
 }

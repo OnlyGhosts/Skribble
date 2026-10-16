@@ -1,24 +1,10 @@
-import type { BlackjackPayout, BlackjackPhase, BlackjackView, HandOutcome } from '@shared/games/blackjack/protocol';
+import type { BlackjackPhase, BlackjackView, HandOutcome } from '@shared/games/blackjack/protocol';
 import { formatChips } from '../../../platform/lib/format';
+import { WATCHING_TEXT } from '../../../platform/lib/watching';
 import type { PanelStatus, StatusTone } from '../../../platform/table/ControlPanel';
+import type { BjFocus } from './focus';
 
 export { formatChips };
-
-export function chatPlaceholderFor(phase: BlackjackPhase | undefined, inRound: boolean): string | undefined {
-  switch (phase) {
-    case 'betting':
-      return inRound ? 'Bet, then chat…' : 'Watching this round…';
-    case 'acting':
-      return 'Hit or stand? Talk it over…';
-    case 'results':
-      return 'Good hand? Talk it over…';
-    case 'ending':
-    case 'gameOver':
-      return 'Good game…';
-    default:
-      return undefined;
-  }
-}
 
 /** "Round 4": the rounds never run out. A hold before the first deal reads as round 1. */
 export function roundLabel(round: number): string {
@@ -63,15 +49,9 @@ export function waitingText(names: readonly string[]): string {
   return `Waiting for ${joined}`;
 }
 
-const PAYS: Record<BlackjackPayout, string> = { '3:2': '3 TO 2', '6:5': '6 TO 5' };
-
-export function ribbonText(payout: BlackjackPayout): string {
-  return `BLACKJACK PAYS ${PAYS[payout]}`;
-}
-
-export function dealerRuleText(hitsSoft17: boolean): string {
-  return hitsSoft17 ? 'DEALER HITS SOFT 17' : 'DEALER STANDS ON 17';
-}
+/** The banner across the table (shown in capitals), with the small rule under it: the house rules are fixed. */
+export const RIBBON_TEXT = 'Blackjack pays 3 to 2';
+export const DEALER_RULE_TEXT = 'Dealer stands on 17';
 
 const OUTCOME_LABELS: Record<HandOutcome, string> = { win: 'Win', blackjack: 'Blackjack', push: 'Push', loss: 'Lost' };
 
@@ -135,7 +115,7 @@ function line(state: PanelState, text: string): PanelStatus {
 
 /** The one line in the panel that says what is happening and whose turn it is. */
 export function panelStatus(s: PanelStatusInput): PanelStatus {
-  if (!s.seated) return line('spectating', "You're watching this game");
+  if (!s.seated) return line('spectating', WATCHING_TEXT);
   if (s.phase === 'ending' || s.phase === 'gameOver') return line('over', 'Game over');
   if (s.bustedOut) return line('out', "You're out of chips");
   if (!s.connected) return line('offline', 'Reconnecting…');
@@ -155,7 +135,7 @@ export function panelStatus(s: PanelStatusInput): PanelStatus {
   return line('their-turn', `${s.turnName}'s turn`);
 }
 
-/** The spotlight's label for my settled round: "You win +200", "Blackjack +250", "Push", "You lost". */
+/** The line under the ribbon for my settled round: "You win +200", "Blackjack +250", "Push", "You lost". */
 export function resultLabel(outcome: HandOutcome, back: number): string {
   switch (outcome) {
     case 'blackjack':
@@ -169,24 +149,62 @@ export function resultLabel(outcome: HandOutcome, back: number): string {
   }
 }
 
-/** The spotlight's label while the bets go down: `waiting` names who the deal waits for, the viewer left out. */
+/** The line under the ribbon while the bets go down: `waiting` names who the deal waits for, the viewer left out. */
 export function betsLabel(meWaiting: boolean, waiting: readonly string[], anyBet: boolean): string {
   if (meWaiting) return 'Place your bet';
   if (waiting.length === 0) return anyBet ? 'Dealing' : 'Waiting for a bet';
   return waitingText(waiting);
 }
 
-/** Which of a seat's hands is in play, for a seat holding more than one: "Hand 3 of 7". */
-export function handMarker(handIndex: number, handCount: number): string {
-  return `Hand ${handIndex + 1} of ${handCount}`;
-}
-
 /** Under "Dealer's turn" while the dealer plays: the rule it plays by. */
-export function dealerRule(hitsSoft17: boolean): string {
-  return hitsSoft17 ? 'Draws to 17, hits a soft 17' : 'Draws to 17';
+const DEALER_DRAWS = 'Draws to 17';
+
+const IDLE_LINES = { held: 'Waiting for players', over: 'Game over', next: 'Next round soon' } as const;
+
+export interface FocusLine {
+  /** The state, for data-state: the focus's kind. */
+  state: string;
+  text: string;
+  tone: StatusTone;
+  /** A quieter second part: who is next, how many bets are in, the dealer's rule. */
+  sub?: string;
 }
 
-/** The spotlight's label on a turn (the hand in play goes under it, as a marker). */
-export function turnLabel(mine: boolean, name: string): string {
-  return mine ? 'Your turn' : `${name}'s turn`;
+export interface FocusLineInput {
+  nameOf(id: string): string;
+  meId: string;
+  /** How many hands the player on turn holds, for "hand 2 of 3". */
+  handCount: number;
+  /** My settled round, for a `result` focus. */
+  result?: { outcome: HandOutcome; back: number };
+}
+
+/**
+ * The short line under the ribbon: whose turn it is ("Pia's turn, hand 2 of 3", with who is next),
+ * the dealer playing, the bets going down (and how many are in), or how my round went.
+ */
+export function focusLine(focus: BjFocus, s: FocusLineInput): FocusLine {
+  switch (focus.kind) {
+    case 'turn': {
+      const which = s.handCount > 1 ? `, hand ${focus.handIndex + 1} of ${s.handCount}` : '';
+      if (focus.mine) return { state: 'mine', text: `Your turn${which}`, tone: 'go' };
+      const next = focus.next === null ? 'Dealer' : focus.next === s.meId ? 'You' : s.nameOf(focus.next);
+      return { state: 'turn', text: `${s.nameOf(focus.playerId)}'s turn${which}`, tone: 'other', sub: `Next: ${next}` };
+    }
+    case 'dealer':
+      return { state: 'dealer', text: "Dealer's turn", tone: 'other', sub: DEALER_DRAWS };
+    case 'bets': {
+      const names = focus.waiting.filter((id) => id !== s.meId).map(s.nameOf);
+      const meWaiting = focus.waiting.includes(s.meId);
+      const sub = `${focus.placed.length} of ${focus.placed.length + focus.waiting.length} bets in`;
+      return { state: 'bets', text: betsLabel(meWaiting, names, focus.placed.length > 0), tone: meWaiting ? 'go' : 'quiet', sub };
+    }
+    case 'result': {
+      const outcome = s.result?.outcome ?? 'push';
+      const tone: StatusTone = outcome === 'loss' ? 'bad' : outcome === 'push' ? 'quiet' : 'go';
+      return { state: 'result', text: resultLabel(outcome, s.result?.back ?? 0), tone };
+    }
+    case 'idle':
+      return { state: 'idle', text: IDLE_LINES[focus.reason], tone: 'quiet' };
+  }
 }

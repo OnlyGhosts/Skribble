@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react';
 import { create } from 'zustand';
 
 /** The phone sheets the screen can show; one at a time, and never under the vote sheet. */
-export type SpygameSheet = 'players' | 'chat' | 'menu';
+export type SpygameSheet = 'players' | 'menu';
 
 /** The Spy Game's own client state: the two-tap selections and which sheet is up. */
 interface SpygameState {
@@ -12,14 +12,14 @@ interface SpygameState {
   highlightedPlayer: string | null;
   /** Opened for eligible voters when a vote starts; they may close it and vote from the panel instead. */
   voteSheetOpen: boolean;
-  /** The players / chat / menu sheet that is open, if any. */
+  /** The players or menu sheet that is open, if any. */
   sheet: SpygameSheet | null;
 }
 
 interface SpygameActions {
   highlightLocation(id: string | null): void;
   highlightPlayer(id: string | null): void;
-  /** Opening the vote sheet closes any other sheet, so the Yes/No never hides under the chat. */
+  /** Opening the vote sheet closes any other sheet, so the Yes/No never hides under another sheet. */
   setVoteSheetOpen(open: boolean): void;
   openSheet(sheet: SpygameSheet | null): void;
   /** Drops the pending taps and the vote sheet (a round started or ended); the open sheet stays. */

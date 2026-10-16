@@ -5,7 +5,7 @@ import { leaveRoom } from '../net/actions';
 import { registeredGame } from '../registry';
 import { BottomSheet } from './BottomSheet';
 import { ConnectionPill } from './ConnectionPill';
-import { BackIcon, ChatIcon, LogoutIcon, MenuIcon, UsersIcon } from './Icons';
+import { BackIcon, LogoutIcon, MenuIcon, UsersIcon } from './Icons';
 import { LeaveConfirm } from './LeaveConfirm';
 import { PlayerChips } from './PlayerChips';
 import { PreferenceRows, SettingsMenu } from './Preferences';
@@ -34,8 +34,6 @@ interface Props {
   clock?: ReactNode;
   /** The players sheet the chips open. */
   players: Toggle & { label?: string };
-  /** Left out where the chat is already on screen (a desktop chat column, Scribble's guess feed). */
-  chat?: Toggle;
   /** The phone's options sheet (theme, sound, the game's host controls, Leave). */
   menu: Toggle;
   /** Desktop only: host controls beside the gear (End game). */
@@ -45,8 +43,9 @@ interface Props {
   /** A last row inside the bar (Scribble's word on a phone). */
   below?: ReactNode;
   /**
-   * One row only (a card table on a phone, whose players are all on the table): the player chips
-   * give way to a players button with the count, and the clock goes with them.
+   * One row only (a card table on a phone, whose players are all on the table; The Spy Game on a
+   * phone, which lists its players below): the player chips give way to a players button with the
+   * count, and the clock, if any, sits small in the row.
    */
   compact?: boolean;
 }
@@ -54,10 +53,10 @@ interface Props {
 /**
  * Every game's top bar, as on the brand board: a back arrow (leaving asks first), the game's name
  * large and the round on the right, then a row of player chips with the timer ring at its end.
- * Chat and options are small icon buttons on the first row; a desktop has the gear and the host's
- * controls there instead of the options sheet.
+ * The options button is a small icon button on the first row of a phone; a desktop has the gear and
+ * the host's controls there instead of the options sheet.
  */
-export function GameTopBar({ meta, room, isPhone, testId, className, status, statusTestId = 'round-indicator', statusData, clock, players, chat, menu, actions, middle, below, compact = false }: Props) {
+export function GameTopBar({ meta, room, isPhone, testId, className, status, statusTestId = 'round-indicator', statusData, clock, players, menu, actions, middle, below, compact = false }: Props) {
   const game = registeredGame(room.gameId);
   const [leaving, setLeaving] = useState(false);
   return (
@@ -81,6 +80,7 @@ export function GameTopBar({ meta, room, isPhone, testId, className, status, sta
             {status}
           </span>
           <div className="gbar__side">
+            {compact && clock && <div className="gbar__clock gbar__clock--row">{clock}</div>}
             {compact && (
               <button
                 type="button"
@@ -93,11 +93,6 @@ export function GameTopBar({ meta, room, isPhone, testId, className, status, sta
               >
                 <UsersIcon size={18} />
                 <span className="gbar__count-n">{room.players.length}</span>
-              </button>
-            )}
-            {chat && (
-              <button type="button" className="icon-btn gbar__btn" onClick={chat.onOpen} aria-haspopup="dialog" aria-expanded={chat.open} aria-label="Chat" data-testid="chat-toggle">
-                <ChatIcon size={20} />
               </button>
             )}
             {isPhone ? (

@@ -2,10 +2,12 @@ import { Children, isValidElement, useLayoutEffect, useRef, useState, type CSSPr
 import type { Avatar as AvatarData } from '@shared/platform/avatar';
 import { Avatar } from '../components/Avatar';
 import { BottomSheet } from '../components/BottomSheet';
-import { ChipIcon, Chips } from '../components/Chips';
+import { ChipIcon } from '../components/Chips';
 import { CheckIcon, CloseIcon, SparkIcon } from '../components/Icons';
 import { CardsIcon, OutIcon, StarIcon } from './Icons';
 import { TotalPill, type Tone } from './Outcome';
+import { StackCount } from './Stakes';
+import type { StakeFormat } from './stakes';
 import { TIER_SHAPES, WIDE_TIER_SHAPES, arcLift, fitGrid, tileTier, type TileTier } from './grid';
 
 interface GridProps {
@@ -135,9 +137,9 @@ interface TileProps {
   mark: SeatMark;
   /** The settled outcome, kept on show until the next deal. */
   outcome?: SeatOutcome | null;
-  /** The stack (full tiles only). */
+  /** The stack, in words ("1,000 chips"; "1.2k chips" where a tile is too small for the full figure). */
   chips?: number;
-  /** The stake in front of the seat. */
+  /** The stake in front of the seat, as its own labelled pill (StakePill). */
   bet?: ReactNode;
   /** The total, shown wherever the cards are not. */
   total?: { text: string; tone: Tone } | null;
@@ -153,17 +155,26 @@ interface TileProps {
   extra?: ReactNode;
   /** Opens the seat's sheet with its full hand. */
   onOpen?(): void;
-  /** A compact tile shows the status line (Poker's last move) in place of the bet. */
-  compactLine?: boolean;
+  /** The total only stands in for the stack (Poker's): shown only where the tile is too short for the stack in words. */
+  shortBadge?: boolean;
   data?: DataAttrs;
 }
 
+/**
+ * How a tile writes its figures: in full on a full tile, in full where it fits on a compact one
+ * (1,040 and 1,000 never both read "1k"), short on the small tiers.
+ */
+export function tileFigures(tier: TileTier): StakeFormat {
+  if (tier === 'full') return 'full';
+  return tier === 'compact' ? 'fit' : 'short';
+}
+
 /** One player in the grid; how much it shows depends on the tier (table.css lays each tier out). */
-export function PlayerTile({ playerId, name, avatar, connected, count, turn, line, mark, outcome = null, chips, bet, total, dimmed = false, badge, tag, cards, extra, onOpen, compactLine = false, data }: TileProps) {
+export function PlayerTile({ playerId, name, avatar, connected, count, turn, line, mark, outcome = null, chips, bet, total, dimmed = false, badge, tag, cards, extra, onOpen, shortBadge = false, data }: TileProps) {
   const tier: TileTier = tileTier(count);
   return (
     <div
-      className={`tbl-tile tbl-tile--${tier}${turn ? ' tbl-tile--turn' : ''}${dimmed ? ' tbl-tile--dim' : ''}${outcome ? ` tbl-tile--${outcome}` : ''}${compactLine ? ' tbl-tile--line' : ''}`}
+      className={`tbl-tile tbl-tile--${tier}${turn ? ' tbl-tile--turn' : ''}${dimmed ? ' tbl-tile--dim' : ''}${outcome ? ` tbl-tile--${outcome}` : ''}${shortBadge ? ' tbl-tile--short-badge' : ''}`}
       data-testid="seat"
       data-player-id={playerId}
       data-name={name}
@@ -185,7 +196,7 @@ export function PlayerTile({ playerId, name, avatar, connected, count, turn, lin
         {badge}
       </span>
       <span className="tbl-tile__meta">
-        {chips !== undefined && <Chips value={chips} size={11} className="tbl-tile__chips" />}
+        {chips !== undefined && <StackCount value={chips} format={tileFigures(tier)} className="tbl-tile__chips" testId="seat-chips" />}
         {bet !== undefined && <span className="tbl-tile__bet">{bet}</span>}
         <span className={`tbl-tile__line tbl-tile__line--${line.tone}`} data-testid="seat-line">
           {line.text}

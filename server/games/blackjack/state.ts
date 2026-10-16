@@ -93,11 +93,12 @@ export function nameOf(ctx: Pick<Ctx, 'players' | 'spectators'>, id: string): st
 }
 
 /**
- * Participants still in the game, in join order: everyone seated with chips left, plus a
- * newcomer without a seat yet (dealt in when the next round starts).
+ * Participants still in the game, in join order: everyone seated with chips left. Every
+ * participant is seated at the start; one without a seat (a room stored when newcomers were still
+ * dealt in at the next round) only watches.
  */
 export function activePlayers(ctx: Pick<Ctx, 'players'>, data: BlackjackData): PlatformPlayer[] {
-  return ctx.players.filter((p) => !data.seats[p.id]?.bustedOut);
+  return ctx.players.filter((p) => data.seats[p.id] !== undefined && !data.seats[p.id].bustedOut);
 }
 
 /** Participants still in the game who are connected: the next round needs one. */
@@ -132,20 +133,20 @@ export function actingHand(data: BlackjackData, playerId: string): HandData | un
 const NO_ACTIONS: BlackjackActions = { canHit: false, canStand: false, canDouble: false, canSplit: false };
 
 /** A pair may be split, again and again with no cap, while the seat has the chips for another stake. */
-export function canSplitHand(settings: BlackjackSettings, seat: SeatData, hand: HandData): boolean {
-  return settings.allowSplit && hand.cards.length === 2 && isPair(hand.cards) && seat.chips >= hand.bet;
+export function canSplitHand(seat: SeatData, hand: HandData): boolean {
+  return hand.cards.length === 2 && isPair(hand.cards) && seat.chips >= hand.bet;
 }
 
 /** What the acting player may do with the hand in play. */
-export function actionsFor(data: BlackjackData, settings: BlackjackSettings, playerId: string): BlackjackActions {
+export function actionsFor(data: BlackjackData, playerId: string): BlackjackActions {
   const hand = actingHand(data, playerId);
   const seat = data.seats[playerId];
   if (!hand || !seat || hand.status !== 'acting') return { ...NO_ACTIONS };
   return {
     canHit: !hand.splitAces,
     canStand: true,
-    canDouble: settings.allowDouble && !hand.splitAces && hand.cards.length === 2 && seat.chips >= hand.bet,
-    canSplit: canSplitHand(settings, seat, hand),
+    canDouble: !hand.splitAces && hand.cards.length === 2 && seat.chips >= hand.bet,
+    canSplit: canSplitHand(seat, hand),
   };
 }
 
@@ -190,6 +191,11 @@ export function systemMessage(gx: Gx, text: string): void {
   gx.effects.push({ type: 'chat', to: 'all', kind: 'system', text });
 }
 
+/** A line every client shows as a toast: an event the table does not show otherwise. */
+export function noticeMessage(gx: Gx, text: string): void {
+  gx.effects.push({ type: 'chat', to: 'all', kind: 'notice', text });
+}
+
 export function snapshot(gx: Gx): void {
   gx.effects.push({ type: 'snapshot', to: 'all' });
 }
@@ -229,9 +235,9 @@ export function settledStatus(hand: HandData): HandStatus | null {
 }
 
 /** A hand coming into play that needs no decision: a natural or 21, or split aces that cannot be split again. */
-export function autoStatus(settings: BlackjackSettings, seat: SeatData, hand: HandData): HandStatus | null {
+export function autoStatus(seat: SeatData, hand: HandData): HandStatus | null {
   const settled = settledStatus(hand);
   if (settled) return settled;
-  if (hand.splitAces && !canSplitHand(settings, seat, hand)) return 'stood';
+  if (hand.splitAces && !canSplitHand(seat, hand)) return 'stood';
   return null;
 }

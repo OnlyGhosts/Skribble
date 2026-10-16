@@ -33,7 +33,7 @@ export function room(overrides: Partial<RoomState> = {}): RoomState {
     code: 'ABCD',
     gameId: 'skribble',
     hostId: 'host',
-    settings: { allowMidGameJoin: true, contentMode: 'family', ...DEFAULT_SKRIBBLE_SETTINGS },
+    settings: { contentMode: 'family', ...DEFAULT_SKRIBBLE_SETTINGS },
     players: [player('host'), player('bob', { joinOrder: 1 })],
     phase: 'lobby',
     podium: null,

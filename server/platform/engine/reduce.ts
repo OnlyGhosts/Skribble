@@ -98,7 +98,7 @@ function handleGameMessage(cx: Cx, playerId: string, raw: unknown): void {
   // The game only knows its participants (GameCtx.players): a spectator's move has nobody to act
   // for, except the host's own controls (skip, end game), which the module declares.
   const hostControl = playerId === cx.data.hostId && game.hostMessages?.has(messageType(parsed.data)) === true;
-  if (!findPlayer(cx.data, playerId)?.participating && !hostControl) return fail(cx, playerId, 'NOT_ALLOWED', 'You are sitting this game out.');
+  if (!findPlayer(cx.data, playerId)?.participating && !hostControl) return fail(cx, playerId, 'NOT_ALLOWED', 'You are watching this game.');
   runGame(cx, { type: 'message', playerId, msg: parsed.data });
 }
 

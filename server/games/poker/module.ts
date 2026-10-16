@@ -60,9 +60,6 @@ function handle(ctx: Ctx, data: PokerData, event: GameEvent<PokerClientMessage>)
         return onMessage(gx, event.playerId, event.msg);
       case 'chat':
         return;
-      case 'playerJoined':
-        // A newcomer takes a seat (and the starting stack) only when the next hand starts, and only while one is free.
-        return snapshotOrResume(gx);
       case 'playerLeft':
         return onPlayerLeft(gx, event.playerId);
       case 'playerDisconnected':

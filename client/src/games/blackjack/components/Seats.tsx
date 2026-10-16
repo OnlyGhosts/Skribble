@@ -1,13 +1,13 @@
 import type { BlackjackRoomState, BlackjackView } from '@shared/games/blackjack/protocol';
-import { Chips } from '../../../platform/components/Chips';
 import { tileTier } from '../../../platform/table/grid';
 import type { Tone } from '../../../platform/table/Outcome';
-import { PlayerTile, PlayersGrid, SeatSheet, type SeatLine, type SeatMark } from '../../../platform/table/PlayersGrid';
+import { PlayerTile, PlayersGrid, SeatSheet, tileFigures, type SeatLine, type SeatMark } from '../../../platform/table/PlayersGrid';
+import { StackCount, StakePill } from '../../../platform/table/Stakes';
 import { playerOf } from '../hooks';
-import { seatOutcome } from '../lib/spotlight';
+import { seatOutcome } from '../lib/focus';
 import { totalText, type TableHand, type TableModel } from '../lib/table';
 import { outcomesShown, type Timeline } from '../lib/timeline';
-import { formatChips, outcomeLabel, payoutText } from '../lib/text';
+import { outcomeLabel, payoutText } from '../lib/text';
 import { useBlackjack, useBlackjackStore } from '../store';
 import { Hand, handOnScreen } from './Hand';
 
@@ -28,7 +28,7 @@ interface Props {
 }
 
 /**
- * One short line under a seat: what it is doing, or how its round went. While the dealer's reveal
+ * One short line on a seat: what it is doing, or how its round went (the stake has its own pill). While the dealer's reveal
  * still plays (`dealerPlaying`) a seat with cards waits for it, so nothing runs ahead of the table.
  */
 export function seatLine(view: BlackjackView, id: string, hands: TableHand[], settledShown: boolean, dealerPlaying = false): SeatLine {
@@ -36,7 +36,7 @@ export function seatLine(view: BlackjackView, id: string, hands: TableHand[], se
   if (dealerPlaying && hands.length > 0) return { state: 'waiting', text: 'Waiting', tone: 'quiet' };
   if (seat.bustedOut) return { state: 'out', text: 'Out', tone: 'bad' };
   const betting = view.phase === 'betting' && view.order.includes(id);
-  if (betting && seat.bet > 0) return { state: 'bet', text: `Bet ${formatChips(seat.bet)}`, tone: 'quiet' };
+  if (betting && seat.bet > 0) return { state: 'bet', text: '', tone: 'quiet' };
   if (betting && seat.sittingOut) return { state: 'sitting-out', text: 'Sitting out', tone: 'quiet' };
   if (view.phase === 'acting' && view.turn?.playerId === id) return { state: 'playing', text: 'Playing', tone: 'turn' };
   // Not dealt in with chips to play: they sat this hand out.
@@ -108,10 +108,13 @@ function SeatDetail({ room, view, id, table, timeline, now, leaving, chips }: { 
   const settledShown = Boolean(table?.settled) && outcomesShown(timeline, now);
   const line = seatLine(view, id, hands, settledShown);
   const turnHand = view.phase === 'acting' && view.turn?.playerId === id ? view.turn.handIndex : -1;
+  const stake = view.phase === 'betting' ? (view.players[id]?.bet ?? 0) : hands.reduce((sum, h) => sum + h.bet, 0);
   return (
     <div className="bj-seat-detail" data-testid="seat-detail" data-player-id={id}>
       <p className="bj-seat-detail__line">
-        <Chips value={chips} size={14} /> {line.text && <span>{line.text}</span>}
+        <StackCount value={chips} />
+        {stake > 0 && <StakePill value={stake} />}
+        {line.text && <span className="bj-seat-detail__state">{line.text}</span>}
       </p>
       {hands.length > 0 ? (
         <div className="bj-seat-detail__hands">
@@ -165,7 +168,7 @@ export function Seats({ room, view, ids, meId, table, timeline, now, leaving, wi
                 mark={seatMark(line, hands, settledShown)}
                 outcome={settledShown ? seatOutcome(hands) : null}
                 chips={chipsOf(id)}
-                bet={stake > 0 ? <Chips value={stake} size={11} /> : undefined}
+                bet={stake > 0 ? <StakePill value={stake} format={tileFigures(tier)} testId="seat-bet" /> : undefined}
                 total={tileTotal(id, hands, timeline, now, turn, view.turn?.handIndex ?? 0, oneTotal)}
                 dimmed={seat.bustedOut}
                 onOpen={() => openSeat(id)}

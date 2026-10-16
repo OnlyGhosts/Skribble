@@ -29,6 +29,7 @@ function start(ctx: Ctx): Result {
   // should too few players be connected (the platform starts a game only with enough, so in
   // practice the first turn begins at once).
   const initial: SkribbleData = {
+    startedAt: ctx.now,
     phase: { kind: 'turnEnd', reason: 'noWordChosen', endsAt: ctx.now, points: {}, held: false },
     turn: null,
     canvasId: '',
@@ -50,10 +51,6 @@ function handle(ctx: Ctx, data: SkribbleData, event: GameEvent<SkribbleClientMes
       case 'chat':
         if (chat(gx, event.playerId, event.text)) effects.push({ type: 'chatHandled' });
         return;
-      case 'playerJoined':
-        draft.turnQueue.push(event.playerId);
-        if (draft.phase.kind === 'drawing' && draft.turn) draft.turn.guesserIds.push(event.playerId);
-        return resumeHeldTurn(gx);
       case 'playerLeft':
         return onPlayerLeft(gx, event.playerId);
       case 'playerDisconnected':

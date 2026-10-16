@@ -1,14 +1,15 @@
 /**
- * What Blackjack's spotlight is on, phase by phase (pure, for the screen and the tests): the hand
- * being played and who is next; the dealer while the reveal plays; my own outcome once the round
- * settles (through the results pause, until my next bet goes down); who has bet and who we wait
- * for while the bets go down.
+ * What the Blackjack table is following, phase by phase (pure, for the screen and the tests): the
+ * hand being played and who is next; the dealer while the reveal plays; my own outcome once the
+ * round settles (through the results pause, until my next bet goes down); who has bet and who we
+ * wait for while the bets go down. The line under the ribbon says it, and the stage at the bottom
+ * of the table shows the hand in play.
  */
 import type { BlackjackView, HandOutcome } from '@shared/games/blackjack/protocol';
 import { pendingBettors } from '../hooks';
 import type { TableHand, TableModel } from './table';
 
-export type BjSubject =
+export type BjFocus =
   /** `next` is who plays after this seat; null when the dealer is next. */
   | { kind: 'turn'; playerId: string; handIndex: number; mine: boolean; next: string | null }
   | { kind: 'dealer' }
@@ -34,7 +35,7 @@ function nextToPlay(view: BlackjackView, playerId: string): string | null {
   return view.order.slice(at + 1).find((id) => (view.players[id]?.hands ?? []).some((h) => h.status === 'waiting' || h.status === 'acting')) ?? null;
 }
 
-export function spotlightSubject({ view, table, dealerPlaying, outcomesShown, meId }: SubjectInput): BjSubject {
+export function focusOf({ view, table, dealerPlaying, outcomesShown, meId }: SubjectInput): BjFocus {
   if (view.phase === 'held') return { kind: 'idle', reason: 'held' };
   if (dealerPlaying) return { kind: 'dealer' };
   if (view.phase === 'acting') {
@@ -45,13 +46,13 @@ export function spotlightSubject({ view, table, dealerPlaying, outcomesShown, me
   const settledMine = meId !== null && Boolean(table?.settled) && outcomesShown && (table?.hands[meId]?.length ?? 0) > 0;
   if (view.phase === 'ending' || view.phase === 'gameOver') return settledMine && meId !== null ? { kind: 'result', playerId: meId } : { kind: 'idle', reason: 'over' };
   if (view.phase === 'results') return settledMine && meId !== null ? { kind: 'result', playerId: meId } : { kind: 'idle', reason: 'next' };
-  // Betting: my outcome stays in the spotlight until my next stake goes down.
+  // Betting: my outcome stays up until my next stake goes down.
   if (settledMine && meId !== null && (view.players[meId]?.bet ?? 0) === 0) return { kind: 'result', playerId: meId };
   return { kind: 'bets', placed: view.order.filter((id) => (view.players[id]?.bet ?? 0) > 0), waiting: pendingBettors(view) };
 }
 
-/** A stable key per subject: a new key slides the spotlight over to it. */
-export function subjectKey(s: BjSubject): string {
+/** A stable key per subject: a new key slides the line under the ribbon over to it. */
+export function focusKey(s: BjFocus): string {
   switch (s.kind) {
     case 'turn':
       return `turn:${s.playerId}`;
@@ -71,4 +72,20 @@ export function seatOutcome(hands: readonly TableHand[]): HandOutcome | null {
   const back = hands.reduce((sum, h) => sum + (h.payout ?? 0), 0);
   const staked = hands.reduce((sum, h) => sum + h.bet, 0);
   return back > staked ? 'win' : back === staked ? 'push' : 'loss';
+}
+
+/**
+ * Whose hands take the stage at the bottom of the table: another player's on their turn (their
+ * hits are what everyone watches, and a seat is too small to follow them), otherwise mine when I
+ * am seated; a spectator sees the hand in play, or nothing.
+ */
+export function stageOwner(focus: BjFocus, seated: boolean, meId: string): string | null {
+  if (focus.kind === 'turn' && !focus.mine) return focus.playerId;
+  return seated ? meId : null;
+}
+
+/** The stage's kind, for its data: my turn reads `mine`, another's `turn`, the rest as the focus. */
+export function stageKind(focus: BjFocus): string {
+  if (focus.kind === 'turn') return focus.mine ? 'mine' : 'turn';
+  return focus.kind;
 }

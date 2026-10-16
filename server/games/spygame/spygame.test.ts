@@ -4,16 +4,16 @@ import { gameById } from '../../../shared/platform/games.js';
 import { defaultPlatformSettings } from '../../../shared/platform/settings.js';
 import { SPY_LOCATIONS, locationsForMode } from '../../../shared/games/spygame/locations.js';
 import { UNHINGED_LOCATIONS } from '../../../shared/games/spygame/locationTiers.js';
-import { SPYGAME_CANDIDATES, SPYGAME_REVEAL_SECONDS, type SpygameView } from '../../../shared/games/spygame/protocol.js';
+import { SPYGAME_CANDIDATES, SPYGAME_REVEAL_SECONDS, SPYGAME_ROUND_MINUTES, SPYGAME_VOTE_SECONDS, type SpygameView } from '../../../shared/games/spygame/protocol.js';
 import { RECONNECT_GRACE_MS } from '../../../shared/platform/constants.js';
 import { nextDeadline } from '../../platform/engine/time.js';
 import { viewFor } from '../../platform/engine/view.js';
-import { AVATAR, START, chatTexts, sim, startGame, type Sim } from '../../platform/engine/testHarness.js';
+import { AVATAR, START, chatTexts, errorsOf, noticeTexts, sim, startGame, type Sim } from '../../platform/engine/testHarness.js';
 import { RESUME_SETTLE_MS } from '../waiting.js';
 import { spygameModule, type SpygameData } from './module.js';
 
-const ROUND_MS = 3 * 60_000; // the fixture's roundMinutes
-const VOTE_MS = 15_000; // the fixture's voteSeconds
+const ROUND_MS = SPYGAME_ROUND_MINUTES * 60_000;
+const VOTE_MS = SPYGAME_VOTE_SECONDS * 1000;
 const REVEAL_MS = SPYGAME_REVEAL_SECONDS * 1000;
 
 const view = (s: Sim, viewer: string | null = null): SpygameView => {
@@ -44,6 +44,27 @@ const decoy = (s: Sim, skip: string[] = []): string => {
 };
 
 // With the harness rng (() => 0) the host is round one's spy and 'airplane' the location.
+
+describe('The Spy Game: settings', () => {
+  it('has the rounds as its only setting: the round clock and the vote window are the old defaults, 8 min and 30 s', () => {
+    const { settings } = spygameModule;
+    expect(SPYGAME_ROUND_MINUTES).toBe(8);
+    expect(SPYGAME_VOTE_SECONDS).toBe(30);
+    expect(settings.defaults).toEqual({ rounds: 5 });
+    // A stored room or an old client's patch may still carry them, even with values the old schema refused: dropped, not refused.
+    const patch = settings.patchSchema.safeParse({ roundMinutes: 99, voteSeconds: 1, rounds: 2 });
+    expect(patch.success && patch.data).toEqual({ rounds: 2 });
+  });
+
+  it('plays a room stored with a short round clock and vote window on the fixed ones', () => {
+    const s = sim('spygame');
+    const [, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol', 'Dave'], { roundMinutes: 3, voteSeconds: 15 });
+    s.data = { ...s.data, settings: { ...s.data.settings, roundMinutes: 3, voteSeconds: 15 } };
+    expect(data(s).current.clock).toEqual({ kind: 'running', endsAt: START + 8 * 60_000 });
+    s.game(bob, { t: 'accuse', playerId: carol });
+    expect(data(s)).toMatchObject({ phase: 'voting', vote: { endsAt: s.now + 30_000 } });
+  });
+});
 
 describe('The Spy Game: round setup', () => {
   it('starts round one with exactly one spy, a running clock, a system line and 24 shared candidates including the location', () => {
@@ -95,16 +116,15 @@ describe('The Spy Game: round setup', () => {
     expect(view(s, carol)).toMatchObject({ role: 'spy', locationId: null });
   });
 
-  it('seats mid-game joiners as spectators who see neither role nor location and may not act, until the next round', () => {
+  it('lets a mid-game joiner watch the whole game: no role, no location, no moves, and never dealt into a later round', () => {
     const s = sim('spygame');
     const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol'], { rounds: 2 });
     s.apply({ type: 'join', name: 'Dave', avatar: AVATAR, connectionId: 'conn-Dave' });
     const dave = s.playerId('Dave');
-    expect(view(s, dave)).toMatchObject({ role: 'spectator', locationId: null, roundPlayers: [alice, bob, carol], spectators: [dave] });
-    expect(view(s, dave).players[dave].isSpectator).toBe(true);
+    expect(view(s, dave)).toMatchObject({ role: 'spectator', locationId: null, roundPlayers: [alice, bob, carol] });
     expect(view(s, dave).candidates).toEqual(view(s, bob).candidates);
-    expect(s.game(dave, { t: 'accuse', playerId: bob })).toContainEqual(expect.objectContaining({ msg: expect.objectContaining({ code: 'NOT_ALLOWED', message: 'You are watching this round.' }) }));
-    expect(s.game(dave, { t: 'guess', locationId: 'airplane' })).toContainEqual(expect.objectContaining({ msg: expect.objectContaining({ message: 'Only the spy guesses the location.' }) }));
+    expect(errorsOf(s.game(dave, { t: 'accuse', playerId: bob }))).toEqual(['You are watching this game.']);
+    expect(errorsOf(s.game(dave, { t: 'guess', locationId: 'airplane' }))).toEqual(['You are watching this game.']);
     expect(s.game(bob, { t: 'accuse', playerId: dave })).toContainEqual(expect.objectContaining({ msg: expect.objectContaining({ message: 'You can only accuse a player in this round.' }) }));
 
     // Spectators score nothing when the agents win.
@@ -113,8 +133,8 @@ describe('The Spy Game: round setup', () => {
     expect(data(s).reveal).toMatchObject({ outcome: 'timeUp', points: { [bob]: 1, [carol]: 1 } });
     expect(score(s, dave)).toBe(0);
     s.game(alice, { t: 'nextRound' });
-    expect(data(s).current.playerIds).toEqual([alice, bob, carol, dave]);
-    expect(view(s, dave).role).toBe('agent');
+    expect(data(s).current.playerIds).toEqual([alice, bob, carol]);
+    expect(view(s, dave).role).toBe('spectator');
   });
 });
 
@@ -252,7 +272,7 @@ describe('The Spy Game: accusations and votes', () => {
     expect(score(s, alice)).toBe(2);
   });
 
-  it('resolves at voteSeconds with missing votes as No; a tie fails and the clock resumes with the kept time', () => {
+  it('resolves when the vote window closes, with missing votes as No; a tie fails and the clock resumes with the kept time', () => {
     const s = sim('spygame');
     const [, bob, carol, dave] = startGame(s, ['Alice', 'Bob', 'Carol', 'Dave']);
     s.now += 45_000;
@@ -262,6 +282,8 @@ describe('The Spy Game: accusations and votes', () => {
     s.now += 1;
     const effects = s.tick();
     expect(chatTexts(effects)).toContain('The vote failed. Play on.');
+    // Nothing else on screen says the vote failed: the clients toast it.
+    expect(noticeTexts(effects)).toEqual(['The vote failed. Play on.']);
     expect(data(s)).toMatchObject({ phase: 'playing', vote: null });
     expect(data(s).current.clock).toEqual({ kind: 'running', endsAt: s.now + ROUND_MS - 45_000 });
     expect(nextDeadline(s.data)).toBe(s.now + ROUND_MS - 45_000);
@@ -540,10 +562,10 @@ describe('The Spy Game: reveal, rounds and the end', () => {
     const s = sim('spygame');
     const [alice, bob] = startGame(s, ['Alice', 'Bob', 'Carol']);
     const current = data(s);
-    const ctx = { now: s.now, rng: () => 0, newId: () => 'x', settings: { ...defaultPlatformSettings(gameById('spygame')), rounds: 1, roundMinutes: 3, voteSeconds: 15 }, players: s.data.players.map((p) => ({ id: p.id, name: p.name, joinOrder: p.joinOrder, connected: p.connected, score: p.score })), spectators: [], hostId: alice };
+    const ctx = { now: s.now, rng: () => 0, newId: () => 'x', settings: { ...defaultPlatformSettings(gameById('spygame')), rounds: 1 }, players: s.data.players.map((p) => ({ id: p.id, name: p.name, joinOrder: p.joinOrder, connected: p.connected, score: p.score })), spectators: [], hostId: alice };
     expect(spygameModule.handle(ctx, current, { type: 'tick' }).data).toBe(current);
     expect(spygameModule.handle(ctx, current, { type: 'chat', playerId: bob, text: 'is it cold there?' })).toEqual({ data: current, effects: [] });
-    expect(spygameModule.handle(ctx, current, { type: 'playerJoined', playerId: 'new' })).toEqual({ data: current, effects: [] });
+    expect(spygameModule.handle(ctx, current, { type: 'playerReconnected', playerId: bob })).toEqual({ data: current, effects: [] });
     expect(spygameModule.handle(ctx, current, { type: 'playerDisconnected', playerId: bob }).data).toBe(current);
     const guessed = spygameModule.handle(ctx, current, { type: 'message', playerId: alice, msg: { t: 'guess', locationId: 'beach' } });
     expect(guessed.data).not.toBe(current);
@@ -595,7 +617,7 @@ describe('The Spy Game: holding for missing players', () => {
     expect(viewFor(s.data, alice, s.now).waiting).toBeNull();
   });
 
-  it('refreshes the hold as more players drop, and a joiner or a returning player may end it', () => {
+  it('refreshes the hold as more players drop, and only returning players end it', () => {
     const s = sim('spygame');
     const [alice, bob, carol, dave] = startGame(s, ['Alice', 'Bob', 'Carol', 'Dave'], { rounds: 3 });
     holdAfterRoundOne(s, ['Bob', 'Carol']);
@@ -604,18 +626,20 @@ describe('The Spy Game: holding for missing players', () => {
     const more = s.apply({ type: 'connectionClosed', playerId: dave, connectionId: 'conn-Dave' });
     expect(chatTexts(more)).toEqual([]);
     expect(viewFor(s.data, alice, s.now).waiting).toMatchObject({ missing: [bob, carol, dave], connected: 1 });
-    // A newcomer counts, but two connected is still too few.
+    // A newcomer only watches: they fill no seat, so the hold goes on.
     s.apply({ type: 'join', name: 'Eve', avatar: AVATAR, connectionId: 'conn-Eve' });
     const eve = s.playerId('Eve');
     expect(data(s).phase).toBe('waiting');
-    expect(viewFor(s.data, eve, s.now).waiting).toMatchObject({ missing: [bob, carol, dave], connected: 2 });
+    expect(viewFor(s.data, eve, s.now).waiting).toMatchObject({ missing: [bob, carol, dave], connected: 1 });
     reconnect(s, carol, 'Carol');
+    expect(data(s)).toMatchObject({ phase: 'waiting', resumeAt: null });
+    reconnect(s, bob, 'Bob');
     expect(data(s)).toMatchObject({ phase: 'waiting', resumeAt: s.now + RESUME_SETTLE_MS });
-    expect(viewFor(s.data, eve, s.now).waiting).toEqual({ reason: 'players', missing: [bob, dave], needed: 3, connected: 3 });
+    expect(viewFor(s.data, eve, s.now).waiting).toEqual({ reason: 'players', missing: [dave], needed: 3, connected: 3 });
     s.now += RESUME_SETTLE_MS;
     s.tick();
     expect(data(s)).toMatchObject({ phase: 'playing', round: 2 });
-    expect(data(s).current.playerIds).toEqual([alice, carol, eve]);
+    expect(data(s).current.playerIds).toEqual([alice, bob, carol]);
     expect(viewFor(s.data, eve, s.now).waiting).toBeNull();
   });
 

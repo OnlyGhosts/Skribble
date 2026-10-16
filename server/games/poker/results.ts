@@ -1,6 +1,6 @@
 /** The end of a hand: the showdown with its side pots and payouts, the uncontested pot, and the results phase. */
 import { compareHands, evaluateBest, handName, type HandRank } from '../../../shared/games/poker/hands.js';
-import type { PokerPotResult, PokerRevealedHand } from '../../../shared/games/poker/protocol.js';
+import { POKER_RESULTS_SECONDS, type PokerPotResult, type PokerRevealedHand } from '../../../shared/games/poker/protocol.js';
 import { settleRevealMs } from '../../../shared/games/poker/reveal.js';
 import { buildPots, splitPot } from './pots.js';
 import { adjustChips, contenders, nameOf, ringAfter, snapshot, systemMessage, type Gx } from './state.js';
@@ -46,7 +46,7 @@ function settle(gx: Gx, pots: PokerPotResult[], revealed: Record<string, PokerRe
     boardTo: data.community.length,
     contested: !uncontested,
   });
-  data.phase = { kind: 'results', endsAt: gx.ctx.now + reveal + gx.ctx.settings.resultsSeconds * 1000, held: false, resumeAt: null };
+  data.phase = { kind: 'results', endsAt: gx.ctx.now + reveal + POKER_RESULTS_SECONDS * 1000, held: false, resumeAt: null };
   snapshot(gx);
 }
 

@@ -95,8 +95,8 @@ async function scoreOf(page: Page, name: string): Promise<number> {
   return Number(raw ?? 'NaN');
 }
 
-async function sendChat(page: Page, text: string): Promise<void> {
-  const input = page.getByTestId('chat-input');
+async function sendGuess(page: Page, text: string): Promise<void> {
+  const input = page.getByTestId('guess-input');
   await input.fill(text);
   await input.press('Enter');
 }
@@ -138,8 +138,6 @@ test.describe('Skribble keeps going through a dropped link and a discarded tab',
     await expect.poll(() => wakeLockRequests(guest.page)).toBeGreaterThan(0);
     await expect(host.page.getByTestId('player-item')).toHaveCount(2);
 
-    await host.page.getByTestId('settings-drawTime').fill('20');
-    await expect(guest.page.getByTestId('settings-value-drawTime')).toHaveText('20s');
     await readyAll([guest.page]);
     await host.page.getByTestId('start-game').click();
   });
@@ -153,7 +151,7 @@ test.describe('Skribble keeps going through a dropped link and a discarded tab',
     const word = ((await drawer.page.getByTestId('word-plain').locator('.word__text').textContent()) ?? '').trim();
     expect(word.length).toBeGreaterThan(0);
     await expect(guesser.page.getByTestId('word-mask')).toBeVisible();
-    await sendChat(guesser.page, word);
+    await sendGuess(guesser.page, word);
     await expect(drawer.page.getByTestId('overlay-turn-end')).toBeVisible();
     for (const p of players) await expect.poll(() => scoreOf(p.page, drawer.name)).toBeGreaterThan(0);
     // Turn two: the other player draws, turn one's drawer guesses and is the one who goes dark.
@@ -161,11 +159,15 @@ test.describe('Skribble keeps going through a dropped link and a discarded tab',
     other = guesser;
   });
 
-  test('the guesser drops: the game holds at the turn boundary (no lobby), then resumes with the seat and score intact', async () => {
+  test('the guesser drops during the turn summary: the game holds at the turn boundary (no lobby), then resumes with the seat and score intact', async () => {
     test.setTimeout(120_000);
     await expect(other.page.getByTestId('word-choice').first()).toBeVisible({ timeout: 20_000 });
     await other.page.getByTestId('word-choice').first().click();
     await expect(offline.page.getByTestId('word-mask')).toBeVisible();
+    // The guesser gets the word, which ends the turn at once, then loses the link during the summary.
+    const word = ((await other.page.getByTestId('word-plain').locator('.word__text').textContent()) ?? '').trim();
+    await sendGuess(offline.page, word);
+    for (const p of [host, guest]) await expect(p.page.getByTestId('overlay-turn-end')).toBeVisible();
     scoreBefore = await scoreOf(host.page, offline.name);
     expect(scoreBefore).toBeGreaterThan(0);
 
@@ -188,7 +190,7 @@ test.describe('Skribble keeps going through a dropped link and a discarded tab',
     await expect(other.page.getByTestId('room-code')).toHaveCount(0);
     await expect(other.page.getByTestId('start-game')).toHaveCount(0);
     await expect(other.page.getByTestId('timer').first()).toHaveAttribute('data-paused', 'players');
-    await expect(other.page.getByTestId('chat-log')).toContainText(`Waiting for ${offline.name} to reconnect`);
+    await expect(other.page.getByTestId('guess-feed')).toContainText(`Waiting for ${offline.name} to reconnect`);
 
     // At least twenty seconds in the dark before coming back.
     const remaining = 20_000 - (Date.now() - wentOffline);
@@ -201,7 +203,7 @@ test.describe('Skribble keeps going through a dropped link and a discarded tab',
     await expect(other.page.getByTestId('overlay-waiting')).toHaveCount(0, { timeout: 15_000 });
     // The player who came back never saw a nameless "waiting for players" of their own.
     await expect(offline.page.getByTestId('overlay-waiting')).toHaveCount(0);
-    await expect(other.page.getByTestId('chat-log')).toContainText(`${offline.name} reconnected`);
+    await expect(other.page.getByTestId('guess-feed')).toContainText(`${offline.name} reconnected`);
     for (const p of [host, guest]) {
       await expect(p.page.getByTestId('player-item')).toHaveCount(2);
       await expect(p.page.locator(`[data-testid="player-item"][data-name="${offline.name}"]`)).not.toHaveClass(/player--offline/);
@@ -271,7 +273,6 @@ test.describe('Spy Game holds for a dropped phone and the host may remove it', (
     for (const p of [pia, quinn]) await joinByCode(p.page, p.name, code);
     await expect(host.page.getByTestId('player-item')).toHaveCount(3);
     await host.page.getByTestId('settings-rounds').fill('2');
-    await host.page.getByTestId('settings-roundMinutes').fill('3');
     await readyAll([pia.page, quinn.page]);
     await host.page.getByTestId('start-game').click();
     for (const p of players()) await expect(p.page.getByTestId('spygame-role')).toBeVisible();
@@ -342,10 +343,11 @@ test.describe('Spy Game holds for a dropped phone and the host may remove it', (
     await host.page.getByTestId('waiting-remove').click();
     for (const p of players().filter((p) => p !== offline)) {
       await expect(p.page.getByTestId('room-code')).toHaveText(code, { timeout: 15_000 });
+      // There is no chat to read it in: the reason pops up as a toast.
+      await expect(p.page.getByTestId('toast').filter({ hasText: 'Not enough players. Back to the lobby.' })).toBeVisible();
       await expect(p.page.getByTestId('overlay-waiting')).toHaveCount(0);
       await expect(p.page.getByTestId('player-item')).toHaveCount(2);
-      await expect(p.page.getByTestId('chat-log')).toContainText(`${offline.name} was kicked`);
-      await expect(p.page.getByTestId('chat-log')).toContainText('Not enough players. Back to the lobby.');
+      await expect(p.page.locator(`[data-testid="player-item"][data-name="${offline.name}"]`)).toHaveCount(0);
     }
     await expect(host.page.getByTestId('start-game')).toBeDisabled();
 
@@ -388,7 +390,6 @@ test.describe('the waiting overlay fits a small phone with three long names', ()
     for (const g of guests) await joinByCode(g.page, g.name, code);
     await expect(host.page.getByTestId('player-item')).toHaveCount(4);
     await host.page.getByTestId('settings-rounds').fill('2');
-    await host.page.getByTestId('settings-roundMinutes').fill('3');
     await readyAll(guests.map((g) => g.page));
     await host.page.getByTestId('start-game').click();
     const all = [host, ...guests];

@@ -1,8 +1,7 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
-import { Chips } from '../../../platform/components/Chips';
 import type { PlayingCardSize } from '../../../platform/components/PlayingCard';
 import { outlineClass } from '../../../platform/table/Outcome';
-import { HAND_GAP_PX, MIN_CHIP_PX, MIN_FULL_HAND_PX, SPOT_CHIP_ROWS, chipGrid, chipsShown, fitCount, fullHandsFit, handSlots } from '../lib/hands';
+import { HAND_GAP_PX, MIN_CHIP_PX, MIN_FULL_HAND_PX, STAGE_CHIP_ROWS, chipGrid, chipsShown, fitCount, fullHandsFit, handSlots, type HandPlace } from '../lib/hands';
 import { totalText, type TableHand } from '../lib/table';
 import type { Timeline } from '../lib/timeline';
 import { outcomeLabel } from '../lib/text';
@@ -45,7 +44,7 @@ function useSize<T extends HTMLElement>(): [RefObject<T | null>, Size | null] {
 
 /**
  * How many full hands share the width and the most cards in any of them: the stylesheet sizes the
- * cards so every hand fits its share (blackjack.css, --fit-w), however many hits.
+ * cards so every fan fits its share (blackjack.css, --fit-w), however many hits.
  */
 export function fanStyle(hands: readonly { cards: readonly unknown[] }[]): CSSProperties {
   const fan = Math.max(2, ...hands.map((h) => h.cards.length));
@@ -78,19 +77,16 @@ function HandChip({ playerId, index, hand, timeline, now, testId }: ChipProps) {
       data-payout={outcome ? (hand.payout ?? 0) : undefined}
     >
       <span className={`bj-chip__total tbl-pill tbl-pill--${tone}`}>{total ? totalText(total, false) : ''}</span>
-      <Chips value={hand.bet} size={10} className="bj-chip__bet" />
     </li>
   );
 }
 
-/** The hands that did not get a chip of their own: how many, their stakes together; a tap opens every hand. */
+/** The hands that did not get a chip of their own: how many; a tap opens every hand. */
 function MoreChip({ playerId, hands, total, testId }: { playerId: string; hands: TableHand[]; total: number; testId: string }) {
-  const stake = hands.reduce((sum, h) => sum + h.bet, 0);
   return (
     <li className="bj-chip bj-chip--more tbl-outline tbl-outline--neutral" data-testid={testId} data-count={hands.length}>
       <button type="button" className="bj-chip__more" aria-label={`${hands.length} more hands. Show all ${total}`} onClick={() => useBlackjackStore.getState().openSeat(playerId)}>
         <span className="bj-chip__total tbl-pill tbl-pill--neutral">+{hands.length}</span>
-        <Chips value={stake} size={10} className="bj-chip__bet" />
       </button>
     </li>
   );
@@ -104,8 +100,11 @@ interface Props {
   leaving: boolean;
   /** The hand in play, or -1. */
   activeIndex: number;
-  /** My hands at the bottom of the table (larger totals, each hand in a fixed slot), or the spotlight's. */
-  place: 'mine' | 'spot';
+  /**
+   * `mine`: my hands on the stage at the bottom of the table; `stage`: another player's there, on
+   * their turn; `aside`: mine small beside theirs meanwhile.
+   */
+  place: HandPlace;
   size: PlayingCardSize;
   testId: string;
   chipTestId: string;
@@ -124,18 +123,18 @@ export function HandRow({ playerId, hands, timeline, now, leaving, activeIndex, 
   const full = hands.filter((_, i) => slots[i] === 'full');
   const chipped = hands.flatMap((_, i) => (slots[i] === 'chip' ? [i] : []));
   const chips = chipped.length;
-  // My hands have a fixed height to fill; the spotlight's chips keep to a couple of rows.
-  const maxRows = place === 'mine' ? fitCount(box?.height ?? 0, MIN_CHIP_PX.height) : SPOT_CHIP_ROWS;
+  // My hands have a fixed height to fill; another player's chips keep to a couple of rows.
+  const maxRows = place === 'stage' ? STAGE_CHIP_ROWS : fitCount(box?.height ?? 0, MIN_CHIP_PX.height);
   // Before the first measure every chip shows (the server render); the grid caps them once the row has a size.
   // The chips take what the full hands leave (a full hand's least width until it is measured).
   const beside = full.length === 0 ? 0 : Math.max(box?.full ?? 0, minHand + HAND_GAP_PX);
-  const grid = box === null ? { cols: chips, rows: 1, shown: chips } : chipGrid(chips, box.width - beside, maxRows, place === 'mine' ? MIN_CHIP_PX.width : MIN_CHIP_PX.spot);
+  const grid = box === null ? { cols: chips, rows: 1, shown: chips } : chipGrid(chips, box.width - beside, maxRows, place === 'stage' ? MIN_CHIP_PX.stage : MIN_CHIP_PX.width);
   const shown = chipsShown(chipped, grid.shown, activeIndex);
   const folded = chipped.filter((i) => !shown.has(i)).map((i) => hands[i]);
   const style = { ...fanStyle(full), '--chip-cols': grid.cols, '--chip-rows': grid.rows } as CSSProperties;
   const fullHand = (hand: TableHand, i: number) => (
     <div key={i} className="bj-slot">
-      <Hand playerId={playerId} index={i} hand={hand} timeline={timeline} now={now} leaving={leaving} size={size} active={i === activeIndex} big={place === 'mine'} testId={testId} />
+      <Hand playerId={playerId} index={i} hand={hand} timeline={timeline} now={now} leaving={leaving} size={size} active={i === activeIndex} mini={place === 'aside'} narrow={full.length > 1} testId={testId} />
     </div>
   );
   return (

@@ -1,18 +1,19 @@
 /**
- * What Poker's spotlight is on (pure, for the screen and the tests): the player to act and who is
- * next; the showdown while the hands turn over; then the winner of the main pot (me, when I took
- * any of it); nothing to follow while dealing, holding or at the end.
+ * What the Poker table is following (pure, for the screen and the tests): the player to act and
+ * who is next round the table; the showdown while the hands turn over; then the winner of the main
+ * pot (me, when I took any of it); nothing to follow while dealing, holding or at the end. The line
+ * under the ribbon says it, and the stage at the bottom of the table shows the hand that matters.
  */
 import type { PokerView } from '@shared/games/poker/protocol';
 import { winnings, type PokerTable } from './table';
 
-export type PkSubject =
+export type PkFocus =
   /** `next` is the next seat still to act after this one, round the table; null when nobody else is. */
   | { kind: 'turn'; playerId: string; mine: boolean; next: string | null }
   | { kind: 'result'; playerId: string; mine: boolean }
   | { kind: 'idle'; reason: 'dealing' | 'showdown' | 'held' | 'over' };
 
-export interface SubjectInput {
+export interface FocusInput {
   view: PokerView;
   /** The hand on screen. */
   table: PokerTable | null;
@@ -32,7 +33,7 @@ function nextToAct(view: PokerView, playerId: string): string | null {
   return null;
 }
 
-export function spotlightSubject({ view, table, outcomesShown, held, meId }: SubjectInput): PkSubject {
+export function focusOf({ view, table, outcomesShown, held, meId }: FocusInput): PkFocus {
   if (view.phase === 'gameOver') return { kind: 'idle', reason: 'over' };
   if (view.phase === 'acting') {
     if (!view.turn) return { kind: 'idle', reason: 'dealing' };
@@ -48,13 +49,18 @@ export function spotlightSubject({ view, table, outcomesShown, held, meId }: Sub
   return { kind: 'idle', reason: results ? 'showdown' : 'dealing' };
 }
 
-export function subjectKey(s: PkSubject): string {
-  switch (s.kind) {
-    case 'turn':
-      return `turn:${s.playerId}`;
-    case 'result':
-      return `result:${s.playerId}`;
-    case 'idle':
-      return `idle:${s.reason}`;
-  }
+/**
+ * Whose cards take the stage at the bottom of the table: mine whenever I hold cards in the hand
+ * on the table (theirs are backs until a showdown, so my own are what I follow); otherwise the
+ * hand in play, then the winner's; a spectator before the deal sees nobody's.
+ */
+export function stageOwner(focus: PkFocus, table: PokerTable | null, meId: string | null): string | null {
+  if (meId !== null && (table?.seats[meId]?.cards.length ?? 0) > 0) return meId;
+  return focus.kind === 'idle' ? null : focus.playerId;
+}
+
+/** The stage's kind, for its data: my turn reads `mine`, another's `turn`, the rest as the focus. */
+export function stageKind(focus: PkFocus): string {
+  if (focus.kind === 'turn') return focus.mine ? 'mine' : 'turn';
+  return focus.kind;
 }

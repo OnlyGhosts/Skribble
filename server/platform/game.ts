@@ -23,7 +23,10 @@ export interface PlatformPlayer {
   score: number;
 }
 
-/** A seated player who sits this game out (or has not readied up): in the room, never in the game. */
+/**
+ * A seated player who watches this game: they sat it out, did not ready up, or joined while it was
+ * running. In the room, never in the game; they play from the next game on.
+ */
 export interface PlatformSpectator {
   id: string;
   name: string;
@@ -42,7 +45,10 @@ export interface GameCtx<S> {
   settings: RoomSettings<S>;
   /** Every participating seated player (connected or in reconnect grace), in join order. */
   players: PlatformPlayer[];
-  /** The other seated players: spectators who sat this game out. They get snapshots and chat but never play. */
+  /**
+   * The other seated players: spectators who sat this game out or joined mid-game. They get
+   * snapshots and chat but never play, and the set of participants never grows while a game runs.
+   */
   spectators: PlatformSpectator[];
   hostId: string;
 }
@@ -60,8 +66,6 @@ export type GameEvent<CMsg> =
   | { type: 'message'; playerId: string; msg: CMsg }
   /** A chat line; the game may consume it (a guess) by returning a 'chatHandled' effect. */
   | { type: 'chat'; playerId: string; text: string }
-  /** A new player was seated mid-game (ctx.players already includes them). */
-  | { type: 'playerJoined'; playerId: string }
   /**
    * The player left, was kicked or their reconnect grace ran out (ctx.players no longer includes
    * them). Not delivered when the removal left fewer seats than `meta.minPlayers`: the platform

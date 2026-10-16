@@ -218,28 +218,6 @@
   background: var(--color-secondary-soft);
 }
 
-/* A small text action ("Sit this one out", "Change my look"): a 44px target that reads as a link. */
-.text-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  min-height: 44px;
-  padding: 0 8px;
-  border-radius: var(--radius-sm);
-  color: var(--color-text-muted);
-  font-size: 0.875rem;
-  font-weight: 600;
-  text-decoration: underline;
-  text-decoration-color: var(--color-border-strong);
-  text-underline-offset: 3px;
-  transition: color 100ms ease-out;
-}
-
-.text-btn:hover {
-  color: var(--color-text);
-}
-
 .icon-btn {
   display: inline-grid;
   place-items: center;
@@ -1203,114 +1181,6 @@
   }
 }
 
-/* ---------- Chat: 13px lines; system lines muted; correct, close and guessed lines tinted ---------- */
-.chat {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  flex: 1;
-}
-
-.chat__log-wrap {
-  position: relative;
-  flex: 1;
-  min-height: 0;
-  display: flex;
-}
-
-.chat__log {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 2px;
-  scroll-behavior: smooth;
-}
-
-.chat-msg {
-  padding: 5px 10px;
-  border-radius: var(--radius-sm);
-  font-size: 0.8125rem;
-  line-height: 1.4;
-  overflow-wrap: anywhere;
-}
-
-.chat-msg__name {
-  font-weight: 600;
-  margin-right: 6px;
-}
-
-.chat-msg__name::after {
-  content: ':';
-}
-
-.chat-msg__icon {
-  vertical-align: -2px;
-  margin-right: 4px;
-}
-
-.chat-msg--guessed {
-  background: var(--chat-guessed-bg);
-  color: var(--chat-guessed-fg);
-}
-
-.chat-msg--correct {
-  background: var(--chat-correct-bg);
-  color: var(--chat-correct-fg);
-  font-weight: 600;
-}
-
-.chat-msg--close {
-  background: var(--chat-close-bg);
-  color: var(--chat-close-fg);
-  font-weight: 500;
-}
-
-.chat-msg--system {
-  color: var(--color-text-faint);
-}
-
-.chat-msg--hint {
-  font-weight: 600;
-  background: var(--color-primary-soft);
-  color: var(--color-primary-text);
-}
-
-.chat__jump {
-  position: absolute;
-  bottom: 8px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 12px;
-  border-radius: var(--radius-pill);
-  background: var(--color-primary);
-  color: var(--color-primary-contrast);
-  font-size: 0.8rem;
-  font-weight: 600;
-}
-
-.chat__form {
-  display: flex;
-  gap: 8px;
-  margin-top: var(--space-3);
-}
-
-.chat__input {
-  flex: 1;
-  min-width: 0;
-}
-
-.chat__send {
-  flex: none;
-  min-height: 48px;
-}
-
 /* ---------- Bottom sheet (phones): 20px top corners, max 90dvh, scrolls its own content ---------- */
 .sheet {
   position: fixed;
@@ -1399,23 +1269,17 @@
   }
 }
 
-/* ---------- Settings ---------- */
+/* ---------- Settings: one rhythm for every game, 12px from a title to its options, 24px between settings ---------- */
 .settings {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-5);
 }
 
-.settings__note {
-  color: var(--color-text-faint);
-  font-size: 0.8125rem;
-}
-
-.setting__head {
+.setting {
   display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 8px;
+  flex-direction: column;
+  gap: var(--space-3);
 }
 
 .setting__label {
@@ -1423,27 +1287,58 @@
   font-size: 0.9375rem;
 }
 
-.setting__value {
-  font-family: var(--font-mono);
-  font-weight: 600;
-  color: var(--color-primary-text);
-  font-variant-numeric: tabular-nums;
-}
-
 .setting__hint {
   color: var(--color-text-faint);
   font-size: 0.8125rem;
-  margin-top: 2px;
+  margin-top: calc(-1 * var(--space-1));
 }
 
-.setting__readonly-words {
-  color: var(--color-text-muted);
-  font-size: 0.875rem;
-  overflow-wrap: anywhere;
+/* A slider and its value, which follows the thumb: the number reads in a quiet well, not in the brand colour.
+   The well's width is set inline from the widest readout in the panel, so every track has the same length. */
+.range-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
 }
 
-.settings--readonly .setting {
-  padding: 4px 0;
+.range-field__value {
+  flex: none;
+  min-width: 3.25rem;
+  padding: 4px 8px;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-3);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 0.9375rem;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* Under a word list: the count on the left, the upload button on the right. */
+.word-list__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: calc(-1 * var(--space-1));
+}
+
+.word-list__foot .setting__hint {
+  margin-top: 0;
+}
+
+.word-list__upload {
+  min-height: 44px;
+}
+
+/* A toggle is a setting of its own: the stack's gap spaces it, like the rest. */
+.settings > .toggle {
+  padding: 0;
 }
 
 /* ---------- Overlay cards & podium ---------- */
@@ -1750,7 +1645,7 @@
 
 /* ---------- Waiting overlay (platform: the game holds for players whose phones went dark) ---------- */
 /*
- * Above the phone bottom sheets (z-index 80): a hold can start while the players, chat or menu
+ * Above the phone bottom sheets (z-index 80): a hold can start while the players or menu
  * sheet is up, and the dialog that took the focus must be the one on top. Below the toasts.
  */
 .waiting-overlay {

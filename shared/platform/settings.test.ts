@@ -5,7 +5,8 @@ import { CONTENT_MODES, CONTENT_MODE_INFO, ROOM_HARD_CAP, defaultPlatformSetting
 describe('platform settings', () => {
   it('validates patches against the platform schema', () => {
     expect(platformSettingsPatchSchema.safeParse({}).success).toBe(true);
-    expect(platformSettingsPatchSchema.safeParse({ allowMidGameJoin: 'yes' }).success).toBe(false);
+    // The retired mid-game join switch is stripped like any other unknown key.
+    expect(platformSettingsPatchSchema.safeParse({ allowMidGameJoin: false })).toEqual({ success: true, data: {} });
     expect(platformSettingsPatchSchema.safeParse({ contentMode: 'filthy' }).success).toBe(false);
     for (const mode of CONTENT_MODES) expect(platformSettingsPatchSchema.safeParse({ contentMode: mode })).toEqual({ success: true, data: { contentMode: mode } });
     // Game fields (and the retired maxPlayers) are not the platform's business: they are stripped, not rejected.
@@ -13,7 +14,7 @@ describe('platform settings', () => {
   });
 
   it('derives room defaults and a seat limit per game', () => {
-    expect(defaultPlatformSettings(gameById('skribble'))).toEqual({ allowMidGameJoin: true, contentMode: 'family' });
+    expect(defaultPlatformSettings(gameById('skribble'))).toEqual({ contentMode: 'family' });
     expect(seatLimit(gameById('skribble'))).toBe(ROOM_HARD_CAP);
     expect(seatLimit({ ...gameById('skribble'), maxPlayers: 6 })).toBe(6);
   });

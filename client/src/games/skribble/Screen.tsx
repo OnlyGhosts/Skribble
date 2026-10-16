@@ -2,7 +2,6 @@ import { useLayoutEffect, useRef, useState } from 'react';
 import type { SkribblePhase, SkribbleSettings, SkribbleView } from '@shared/games/skribble/protocol';
 import { gameById } from '@shared/platform/games';
 import { BottomSheet } from '../../platform/components/BottomSheet';
-import { Chat } from '../../platform/components/Chat';
 import { GameMenuSheet, GameTopBar, RoundStatus } from '../../platform/components/GameTopBar';
 import { PlayerList } from '../../platform/components/PlayerList';
 import { Timer } from '../../platform/components/Timer';
@@ -16,6 +15,8 @@ import { DEFAULT_DRAWING_SETTINGS, GameCanvas, Toolbar, type DrawingSettings } f
 import { clearCanvas, rateDrawing, redoStroke, undoStroke } from './actions';
 import { skribbleCanvas } from './canvas';
 import { ThumbDownIcon, ThumbUpIcon } from './components/Icons';
+import { GuessBox } from './components/GuessBox';
+import { GuessFeed } from './components/GuessFeed';
 import { ChoosingOverlay, DrawingCaption, TurnEndOverlay } from './components/Overlays';
 import { WordDisplay } from './components/WordDisplay';
 import { drawerIdOf, hasGuessed } from './hooks';
@@ -57,7 +58,7 @@ function Rating({ phase, canRate }: { phase: DrawingPhase; canRate: boolean }) {
   );
 }
 
-/** The Skribble game screen: header, canvas with overlays and toolbar, players and chat (sheets on phones). */
+/** The Skribble game screen: header, canvas with overlays and toolbar, players (a sheet on phones), the guess feed and the guess box. */
 export function SkribbleScreen({ room, meId, isHost }: GameScreenProps<SkribbleView, SkribbleSettings>) {
   const game = useActiveGame();
   // Undo/clear apply locally the moment they are sent, so they are only offered while they can be sent.
@@ -193,8 +194,9 @@ export function SkribbleScreen({ room, meId, isHost }: GameScreenProps<SkribbleV
         </GameCanvas>
       </main>
 
-      <aside className="game__chat card" aria-label="Chat">
-        <Chat />
+      <aside className="game__guesses card" aria-label="Guesses">
+        <GuessFeed />
+        <GuessBox />
       </aside>
 
       {isPhone && (

@@ -1,6 +1,6 @@
 /** Round lifecycle: start -> playing (guesses, pauses) -> reveal -> next round / game over. */
 import { drawCandidates, locationById, locationsForMode, pickLocation } from '../../../shared/games/spygame/locations.js';
-import { SPYGAME_CANDIDATES, SPYGAME_GUESSES, SPYGAME_POINTS, SPYGAME_REVEAL_SECONDS, type SpygameOutcome } from '../../../shared/games/spygame/protocol.js';
+import { SPYGAME_CANDIDATES, SPYGAME_GUESSES, SPYGAME_POINTS, SPYGAME_REVEAL_SECONDS, SPYGAME_ROUND_MINUTES, type SpygameOutcome } from '../../../shared/games/spygame/protocol.js';
 import { RESUME_SETTLE_MS, holdEffects, resumeEffect } from '../waiting.js';
 import { MIN_PLAYERS, agentIds, connectedCount, fail, findPlayer, nameOf, snapshot, systemMessage, type Gx, type RoundData } from './state.js';
 
@@ -40,7 +40,7 @@ export function buildRound(gx: Gx): RoundData {
     guessesLeft: SPYGAME_GUESSES,
     guessed: [],
     accusers: [],
-    clock: { kind: 'running', endsAt: ctx.now + ctx.settings.roundMinutes * 60_000 },
+    clock: { kind: 'running', endsAt: ctx.now + SPYGAME_ROUND_MINUTES * 60_000 },
     spyAway: false,
   };
 }

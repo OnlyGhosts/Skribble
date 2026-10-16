@@ -57,8 +57,8 @@ async function drawStroke(page: Page, fromX: number, toX: number): Promise<void>
   await page.mouse.up();
 }
 
-async function sendChat(page: Page, text: string): Promise<void> {
-  const input = page.getByTestId('chat-input');
+async function sendGuess(page: Page, text: string): Promise<void> {
+  const input = page.getByTestId('guess-input');
   await input.fill(text);
   await input.press('Enter');
 }
@@ -72,13 +72,11 @@ test.afterAll(async () => {
   for (const p of players) await p.context.close();
 });
 
-test('two players start a long turn and the drawer draws', async () => {
+test('two players start a turn and the drawer draws', async () => {
   const code = await createParty(host.page, host.name);
   await joinByCode(guest.page, guest.name, code);
   await expect(host.page.getByTestId('player-item')).toHaveCount(2);
 
-  await host.page.getByTestId('settings-drawTime').fill('120');
-  await expect(guest.page.getByTestId('settings-value-drawTime')).toHaveText('120s');
   await readyAll([guest.page]);
   await host.page.getByTestId('start-game').click();
 
@@ -113,7 +111,7 @@ test('the guesser reloads mid-turn: same seat, canvas restored, game still runni
   await expect.poll(() => nonWhitePixels(guesser.page), { timeout: 5_000 }).toBeGreaterThan(0);
   await expect(guesser.page.getByTestId('player-item')).toHaveCount(2);
   await expect(drawer.page.getByTestId('player-item')).toHaveCount(2);
-  await expect(drawer.page.getByTestId('chat-log')).toContainText(`${guesser.name} reconnected`);
+  await expect(drawer.page.getByTestId('guess-feed')).toContainText(`${guesser.name} reconnected`);
   await expect(drawer.page.getByTestId('toolbar')).toBeVisible();
   await expect(drawer.page.getByTestId('room-code')).toHaveCount(0);
 });
@@ -128,7 +126,7 @@ test('the drawer reloads mid-turn: still the drawer, and new strokes still reach
   await drawStroke(drawer.page, 0.6, 0.9);
   await expect.poll(() => nonWhitePixels(guesser.page), { timeout: 2_000 }).toBeGreaterThan(before);
 
-  await sendChat(guesser.page, word);
+  await sendGuess(guesser.page, word);
   await expect(drawer.page.getByTestId('overlay-turn-end')).toBeVisible();
   await expect(drawer.page.getByTestId('overlay-turn-end')).toContainText(word);
 });
@@ -152,12 +150,12 @@ test('the host kicks the other player, who lands on the home screen', async () =
   await host.page.getByTestId('kick-confirm').click();
 
   await expect(target.page.getByTestId('home-create')).toBeVisible();
-  await expect(target.page.getByTestId('toast')).toContainText(/removed|kicked/i);
+  await expect(target.page.getByTestId('toast').filter({ hasText: /removed|kicked/i })).toBeVisible();
   await expect(target.page).toHaveURL(/\/$/);
   await expect(target.page.getByTestId('code-input-0')).toHaveValue('');
 
-  await expect(host.page.getByTestId('chat-log')).toContainText(`${target.name} was kicked`);
   await expect(host.page.getByTestId('player-item')).toHaveCount(1);
+  await expect(host.page.locator(`[data-testid="player-item"][data-name="${target.name}"]`)).toHaveCount(0);
   await expect(host.page.getByTestId('room-code')).toBeVisible();
 });
 

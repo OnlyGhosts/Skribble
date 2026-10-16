@@ -3,7 +3,8 @@
  * snapshot diffs (the deal round from the button, bets to their spots, the sweep, the board street
  * by street, folds to the muck, the showdown and the pot to the winners, snapping to the truth),
  * the raise arithmetic, the copy, the screen per phase (the panel's lit and dimmed controls, hole
- * cards on their owner's page only, the showdown on the table with no results screen), the
+ * cards on their owner's page only, the showdown on the table with no results screen), the calm
+ * table (the line under the ribbon, the stage, the seats' stack and bet), the
  * settings rows, the player-list hooks and the snapshot-driven store. Runs in node: browser
  * globals are stubbed, components render through react-dom/server.
  */
@@ -23,11 +24,13 @@ const { pokerClient } = await import('./module');
 const { usePokerStore } = await import('./store');
 const { seatRing } = await import('./hooks');
 const { amountFrom, clampAmount, potSized, raiseRange, wagerKind } = await import('./lib/raise');
-const { categoryLabel, handHint, handLabel, lastActionLabel, panelStatus, phaseKicker, resultText, HOTKEY_HINT } = await import('./lib/text');
+const { categoryLabel, focusLine, handHint, handLabel, handRankOf, lastActionLabel, moveText, panelStatus, phaseKicker, resultLine, resultText, ribbonText, shortHandName, HOTKEY_HINT } = await import('./lib/text');
+const { focusOf, stageKind, stageOwner } = await import('./lib/focus');
 const { committedBefore, dealingOrder, tableOf } = await import('./lib/table');
 const T = await import('./lib/timeline');
 const S = await import('./lib/screen');
 const { blindsIncreaseLabel, handsLabel } = await import('./SettingsFields');
+const { longestReadout } = await import('../../platform/components/SettingControls');
 const { player, registryOf, resetStore, room, welcome } = await import('../../test/fixtures');
 
 const NOW = Date.now();
@@ -128,7 +131,7 @@ function showdown(overrides: Partial<PokerView> = {}): PokerView {
 function pkRoom(game: PokerView, overrides: Partial<PokerRoomState> = {}): PokerRoomState {
   return {
     ...room({ gameId: 'poker', phase: 'playing', players: [player('host', { name: 'Hana' }), player('bob', { name: 'Pia', joinOrder: 1 }), player('carol', { name: 'Quinn', joinOrder: 2 }), player('dave', { name: 'Dev', joinOrder: 3, participating: false })] }),
-    settings: { allowMidGameJoin: true, contentMode: 'family', ...DEFAULT_POKER_SETTINGS },
+    settings: { contentMode: 'family', ...DEFAULT_POKER_SETTINGS },
     game,
     ...overrides,
   } as PokerRoomState;
@@ -152,7 +155,8 @@ function tagsWith(html: string, testId: string): string[] {
 
 const attr = (tag: string, name: string): string | undefined => tag.match(new RegExp(`${name}="([^"]*)"`))?.[1];
 const disabled = (html: string, testId: string): boolean => / disabled=""/.test(tagWith(html, testId));
-const textOf = (html: string, testId: string): string => html.match(new RegExp(`data-testid="${testId}"[^>]*>([^<]*)<`))?.[1] ?? '';
+/** The first run of text inside the element (past any wrapping spans: a move's label sits in one). */
+const textOf = (html: string, testId: string): string => html.match(new RegExp(`data-testid="${testId}"[^>]*>(?:<span[^>]*>)*([^<]*)<`))?.[1] ?? '';
 
 function snapshot(state: PokerRoomState): void {
   const prev = usePlatformStore.getState().room as PokerRoomState | null;
@@ -436,6 +440,52 @@ describe('copy', () => {
     expect(handHint([c('A', 'H'), c('7', 'C')], [])).toBe('Ace high');
     expect(handHint([c('K', 'H'), c('5', 'C')], [c('K', 'S'), c('5', 'D'), c('9', 'C')])).toBe('Two pair, kings and fives');
     expect(categoryLabel('fullHouse')).toBe('Full house');
+    // A phone's pill: the pair and the high card in full, the rest by kind, never cut.
+    const short = (mine: Card[], board: Card[]) => {
+      const hand = handRankOf(mine, board);
+      return hand ? shortHandName(hand) : null;
+    };
+    expect(short(KINGS, [])).toBe('Pair of kings');
+    expect(short([c('A', 'H'), c('7', 'C')], [])).toBe('Ace high');
+    expect(short([c('K', 'H'), c('5', 'C')], [c('K', 'S'), c('5', 'D'), c('9', 'C')])).toBe('Two pair');
+    expect(short(KINGS, [c('K', 'S'), c('5', 'D'), c('9', 'C')])).toBe('Three of a kind');
+    expect(short(KINGS, [c('K', 'S'), c('5', 'D'), c('5', 'C')])).toBe('Full house');
+    expect(short([c('A', 'H'), c('K', 'H')], [c('Q', 'H'), c('J', 'H'), c('10', 'H')])).toBe('Royal flush');
+    expect(short([c('9', 'H'), c('K', 'H')], [c('Q', 'H'), c('J', 'H'), c('10', 'H')])).toBe('Straight flush');
+    for (const kind of ['Two pair', 'Three of a kind', 'Four of a kind', 'Straight flush', 'Full house']) expect(kind.length).toBeLessThanOrEqual(15);
+  });
+
+  it('words every move for the line under the ribbon, for another player and for me', () => {
+    expect(moveText('Quinn', { kind: 'raise', amount: 1200 })).toBe('Quinn raises to 1,200');
+    expect(moveText('', { kind: 'raise', amount: 40 }, true)).toBe('You raise to 40');
+    expect(moveText('Pia', { kind: 'call', amount: 10 })).toBe('Pia calls 10');
+    expect(moveText('Pia', { kind: 'check', amount: 0 })).toBe('Pia checks');
+    expect(moveText('Pia', { kind: 'fold', amount: 0 })).toBe('Pia folds');
+    expect(moveText('', { kind: 'fold', amount: 0 }, true)).toBe('You fold');
+    expect(moveText('Pia', { kind: 'bet', amount: 20 })).toBe('Pia bets 20');
+    expect(moveText('Pia', { kind: 'allIn', amount: 300 })).toBe('Pia is all in for 300');
+    expect(moveText('', { kind: 'allIn', amount: 300 }, true)).toBe("You're all in for 300");
+    expect(moveText('Pia', { kind: 'smallBlind', amount: 5 })).toBe('Pia posts the small blind');
+    expect(moveText('', { kind: 'bigBlind', amount: 10 }, true)).toBe('You post the big blind');
+  });
+
+  it('says whose turn it is with the last move on this street, then who took the pot and with what', () => {
+    const names: Record<string, string> = { host: 'Hana', bob: 'Pia', carol: 'Quinn' };
+    const line = (v: PokerView, meId: string, shown = true) => focusLine(focusOf({ view: v, table: tableOf(v, meId), outcomesShown: shown, held: false, meId }), { view: v, meId, nameOf: (id) => names[id] ?? id, results: shown ? v.results : null });
+    // Pre-flop: carol's big blind is the last move.
+    expect(line(view(), 'bob')).toEqual({ state: 'turn', text: "Hana's turn", tone: 'other', sub: 'Quinn posts the big blind' });
+    expect(line(view(), 'host')).toEqual({ state: 'mine', text: 'Your turn', tone: 'go', sub: 'Quinn posts the big blind' });
+    // A new street: the move that closed the last one is not this street's, so no second part.
+    expect(line(flop(), 'bob')).toEqual({ state: 'turn', text: "Quinn's turn", tone: 'other', sub: undefined });
+    expect(line(flop({ lastMove: { kind: 'check', amount: 0, seq: 6, playerId: 'host', street: 'flop' } }), 'host').sub).toBe('You check');
+    // The showdown, once it shows: who won, then the hand.
+    expect(line(showdown(), 'bob')).toEqual({ state: 'result', text: 'Hana wins 25', tone: 'other', sub: 'Three of a kind, kings' });
+    expect(line(showdown(), 'host')).toEqual({ state: 'result', text: 'You win 25', tone: 'go', sub: 'Three of a kind, kings' });
+    expect(line(showdown(), 'bob', false)).toEqual({ state: 'idle', text: 'Showdown', tone: 'quiet' });
+    expect(resultLine({ ...SHOWDOWN, uncontested: true }, (id) => names[id])).toEqual({ text: 'Hana takes the pot' });
+    const split = { ...SHOWDOWN, pots: [{ ...SHOWDOWN.pots[0], winners: [{ playerId: 'host', amount: 12 }, { playerId: 'carol', amount: 13 }] }] };
+    expect(resultLine(split, (id) => names[id])).toEqual({ text: 'Split pot', sub: 'Three of a kind, kings' });
+    expect(ribbonText(view())).toBe('Blinds 5/10');
   });
 
   it('labels the hand, the moves, the phase, the result and whose turn it is', () => {
@@ -455,6 +505,10 @@ describe('copy', () => {
     expect(float).toMatch(/right:\s*6px/);
     expect(float).toMatch(/animation-name:\s*pk-seat-rise/);
     expect(css.match(/@keyframes pk-seat-rise \{[\s\S]*?\n\}/)?.[0]).not.toContain('-50%');
+    // On a narrow tile it rises at the top instead, so it never covers the "1,100 chips" line at the bottom.
+    const narrow = css.match(/@container tile \(max-width: 160px\) \{\s*\.pk \.tbl-tile \.tbl-payout \{([^}]*)\}/)?.[1] ?? '';
+    expect(narrow).toMatch(/top:\s*3px/);
+    expect(narrow).toMatch(/bottom:\s*auto/);
     expect(resultText(SHOWDOWN, (id) => (id === 'host' ? 'You' : 'Quinn'))).toBe('You win 25 with three of a kind, kings');
     expect(resultText(SHOWDOWN, () => 'Hana')).toBe('Hana wins 25 with three of a kind, kings');
     // An article where English wants one: "with a straight", never "with straight".
@@ -493,7 +547,7 @@ describe('copy', () => {
 });
 
 describe('the screen', () => {
-  it('my turn: Fold, Call and Raise lit with the amount at the minimum raise, the table with the pot, the board slots, the seats and my cards', () => {
+  it('my turn: Fold, Call and Raise lit with the amount at the minimum raise, the calm table with the pot, the board slots, the ribbon, the seats and my cards', () => {
     const html = render(pkRoom(hostTurn()), 'host');
     expect(attr(tagWith(html, 'poker-screen'), 'data-phase')).toBe('acting');
     expect(attr(tagWith(html, 'hand-indicator'), 'data-hand')).toBe('2');
@@ -502,7 +556,13 @@ describe('the screen', () => {
     expect(attr(tagWith(html, 'pot'), 'data-chips')).toBe('15');
     for (const id of ['action-fold', 'action-call', 'action-raise', 'action-allin', 'raise-half', 'raise-pot', 'raise-max']) expect(disabled(html, id), id).toBe(false);
     expect(textOf(html, 'action-call')).toBe('Call 10');
-    expect(textOf(html, 'action-raise')).toBe('Raise to 20');
+    // The main move is the one big button; Fold, Raise and All in share the row over it.
+    expect(tagWith(html, 'action-call')).toContain('tbl-panel__primary');
+    expect(html).toMatch(/class="tbl-panel__moves tbl-panel__moves--3" style="--moves:3"/);
+    // The field says the amount; the button says the move, and the whole of it to a screen reader.
+    expect(textOf(html, 'action-raise')).toBe('Raise');
+    expect(attr(tagWith(html, 'action-raise'), 'aria-label')).toBe('Raise to 20');
+    expect(attr(tagWith(html, 'action-raise'), 'data-amount')).toBe('20');
     expect(attr(tagWith(html, 'raise-input'), 'value')).toBe('20');
     expect(attr(tagWith(html, 'raise-input'), 'inputMode')).toBe('numeric');
     expect(attr(tagWith(html, 'pk-panel'), 'data-min')).toBe('20');
@@ -517,6 +577,19 @@ describe('the screen', () => {
     expect(tagsWith(html, 'my-card').map((t) => `${attr(t, 'data-rank')}${attr(t, 'data-suit')}`)).toEqual(['KH', 'KC']);
     expect(textOf(html, 'hand-hint')).toBe('Pair of kings');
     expect(html).not.toContain('overlay-results');
+    // The calm table: the ribbon with the blinds and the hand, whose turn with the clock under it, the deck in the corner.
+    expect(attr(tagWith(html, 'pk-table'), 'class')).toContain('tbl-felt tbl-felt--calm pk-table');
+    expect(html).toMatch(/class="tbl-ribbon__main">Blinds 5\/10<\/span><\/span><span class="tbl-ribbon__sub">Hand 2 of 10</);
+    expect(attr(tagWith(html, 'table-turn'), 'data-state')).toBe('mine');
+    expect(html).toMatch(/data-testid="table-turn"[^>]*><span class="tbl-turn__clock">[\s\S]*?data-testid="timer"[\s\S]*?<span class="tbl-turn__text">Your turn<\/span><span class="tbl-turn__sub" data-testid="turn-sub">Quinn posts the big blind</);
+    expect(attr(tagWith(html, 'deck'), 'class')).toBe('tbl-deck tbl-deck--corner');
+    expect(html).not.toContain('tbl-spot');
+    // My stake on the stage as its own pill; theirs on their seats; every stack in words.
+    expect(attr(tagWith(html, 'hand-stage'), 'data-player-id')).toBe('host');
+    expect(attr(tagWith(html, 'my-bet'), 'data-bet')).toBe('0');
+    expect(html).toMatch(/data-testid="seat-bet" data-bet="10"><span class="tbl-stake tbl-stake--bet" data-bet="10"><span class="tbl-stake__word">Bet<\/span> <span class="tbl-stake__value">10<\/span>/);
+    expect(html).toMatch(/data-testid="seat-chips" data-chips="990"><span class="tbl-stackcount__value">990<\/span> <span class="tbl-stackcount__word">chips<\/span>/);
+    expect(html).toMatch(/class="tbl-stake tbl-stake--pot pk-pot__pill" data-testid="pot" data-bet="15" data-chips="15" data-shown="15" data-table-anchor="pot"><span class="tbl-stake__word">Pot<\/span> <span class="tbl-stake__value">15</);
   });
 
   it("someone else's turn: every control dimmed, Check shown, their seat lit and named in the status line", () => {
@@ -526,6 +599,9 @@ describe('the screen', () => {
     expect(attr(carol, 'data-turn')).toBe('true');
     expect(textOf(html, 'turn-status')).toBe('Quinn&#x27;s turn');
     expect(attr(tagWith(html, 'my-area'), 'data-status')).toBe('folded');
+    // My folded cards stay on my stage, dimmed, with what I did.
+    expect(tagWith(html, 'my-cards')).toContain('pk-hand--folded');
+    expect(textOf(html, 'my-state')).toBe('Folded');
   });
 
   it('never puts my hole cards on anyone else’s page: the other seats and a spectator see backs only', () => {
@@ -537,11 +613,17 @@ describe('the screen', () => {
       }
       if (viewer !== 'bob') expect(html).not.toContain('data-rank="7"');
     }
-    // A spectator has no hand at the bottom of the table: only the other seats.
+    // A spectator has no hand of their own: the stage shows the hand in play, backs only.
     const spectator = render(pkRoom(view()), 'dave', false);
     expect(attr(tagWith(spectator, 'turn-status'), 'data-state')).toBe('spectating');
+    // No controls at all for a spectator: one line in place of the panel.
+    expect(textOf(spectator, 'turn-status')).toBe('You&#x27;re watching. You can play the next game.');
+    expect(attr(tagWith(spectator, 'pk-panel'), 'data-watching')).toBe('true');
+    for (const id of ['raise-input', 'action-fold', 'action-call', 'action-check', 'action-raise', 'action-allin', 'raise-max']) expect(tagsWith(spectator, id), id).toHaveLength(0);
     expect(tagsWith(spectator, 'my-area')).toHaveLength(0);
     expect(tagsWith(spectator, 'seat')).toHaveLength(3);
+    expect(attr(tagWith(spectator, 'hand-stage'), 'data-player-id')).toBe('host');
+    expect(tagsWith(spectator, 'stage-card').map((t) => attr(t, 'data-face'))).toEqual(['down', 'down']);
   });
 
   it('the end of a hand stays on the table: the board, the shown hands in the seats, the winner outlined and the result in the status line', () => {
@@ -554,20 +636,26 @@ describe('the screen', () => {
     expect(attr(tagWith(html, 'my-area'), 'data-outcome')).toBe('win');
     expect(attr(tagWith(html, 'my-area'), 'data-payout')).toBe('25');
     expect(textOf(html, 'turn-status')).toBe('You win 25 with three of a kind, kings');
-    // The winner in the spotlight, outlined in lime: my own hand, so not again at the bottom.
-    const spot = tagWith(html, 'spotlight');
-    expect(attr(spot, 'data-kind')).toBe('result');
-    expect(attr(spot, 'data-player-id')).toBe('host');
-    expect(spot).toContain('tbl-spot--tone-win');
-    expect(html).toContain('>You win 25<');
+    // My winning hand outlined in lime with its name in a lime pill, the win in words beside it; no clock in the pause.
+    expect(attr(tagWith(html, 'my-cards'), 'data-tone')).toBe('win');
+    expect(tagWith(html, 'hand-hint')).toContain('tbl-pill--win');
+    expect(html).toMatch(/class="tbl-flag tbl-flag--win"><span data-testid="hand-outcome">Win<\/span> \+25/);
+    expect(html).toMatch(/data-testid="table-turn" data-state="result"><span class="tbl-turn__text">You win 25<\/span><span class="tbl-turn__sub" data-testid="turn-sub">Three of a kind, kings</);
     expect(tagsWith(html, 'my-area')).toHaveLength(1);
     expect(html).not.toContain('overlay-results');
+    // Pia folded: her cards stay dimmed on her stage, and the winner's hand shows beside them.
     const pia = render(pkRoom(showdown()), 'bob', false);
     expect(textOf(pia, 'turn-status')).toBe('Hana wins 25 with three of a kind, kings');
-    expect(attr(tagWith(pia, 'spotlight'), 'data-player-id')).toBe('host');
-    expect(pia).toContain('tbl-spot__name tbl-spot__name--short">Hana</span><span class="tbl-spot__rest">\u00a0wins 25<');
+    expect(attr(tagWith(pia, 'winner-hand'), 'data-player-id')).toBe('host');
+    expect(tagsWith(pia, 'winner-card').map((t) => `${attr(t, 'data-rank')}${attr(t, 'data-suit')}`)).toEqual(['KH', 'KC']);
+    expect(pia).toMatch(/data-testid="winner-cards"[\s\S]*?tbl-pill tbl-pill--win[^>]*>Trips</);
     const host = tagsWith(pia, 'seat').find((t) => attr(t, 'data-player-id') === 'host') ?? '';
     expect(attr(host, 'data-outcome')).toBe('win');
+    // Carol lost at the showdown: her hand outlined in red, "Lost" beside it, the winner's hand there instead.
+    const quinn = render(pkRoom(showdown({ myCards: [c('7', 'S'), c('7', 'C')] })), 'carol', false);
+    expect(attr(tagWith(quinn, 'my-area'), 'data-outcome')).toBe('loss');
+    expect(attr(tagWith(quinn, 'my-cards'), 'data-tone')).toBe('loss');
+    expect(tagsWith(quinn, 'winner-hand')).toHaveLength(1);
   });
 
   it('a bet when nobody has bet: the label says Bet with the field, Check in place of Call', () => {
@@ -575,7 +663,8 @@ describe('the screen', () => {
     const html = render(pkRoom(flop({ turn: 'host', actions, players: { ...flop().players, host: seat({ chips: 990, committed: 10, isDealer: true, status: 'acting', isTurn: true }), carol: seat({ chips: 990, committed: 10 }) } })), 'host');
     expect(textOf(html, 'action-check')).toBe('Check');
     expect(disabled(html, 'action-check')).toBe(false);
-    expect(textOf(html, 'action-raise')).toBe('Bet 10');
+    expect(textOf(html, 'action-raise')).toBe('Bet');
+    expect(attr(tagWith(html, 'action-raise'), 'aria-label')).toBe('Bet 10');
     expect(attr(tagWith(html, 'pk-panel'), 'data-kind')).toBe('bet');
     expect(html).toContain('Bet amount');
   });
@@ -588,79 +677,113 @@ describe('the screen', () => {
   });
 });
 
-describe('the spotlight', () => {
-  it('says my turn once: the label does, so the line under my cards there does not', async () => {
-    const { myState } = await import('./components/MyHand');
-    expect(myState(view(), 'host', true, true)).toBe('');
-    expect(myState(view(), 'host', true, false)).toBe('Your turn');
+describe('the stage and the line under the ribbon', () => {
+  it('puts my state beside my cards: what I did last, folded, all in, out', async () => {
+    const { myState } = await import('./components/Stage');
+    expect(myState(view(), 'host')).toBe('');
+    expect(myState(view(), 'carol')).toBe('BB 10');
+    expect(myState(flop(), 'bob')).toBe('Folded');
+    expect(myState(view({ players: { ...view().players, bob: seat({ status: 'allIn' }) } }), 'bob')).toBe('All in');
+    expect(myState(view({ players: { ...view().players, bob: seat({ busted: true, chips: 0 }) } }), 'bob')).toBe('Out of chips');
   });
 
-  it('gives a narrow tile without room for its cards the stack and last move instead (320 and 360 phones)', () => {
-    const css = readFileSync(join(import.meta.dirname, '../../platform/styles/table.css'), 'utf8');
-    const block = css.match(/@container tile \(max-width: 159px\) and \(min-height: 81px\) and \(max-height: 110px\) \{[\s\S]*?\n\}/)?.[0] ?? '';
-    expect(block).toMatch(/grid-template-areas: 'face name' 'face total' 'meta meta';/);
-    expect(block).toMatch(/\.tbl-tile--full \.tbl-tile__cards,\s*\.tbl-tile--full \.tbl-tile__bet \{\s*display: none;/);
-    expect(block).toMatch(/\.tbl-tile--full\.tbl-tile--line \.tbl-tile__total \{\s*display: none;/);
-    // The Playing tag is wider than the column beside a narrow tile's avatar: it takes its own row.
-    expect(css).toMatch(/\.tbl-tile--full\.tbl-tile--turn \{\s*grid-template-columns: auto minmax\(0, 1fr\);\s*grid-template-areas: 'face name' 'tag tag' 'cards cards';/);
-    const own = readFileSync(join(import.meta.dirname, 'poker.css'), 'utf8');
-    expect(own).toMatch(/@container tile \(max-width: 159px\) \{\s*\.tbl-tile \.pk-dealer \{\s*width: 14px;/);
-  });
-
-  it('is on the player to act with who is next round the table, on my own hand on my turn, then on the winner', async () => {
-    const { spotlightSubject } = await import('./lib/spotlight');
-    const at = (v: PokerView, meId: string | null, shown = true, held = false) => spotlightSubject({ view: v, table: tableOf(v, meId), outcomesShown: shown, held, meId });
+  it('follows the player to act with who is next round the table, then the winner', () => {
+    const at = (v: PokerView, meId: string | null, shown = true, held = false) => focusOf({ view: v, table: tableOf(v, meId), outcomesShown: shown, held, meId });
     // Pre-flop: the host acts, bob is next; on the host's own page it is their own turn.
     expect(at(view(), 'bob')).toEqual({ kind: 'turn', playerId: 'host', mine: false, next: 'bob' });
     expect(at(view(), 'host')).toMatchObject({ kind: 'turn', mine: true });
     // On the flop carol acts; bob folded, so the host is next (round the table past the fold).
     expect(at(flop(), 'bob')).toEqual({ kind: 'turn', playerId: 'carol', mine: false, next: 'host' });
-    // The showdown: the host won the pot. Nobody else is in the spotlight until the outcome shows.
+    // The showdown: the host won the pot, once the outcome shows.
     expect(at(showdown(), 'bob', false)).toEqual({ kind: 'idle', reason: 'showdown' });
     expect(at(showdown(), 'bob')).toEqual({ kind: 'result', playerId: 'host', mine: false });
     expect(at(showdown(), 'host')).toEqual({ kind: 'result', playerId: 'host', mine: true });
-    // Holding for a player between hands, the deal, the end.
     expect(at(showdown({ results: null, paused: true }), 'bob', true, true)).toEqual({ kind: 'idle', reason: 'held' });
     expect(at(view({ turn: null }), 'bob')).toEqual({ kind: 'idle', reason: 'dealing' });
     expect(at(view({ phase: 'gameOver', turn: null }), 'bob')).toEqual({ kind: 'idle', reason: 'over' });
   });
 
-  it("someone else's turn: the spotlight shows them with their stack, their last move and their backs; my hand stays at the bottom", () => {
+  it('puts my own cards on the stage whenever I hold some, otherwise the hand in play, then the winner', () => {
+    const owner = (v: PokerView, meId: string | null, shown = true) => {
+      const table = tableOf(v, meId);
+      return stageOwner(focusOf({ view: v, table, outcomesShown: shown, held: false, meId }), table, meId);
+    };
+    expect(owner(hostTurn(), 'host')).toBe('host');
+    // Someone else's turn: my cards stay (theirs are backs), folded or not.
+    expect(owner(flop(), 'host')).toBe('host');
+    expect(owner(flop(), 'bob')).toBe('bob');
+    // Not dealt in (a spectator, a newcomer): the player to act, then the winner, nobody while dealing.
+    expect(owner(flop(), 'dave')).toBe('carol');
+    expect(owner(showdown(), 'dave')).toBe('host');
+    expect(owner(showdown(), 'dave', false)).toBeNull();
+    expect(owner(view({ turn: null }), null)).toBeNull();
+    expect(stageKind({ kind: 'turn', playerId: 'host', mine: true, next: null })).toBe('mine');
+    expect(stageKind({ kind: 'turn', playerId: 'bob', mine: false, next: null })).toBe('turn');
+    expect(stageKind({ kind: 'idle', reason: 'dealing' })).toBe('idle');
+  });
+
+  it("someone else's turn: no band across the table; the line under the ribbon, their seat's ring and the panel say it", () => {
     const html = render(pkRoom(view({ turn: 'carol', players: { ...view().players, host: seat({ isDealer: true }), carol: seat({ chips: 990, bet: 10, committed: 10, status: 'acting', isTurn: true, lastAction: { kind: 'bigBlind', amount: 10 } }) } })), 'bob', false);
-    const spot = tagWith(html, 'spotlight');
-    expect(attr(spot, 'data-kind')).toBe('turn');
-    expect(attr(spot, 'data-player-id')).toBe('carol');
-    expect(html).toContain('tbl-spot__name tbl-spot__name--short">Quinn</span><span class="tbl-spot__rest">&#x27;s turn<');
-    expect(attr(tagWith(html, 'spot-stack'), 'data-chips')).toBe('990');
-    expect(html).toContain('>BB 10<');
-    expect(attr(tagWith(html, 'spot-bet'), 'data-bet')).toBe('10');
-    expect(tagsWith(html, 'spot-card').every((t) => attr(t, 'data-face') === 'down')).toBe(true);
+    expect(html).not.toContain('data-testid="spotlight"');
+    expect(html).toMatch(/data-testid="table-turn" data-state="turn">[\s\S]*?<span class="tbl-turn__text">Quinn&#x27;s turn<\/span>/);
+    const carol = tagsWith(html, 'seat').find((t) => attr(t, 'data-player-id') === 'carol') ?? '';
+    expect(attr(carol, 'data-turn')).toBe('true');
+    expect(attr(carol, 'data-chips')).toBe('990');
+    expect(attr(carol, 'data-bet')).toBe('10');
+    // My own hand stays on the stage, with my stake and the dealer button on the left.
     expect(tagsWith(html, 'my-area')).toHaveLength(1);
-    // The panel names them with their face.
+    expect(attr(tagWith(html, 'hand-stage'), 'data-player-id')).toBe('bob');
+    expect(attr(tagWith(html, 'hand-stage'), 'data-kind')).toBe('turn');
+    // The panel names them with their face, quietly under the controls.
     expect(html).toContain('tbl-panel__status--who');
+    expect(html).toContain('tbl-panel__status--bottom');
+  });
+
+  it('gives a narrow tile without room for its cards the stack and the bet pill, and a short one the stack as its badge', () => {
+    const css = readFileSync(join(import.meta.dirname, '../../platform/styles/table.css'), 'utf8');
+    const short = css.match(/@container tile \(max-height: 91px\) \{[\s\S]*?\n\}/)?.[0] ?? '';
+    expect(short).toMatch(/grid-template-areas: 'face name total' 'face meta meta';/);
+    expect(short).toMatch(/\.tbl-tile--full \.tbl-tile__cards \{\s*display: none;/);
+    const narrow = css.match(/@container tile \(max-height: 91px\) and \(max-width: 159px\) \{[\s\S]*?\n\}/)?.[0] ?? '';
+    expect(narrow).toMatch(/grid-template-areas: 'face name total' 'meta meta meta';/);
+    expect(css).toMatch(/@container tile \(max-width: 159px\) \{\s*\.tbl-tile--full \.tbl-tile__tag \{\s*display: none;/);
+    // Poker's badge is its stack: hidden while the words fit, shown where the tile is too short for them.
+    expect(css).toMatch(/\.tbl-tile--full\.tbl-tile--short-badge \.tbl-tile__total,\s*\.tbl-tile--compact\.tbl-tile--short-badge \.tbl-tile__total \{\s*display: none;/);
+    expect(css).toMatch(/@container tile \(max-height: 46px\) \{\s*\.tbl-tile--full\.tbl-tile--short-badge \.tbl-tile__total,\s*\.tbl-tile--compact\.tbl-tile--short-badge \.tbl-tile__total \{\s*display: flex;/);
+    const html = render(pkRoom(hostTurn()), 'host');
+    for (const tile of tagsWith(html, 'seat')) expect(attr(tile, 'class')).toContain('tbl-tile--short-badge');
+    const own = readFileSync(join(import.meta.dirname, 'poker.css'), 'utf8');
+    expect(own).toMatch(/@container tile \(max-width: 159px\) \{\s*\.tbl-tile \.pk-dealer \{\s*width: 14px;/);
   });
 });
 
-describe('the table fits a desktop', () => {
-  it('lays the spotlight in one row and my hand on its side at the bottom, so the players keep the height (no scroll at 1280x800)', () => {
-    // A test render is a desktop (no phone media query matches).
-    const html = render(pkRoom(view({ turn: 'carol' })), 'bob', false);
-    expect(attr(tagWith(html, 'pk-table'), 'class')).toContain('tbl-stage--tight');
+describe('the table keeps its places', () => {
+  it('sizes the board and the stage from the screen alone, in the calm table\'s fixed first and last rows', () => {
     const css = readFileSync(join(import.meta.dirname, 'poker.css'), 'utf8');
-    // My cards at the bottom used to be the spotlight's size and 230px tall, pushing the grid to 18px.
-    expect(css).toMatch(/\.pk-mine--bottom \{\s*flex-direction: row;/);
-    expect(css).toMatch(/@media \(min-width: 761px\) and \(min-height: 521px\) \{\s*\.pk-table \.pk-mine--bottom \{\s*--pk-mine-w: 56px;/);
-    expect(css).toMatch(/\.pk-table\.tbl-crowd--small,\s*\.pk-table\.tbl-crowd--dense \{\s*--pk-board-w: 52px;\s*--pk-spot-w: 56px;/);
-    expect(css).toMatch(/\.pk-table\.tbl-stage--tight \.tbl-ribbon \{\s*display: none;/);
+    expect(css).toMatch(/\.pk-table \{[^}]*--tbl-head-h: calc\(var\(--pk-pot-h\) \+ 8px \+ var\(--pk-board-w\) \* 1\.5 \+ 4px\);/);
+    expect(css).toMatch(/\.pk-table \{[^}]*--tbl-stage-h: calc\(var\(--tbl-pill-h\) \* 0\.7 \+ var\(--pk-mine-w\) \* 1\.77 \+ 4px\);/);
+    // A crowd never resizes the board or my cards.
+    for (const rule of css.match(/[^{}]*tbl-crowd--[^{}]*\{[^}]*\}/g) ?? []) expect(rule).not.toMatch(/--pk-(board|mine)-w/);
+    // The board, the pot over it and the deck in the corner: no spotlight, no tray.
+    const html = render(pkRoom(view({ turn: 'carol' })), 'bob', false);
+    expect(html).not.toContain('tbl-stage--tight');
+    expect(attr(tagWith(html, 'discard-tray'), 'class')).toBe('tbl-discard-corner');
+    expect(attr(tagWith(html, 'deck'), 'data-remaining')).toBe(String(52 - 3 * 2));
   });
 
-  it('keeps the blinds clear of the board and the label clear of the cards on a 320px phone', () => {
+  it('puts the pot beside the board on the shortest phones, the board clear of the deck, so the seats keep the height', () => {
     const css = readFileSync(join(import.meta.dirname, 'poker.css'), 'utf8');
-    const narrow = css.slice(css.indexOf('@media (max-width: 340px)'));
-    // The pot column (about 70px) and five 26px cards fit between the muck and the deck.
-    expect(narrow).toMatch(/--pk-board-w: 26px;/);
-    // The spotlight's chip goes unseen when tight (its line says "Call 20"); it stays in place for the chips to fly to.
-    expect(css).toMatch(/\.tbl-stage--tight \.pk-bet--spot \{\s*position: absolute;\s*opacity: 0;/);
+    const short = css.slice(css.indexOf('@media (max-width: 760px) and (max-height: 680px)'));
+    expect(short).toMatch(/\.pk-centre \{\s*flex-direction: row;[^}]*padding-right: calc\(var\(--tbl-deck-w\) \* 1\.45\);/);
+    expect(short).toMatch(/--tbl-head-h: calc\(var\(--pk-board-w\) \* 1\.5 \+ 4px\);/);
+    // The side pots stay on show.
+    expect(css).not.toMatch(/\.pk-pot__sides\s*\{\s*display:\s*none/);
+    // The banner goes there, so the blinds show by the pot instead (and only there).
+    expect(css).toMatch(/\.pk-pot__blinds \{\s*display: none;/);
+    expect(short).toMatch(/\.pk-pot__blinds \{\s*display: block;/);
+    expect(render(pkRoom(view()), 'bob', false)).toContain('<span class="pk-pot__blinds">Blinds 5/10</span>');
+    // The column beside my cards packs into rows there, so the face, the button and the bet stay inside the stage (a 320x568 table once scrolled by 8px).
+    expect(short).toMatch(/\.pk \.tbl-stage__owner \{\s*flex-direction: row;\s*flex-wrap: wrap;/);
   });
 });
 
@@ -672,7 +795,7 @@ describe('seats and hooks', () => {
     expect(seatRing(state, state.game as PokerView, 'dave')).toEqual(['host', 'bob', 'carol', 'eve']);
   });
 
-  it('fits a 23-seat table in the players grid: every other seat as a small tile, the turn ringed and in the spotlight, a newcomer with no seat yet last', () => {
+  it('fits a 23-seat table in the players grid: every other seat as a small tile, the turn ringed and named under the ribbon, a newcomer with no seat yet last', () => {
     const ids = ['host', ...Array.from({ length: 22 }, (_, i) => `p${i}`)];
     const players = Object.fromEntries(ids.map((id) => [id, seat({ isTurn: id === 'p14', status: id === 'p14' ? 'acting' : 'waiting' })]));
     const state = pkRoom(view({ order: ids, turn: 'p14', players: { ...players, late: seat({ chips: 0, status: 'out', waitingForSeat: true }) } }));
@@ -684,12 +807,10 @@ describe('seats and hooks', () => {
     expect(attr(seats[22], 'data-player-id')).toBe('late');
     expect(attr(seats[22], 'data-state')).toBe('no-seat');
     expect(html).toContain('No seat yet');
-    // Small tiles leave the cards to the spotlight: the player to act, their two backs, who is next.
+    // Small tiles leave the cards out: the ring and the line under the ribbon, with the clock, say whose turn it is.
     expect(attr(tagWith(html, 'seats'), 'data-tier')).toBe('small');
     expect(tagsWith(html, 'seat-card')).toHaveLength(0);
-    expect(attr(tagWith(html, 'spotlight'), 'data-player-id')).toBe('p14');
-    expect(tagsWith(html, 'spot-card').map((t) => attr(t, 'data-face'))).toEqual(['down', 'down']);
-    expect(html).toContain('data-testid="spot-next">Next: <!-- -->p15<');
+    expect(html).toMatch(/data-testid="table-turn" data-state="turn"><span class="tbl-turn__clock">[\s\S]*?<span class="tbl-turn__text">p14&#x27;s turn</);
     const late = render(state, 'late', false);
     expect(textOf(late, 'turn-status')).toBe('Table full. You get the next free seat');
     expect(pokerClient.playerStatus?.(state, player('late'))).toMatchObject({ label: 'No seat yet', tone: 'muted' });
@@ -713,21 +834,30 @@ describe('seats and hooks', () => {
 });
 
 describe('settings rows', () => {
-  it('gives the host presets and numeric fields for the chips and the blinds, and the sliders for the rest', () => {
+  it('gives the host presets and numeric fields for the chips and the blinds, and the sliders for the rest; no clocks', () => {
     const { settings } = pkRoom(view());
     if (!pokerClient.SettingsFields) throw new Error('no settings fields');
-    const host = renderToString(createElement(pokerClient.SettingsFields, { settings, canEdit: true, patch: () => undefined }));
+    const host = renderToString(createElement(pokerClient.SettingsFields, { settings, patch: () => undefined }));
     const chips = tagWith(host, 'settings-startingChips');
     expect(chips).toContain('type="number"');
     expect(chips).toContain('max="100000"');
     expect(tagWith(host, 'settings-smallBlind-5')).toContain('aria-pressed="true"');
     expect(tagWith(host, 'settings-hands')).toContain('max="100"');
-    const guest = renderToString(createElement(pokerClient.SettingsFields, { settings, canEdit: false, patch: () => undefined }));
-    expect(guest).not.toContain('data-testid="settings-startingChips"');
-    expect(guest).toContain('Until one is left');
+    // A slider's value reads beside it, never on the title row.
+    expect(host).toContain('No limit');
+    expect(host).not.toContain('setting__value');
+    expect(tagWith(host, 'settings-value-hands')).toContain('range-field__value');
+    expect(host).not.toMatch(/actSeconds|resultsSeconds|Move time|Results time/);
+    expect(host.match(/class="range"/g)).toHaveLength(2);
     expect(blindsIncreaseLabel(0)).toBe('Never');
-    expect(blindsIncreaseLabel(10)).toBe('Every 10 hands');
-    expect(handsLabel(0)).toBe('Until one is left');
+    expect(blindsIncreaseLabel(1)).toBe('Every hand');
+    expect(blindsIncreaseLabel(10)).toBe('Every 10');
+    expect(handsLabel(0)).toBe('No limit');
+    // A readout is as wide as the longest value its slider can show, whatever it shows now, so the track never changes length.
+    expect(longestReadout(0, 50, 1, blindsIncreaseLabel)).toBe('Every hand'.length);
+    expect(longestReadout(0, 100, 1, handsLabel)).toBe('No limit'.length);
+    expect(tagWith(host, 'settings-value-blindsIncreaseEvery')).toContain('width:calc(10ch + 18px)');
+    expect(tagWith(host, 'settings-value-hands')).toContain('width:calc(8ch + 18px)');
   });
 });
 
@@ -742,7 +872,6 @@ describe('player-list hooks and the store', () => {
     expect(meta('bob')).toContain('bet 5');
     expect(meta('host')).toContain('folded');
     expect(pokerClient.playerClassName?.(state, player('carol'))).toBe('player--out');
-    expect(pokerClient.chatPlaceholder?.(state, 'host')).toBe('Table talk…');
   });
 
   it('forgets the typed amount when the turn moves on, and resets everything back in the lobby and on leave', () => {
@@ -753,7 +882,7 @@ describe('player-list hooks and the store', () => {
     expect(usePokerStore.getState().raiseText).toBe('80');
     snapshot(pkRoom(view({ turn: 'bob' })));
     expect(usePokerStore.getState().raiseText).toBeNull();
-    usePokerStore.getState().openSheet('chat');
+    usePokerStore.getState().openSheet('players');
     snapshot({ ...pkRoom(view()), phase: 'lobby', game: null });
     expect(usePokerStore.getState()).toMatchObject({ sheet: null, table: null });
     usePokerStore.getState().setRaiseText('50');

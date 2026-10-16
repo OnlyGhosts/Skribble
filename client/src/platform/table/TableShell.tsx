@@ -2,11 +2,10 @@ import type { CSSProperties, ReactNode } from 'react';
 import type { GameMeta } from '@shared/platform/games';
 import type { RoomState } from '@shared/platform/protocol';
 import { BottomSheet } from '../components/BottomSheet';
-import { Chat } from '../components/Chat';
 import { GameMenuSheet, GameTopBar } from '../components/GameTopBar';
 
 /** The phone sheets a table can show; one at a time. */
-export type TableSheet = 'players' | 'chat' | 'menu';
+export type TableSheet = 'players' | 'menu';
 
 type DataAttrs = Record<`data-${string}`, string | number | boolean | undefined>;
 
@@ -36,10 +35,9 @@ interface Props {
 }
 
 /**
- * A card table's screen: a top bar (what is being played, players, chat, options; one row on a
- * phone, where every player is on the table), the table (the turn clock is in its spotlight), and
- * the control panel always in the same place: under the table on a phone, in a left column on a
- * desktop with the chat on the right (table.css).
+ * A card table's screen: a top bar (what is being played, players, options; one row on a phone,
+ * where every player is on the table), the table, and the control panel always in the same place:
+ * docked under the table on a phone, in a left column on a desktop (table.css).
  */
 export function TableShell({ meta, className, testId, headerTestId, mainTestId, data, isPhone, status, statusTestId, statusData, room, players, sheet, onSheet, endControl, table, panel }: Props) {
   const closeSheet = () => onSheet(null);
@@ -57,7 +55,6 @@ export function TableShell({ meta, className, testId, headerTestId, mainTestId, 
         statusData={statusData}
         players={{ open: sheet === 'players', onOpen: () => onSheet('players') }}
         compact={isPhone}
-        chat={isPhone ? { open: sheet === 'chat', onOpen: () => onSheet('chat') } : undefined}
         menu={{ open: sheet === 'menu', onOpen: () => onSheet('menu') }}
         actions={endControl('header')}
       />
@@ -70,26 +67,13 @@ export function TableShell({ meta, className, testId, headerTestId, mainTestId, 
         {panel}
       </aside>
 
-      {!isPhone && (
-        <aside className="tbl__chat card" aria-label="Chat">
-          <Chat />
-        </aside>
-      )}
-
       <BottomSheet open={sheet === 'players'} title={`Players (${room.players.length})`} onClose={closeSheet} testId="players-sheet">
         {players}
       </BottomSheet>
       {isPhone && (
-        <>
-          <BottomSheet open={sheet === 'chat'} title="Chat" onClose={closeSheet} testId="chat-sheet">
-            <div className="tbl__chat-sheet">
-              <Chat />
-            </div>
-          </BottomSheet>
-          <GameMenuSheet open={sheet === 'menu'} onClose={closeSheet}>
-            {endControl('menu')}
-          </GameMenuSheet>
-        </>
+        <GameMenuSheet open={sheet === 'menu'} onClose={closeSheet}>
+          {endControl('menu')}
+        </GameMenuSheet>
       )}
     </div>
   );

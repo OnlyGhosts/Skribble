@@ -30,30 +30,23 @@ export const BLACKJACK_SETTINGS_LIMITS = {
  */
 export const BLACKJACK_RESULTS_MS = 5000;
 
-export const BLACKJACK_PAYOUTS = ['3:2', '6:5'] as const;
-export type BlackjackPayout = (typeof BLACKJACK_PAYOUTS)[number];
-
 const limited = (key: keyof typeof BLACKJACK_SETTINGS_LIMITS) => z.number().int().min(BLACKJACK_SETTINGS_LIMITS[key].min).max(BLACKJACK_SETTINGS_LIMITS[key].max);
 
+/**
+ * The starting chips are the only setting; the house rules are fixed (cards.ts): the dealer stands
+ * on every 17, a natural pays 3 to 2, any two cards may double and any pair may split. A room or a
+ * patch stored with the retired keys (dealerHitsSoft17, blackjackPayout, allowDouble, allowSplit,
+ * the old clocks and decks) loads and ignores them.
+ */
 export const blackjackSettingsSchema = z.object({
-  /** Chips every player (late joiners included) starts with; the score is the chip count. */
+  /** Chips every player starts with; the score is the chip count. */
   startingChips: limited('startingChips'),
-  /** The dealer draws on a soft 17 (an ace counted as 11) instead of standing. */
-  dealerHitsSoft17: z.boolean(),
-  blackjackPayout: z.enum(BLACKJACK_PAYOUTS),
-  allowDouble: z.boolean(),
-  /** Pairs split, and re-split with no cap while the chips last; split aces take one card each; 21 after a split pays 1:1. */
-  allowSplit: z.boolean(),
 });
 
 export type BlackjackSettings = z.infer<typeof blackjackSettingsSchema>;
 
 export const DEFAULT_BLACKJACK_SETTINGS: BlackjackSettings = {
   startingChips: 1000,
-  dealerHitsSoft17: false,
-  blackjackPayout: '3:2',
-  allowDouble: true,
-  allowSplit: true,
 };
 
 // ---------------------------------------------------------------------------

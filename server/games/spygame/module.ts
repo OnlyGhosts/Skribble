@@ -51,9 +51,6 @@ function handle(ctx: Ctx, data: SpygameData, event: GameEvent<SpygameClientMessa
         return onPlayerReconnected(gx, event.playerId);
       case 'tick':
         return onTick(gx);
-      case 'playerJoined':
-        // A mid-round joiner spectates (they are simply not among the round's players); between rounds they may end a hold.
-        return resumeIfHeld(gx);
       case 'chat':
         // Chat is just chat here.
         return;

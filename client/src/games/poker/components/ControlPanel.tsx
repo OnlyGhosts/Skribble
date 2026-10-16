@@ -2,7 +2,8 @@ import { useState } from 'react';
 import type { PokerView } from '@shared/games/poker/protocol';
 import { useHotkeys } from '../../../platform/lib/hotkeys';
 import { AmountField } from '../../../platform/table/AmountField';
-import { MoveButton, PanelLabelRow, PanelMoves, PanelShell, type PanelStatus } from '../../../platform/table/ControlPanel';
+import { MoveButton, PanelLabelRow, PanelMoves, PanelShell, WatchingPanel, type PanelStatus } from '../../../platform/table/ControlPanel';
+import { AllInIcon, FoldIcon, RaiseIcon } from '../../../platform/table/Icons';
 import { allIn, call, check, fold, wager } from '../actions';
 import { amountFrom, potSized, raiseRange, wagerKind } from '../lib/raise';
 import { HOTKEY_HINT, formatChips } from '../lib/text';
@@ -24,8 +25,9 @@ interface Props {
 
 /**
  * The control panel, the same place all game long and the same shell as Blackjack's: the raise
- * amount with 1/2 pot, Pot and MAX joined to it, then Fold and Check or Call, then Bet or Raise
- * (named from the field) and All in. Every control is always there, lit only on my turn when it
+ * amount (my stack beside its label) with 1/2 pot, Pot and MAX joined to it, then Fold, Bet or
+ * Raise (sending the amount) and All in in one row, then the main move, Check or Call, as the one
+ * big button, and a quiet status line. Every control is always there, lit only on my turn when it
  * is on offer. The amount starts at the minimum raise each turn.
  */
 export function ControlPanel({ view, meId, balance, status, canSend, busy, hotkeys }: Props) {
@@ -55,19 +57,18 @@ export function ControlPanel({ view, meId, balance, status, canSend, busy, hotke
   useHotkeys(hotkeys, { F: can.fold ? () => void fold() : null, C: can.checkCall ? () => void checkOrCall() : null, R: canWager ? send : null, A: can.allIn ? () => void allIn() : null });
 
   const kind = wagerKind(view, range);
-  const wagerLabel = amount !== null ? (kind === 'bet' ? `Bet ${formatChips(amount)}` : `Raise to ${formatChips(amount)}`) : kind === 'bet' ? 'Bet' : 'Raise';
+  const wagerWord = kind === 'bet' ? 'Bet' : 'Raise';
+  // The button says the move; the field above it says the amount ("Raise to" 80).
+  const wagerAria = amount !== null ? (kind === 'bet' ? `Bet ${amount}` : `Raise to ${amount}`) : wagerWord;
   const callLabel = actions.canCall ? `Call ${formatChips(actions.callAmount)}` : 'Check';
-  const steps = range
-    ? [
-        { label: '1/2 pot', ariaLabel: 'Half the pot', testId: 'raise-half', value: potSized(view, myBet, range, 0.5) },
-        { label: 'Pot', ariaLabel: 'The pot', testId: 'raise-pot', value: potSized(view, myBet, range, 1) },
-        { label: 'MAX', ariaLabel: 'All your chips', testId: 'raise-max', value: range.max },
-      ]
-    : [
-        { label: '1/2 pot', ariaLabel: 'Half the pot', testId: 'raise-half', value: null },
-        { label: 'Pot', ariaLabel: 'The pot', testId: 'raise-pot', value: null },
-        { label: 'MAX', ariaLabel: 'All your chips', testId: 'raise-max', value: null },
-      ];
+  const steps = [
+    { label: '1/2 pot', ariaLabel: 'Half the pot', testId: 'raise-half', value: range ? potSized(view, myBet, range, 0.5) : null },
+    { label: 'Pot', ariaLabel: 'The pot', testId: 'raise-pot', value: range ? potSized(view, myBet, range, 1) : null },
+    { label: 'MAX', ariaLabel: 'All your chips', testId: 'raise-max', value: range ? range.max : null },
+  ];
+
+  // A spectator of the whole game has no moves at all: one line in place of the controls.
+  if (status.state === 'spectating') return <WatchingPanel testId="pk-panel" />;
 
   return (
     <PanelShell
@@ -77,6 +78,7 @@ export function ControlPanel({ view, meId, balance, status, canSend, busy, hotke
       testId="pk-panel"
       data={{ 'data-kind': range?.kind, 'data-min': range?.min, 'data-max': range?.max, 'data-amount': amount ?? undefined, 'data-my-turn': myTurn }}
       hint={hotkeys && HOTKEY_HINT}
+      statusAt="bottom"
     >
       <PanelLabelRow label={kind === 'bet' ? 'Bet amount' : 'Raise to'} htmlFor="pk-raise-amount" balance={balance} truth={seat?.chips ?? 0} />
       <AmountField
@@ -98,12 +100,22 @@ export function ControlPanel({ view, meId, balance, status, canSend, busy, hotke
       <span id="pk-raise-range" className="sr-only">
         {range ? `Between ${range.min} and ${range.max} chips` : 'No raise possible'}
       </span>
-      <PanelMoves>
-        <MoveButton label="Fold" testId="action-fold" enabled={can.fold} onClick={() => void fold()} hotkey={hotkeys ? 'F' : undefined} />
-        <MoveButton label={callLabel} testId={actions.canCall ? 'action-call' : 'action-check'} enabled={can.checkCall} onClick={() => void checkOrCall()} primary hotkey={hotkeys ? 'C' : undefined} data={{ 'data-amount': actions.canCall ? actions.callAmount : undefined }} />
-        <MoveButton label={wagerLabel} testId="action-raise" enabled={canWager} onClick={send} hotkey={hotkeys ? 'R' : undefined} data={{ 'data-kind': kind }} />
-        <MoveButton label="All in" testId="action-allin" enabled={can.allIn} onClick={() => void allIn()} hotkey={hotkeys ? 'A' : undefined} />
+      <PanelMoves count={3}>
+        <MoveButton label="Fold" icon={<FoldIcon size={16} />} testId="action-fold" enabled={can.fold} onClick={() => void fold()} hotkey={hotkeys ? 'F' : undefined} />
+        <MoveButton label={wagerWord} ariaLabel={wagerAria} icon={<RaiseIcon size={16} />} testId="action-raise" enabled={canWager} onClick={send} hotkey={hotkeys ? 'R' : undefined} data={{ 'data-kind': kind, 'data-amount': amount ?? undefined }} />
+        <MoveButton label="All in" icon={<AllInIcon size={16} />} testId="action-allin" enabled={can.allIn} onClick={() => void allIn()} hotkey={hotkeys ? 'A' : undefined} />
       </PanelMoves>
+      <button
+        type="button"
+        className="btn btn--primary btn--lg btn--block tbl-panel__primary"
+        disabled={!can.checkCall}
+        onClick={() => void checkOrCall()}
+        aria-keyshortcuts={hotkeys ? 'C' : undefined}
+        data-testid={actions.canCall ? 'action-call' : 'action-check'}
+        data-amount={actions.canCall ? actions.callAmount : undefined}
+      >
+        {callLabel}
+      </button>
     </PanelShell>
   );
 }

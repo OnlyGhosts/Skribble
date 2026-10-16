@@ -398,15 +398,14 @@ test('the hidden template game plays a whole Click Race between two players', as
   await joinByLink(guest.page, guest.name, `/template/${code}`, code);
   await expect(host.page.getByTestId('player-item')).toHaveCount(2);
 
-  // Platform fields first, then the game's own rows; only the host edits.
+  // Platform fields first, then the game's own rows; only the host sees and edits them.
   await host.page.getByTestId('settings-targetClicks').fill('10');
-  await expect(guest.page.getByTestId('settings-value-targetClicks')).toHaveText('10');
-  await expect(guest.page.getByTestId('settings-targetClicks')).toHaveCount(0);
-  await expect(guest.page.getByTestId('settings-value-timeLimit')).toHaveText('30s');
-  await expect(guest.page.getByTestId('settings-allowMidGameJoin')).toBeDisabled();
-  await expect(guest.page.getByTestId('settings-maxPlayers')).toHaveCount(0);
+  await expect(host.page.getByTestId('settings-value-targetClicks')).toHaveText('10');
+  await expect(host.page.getByTestId('settings-value-timeLimit')).toHaveText('30s');
+  await expect(host.page.getByTestId('settings-maxPlayers')).toHaveCount(0);
   // Click Race never reads the content mode, so the lobby does not offer it.
-  await expect(guest.page.getByTestId('settings-contentMode')).toHaveCount(0);
+  await expect(host.page.getByTestId('settings-contentMode')).toHaveCount(0);
+  await expect(guest.page.getByTestId('settings-panel')).toHaveCount(0);
 
   await readyAll([guest.page]);
   await host.page.getByTestId('start-game').click();
@@ -415,7 +414,6 @@ test('the hidden template game plays a whole Click Race between two players', as
     await expect(p.page.getByTestId('race-row')).toHaveCount(2);
     await expect(p.page.getByTestId('timer')).toBeVisible();
   }
-  await expect(host.page.getByTestId('chat-log')).toContainText('The game has started!');
 
   // The top bar: a chip per player and a timer ring whose arc starts whole.
   await expect(host.page.getByTestId('player-chip')).toHaveCount(2);
@@ -539,6 +537,14 @@ for (const width of [320, 390, 700, 768, 1024, 1440]) {
     const createBtn = await page.getByTestId('home-create').boundingBox();
     expect(joinBtn?.width ?? 0).toBeLessThanOrEqual(460.5);
     expect(Math.abs((joinBtn?.x ?? 0) + (joinBtn?.width ?? 0) / 2 - width / 2), 'the column is centred').toBeLessThanOrEqual(1);
+    // "Join a room" is centred over the column too, so nothing in it leans left.
+    const titleCentre = await page.locator('#join-heading').evaluate((el) => {
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      const box = range.getBoundingClientRect();
+      return box.x + box.width / 2;
+    });
+    expect(Math.abs(titleCentre - width / 2), 'Join a room is centred').toBeLessThanOrEqual(1.5);
     expect(createBtn?.x).toBe(joinBtn?.x);
     expect(createBtn?.width).toBe(joinBtn?.width);
     const gap = (createBtn?.y ?? 0) - ((joinBtn?.y ?? 0) + (joinBtn?.height ?? 0));

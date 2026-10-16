@@ -23,8 +23,9 @@ interface Props {
 }
 
 /**
- * A CSS playing card (cards.css): rank and suit in the corner and the middle, red or black.
- * `null` is a face-down card whose markup carries no rank or suit at all.
+ * A CSS playing card (cards.css): a bold rank at the top left with one big suit under it, red or
+ * near-black, nothing else on the face, so a card fanned under the next still reads. `null` is a
+ * face-down card (the boredgames back) whose markup carries no rank or suit at all.
  */
 export function PlayingCard({ card, size = 'md', testId = 'card', slot = false, highlight = false, className }: Props) {
   const extra = `${highlight ? ' playing-card--highlight' : ''}${className ? ` ${className}` : ''}`;
@@ -36,19 +37,11 @@ export function PlayingCard({ card, size = 'md', testId = 'card', slot = false, 
     );
   }
   const red = card.suit === 'H' || card.suit === 'D';
-  const glyph = SUIT_GLYPHS[card.suit];
   return (
     <span className={`playing-card playing-card--${size}${red ? ' playing-card--red' : ''}${extra}`} role="img" aria-label={cardName(card)} data-testid={testId} data-face="up" data-rank={card.rank} data-suit={card.suit}>
       <span className="playing-card__corner" aria-hidden="true">
-        <span className="playing-card__rank">{card.rank}</span>
-        <span className="playing-card__suit">{glyph}</span>
-      </span>
-      <span className="playing-card__pip" aria-hidden="true">
-        {glyph}
-      </span>
-      <span className="playing-card__corner playing-card__corner--flip" aria-hidden="true">
-        <span className="playing-card__rank">{card.rank}</span>
-        <span className="playing-card__suit">{glyph}</span>
+        <span className={`playing-card__rank${card.rank === '10' ? ' playing-card__rank--wide' : ''}`}>{card.rank}</span>
+        <span className="playing-card__suit">{SUIT_GLYPHS[card.suit]}</span>
       </span>
     </span>
   );

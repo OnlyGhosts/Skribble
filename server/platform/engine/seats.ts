@@ -6,12 +6,12 @@ import { CLOSE_REMOVED } from '../../../shared/platform/protocol.js';
 import type { ActionResult } from './actions.js';
 import { runGame } from './delegate.js';
 import { ensureEnoughSeated } from './lobby.js';
-import { broadcastSnapshot, fail, requireHost, sendTo, sendWelcome, systemMessage, type Cx } from './messaging.js';
+import { broadcastSnapshot, fail, noticeMessage, requireHost, sendTo, sendWelcome, systemMessage, type Cx } from './messaging.js';
 import { moduleFor } from './module.js';
-import { connectedCount, electorate, findByToken, findPlayer, isFull, isJoinable, othersConnected, votesNeeded } from './players.js';
+import { connectedCount, electorate, findByToken, findPlayer, isFull, othersConnected, votesNeeded } from './players.js';
 import { MAX_KICKED_TOKENS, type PlatformPlayerData } from './state.js';
 
-type Seat = { ok: true; playerId: string } | { ok: false; code: 'ROOM_FULL' | 'GAME_IN_PROGRESS' | 'REJOIN_FAILED' | 'INTERNAL'; message: string };
+type Seat = { ok: true; playerId: string } | { ok: false; code: 'ROOM_FULL' | 'REJOIN_FAILED' | 'INTERNAL'; message: string };
 
 export function create(cx: Cx, gameId: GameId, name: string, avatar: Avatar, connectionId: string): ActionResult {
   if (cx.data.players.length > 0 || cx.data.hostId) {
@@ -21,12 +21,13 @@ export function create(cx: Cx, gameId: GameId, name: string, avatar: Avatar, con
   return join(cx, name, avatar, connectionId);
 }
 
+/**
+ * A newcomer takes a seat in the party. While a game runs they watch it as a spectator (the game
+ * never hears of them) and play from the next game on; only the room's cap turns anyone away.
+ */
 export function join(cx: Cx, name: string, avatar: Avatar, connectionId: string): Seat {
   const { data } = cx;
   if (isFull(data)) return { ok: false, code: 'ROOM_FULL', message: 'This room is full.' };
-  if (!isJoinable(data)) {
-    return { ok: false, code: 'GAME_IN_PROGRESS', message: 'A game is in progress and the host disabled mid-game joins.' };
-  }
   const wasEmpty = data.players.length === 0;
   const player: PlatformPlayerData = {
     id: cx.ctx.newId(),
@@ -41,20 +42,16 @@ export function join(cx: Cx, name: string, avatar: Avatar, connectionId: string)
     disconnectedAt: null,
     ready: false,
     sittingOut: false,
-    // A mid-game joiner is in the game (games decide when they take part); between games nobody is.
-    participating: data.phase === 'playing',
+    participating: false,
   };
   data.players.push(player);
   if (!data.hostId) data.hostId = player.id;
   if (wasEmpty) data.grace.emptyRoomAt = null;
   standInForAbsentHost(cx);
 
-  // The game learns about the seat first (so the welcome reflects it), but its reactions follow the welcome.
-  const gameEffects = deferred(cx, () => runGame(cx, { type: 'playerJoined', playerId: player.id }));
   systemMessage(cx, `${player.name} joined`, player.id);
   sendWelcome(cx, player.id);
   broadcastSnapshot(cx, player.id);
-  cx.effects.push(...gameEffects);
   return { ok: true, playerId: player.id };
 }
 
@@ -75,7 +72,7 @@ export function rejoin(cx: Cx, token: string, connectionId: string): Seat {
     data.returningHostId = null;
     if (data.hostId !== player.id) {
       data.hostId = player.id;
-      systemMessage(cx, `${player.name} is the host again`, player.id);
+      noticeMessage(cx, `${player.name} is the host again`, player.id);
     }
   }
 
@@ -148,19 +145,12 @@ export function voteKick(cx: Cx, playerId: string, targetId: string): void {
   if (vote.voterIds.includes(playerId)) return;
   vote.voterIds.push(playerId);
   if (resolveVotes(cx)) return;
-  systemMessage(cx, `${voter.name} voted to kick ${target.name} (${vote.voterIds.length}/${votesNeeded(data, target.id)})`);
+  noticeMessage(cx, `${voter.name} voted to kick ${target.name} (${vote.voterIds.length}/${votesNeeded(data, target.id)})`);
 }
 
 /** Removes a player whose reconnect grace ran out. */
 export function expireSeat(cx: Cx, playerId: string): void {
   removePlayer(cx, playerId, 'left');
-}
-
-/** Runs `fn` and returns the effects it produced, removing them from the list so the caller can place them later. */
-function deferred(cx: Cx, fn: () => void): Cx['effects'] {
-  const mark = cx.effects.length;
-  fn();
-  return cx.effects.splice(mark);
 }
 
 function withdrawVotes(cx: Cx, voterId: string): void {
@@ -253,6 +243,6 @@ function transferHost(cx: Cx): void {
   });
   const next = candidates[0];
   data.hostId = next ? next.id : '';
-  if (next) systemMessage(cx, `${next.name} is now the host`);
+  if (next) noticeMessage(cx, `${next.name} is now the host`);
 }
 

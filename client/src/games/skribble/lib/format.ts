@@ -1,4 +1,5 @@
 import type { TurnEndReason } from '@shared/games/skribble/protocol';
+import { WATCHING_TEXT } from '../../../platform/lib/watching';
 
 export function turnEndReasonText(reason: TurnEndReason, drawerName: string): string {
   switch (reason) {
@@ -22,11 +23,12 @@ export function letterCounts(mask: string): string {
     .join(' ');
 }
 
-export function placeholderFor(phaseKind: string | undefined, isDrawer: boolean, hasGuessed: boolean, participating = true): string {
-  if (phaseKind !== 'drawing') return 'Chat...';
-  // A spectator's lines are plain chat, never guesses.
-  if (!participating) return "You're watching this one. Chat...";
-  // The server delivers the drawer's lines to players who already know the word only.
-  if (isDrawer) return 'Chat with players who guessed...';
-  return hasGuessed ? 'Chat with players who guessed...' : 'Type your guess...';
+/** The line under the guess feed for anyone not typing a guess right now. */
+export function guessBoxLine(phaseKind: string | undefined, isDrawer: boolean, hasGuessed: boolean, participating = true): string {
+  if (!participating) return WATCHING_TEXT;
+  if (phaseKind === 'choosing') return isDrawer ? 'Pick a word to draw' : 'Get ready to guess';
+  if (phaseKind === 'turnEnd') return 'Next turn soon';
+  if (phaseKind !== 'drawing') return 'Game over';
+  if (isDrawer) return 'Guesses show up here';
+  return hasGuessed ? 'You got it! Others are still guessing' : 'Type your guess';
 }

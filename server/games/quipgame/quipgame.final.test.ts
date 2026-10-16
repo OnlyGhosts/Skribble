@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { gameById } from '../../../shared/platform/games.js';
 import { defaultPlatformSettings } from '../../../shared/platform/settings.js';
 import { RECONNECT_GRACE_MS } from '../../../shared/platform/constants.js';
+import { QUIPGAME_RESULTS_SECONDS, QUIPGAME_VOTE_SECONDS, QUIPGAME_WRITE_SECONDS } from '../../../shared/games/quipgame/protocol.js';
 import { nextDeadline } from '../../platform/engine/time.js';
 import { AVATAR, START, chatTexts, sim, startGame, type Sim } from '../../platform/engine/testHarness.js';
 import { viewFor } from '../../platform/engine/view.js';
@@ -10,15 +11,27 @@ import { RESUME_SETTLE_MS } from '../waiting.js';
 import { quipgameModule, type QuipgameData } from './module.js';
 import { answerText, authors, castVotes, data, disconnect, errors, matchup, playRound, reconnect, score, view, voters, writeAll } from './testHarness.js';
 
-const VOTE_MS = 10_000;
-const RESULT_MS = 4_000;
+const WRITE_MS = QUIPGAME_WRITE_SECONDS * 1000;
+const VOTE_MS = QUIPGAME_VOTE_SECONDS * 1000;
+const RESULT_MS = QUIPGAME_RESULTS_SECONDS * 1000;
 
-/** Plays both regular rounds (everyone votes A, the host skips results) so the final begins. */
-function reachFinal(s: Sim, host: string): void {
-  for (let round = 1; round <= 2; round++) {
-    writeAll(s);
-    playRound(s, host);
+/**
+ * Plays both regular rounds (everyone votes A, the host skips results) so the final begins. An
+ * `audience` player is away as the final deals its prompt and back straight after: they rank
+ * but wrote nothing.
+ */
+function reachFinal(s: Sim, host: string, audience?: string): void {
+  writeAll(s);
+  playRound(s, host);
+  writeAll(s);
+  while (data(s).phase === 'voting' || data(s).phase === 'result') {
+    if (data(s).phase === 'voting') castVotes(s, voters(s).map(() => 'a'));
+    else {
+      if (audience && data(s).matchupIndex + 1 === data(s).matchups.length) disconnect(s, audience);
+      s.game(host, { t: 'next' });
+    }
   }
+  if (audience) reconnect(s, audience);
   expect(data(s)).toMatchObject({ phase: 'finalWriting', round: 3 });
 }
 
@@ -32,7 +45,7 @@ const finalAnswerOf = (s: Sim, id: string): string => {
 describe('Quip Game: the final round', () => {
   it('gives everyone the same single prompt and one answer each, then opens an anonymous shuffled ranking', () => {
     const s = sim('quipgame');
-    const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol'], { finalRound: true });
+    const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol']);
     reachFinal(s, alice);
     expect(chatTexts(s.effects)).toContain('Final round: one prompt, everyone answers!');
     expect(data(s).prompts).toEqual([{ id: 'r3-p0', text: expect.any(String), authorIds: [alice, bob, carol] }]);
@@ -62,33 +75,32 @@ describe('Quip Game: the final round', () => {
 
   it('validates rankings: never your own answer, no duplicates, at most min(3, pickable) picks, only real answers', () => {
     const s = sim('quipgame');
-    const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol'], { finalRound: true });
-    reachFinal(s, alice);
+    const [alice, bob, carol, dave] = startGame(s, ['Alice', 'Bob', 'Carol', 'Dave']);
+    reachFinal(s, alice, dave);
     writeAll(s);
     const [a, b, c] = [alice, bob, carol].map((id) => finalAnswerOf(s, id));
     expect(errors(s.game(alice, { t: 'rank', answerIds: [a] }))).toEqual(["You can't pick your own answer."]);
     expect(errors(s.game(alice, { t: 'rank', answerIds: [b, b] }))).toEqual(['Pick each answer once.']);
     expect(errors(s.game(alice, { t: 'rank', answerIds: [b, 'ghost'] }))).toEqual(["That's not one of the answers."]);
-    s.apply({ type: 'join', name: 'Dave', avatar: AVATAR, connectionId: 'conn-Dave' });
-    const dave = s.playerId('Dave');
-    // A spectator has nothing of their own in the list: three picks from three answers.
+    // The final's audience has nothing of their own in the list: three picks from three answers.
     expect(view(s, dave).maxPicks).toBe(3);
     expect(errors(s.game(dave, { t: 'rank', answerIds: [a, b, c] }))).toEqual([]);
     expect(view(s, dave).myRanking).toEqual([a, b, c]);
     expect(data(s).phase).toBe('finalVoting');
     // Alice may pick two; a third is refused even though the schema allows three.
     expect(errors(s.game(alice, { t: 'rank', answerIds: [b, c, a] }))).toEqual(["You can't pick your own answer."]);
+    // A newcomer only watches the final: no answer, no ranking.
     s.apply({ type: 'join', name: 'Erin', avatar: AVATAR, connectionId: 'conn-Erin' });
     const erin = s.playerId('Erin');
-    s.game(erin, { t: 'answer', promptId: 'r3-p0', text: 'nope' });
-    expect(view(s, erin).maxPicks).toBe(3);
+    expect(errors(s.game(erin, { t: 'answer', promptId: 'r3-p0', text: 'nope' }))).toEqual(['You are watching this game.']);
+    expect(view(s, erin).maxPicks).toBe(0);
     expect(view(s, alice).maxPicks).toBe(2);
     expect(s.data.players).toHaveLength(5);
   });
 
   it('sums 1500 / 1000 / 500 per voter, ranks the answers, pays the authors, then ends on the podium', () => {
     const s = sim('quipgame');
-    const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol'], { finalRound: true });
+    const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol']);
     reachFinal(s, alice);
     const before = [alice, bob, carol].map((id) => score(s, id));
     writeAll(s);
@@ -125,10 +137,8 @@ describe('Quip Game: the final round', () => {
 
   it('withdraws the ranking of a voter who leaves, so their picks pay nobody', () => {
     const s = sim('quipgame');
-    const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol'], { finalRound: true });
-    reachFinal(s, alice);
-    s.apply({ type: 'join', name: 'Dave', avatar: AVATAR, connectionId: 'conn-Dave' });
-    const dave = s.playerId('Dave');
+    const [alice, bob, carol, dave] = startGame(s, ['Alice', 'Bob', 'Carol', 'Dave']);
+    reachFinal(s, alice, dave);
     writeAll(s);
     const [a, b, c] = [alice, bob, carol].map((id) => finalAnswerOf(s, id));
     s.game(dave, { t: 'rank', answerIds: [a, b, c] });
@@ -151,7 +161,7 @@ describe('Quip Game: the final round', () => {
 
   it('resolves the ranking at the deadline with what was submitted, shares tied ranks, and lets the host skip the final result', () => {
     const s = sim('quipgame');
-    const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol'], { finalRound: true });
+    const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol']);
     reachFinal(s, alice);
     writeAll(s);
     const [a, b, c] = [alice, bob, carol].map((id) => finalAnswerOf(s, id));
@@ -169,7 +179,7 @@ describe('Quip Game: the final round', () => {
     expect(s.data.phase).toBe('ended');
 
     const t = sim('quipgame');
-    const [x, y, z] = startGame(t, ['Alice', 'Bob', 'Carol'], { finalRound: true });
+    const [x, y, z] = startGame(t, ['Alice', 'Bob', 'Carol']);
     reachFinal(t, x);
     writeAll(t);
     const [ax, ay, az] = [x, y, z].map((id) => finalAnswerOf(t, id));
@@ -181,7 +191,7 @@ describe('Quip Game: the final round', () => {
 
   it('keeps the ranking open for a voter whose socket dropped, and resolves once everyone seated with something to pick has ranked', () => {
     const s = sim('quipgame');
-    const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol', 'Dave'], { finalRound: true });
+    const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol', 'Dave']);
     const dave = s.playerId('Dave');
     reachFinal(s, alice);
     writeAll(s);
@@ -204,7 +214,7 @@ describe('Quip Game: the final round', () => {
 
   it('opens the ranking even when nobody is connected at the writing deadline, so returning players can still rank', () => {
     const s = sim('quipgame');
-    const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol'], { finalRound: true });
+    const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol']);
     reachFinal(s, alice);
     writeAll(s, [carol]);
     // Every socket is cut just before the writing deadline.
@@ -226,7 +236,7 @@ describe('Quip Game: the final round', () => {
 describe('Quip Game: the announcer', () => {
   it('rotates through connected non-authors in join order, matchup after matchup, and reads the final', () => {
     const s = sim('quipgame');
-    const [alice, bob, carol, dave] = startGame(s, ['Alice', 'Bob', 'Carol', 'Dave'], { announcer: true, finalRound: true });
+    const [alice, bob, carol, dave] = startGame(s, ['Alice', 'Bob', 'Carol', 'Dave']);
     writeAll(s);
     const seen: Array<string | null> = [];
     for (let i = 0; i < 4; i++) {
@@ -250,9 +260,9 @@ describe('Quip Game: the announcer', () => {
     expect(view(s, alice).announcerId).toBe(data(s).final?.announcerId);
   });
 
-  it('hands the job on when the announcer drops, and names nobody when the setting is off', () => {
+  it('hands the job on when the announcer drops, and picks one in every game', () => {
     const s = sim('quipgame');
-    const [alice, bob, carol, dave] = startGame(s, ['Alice', 'Bob', 'Carol', 'Dave'], { announcer: true });
+    const [alice, bob, carol, dave] = startGame(s, ['Alice', 'Bob', 'Carol', 'Dave']);
     writeAll(s);
     expect(matchup(s).announcerId).toBe(carol);
     disconnect(s, carol);
@@ -260,11 +270,14 @@ describe('Quip Game: the announcer', () => {
     expect(view(s, dave).isAnnouncer).toBe(true);
     expect([alice, bob]).toEqual(authors(s));
 
+    // Always on: a room stored while the announcer was a switch, turned off, still gets one.
     const t = sim('quipgame');
     startGame(t, ['Alice', 'Bob', 'Carol']);
+    t.data = { ...t.data, settings: { ...t.data.settings, announcer: false } };
     writeAll(t);
-    expect(matchup(t).announcerId).toBeNull();
-    expect(view(t, null)).toMatchObject({ announcerId: null, isAnnouncer: false });
+    const [reader] = voters(t);
+    expect(matchup(t).announcerId).toBe(reader);
+    expect(view(t, reader)).toMatchObject({ announcerId: reader, isAnnouncer: true });
   });
 });
 
@@ -308,15 +321,15 @@ describe('Quip Game: holding for missing players', () => {
     expect(viewFor(s.data, alice, s.now).waiting).toBeNull();
     s.now += RESUME_SETTLE_MS;
     const started = s.tick();
-    expect(chatTexts(started)).toEqual(['Round 2 of 2: write your answers! Double points!']);
-    expect(data(s)).toMatchObject({ phase: 'writing', round: 2, roundPlayers: [alice, bob, carol], endsAt: s.now + 30_000, resumeAt: null });
+    expect(chatTexts(started)).toEqual(['Round 2 of 3: write your answers! Double points!']);
+    expect(data(s)).toMatchObject({ phase: 'writing', round: 2, roundPlayers: [alice, bob, carol], endsAt: s.now + WRITE_MS, resumeAt: null });
     expect(viewFor(s.data, alice, s.now).waiting).toBeNull();
     expect(view(s, bob).myPrompts).toHaveLength(2);
   });
 
-  it('holds before the final too, and a joiner may end the hold', () => {
+  it('holds before the final too, and a newcomer does not end the hold', () => {
     const s = sim('quipgame');
-    const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol'], { finalRound: true });
+    const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol']);
     writeAll(s);
     playRound(s, alice);
     expect(data(s).round).toBe(2);
@@ -325,13 +338,15 @@ describe('Quip Game: holding for missing players', () => {
     expect(view(s, alice)).toMatchObject({ phase: 'result', round: 2, finalPrompt: null });
     s.apply({ type: 'join', name: 'Dave', avatar: AVATAR, connectionId: 'conn-Dave' });
     const dave = s.playerId('Dave');
+    expect(data(s)).toMatchObject({ phase: 'waiting', resumeAt: null });
+    expect(viewFor(s.data, dave, s.now).waiting).toEqual({ reason: 'players', missing: [bob], needed: 3, connected: 2 });
+    reconnect(s, bob);
     expect(data(s)).toMatchObject({ phase: 'waiting', resumeAt: s.now + RESUME_SETTLE_MS });
-    expect(viewFor(s.data, dave, s.now).waiting).toEqual({ reason: 'players', missing: [bob], needed: 3, connected: 3 });
     s.now += RESUME_SETTLE_MS;
     s.tick();
-    expect(data(s)).toMatchObject({ phase: 'finalWriting', round: 3, roundPlayers: [alice, carol, dave], resumeAt: null });
+    expect(data(s)).toMatchObject({ phase: 'finalWriting', round: 3, roundPlayers: [alice, bob, carol], resumeAt: null });
     expect(viewFor(s.data, dave, s.now).waiting).toBeNull();
-    expect(view(s, bob).isSpectator).toBe(true);
+    expect(view(s, dave).isSpectator).toBe(true);
   });
 
   it('seats the next round with everyone back after a simultaneous cut: a straggler restarts the settle instead of spectating the round', () => {
@@ -396,13 +411,13 @@ describe('Quip Game: holding for missing players', () => {
 describe('Quip Game: edges', () => {
   it('survives JSON at every phase', () => {
     const s = sim('quipgame');
-    const [alice, bob, , dave] = startGame(s, ['Alice', 'Bob', 'Carol', 'Dave'], { finalRound: true, announcer: true });
+    const [alice, bob, , dave] = startGame(s, ['Alice', 'Bob', 'Carol', 'Dave']);
     const roundTrip = (): void => expect(JSON.parse(JSON.stringify(s.data))).toStrictEqual(s.data);
     roundTrip();
     writeAll(s, [dave]);
     disconnect(s, dave);
     roundTrip();
-    s.now += 30_000;
+    s.now += WRITE_MS;
     s.tick();
     roundTrip();
     castVotes(s, ['a']);
@@ -428,7 +443,7 @@ describe('Quip Game: edges', () => {
     const ctx = { now: s.now, rng: () => 0, newId: () => 'x', settings: { ...defaultPlatformSettings(gameById('quipgame')), ...quipgameModule.settings.defaults }, players: s.data.players.map((p) => ({ id: p.id, name: p.name, joinOrder: p.joinOrder, connected: p.connected, score: p.score })), spectators: [], hostId: alice };
     expect(quipgameModule.handle(ctx, game, { type: 'tick' }).data).toBe(game);
     expect(quipgameModule.handle(ctx, game, { type: 'chat', playerId: alice, text: 'hi' }).data).toBe(game);
-    expect(quipgameModule.handle(ctx, game, { type: 'playerJoined', playerId: 'new' }).data).toBe(game);
+    expect(quipgameModule.handle(ctx, game, { type: 'playerReconnected', playerId: bob }).data).toBe(game);
     expect(quipgameModule.handle(ctx, game, { type: 'playerDisconnected', playerId: bob }).data).toBe(game);
     const refused = quipgameModule.handle(ctx, game, { type: 'message', playerId: bob, msg: { t: 'vote', choice: 'a' } });
     expect(refused.data).toBe(game);
@@ -439,6 +454,6 @@ describe('Quip Game: edges', () => {
     const over: QuipgameData = { ...game, phase: 'over' };
     expect(quipgameModule.handle(ctx, over, { type: 'tick' }).data).toBe(over);
     expect(quipgameModule.nextDeadline(over)).toBeNull();
-    expect(quipgameModule.nextDeadline(game)).toBe(START + 30_000);
+    expect(quipgameModule.nextDeadline(game)).toBe(START + WRITE_MS);
   });
 });

@@ -99,6 +99,11 @@ export function systemMessage(gx: Gx, text: string): void {
   gx.effects.push({ type: 'chat', to: 'all', kind: 'system', text });
 }
 
+/** A line every client shows as a toast: an event the table does not show otherwise. */
+export function noticeMessage(gx: Gx, text: string): void {
+  gx.effects.push({ type: 'chat', to: 'all', kind: 'notice', text });
+}
+
 export function snapshot(gx: Gx): void {
   gx.effects.push({ type: 'snapshot', to: 'all' });
 }

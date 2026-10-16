@@ -1,7 +1,7 @@
 /**
- * Blackjack's client module: the table screen, the settings rows, the player-list badges, the chat
- * placeholder and what reacts to snapshots: the table's animation timeline (planned in the store
- * from each snapshot) and the cues. Snapshots carry everything, so there are no server messages.
+ * Blackjack's client module: the table screen, the settings rows, the player-list badges and what
+ * reacts to snapshots: the table's animation timeline (planned in the store from each snapshot)
+ * and the cues. Snapshots carry everything, so there are no server messages.
  */
 import type { BlackjackSettings, BlackjackView } from '@shared/games/blackjack/protocol';
 import { gameById } from '@shared/platform/games';
@@ -12,8 +12,8 @@ import { playCue } from '../../platform/lib/sound';
 import { usePlatformStore } from '../../platform/store/usePlatformStore';
 import { CardsIcon, OutIcon, StarIcon } from './components/Icons';
 import { createEntryFlag } from '../../platform/table/entry';
-import { isActing, isInRound, prefersReducedMotion, seatOf } from './hooks';
-import { chatPlaceholderFor, formatChips } from './lib/text';
+import { isActing, prefersReducedMotion, seatOf } from './hooks';
+import { formatChips } from './lib/text';
 import { BlackjackScreen } from './Screen';
 import { BlackjackSettingsFields } from './SettingsFields';
 import { clearBlackjackSounds, playBlackjackSounds } from './sfx';
@@ -81,10 +81,6 @@ export const blackjackClient = defineGameClient<BlackjackView, BlackjackSettings
     const view = room.game;
     if (isActing(view, player.id)) return 'player--acting';
     return seatOf(view, player.id)?.bustedOut ? 'player--out' : undefined;
-  },
-
-  chatPlaceholder(room, meId) {
-    return chatPlaceholderFor(room.game?.phase, isInRound(room.game, meId));
   },
 
   onWelcome() {

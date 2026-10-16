@@ -1,5 +1,5 @@
 /** Per-recipient projection of SpygameData: the location reaches agents only (everyone once revealed), the spy's identity never before the reveal. */
-import type { SpygameClock, SpygamePlayerView, SpygameRole, SpygameSettings, SpygameView, SpygameVoteView } from '../../../shared/games/spygame/protocol.js';
+import { SPYGAME_ROUND_MINUTES, type SpygameClock, type SpygamePlayerView, type SpygameRole, type SpygameSettings, type SpygameView, type SpygameVoteView } from '../../../shared/games/spygame/protocol.js';
 import type { GameViewCtx } from '../../platform/game.js';
 import type { SpygameData, VoteData } from './state.js';
 import { tally } from './vote.js';
@@ -21,7 +21,7 @@ export function viewFor(data: SpygameData, viewerId: string | null, ctx: GameVie
     phase,
     round: data.round,
     totalRounds: ctx.settings.rounds,
-    clock: clockFor(data, ctx.settings.roundMinutes * 60_000),
+    clock: clockFor(data, SPYGAME_ROUND_MINUTES * 60_000),
     candidates: [...current.candidates],
     guessesLeft: current.guessesLeft,
     spyGuessed: [...current.guessed],

@@ -32,13 +32,20 @@ export interface WordListLimits {
   maxLength: number;
 }
 
+/** The entries of a free-text word list as typed ("cat, dog, hot dog" or newline separated), blanks dropped. */
+export function splitWordList(text: string): string[] {
+  return text
+    .split(/[,\n]/)
+    .map((raw) => raw.trim().replace(/\s+/g, ' '))
+    .filter(Boolean);
+}
+
 /** Parses a free-text word list ("cat, dog, hot dog" or newline separated). Dedupes case-insensitively. */
 export function parseWordList(text: string, limits: WordListLimits): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
-  for (const raw of text.split(/[,\n]/)) {
-    const w = raw.trim().replace(/\s+/g, ' ');
-    if (!w || w.length > limits.maxLength) continue;
+  for (const w of splitWordList(text)) {
+    if (w.length > limits.maxLength) continue;
     const key = w.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);

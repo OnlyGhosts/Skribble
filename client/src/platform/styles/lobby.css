@@ -1,4 +1,4 @@
-/* ---------- The party lobby: room bar, game grid, players, settings and chat, a sticky Start footer ---------- */
+/* ---------- The party lobby: room bar, game grid, players, the host's settings, a sticky Start footer ---------- */
 .lobby {
   width: min(calc(1120px + 2 * var(--lobby-gutter, 16px)), 100%);
   min-height: 100dvh;
@@ -103,7 +103,7 @@
   flex-direction: column;
 }
 
-/* The board's player rows: a roomier list on the panel colour, the status on the right. A big party scrolls inside the list, so the settings and chat stay close. */
+/* The board's player rows: a roomier list on the panel colour, the status on the right. A big party scrolls inside the list, so the settings stay close. */
 .lobby__players .player-list {
   background: var(--color-surface);
   border-radius: 12px;
@@ -133,33 +133,35 @@
   font-size: 0.875rem;
 }
 
-.lobby__chat {
-  display: flex;
-  flex-direction: column;
-  height: min(55vh, 520px);
+/* The panel's title stands a little apart from the first setting's title. */
+.lobby__settings .card__head {
+  margin-bottom: var(--space-4);
 }
 
-.profile-edit {
-  margin-top: var(--space-2);
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-3);
+/* A guest has no settings column: one centred column as wide as the footer. */
+.lobby__grid--guest {
+  width: min(560px, 100%);
+  margin: 0 auto;
 }
 
+/* The room card and the footer share the guest's column; on a phone the footer still spans the screen. */
+.lobby--guest .room-card {
+  align-self: center;
+  width: min(560px, 100%);
+}
+
+.lobby--guest .lobby__footer {
+  align-self: center;
+  width: min(calc(560px + 2 * var(--lobby-gutter, 16px)), calc(100% + 2 * var(--lobby-gutter, 16px)));
+  margin-inline: 0;
+}
+
+/* Name, face and colour in the "Change my look" sheet, Save at the bottom. */
 .profile-editor {
-  align-self: stretch;
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-3);
-  border-radius: var(--radius-item);
-  border: 1px solid var(--color-border);
-  background: var(--color-surface-3);
-}
-
-.profile-editor .btn {
-  align-self: flex-start;
+  gap: var(--space-4);
+  padding-bottom: var(--space-2);
 }
 
 /* ---------- Sticky footer: Start for the host, Ready for everyone else. It sits in the flow, so it never covers the last panel. ---------- */
@@ -291,13 +293,25 @@ button.game-tile:active {
   overflow-wrap: anywhere;
 }
 
-/* ---------- Ready / sit out ---------- */
+/* ---------- Ready / sit out: the big button, then equal secondary buttons side by side ---------- */
 .ready-controls {
   margin-top: var(--space-3);
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 2px;
+  align-items: stretch;
+  gap: var(--space-2);
+}
+
+.ready-controls__more {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+}
+
+.ready-controls__more .btn {
+  min-height: 44px;
+  padding: 0 var(--space-3);
 }
 
 .ready-toggle.is-ready {
@@ -368,11 +382,6 @@ button.content-mode:not(:disabled):hover {
   border-color: var(--color-border-strong);
 }
 
-/* Read-only for guests (the note says only the host changes settings), not unavailable: no dimming. */
-.content-mode:disabled {
-  cursor: default;
-}
-
 .content-mode.is-selected {
   border: 2px solid var(--color-secondary);
   padding: 11px;
@@ -432,6 +441,15 @@ button.content-mode:not(:disabled):hover {
     gap: var(--space-4);
   }
 
+  .lobby__grid--guest {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sheet--narrow .sheet__panel {
+    width: min(560px, 100%);
+    margin: 0 auto;
+  }
+
   .lobby__col {
     gap: var(--space-4);
   }
@@ -452,4 +470,42 @@ button.content-mode:not(:disabled):hover {
 
 .lobby .site-header {
   --wordmark-height: 30px;
+}
+
+/*
+ * Phones: the logo centred at the top of the room. The connection pill sits over the right edge,
+ * out of the flow (its dot only, the words are its accessible name), so it never pushes the logo
+ * off centre, and the gear's popover opens centred under the logo, inside the screen.
+ */
+@media (max-width: 760px), (min-aspect-ratio: 3/2) and (max-height: 520px) {
+  .lobby .site-header {
+    position: relative;
+    justify-content: center;
+  }
+
+  .lobby .site-header__actions {
+    position: absolute;
+    top: 50%;
+    right: 0;
+    transform: translateY(-50%);
+  }
+
+  .lobby .site-header .conn-pill {
+    padding: 6px;
+  }
+
+  .lobby .site-header .conn-pill__label {
+    display: none;
+  }
+
+  .lobby .settings-menu--logo .settings-menu__panel {
+    left: calc(50% - min(150px, (100vw - 2 * var(--gutter)) / 2));
+  }
+}
+
+/* The narrowest phones: a slightly smaller logo leaves room for the pill beside it. */
+@media (max-width: 360px) {
+  .lobby .site-header {
+    --wordmark-height: 26px;
+  }
 }

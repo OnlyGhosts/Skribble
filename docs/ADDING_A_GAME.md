@@ -6,7 +6,7 @@ embedded verbatim from the repository so you can copy it line for line.
 
 The one-sentence model: **a game is a pure reducer on the server plus a React screen on the
 client; the platform owns everything else.** Rooms, codes, seats, tokens, reconnects, the host,
-the lobby, settings, chat, scores, the podium, kicks, Redis, routing, the lobby's game picker and the
+the lobby, settings, notices, scores, the podium, kicks, Redis, routing, the lobby's game picker and the
 design system are already built. You write what happens *inside* a running game.
 
 Contents
@@ -78,8 +78,10 @@ game in the lobby (`selectGame`; the game settings reset to the new game's defau
 settings and everyone's ready flags carry over, a system line says "Host switched the party to
 <game>"), everyone readies up (`ready`) or sits the next game out (`sitOut`, which clears ready
 and persists until the player changes it; both accepted in the lobby and on the podium), and the
-host starts. The lobby screen, the room code card at its top (code, Copy, Share; Copy invite link and Leave room in the gear menu),
-the profile editor, the platform settings `allowMidGameJoin` and `contentMode` (`'family' |
+host starts. The lobby screen (only the host sees the settings and the game grid; everyone else
+sees the next game, the players and their own buttons), the room code card at its top (code, Copy,
+Share; Copy invite link and Leave room in the gear menu), the logo centred at the top on a phone,
+the profile editor, the platform setting `contentMode` (`'family' |
 'unhinged'`, [`shared/platform/settings.ts`](../shared/platform/settings.ts)), validation of
 settings patches (platform schema merged with your game's `patchSchema`), the start rule, scores
 reset to 0 on start, and `returnToLobby` after a game ends (the host's "play again" too) are all
@@ -92,8 +94,10 @@ included (they are in reconnect grace, so the game holds for them like for any p
 connected ones count towards the minimum, so a game never starts straight into a hold). Everyone
 else stays seated in the party as a spectator ("Carol and Dave sit this one out"). A game with a seat limit (`meta.maxPlayers`, `null` for no limit) takes the
 first ready players by join order and benches the rest with a line. Every `ready` flag resets
-when the game starts. Mid-game joiners (`allowMidGameJoin`) are participants at once; your game
-decides when they actually take part (all three games seat them from the next round or turn).
+when the game starts. A newcomer who joins while a game runs is let into the party but watches
+it as a spectator and plays from the next game on; your module never hears of them (there is no
+join event), so the set of participants never grows during a game. A player already in the game
+who reconnects (or reloads, or opens a second tab on the same seat) keeps their seat.
 `PlayerPublic` carries `ready`, `sittingOut` and `participating` so the client can render all of
 this; your module only ever sees the participants (`GameCtx.players`) and, separately, the
 spectators (`GameCtx.spectators`). Spectators get snapshots and chat, but their game messages are
@@ -103,9 +107,9 @@ module lists the message types the host may send while sitting out in `hostMessa
 `nextRound` and `endGame`, Quip Game: `next`, Blackjack: `endGame`, `dealNow` and `skip`, which
 the players may also send while the table waits on the host), and
 those reach `handle` whoever the host is (so a game names a host who watches from
-`GameCtx.spectators` too). A
-newcomer can join between games (lobby and podium alike) whatever `allowMidGameJoin` says; the
-setting only governs joins while the room is `'playing'`.
+`GameCtx.spectators` too). Only the room's cap (`ROOM_HARD_CAP`) turns a newcomer away, mid-game
+or not; the front door's preview says a running game can be joined to watch. A room stored with
+the retired `allowMidGameJoin` switch loads and ignores it.
 
 **Content modes.** `settings.contentMode` is the room's single switch for what the packs contain:
 `family` is clean, `unhinged` is adults only (it plays the rude-but-harmless "cheeky" tiers and the
@@ -127,15 +131,20 @@ game may reuse) and The Spy Game's locations (`locationsForMode` in
 `locationTiers.ts` and generated tiles for every tier). A game never ships its own content switch;
 it reads the room's mode.
 
-**Chat.** The chat panel, rate limiting (6 lines per 4 s per socket, in
-[`server/platform/connection.ts`](../server/platform/connection.ts)), history for late joiners
-(`CHAT_HISTORY_LENGTH` = 60), system lines for joins, leaves, host changes, kicks, start and game
-over. Every chat line is offered to the running game first (a `'chat'` event) so a game can treat
-chat as input (Scribble's guesses).
+**Chat lines, without a chat.** There is no general chat on screen anywhere.
+The wire still carries chat lines, because typed input can be a game's mechanic: Scribble's
+guesses travel as chat lines, and its guess feed lists them. The platform keeps rate limiting (6
+lines per 4 s per socket, in [`server/platform/connection.ts`](../server/platform/connection.ts)),
+history for late joiners (`CHAT_HISTORY_LENGTH` = 60) and system lines for joins, leaves, kicks,
+start and game over (Scribble's feed shows the ones from its own game). Every chat line is offered
+to the running game first (a `'chat'` event) so a game can treat it as input. An event a player
+needs to know about and the screen does not show (a new host, a vote-kick tally, "Not enough
+players", an `abort` reason; Blackjack's "Pia is away and stands.", Poker's "Blinds up", The Spy
+Game's failed vote) goes out as a `'notice'` line: every client shows it as a toast.
 
 **Scores and podium.** Players carry a `score`; your game adds to it with `score` effects. When
 the game emits `gameOver` the platform ranks the participants (ties share a rank), stores
-`RoomState.podium`, announces the winner in chat, moves the room to `phase: 'ended'` and the client
+`RoomState.podium`, sends a system line naming the winner, moves the room to `phase: 'ended'` and the client
 shows the `PodiumOverlay` with the host's Back-to-lobby button.
 
 **Kicks and vote-kicks.** Host kick, majority vote-kick (a majority of the other connected
@@ -174,7 +183,7 @@ seat persistence in `sessionStorage`, a 60-messages-per-second cap on game messa
 (excess is dropped silently) ([`client/src/platform/net/socket.ts`](../client/src/platform/net/socket.ts)).
 
 **Design system and mobile rules.** Tokens, cards, buttons, inputs, pills, sheets, toasts, the
-timer, the player list, the chat, the code input, avatars, light/dark themes, the phone layout
+timer, the player list, the code input, avatars, light/dark themes, the phone layout
 helpers. Section 8 lists them.
 
 **Playing cards.** A standard deck lives in [`shared/platform/cards.ts`](../shared/platform/cards.ts):
@@ -190,8 +199,11 @@ and anyone beyond that, ready at the start or joining later, watches, `waitingFo
 until a seat frees up, first come first seated: the module sets `queuesSeats`, so the platform makes
 every ready player a participant and Poker's queue seats them; `ranks` keeps a player who never got
 a seat off the podium). On the client the cards are drawn by
-[`PlayingCard`](../client/src/platform/components/PlayingCard.tsx) (`sm` / `md` / `lg` / `xl`, face down
-for `null`, `slot` for an empty place, `highlight` for the five that play) and chip counts by
+[`PlayingCard`](../client/src/platform/components/PlayingCard.tsx) (`sm` / `md` / `lg` / `xl`; a face is a
+big bold rank at the top left with one big suit under it; `null` is face down, every back the
+boredgames back drawn in `cards.css`: a cream border, a lime field with a fine ink lattice and the
+two phones on an ink medallion, point-symmetric; `slot` for an empty place, `highlight` for the
+five that play) and chip counts by
 [`Chips`](../client/src/platform/components/Chips.tsx) (`ChipIcon`, `formatChips` in `lib/format.ts`);
 a chip amount setting with presets and a numeric field is
 [`ChipsSetting`](../client/src/platform/components/ChipsSetting.tsx). Their styles are the platform's
@@ -201,29 +213,45 @@ a chip amount setting with presets and a numeric field is
 **Card tables.** A Stake-style card table is a kit in
 [`client/src/platform/table/`](../client/src/platform/table) (styles: the platform's `table.css`, `.tbl*`),
 used by Blackjack and Poker: `TableShell` (the top bar, one row on a phone; the table, the control
-panel under it on a phone and in a left column on a desktop, the chat on the right, the players /
-chat / options sheets), the felt laid out as a stage that never scrolls (`.tbl-felt.tbl-stage`:
-the centre piece row `.tbl-felt__top`, the ribbon, the spotlight, the players, my hand
-`.tbl-stage__mine`; `useTightStage` in `stage.ts` packs the spotlight tighter on a short phone, a
-shorter phone from five other players, and any screen from ten. Blackjack keeps the dealer's hand and mine in fixed places instead: its
-stage's first and last rows have a fixed height and its cards there a fixed size that go by the
-screen alone, never the phase or the number of players, so only the spotlight and the tiles in
-between change; [`lib/hands.ts`](../client/src/games/blackjack/lib/hands.ts) decides when split
-hands fold into chips, total and stake, the hand in play staying full size, and, never narrower
-than a two-digit total, past what fits into one "+N" that opens the seat's sheet with every hand), `Deck` and `DiscardTray` (the anchors cards fly from and to), `TableRibbon`, `Spotlight`
-(centre stage: the hand being played large, whose turn it is with their avatar, the turn clock
-where the game has one (Poker; Blackjack's turns have none) and who is next; the game picks its subject per phase; in Blackjack it never takes the dealer's
-cards or mine: on my turn it just says so while my hand is lit where it always is), `PlayersGrid` / `PlayerTile` / `SeatSheet` (every other player as a tile in seat order
+panel docked under it on a phone and in a left column on a desktop, the players and options sheets).
+Both lay their felt out as a calm table that never scrolls (`.tbl-felt.tbl-felt--calm`, four grid
+rows): the game's centre piece big at the top centre (Blackjack's dealer, Poker's pot over the
+board), `TableRibbon` across the middle (a low-contrast banner with folded ends, the table's rule
+in capitals, a smaller rule under it and a `note`, the `TurnLine`: whose turn it is, a quieter
+second part and, in Poker, the turn clock), the other players as compact seats, and a `TableStage`
+at the bottom with the hand that matters to the viewer (whose it is and the stake on the left, the
+hand big in the middle, a small extra on the right). The first row and the stage have a fixed
+height (`--tbl-head-h`, `--tbl-stage-h`) and their cards a fixed size that the game sets for the
+screen alone, never the phase or the number of players. Blackjack's stage holds another player's
+hands on their turn, mine small at the side meanwhile;
+[`lib/hands.ts`](../client/src/games/blackjack/lib/hands.ts) decides when split hands fold into
+chips, the hand in play staying full size, and, never narrower than a two-digit total, past what
+fits into one "+N" that opens the seat's sheet with every hand. Poker's stage holds my two cards
+whenever I hold some (the hand in play when I am not dealt in), with what they make in the pill
+and, at a showdown, the winner's hand at the side when it beat mine. The shared pieces: `HandFan` / `OutcomeFlag` (a hand as a stepped fan, each card a
+little right of and below the one before, the total in a pill over its top right corner; one
+height however many cards; an outcome outlines every card and colours the pill, its word beside the
+pill), `StackCount` / `StakePill` in `Stakes.tsx` with `stakes.ts` (a stack always reads "1,000
+chips", a stake always its own labelled pill, "Bet 10" or "Pot 120", so the two are never
+confused), `Deck` (with `corner`: tucked into the table's top right corner, peeking down from its
+top edge, the count said rather than shown) and `DiscardCorner` (the anchor cards fly to, just past
+the top left corner), `TurnLine`, `TableStage`, `PlayersGrid` / `PlayerTile` / `SeatSheet` (every other player as a tile in seat order
 in a grid that fits its space: [`grid.ts`](../client/src/platform/table/grid.ts) steps the tiles
 down from full to compact, small and dense as the table grows and fits the columns to the room
 left, never narrower than the tier's `minWidth` so names and totals stay whole (a short tile drops
 its second line instead; a narrow small tile wears its total as a badge on its corner), a desktop
-sets them on a gentle arc that flattens as the tiles get smaller; the seat on turn gets the lime ring and the Playing tag,
+sets them on a gentle arc that flattens as the tiles get smaller; a tile shows the stack and the
+stake with `StackCount` and `StakePill` wherever it has the room, and with `shortBadge` its total
+stands in for the stack only where the tile is too short for the words (Poker's); the seat on turn gets the lime ring (and the Playing tag where it fits),
 a settled seat its outcome's colour, and tapping a tile opens its hand in a sheet),
 `PanelShell` / `PanelLabelRow` / `AmountField` / `PanelMoves` / `MoveButton` / `StatusAction` (the control panel:
 the status line with an optional small control at its end, `action` and `actionSlot`, where
-Blackjack puts Sit out, Deal now and Skip; the amount with its quick amounts joined to it, the moves always in place and
-dimmed when not on offer), `TotalPill` / `PayoutFloat` / `outlineClass` (the outcome colours),
+Blackjack puts Sit out, Deal now and Skip, at the top or, `statusAt: 'bottom'`, as a quiet line
+under the controls; the amount with the stack beside its label and its quick amounts joined to it,
+the moves always in place (`PanelMoves` with their `count`: two to a row, three in one row, every
+one in a single row on a phone; then one big primary button, Blackjack's Bet and Poker's Check or
+Call), each with a small `icon` after its label, dimmed when not on offer and
+`primary` on the one the game suggests), `TotalPill` / `PayoutFloat` / `outlineClass` (the outcome colours),
 `TableCard` (a card that slides in from the deck, turns over and leaves for the discards),
 `ChipFlights` (chips sliding between `data-table-anchor` places) and `useHotkeys` in
 [`lib/hotkeys.ts`](../client/src/platform/lib/hotkeys.ts) (desktop shortcuts that never fire while
@@ -313,7 +341,7 @@ export interface RoomState<V = unknown, S = Record<string, unknown>> {
   code: string;
   gameId: GameId;
   hostId: string;
-  settings: PlatformSettings & S;   // flat: { allowMidGameJoin, contentMode, ...your fields }
+  settings: PlatformSettings & S;   // flat: { contentMode, ...your fields }
   players: PlayerPublic[];          // { id, name, avatar, score, isHost, connected, joinOrder, ready, sittingOut, participating }
   phase: 'lobby' | 'playing' | 'ended';
   podium: PodiumEntry[] | null;     // { playerId, score, rank }, set by the platform on gameOver
@@ -371,8 +399,6 @@ export type GameEvent<CMsg> =
   | { type: 'message'; playerId: string; msg: CMsg }
   /** A chat line; the game may consume it (a guess) by returning a 'chatHandled' effect. */
   | { type: 'chat'; playerId: string; text: string }
-  /** A new player was seated mid-game (ctx.players already includes them). */
-  | { type: 'playerJoined'; playerId: string }
   /**
    * The player left, was kicked or their reconnect grace ran out (ctx.players no longer includes
    * them). Not delivered when the removal left fewer seats than `meta.minPlayers`: the platform
@@ -492,15 +518,14 @@ is exactly the set of participants: ready, not sitting out, connected, within th
 **When each event arrives** ([`seats.ts`](../server/platform/engine/seats.ts), [`chat.ts`](../server/platform/engine/chat.ts), [`reduce.ts`](../server/platform/engine/reduce.ts)):
 
 - `message`: after `clientMessageSchema.safeParse` succeeded, only while `'playing'` and only
-  from a participant (a spectator gets `NOT_ALLOWED` "You are sitting this game out."), or from
+  from a participant (a spectator gets `NOT_ALLOWED` "You are watching this game."), or from
   the host for a type in `hostMessages` whether they play or not. Invalid messages get
   `INVALID_MESSAGE` with the first zod issue and path.
 - `chat`: for every chat line while `'playing'`. If you do **not** return `chatHandled`, the
   platform inserts the player's line **before** your effects, so a reaction ("close!") follows
   the line it reacts to.
-- `playerJoined`: a mid-game joiner is a participant, so the seat is already in `ctx.players`; your effects are appended after the
-  newcomer's `welcome` and everyone else's snapshot, so the welcome already reflects your updated
-  data (the template puts the newcomer at 0 clicks and snapshots).
+- There is no join event: a newcomer mid-game is a spectator, so the platform's own welcome and
+  snapshots are all they need, and your game state never changes for them.
 - `playerLeft`: after the removal (leave, kick, vote-kick or grace expiry) of a participant or a
   spectator (check `ctx.players` if you care which). Not delivered when the room became empty, or
   when the departure already dropped the participants below `minPlayers` (the platform aborted
@@ -512,7 +537,8 @@ is exactly the set of participants: ready, not sitting out, connected, within th
   filter on `connected`; the template never picks and so never shows this. The platform never
   abandons a game over a disconnect: if yours needs `meta.minPlayers` connected to go on, hold at
   your next boundary with a `waiting` effect (`ctx.players.length` tells you whether enough seats
-  remain at all; `abort` only when they do not) and resume on `playerReconnected` / `playerJoined`.
+  remain at all; `abort` only when they do not) and resume on `playerReconnected` (or on
+  `playerLeft`, when the seat you wait for empties). A newcomer never ends a hold: they watch.
 - `tick`: `nextDeadline(data) <= now`. `ctx.now` is the deadline's own time while the platform
   catches up on several overdue deadlines, so chained deadlines stay anchored.
 
@@ -531,20 +557,11 @@ export interface GameScreenProps<V = unknown, S = Record<string, unknown>> {
   isHost: boolean;
 }
 
+/** The host's settings rows: only the host's room shows settings, so every row is editable. */
 export interface SettingsFieldsProps<S = Record<string, unknown>> {
   settings: PlatformSettings & S;
-  /** False for everyone but the host: render read-only values. */
-  canEdit: boolean;
   /** Sends one flat settings patch (game fields only; the platform fields have their own controls). */
   patch(partial: Partial<S>): void;
-}
-
-export interface ChatInputProps {
-  /** Shared between the inputs that take turns at the bottom of the chat: set by an input that
-   *  unmounts while focused so its replacement takes the focus (and keeps the phone keyboard open). */
-  focusMemory: RefObject<boolean>;
-  /** The platform's own input form; render it whenever the game has nothing special to show. */
-  defaultInput: ReactNode;
 }
 
 export interface GameClientModule<V = unknown, S = Record<string, unknown>> {
@@ -567,16 +584,13 @@ export interface GameClientModule<V = unknown, S = Record<string, unknown>> {
   playerStatus?(room: RoomState<V, S>, player: PlayerPublic): PlayerStatus | null;
   /** Extra class for the player's row (Skribble: the green "guessed" tint). */
   playerClassName?(room: RoomState<V, S>, player: PlayerPublic): string | undefined;
-  /** Replaces the chat input (Skribble's type-into-the-blanks guess bar). */
-  ChatInput?: ComponentType<ChatInputProps>;
-  chatPlaceholder?(room: RoomState<V, S>, meId: string | null): string | undefined;
   /** A server message that is not a platform message; return true when handled. */
   onServerMessage?(msg: WireMessage): boolean;
   /** `welcome.extra`, the game's bootstrap (Skribble: the canvas history). The room is already in the store. */
   onWelcome?(extra: unknown): void;
   /** Every snapshot, welcome included; `prev` is null when this one enters the room. */
   onRoom?(room: RoomState<V, S>, prev: RoomState<V, S> | null): void;
-  /** A freshly appended chat line (history from a welcome does not count). */
+  /** A freshly appended chat line (history from a welcome does not count): Scribble's guesses and the game's lines. */
   onChat?(message: ChatMessage): void;
   /** The room is being left (leave, kick, seat lost): drop local game state, flush what must still go out. */
   onLeave?(): void;
@@ -593,8 +607,9 @@ or `'ended'`, and the `PodiumOverlay` on top of it while `'ended'`. The player l
 `playerBadge` / `playerMeta` / `playerClassName` only in game mode and while `room.game !== null`;
 the top bar's player chips ask `playerStatus` for every connected player taking part (one word
 and an icon at `CHIP_ICON` size from `PlayerChips.tsx`; tone `active` for "their move now",
-`done` / `ready` for finished, `out`, `muted`); the chat uses your `ChatInput` only while
-`room.game !== null`.
+`done` / `ready` for finished, `out`, `muted`). There is no chat for a game to plug into: a game
+whose mechanic is typing builds its own control (Scribble's `GuessBox` sends guesses with
+`sendChat`, and its `GuessFeed` reads `usePlatformStore`'s `chat`).
 
 **Hook order** ([`client/src/platform/net/socket.ts`](../client/src/platform/net/socket.ts)) per
 inbound message:
@@ -603,7 +618,7 @@ inbound message:
   `onWelcome(msg.extra)`, then `onRoom(room, prev)` where `prev` is the previous room when the
   same seat reconnected and `null` for a fresh entry.
 - `room`: store first, then `onRoom(room, prev)`.
-- `chat`: store first, then `onChat(message)`.
+- `chat`: store first (a `'notice'` line also becomes a toast), then `onChat(message)`.
 - any non-platform message: `onServerMessage(msg)`, only while a room is held.
 - leaving (Leave button, kick, lost seat): `onLeave()` runs **before** the URL moves and the store
   clears, so the seat is still yours if something must be flushed.
@@ -651,7 +666,12 @@ same record plus your `settings.defaults`; it should pass for a new game without
 7. **Settings must pass their own schema.** `settings.defaults` must satisfy `settings.schema`,
    `patchSchema` must accept `{}`, and both must strip platform fields (`{ contentMode: 'unhinged' }`
    parses to `{}`), which a `z.object(...)` does by default. Content lives behind
-   `settings.contentMode`, never behind a per-game switch.
+   `settings.contentMode`, never behind a per-game switch. A timing is never a setting: each clock
+   is one named, commented constant in the game's shared protocol (`SKRIBBLE_DRAW_SECONDS`,
+   `POKER_ACT_SECONDS`, `QUIPGAME_WRITE_SECONDS`, `SPYGAME_ROUND_MINUTES`...), so it changes in one
+   place. Click Race's time limit, in the hidden test game, is the one exception. Retiring a
+   setting needs no migration: a stored room keeps the old key, unread, and the `z.object`
+   schemas drop it from a patch; test both.
 8. **Game modules don't import each other** and the platform never imports a game by name; the
    registries are the only coupling.
 
@@ -749,14 +769,17 @@ keeps the table up for the dealer's reveal only, then the next round's bets open
 settled hands stay on show until the next deal), and the final table stays up in `ending` for the
 reveal and `BLACKJACK_RESULTS_MS` (5 seconds, no setting) before the podium. The bets wait for the players: the cards go out once every connected seat with chips has
 bet or tapped Sit out, a player who is away never holds up the deal (they sit the hand out), and
-the host's Deal now deals to whoever has bet. With no bet down nothing is dealt (a newcomer who
-came in behind a stake that has since left is seated then), and the table holds once nobody
-connected is left to bet. The turns wait too: the player in play acts when ready, a player who
+the host's Deal now deals to whoever has bet. With no bet down nothing is dealt, and the table
+holds once nobody connected is left to bet. Everyone ready at the start is seated with the
+starting chips; nobody is seated later (a newcomer watches until the next game). The turns wait too: the player in play acts when ready, a player who
 drops (or is away when their turn comes) stands at once, and the host's Skip stands an idle
 player's hand in play (a skip names the hand, so a second tap never stands the next one). An idle
 host never stalls the table: while the bets wait on the host, anyone may Deal now, and on the
-host's own turn anyone may Skip it. Stored rooms with
-the old `betSeconds`, `actSeconds`, `resultsSeconds` and `decks` keys load fine and ignore them,
+host's own turn anyone may Skip it. The starting chips are its only setting: the house rules are fixed in
+[`cards.ts`](../shared/games/blackjack/cards.ts) (the dealer stands on every 17, a natural pays 3 to
+2, any two cards may double and any pair may split). Stored rooms with the old `betSeconds`,
+`actSeconds`, `resultsSeconds`, `decks`, `dealerHitsSoft17`, `blackjackPayout`, `allowDouble` and
+`allowSplit` keys load fine and ignore them,
 and a stored room's old shoe (`shoe`, `shoeSize`, `reshuffled`) is dropped at its next round.
 
 Write the module as the template does: a `Data` interface, `start`, `handle` (a `switch` on
@@ -858,8 +881,9 @@ The platform test ids you will use: `home-create`, `home-join`, `code-input-0..3
 `create-panel`, `name-step`, `home-name`, `home-continue`, `home-back`, `room-preview`,
 `join-error`, `code-hint`, `room-code`, `game-picker` (with `data-game`), `game-tile` (with
 `data-game`), `player-item` (with `data-name`, `data-score`), `player-count`, `settings-row-<id>`,
-`settings-value-<id>`, `settings-<id>`, `start-game`, `start-hint`, `waiting-for-host`,
-`leave-room`, `chat-input`, `chat-send`, `chat-log`, `chat-message` (with `data-kind`), `timer`
+`settings-value-<id>` (a slider's value, host only), `settings-<id>`, `settings-panel` (host
+only), `start-game`, `start-hint`, `waiting-for-host`, `sitout-toggle`, `edit-profile`,
+`leave-room`, `timer`
 (with `data-seconds`), `overlay-game-end`, `podium-entry`, `back-to-lobby`, `podium-leave`,
 `toast`, `connection-status` (with `data-status`; only rendered while the socket is not
 connected), `settings-menu`, `site-header`, `brand-link`, `wordmark`.
@@ -878,7 +902,7 @@ Click Race (`id: 'template'`, hidden, reachable at `/template`): settings `targe
 (10–100, default 30) and `timeLimit` seconds (10–120, default 30); `start` sets everyone to 0
 clicks and a deadline; `{ t: 'click' }` increments the sender; the first to reach the target ends
 the game with +100 and everyone else gets +clicks; the deadline ends it with everyone +clicks;
-mid-game joiners start at 0. `minPlayers` is 1 so a solo race is playable (handy for tests).
+a newcomer mid-race watches. `minPlayers` is 1 so a solo race is playable (handy for tests).
 
 ### 6.1 `shared/games/template/protocol.ts`
 
@@ -917,7 +941,7 @@ export type TemplateClientMessage = z.infer<typeof templateClientMessageSchema>;
 export type TemplateServerMessage = never;
 
 export interface TemplateView {
-  /** Clicks so far, by player id (0 for players who joined mid-game). */
+  /** Clicks so far, by player id. */
   clicks: Record<string, number>;
   /** Epoch ms (server clock) when the race ends. */
   endsAt: number;
@@ -979,8 +1003,6 @@ function handle(ctx: GameCtx<TemplateSettings>, data: TemplateData, event: GameE
   switch (event.type) {
     case 'message':
       return click(ctx, data, event.playerId);
-    case 'playerJoined':
-      return { data: { ...data, clicks: { ...data.clicks, [event.playerId]: 0 } }, effects: [{ type: 'snapshot', to: 'all' }] };
     case 'tick':
       return ctx.now >= data.endsAt ? finish(ctx, data, null) : { data, effects: [] };
     default:
@@ -1029,7 +1051,7 @@ export const templateModule: GameServerModule<TemplateSettings, TemplateData, Te
 ### 6.3 `server/games/template/template.test.ts`
 
 Through the pure engine with the deterministic harness: start, counting, both ways a race ends,
-mid-game joiners, and a direct purity check on the module.
+a newcomer who only watches, and a direct purity check on the module.
 
 ```ts
 /** Click Race through the pure engine: the template every new game's tests can copy. */
@@ -1041,7 +1063,7 @@ import { defaultPlatformSettings } from '../../../shared/platform/settings.js';
 import type { Effect } from '../../platform/engine/effects.js';
 import { nextDeadline } from '../../platform/engine/time.js';
 import { viewFor } from '../../platform/engine/view.js';
-import { AVATAR, START, chatTexts, sim, startGame } from '../../platform/engine/testHarness.js';
+import { AVATAR, START, chatTexts, errorsOf, sim, startGame } from '../../platform/engine/testHarness.js';
 import { templateModule, type TemplateData } from './module.js';
 
 const view = (s: { data: Parameters<typeof viewFor>[0]; now: number }, viewer: string | null = null): TemplateView => {
@@ -1109,16 +1131,16 @@ describe('Click Race', () => {
     ]);
   });
 
-  it('seats mid-game joiners at zero clicks', () => {
+  it('lets a mid-game joiner watch without a tally or a click of their own', () => {
     const s = sim('template');
     const [alice] = startGame(s, ['Alice', 'Bob'], { targetClicks: 10 });
     s.game(alice, { t: 'click' });
     s.apply({ type: 'join', name: 'Carol', avatar: AVATAR, connectionId: 'c' });
     const carol = s.playerId('Carol');
-    expect(view(s).clicks[carol]).toBe(0);
-    s.game(carol, { t: 'click' });
-    expect(view(s).clicks).toMatchObject({ [alice]: 1, [carol]: 1 });
-    // Leaving mid-race keeps the others going; the leaver's clicks stay in the tally for the view.
+    expect(view(s).clicks[carol]).toBeUndefined();
+    expect(errorsOf(s.game(carol, { t: 'click' }))).toEqual(['You are watching this game.']);
+    expect(view(s).clicks).toEqual({ [alice]: 1, [s.playerId('Bob')]: 0 });
+    // A watcher leaving mid-race changes nothing for the racers.
     s.apply({ type: 'leave', playerId: carol });
     expect(s.data.phase).toBe('playing');
   });
@@ -1143,8 +1165,8 @@ The smallest possible client module: `meta`, `Screen`, `SettingsFields`, its sty
 ```tsx
 /**
  * Click Race: the template client module. Copy this folder for a new game. The platform renders
- * the front door, the lobby with its game picker, chat, players and the podium; a module only needs
- * a Screen (and, optionally, settings rows and the hooks listed in platform/game.ts).
+ * the front door, the room, players and the podium; a module only needs a Screen (and,
+ * optionally, settings rows and the hooks listed in platform/game.ts).
  */
 import type { TemplateSettings, TemplateView } from '@shared/games/template/protocol';
 import { gameById } from '@shared/platform/games';
@@ -1165,8 +1187,8 @@ export const templateClient = defineGameClient<TemplateView, TemplateSettings>({
 The screen gets `{ room, meId, isHost }`. It reads the view from `room.game` and the game's
 settings from `room.settings` (typed through `GameScreenProps<TemplateView, TemplateSettings>`),
 sends `{ t: 'click' }` straight through the socket, and composes platform components: the
-`GameTopBar` every game uses (back arrow, name and round, chat and options, then the player
-chips and the clock; its `GameMenuSheet` holds the theme, sound and Leave), `Timer`, `Avatar`, `Chat`, `PlayerList` in a `BottomSheet`.
+`GameTopBar` every game uses (back arrow, name and round and options, then the player
+chips and the clock; its `GameMenuSheet` holds the theme, sound and Leave), `Timer`, `Avatar`, `PlayerList` in a `BottomSheet`.
 The podium is not its concern. Every interactive element carries a `data-testid` for the e2e test.
 
 ```tsx
@@ -1175,12 +1197,12 @@ import { gameById } from '@shared/platform/games';
 import type { TemplateSettings, TemplateView } from '@shared/games/template/protocol';
 import { Avatar } from '../../platform/components/Avatar';
 import { BottomSheet } from '../../platform/components/BottomSheet';
-import { Chat } from '../../platform/components/Chat';
 import { GameMenuSheet, GameTopBar } from '../../platform/components/GameTopBar';
 import { PlayerList } from '../../platform/components/PlayerList';
 import { Timer } from '../../platform/components/Timer';
 import type { GameScreenProps } from '../../platform/game';
 import { PHONE_QUERY, useMediaQuery } from '../../platform/lib/media';
+import { WATCHING_TEXT } from '../../platform/lib/watching';
 import { socket } from '../../platform/net/socket';
 import { useActiveGame } from '../../platform/store/selectors';
 
@@ -1206,7 +1228,7 @@ export function ClickRaceScreen({ room, meId, isHost }: GameScreenProps<Template
 
   return (
     <div className="race">
-      {/* Every game's top bar: back, name and status, options; the player chips and the clock (the chat is on screen here). */}
+      {/* Every game's top bar: options, name and status, the clock, players. */}
       <GameTopBar
         meta={meta}
         room={room}
@@ -1217,58 +1239,53 @@ export function ClickRaceScreen({ room, meId, isHost }: GameScreenProps<Template
         players={{ open: sheet === 'players', onOpen: () => setSheet('players') }}
         menu={{ open: sheet === 'menu', onOpen: () => setSheet('menu') }}
       />
-      <div className="race__grid">
-        <main className="card race__main">
-          <h1 className="race__title">First to {target} taps wins</h1>
-          <button
-            type="button"
-            className="race__button"
-            style={{ background: meta.accent }}
-            onClick={() => socket.send({ t: 'click' })}
-            disabled={!racing}
-            aria-label={spectating ? "You're sitting this one out" : `Tap! ${mine} of ${target}`}
-            data-testid="click-button"
-            data-spectating={spectating}
-          >
-            {spectating ? (
-              <span className="race__watching">Sitting out</span>
-            ) : (
-              <>
-                <span className="race__count" data-testid="click-count">
-                  {mine}
-                </span>
-                <span className="race__target">/ {target}</span>
-              </>
-            )}
-          </button>
-          {spectating && (
-            <p className="race__note" data-testid="race-spectating">
-              You're sitting this one out. The race goes on without you.
-            </p>
+      <main className="card race__main">
+        <h1 className="race__title">First to {target} taps wins</h1>
+        <button
+          type="button"
+          className="race__button"
+          style={{ background: meta.accent }}
+          onClick={() => socket.send({ t: 'click' })}
+          disabled={!racing}
+          aria-label={spectating ? "You're watching this race" : `Tap! ${mine} of ${target}`}
+          data-testid="click-button"
+          data-spectating={spectating}
+        >
+          {spectating ? (
+            <span className="race__watching">Watching</span>
+          ) : (
+            <>
+              <span className="race__count" data-testid="click-count">
+                {mine}
+              </span>
+              <span className="race__target">/ {target}</span>
+            </>
           )}
-          <ol className="race__list" aria-label="Progress" data-testid="race-list">
-            {ranking.map((p) => {
-              const clicks = view.clicks[p.id] ?? 0;
-              return (
-                <li key={p.id} className={`race__row${p.id === meId ? ' race__row--me' : ''}`} data-testid="race-row" data-name={p.name} data-clicks={clicks}>
-                  <Avatar avatar={p.avatar} size="sm" dimmed={!p.connected} />
-                  <span className="race__name">{p.name}</span>
-                  <progress className="race__bar" value={Math.min(clicks, target)} max={target} aria-label={`${p.name}: ${clicks} of ${target}`} />
-                  <span className="race__clicks">{clicks}</span>
-                </li>
-              );
-            })}
-          </ol>
-          {watching.length > 0 && (
-            <p className="race__note player__status--sitting-out" data-testid="race-watching">
-              {`Watching: ${watching.map((p) => p.name).join(', ')}`}
-            </p>
-          )}
-        </main>
-        <aside className="card race__chat" aria-label="Chat">
-          <Chat />
-        </aside>
-      </div>
+        </button>
+        {spectating && (
+          <p className="race__note" data-testid="race-spectating">
+            {WATCHING_TEXT}
+          </p>
+        )}
+        <ol className="race__list" aria-label="Progress" data-testid="race-list">
+          {ranking.map((p) => {
+            const clicks = view.clicks[p.id] ?? 0;
+            return (
+              <li key={p.id} className={`race__row${p.id === meId ? ' race__row--me' : ''}`} data-testid="race-row" data-name={p.name} data-clicks={clicks}>
+                <Avatar avatar={p.avatar} size="sm" dimmed={!p.connected} />
+                <span className="race__name">{p.name}</span>
+                <progress className="race__bar" value={Math.min(clicks, target)} max={target} aria-label={`${p.name}: ${clicks} of ${target}`} />
+                <span className="race__clicks">{clicks}</span>
+              </li>
+            );
+          })}
+        </ol>
+        {watching.length > 0 && (
+          <p className="race__note player__status--sitting-out" data-testid="race-watching">
+            {`Watching: ${watching.map((p) => p.name).join(', ')}`}
+          </p>
+        )}
+      </main>
       <BottomSheet open={sheet === 'players'} title={`Players (${room.players.length})`} onClose={() => setSheet(null)} testId="players-sheet">
         <PlayerList room={room} meId={meId} isHost={isHost} mode="game" game={game} />
       </BottomSheet>
@@ -1292,13 +1309,12 @@ import type { SettingsFieldsProps } from '../../platform/game';
 const L = TEMPLATE_SETTINGS_LIMITS;
 
 /** Click Race's two rows in the lobby settings panel. */
-export function ClickRaceSettingsFields({ settings, canEdit, patch }: SettingsFieldsProps<TemplateSettings>) {
+export function ClickRaceSettingsFields({ settings, patch }: SettingsFieldsProps<TemplateSettings>) {
   return (
     <>
       <RangeSetting
         id="targetClicks"
         label="Taps to win"
-        canEdit={canEdit}
         value={settings.targetClicks}
         min={L.targetClicks.min}
         max={L.targetClicks.max}
@@ -1310,9 +1326,8 @@ export function ClickRaceSettingsFields({ settings, canEdit, patch }: SettingsFi
         id="timeLimit"
         label="Time limit in seconds"
         rowLabel="Time limit"
-        canEdit={canEdit}
         value={settings.timeLimit}
-        display={`${settings.timeLimit}s`}
+        format={(v) => `${v}s`}
         min={L.timeLimit.min}
         max={L.timeLimit.max}
         onCommit={(v) => patch({ timeLimit: v })}
@@ -1338,13 +1353,6 @@ a 44px+ tap target. The accent colour comes from `meta.accent` inline, not from 
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-}
-
-.race__grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(280px, 1fr);
-  gap: var(--space-4);
-  align-items: start;
 }
 
 .race__main {
@@ -1448,22 +1456,6 @@ a 44px+ tap target. The accent colour comes from `meta.accent` inline, not from 
   min-width: 2ch;
   text-align: right;
 }
-
-.race__chat {
-  display: flex;
-  flex-direction: column;
-  height: min(70vh, 640px);
-}
-
-@media (max-width: 760px) {
-  .race__grid {
-    grid-template-columns: 1fr;
-  }
-
-  .race__chat {
-    height: 50vh;
-  }
-}
 ```
 
 ---
@@ -1492,7 +1484,7 @@ const { player, registryOf, resetStore, room, welcome } = await import('../../te
 function race(overrides: Partial<TemplateRoomState> = {}): TemplateRoomState {
   return {
     ...room({ gameId: 'template', phase: 'playing', players: [player('host'), player('bob', { joinOrder: 1 })] }),
-    settings: { allowMidGameJoin: true, contentMode: 'family', targetClicks: 10, timeLimit: 30 },
+    settings: { contentMode: 'family', targetClicks: 10, timeLimit: 30 },
     game: { clicks: { host: 7, bob: 3 }, endsAt: Date.now() + 20_000, winnerId: null },
     ...overrides,
   };
@@ -1525,6 +1517,25 @@ describe('Click Race screen', () => {
     expect(tagWith(html, 'timer')).toMatch(/data-seconds="(19|20)"/);
   });
 
+  it('sits a spectator out: no live button, no row in the standings, listed as watching', () => {
+    const state = race({ players: [player('host'), player('bob', { joinOrder: 1 }), player('rae', { joinOrder: 2, participating: false, sittingOut: true })] });
+    usePlatformStore.getState().handleServerMessage(welcome('rae', state));
+    const html = renderToString(createElement(templateClient.Screen, { room: state, meId: 'rae', isHost: false }));
+    const button = tagWith(html, 'click-button');
+    expect(button).toContain('disabled');
+    expect(button).toContain('data-spectating="true"');
+    expect(button).toContain("watching this race");
+    expect(html).toContain('data-testid="race-spectating"');
+    const rows = html.match(/<li[^>]*data-testid="race-row"[^>]*>/g) ?? [];
+    expect(rows.map((r) => r.match(/data-name="([^"]+)"/)?.[1])).toEqual(['host', 'bob']);
+    expect(tagWith(html, 'race-watching')).toContain('player__status--sitting-out');
+    expect(html).toContain('Watching: rae');
+    // The racers keep their live button and see who is watching.
+    const racer = renderToString(createElement(templateClient.Screen, { room: state, meId: 'bob', isHost: false }));
+    expect(tagWith(racer, 'click-button')).not.toContain('disabled');
+    expect(racer).not.toContain('data-testid="race-spectating"');
+  });
+
   it('disables the button once the race ended (the platform shows the podium over it)', () => {
     const state = race({ phase: 'ended', podium: [{ playerId: 'host', score: 100, rank: 1 }] });
     usePlatformStore.getState().handleServerMessage(welcome('host', state));
@@ -1534,16 +1545,14 @@ describe('Click Race screen', () => {
 });
 
 describe('Click Race settings rows', () => {
-  it('renders both sliders with the shared limits for the host, read-only values otherwise', () => {
+  it('renders both sliders with the shared limits, each with its value beside it', () => {
     const { settings } = race();
     if (!templateClient.SettingsFields) throw new Error('no settings fields');
-    const host = renderToString(createElement(templateClient.SettingsFields, { settings, canEdit: true, patch: () => undefined }));
+    const host = renderToString(createElement(templateClient.SettingsFields, { settings, patch: () => undefined }));
     expect(tagWith(host, 'settings-targetClicks')).toContain('min="10"');
     expect(tagWith(host, 'settings-timeLimit')).toContain('max="120"');
-    const guest = renderToString(createElement(templateClient.SettingsFields, { settings, canEdit: false, patch: () => undefined }));
-    expect(guest).not.toContain('data-testid="settings-targetClicks"');
-    expect(tagWith(guest, 'settings-value-timeLimit')).toBeTruthy();
-    expect(guest).toContain('30s');
+    expect(tagWith(host, 'settings-value-timeLimit')).toContain('range-field__value');
+    expect(host).toContain('30s');
   });
 });
 ```
@@ -1745,12 +1754,11 @@ light theme swaps the `-text` variants for darker cuts while the fills stay lime
 | Purpose | Classes |
 | --- | --- |
 | Layout | `.card` (surface, 1px border, `--radius-md`, 16px padding on phones and 24px on desktop, no shadow), `.card__head`, `.card__title`, `.card__text` |
-| Buttons | `.btn` (48px, 8px corners, Inter 600) with `.btn--primary` (lime, ink text: the one loud action on a screen), `.btn--secondary` (1.5px strong outline), `.btn--ghost` (no border), `.btn--danger` (danger-soft fill, danger border), sizes `.btn--lg` / `.btn--sm` / `.btn--xs`, `.btn--block`, `.btn--choice` (big option buttons); `.text-btn` (a small link-style action with a 44px target); `.icon-btn`, `.icon-btn--sm`; `.segmented`; `.switch` |
+| Buttons | `.btn` (48px, 8px corners, Inter 600) with `.btn--primary` (lime, ink text: the one loud action on a screen), `.btn--secondary` (1.5px strong outline), `.btn--ghost` (no border), `.btn--danger` (danger-soft fill, danger border), sizes `.btn--lg` / `.btn--sm` / `.btn--xs`, `.btn--block`, `.btn--choice` (big option buttons); `.icon-btn`, `.icon-btn--sm`; `.segmented`; `.switch` |
 | Text inputs | `.input`, `.input--lg`, `.input.is-invalid`, `.textarea`, `.field`, `.field__label`, `.field__hint`, `.field__error`, `.field__ok` |
 | Badges | `.pill`, `.pill--accent`, `.banner`, `.banner--info`, `.banner--invite`, `.spinner`, `.ellipsis` (animated dots) |
 | Overlays | `.overlay__card`, `.overlay__card--wide`, `.overlay__kicker`, `.overlay__title`, `.overlay__hint`, `.overlay__footer` (the podium uses these; a game's own in-screen overlay can too); a round result adds `.result-card`, `.result-kicker`, `.result-reveal*`, `.result-points*`, `.result-next` from `results.css` |
 | Player list | `.player-list`, `.player`, `.player--me`, `.player--offline`, `.player--guessed`, `.player__avatar`, `.player__badge`, `.player__badge--drawer`, `.player__badge--guessed`, `.player__rank`, `.player__name`, `.player__meta`, `.player__score`, `.player__turn-points` |
-| Chat | `.chat`, `.chat__log`, `.chat__form`, `.chat__input`, `.chat__send`, `.chat-msg` with the kind modifiers `.chat-msg--system/guessed/correct/close/hint` (a plain `chat` line has no modifier rule) |
 | Timer | `.timer`, `.timer--lg`, `.timer--md`, `.timer--urgent` (the last 5 seconds), `.timer--long` (m:ss), `.timer__track`, `.timer__arc` |
 | Sheets and toasts | `.sheet*`, `.menu-sheet*` (a phone options sheet: `.menu-sheet__row`, `.menu-sheet__label`, `.menu-sheet__leave`), `.toasts`, `.toast` with `.toast--success/warning/error` (an `info` toast uses the base style) |
 | Header | `.site-header`, `.site-header__actions`, `.brand` (the wordmark link), `.wordmark` (24px tall on phones, 30px on desktop, via `--wordmark-height`), `.wordmark__accent`, `.conn-pill` (only while the socket is down), `.settings-menu`, `.pref-row` |
@@ -1768,35 +1776,34 @@ layout, which is a good reference for a non-scrolling phone game.
 
 | Component | Props | Notes |
 | --- | --- | --- |
-| [`SiteHeader`](../client/src/platform/components/SiteHeader.tsx) | `menuActions?: MenuAction[]`, `hero?` | The logo (the two phones as its icon, then the wordmark, whose "o" in ".io" is the settings gear) links to `/` (inside a room that leaves the room: any navigation away from `/:slug/:CODE` does); the connection pill while the socket is down (nothing while connected); the gear "o" is the settings button, whose popover lists `menuActions` under the preferences (the lobby's Copy invite link and Leave room); `hero` is the front door's logo, filling the column's width (from 1024px it grows past the column to two fifths of the screen, at most 600px, centred over it) |
+| [`SiteHeader`](../client/src/platform/components/SiteHeader.tsx) | `menuActions?: MenuAction[]`, `hero?` | The logo (centred at the top of the room on a phone, the connection pill out of the flow so it never pushes it aside; the two phones as its icon, then the wordmark, whose "o" in ".io" is the settings gear) links to `/` (inside a room that leaves the room: any navigation away from `/:slug/:CODE` does); the connection pill while the socket is down (nothing while connected); the gear "o" is the settings button, whose popover lists `menuActions` under the preferences (the lobby's Copy invite link and Leave room); `hero` is the front door's logo, filling the column's width (from 1024px it grows past the column to two fifths of the screen, at most 600px, centred over it) |
 | [`Wordmark`](../client/src/platform/components/Wordmark.tsx) | `className?` | The outlined boredgames.io logo (Poppins Black + Regular paths) inline, accessible name "boredgames.io", "games" in `--color-primary-text` |
 | [`PhoneBored`](../client/src/platform/components/Mascots.tsx) / `PhoneHappy` | `className?` | The two phone characters from `branding/mascots/boredgames-mascots.svg`, each cropped to itself, decorative (`aria-hidden`); the logo draws `BoredArt` and `HappyArt` together; celebrations only |
 | [`GameGlyph`](../client/src/platform/components/GameGlyph.tsx) | `game: GameMeta`, icon props | The game's 24px line glyph (the lobby tiles draw it at 32px) |
-| [`GameTopBar`](../client/src/platform/components/GameTopBar.tsx) | `meta`, `room`, `isPhone`, `testId`, `className?`, `status`, `statusTestId?` ('round-indicator'), `statusData?`, `clock?`, `players: { label?, open, onOpen }`, `chat?: { open, onOpen }`, `menu: { open, onOpen }`, `actions?`, `middle?`, `below?` | Every game's top bar as on the brand board (`gamebar.css`, `.gbar*`): a back arrow (`game-back`, it asks before leaving: `leave-sheet`, `game-leave-yes`), the game's name large and the status on the right ("Round 2/3"), then chat and the options button (a phone) or the connection pill, `actions` (End game) and the gear (a desktop). Below, the player chips (`PlayerChips`: avatar, name, a status badge from your `playerStatus`; the row is the `players-toggle` button and never scrolls, a "+K" chip takes what does not fit) and the timer ring at the end. Leave `chat` out where the chat is already on screen (a desktop column, Scribble's guess feed). Wrap the less important half of the status in `<span className="gbar__more">` and it shows on wider screens only; on a phone the status stays on one line beside the whole name, and the part wrapped in `Wide` (`RoundStatus` renders "Round 1/5" that way) gives way on the narrowest ("1/5"). `TableShell` renders it for the card tables |
+| [`GameTopBar`](../client/src/platform/components/GameTopBar.tsx) | `meta`, `room`, `isPhone`, `testId`, `className?`, `status`, `statusTestId?` ('round-indicator'), `statusData?`, `clock?`, `players: { label?, open, onOpen }`, `menu: { open, onOpen }`, `actions?`, `middle?`, `below?`, `compact?` | Every game's top bar as on the brand board (`gamebar.css`, `.gbar*`): a back arrow (`game-back`, it asks before leaving: `leave-sheet`, `game-leave-yes`), the game's name large and the status on the right ("Round 2/3"), then the options button (a phone) or the connection pill, `actions` (End game) and the gear (a desktop). Below, the player chips (`PlayerChips`: avatar, name, a status badge from your `playerStatus`; the row is the `players-toggle` button and never scrolls, a "+K" chip takes what does not fit) and the timer ring at the end. Wrap the less important half of the status in `<span className="gbar__more">` and it shows on wider screens only; on a phone the status stays on one line beside the whole name, and the part wrapped in `Wide` (`RoundStatus` renders "Round 1/5" that way) gives way on the narrowest ("1/5"). `TableShell` renders it for the card tables. `compact` packs it into one row (a phone's card table, The Spy Game on a phone): the chips give way to a players button with the count, and a `clock` sits small in the row, the game's name giving way to it on a phone |
 | `GameMenuSheet` | `open`, `onClose()`, `children?` | The phone options sheet behind the bar's menu button: theme and sound, your rows (the host's End game), Leave room (`menu-sheet`) |
 | [`ResultPoints`](../client/src/platform/components/RoundResult.tsx) / `ResultNext` / `earnersOf` | `rows`, `label`, `rowTestId?`, `empty` / `noun`, `endsAt`, `paused`, `settling`, `testId` / `players`, `points` | A round or turn result (`results.css`): put them in an `.overlay__card.result-card` after a `.result-kicker` (how it ended, on the game's accent) and a `.result-reveal` (the word, the spy); the points list shows avatar, name, role tag and `+points`; the footer counts down to the next turn, paused or "starting" when the time is up |
 | [`SettingsMenu`](../client/src/platform/components/Preferences.tsx) / `PreferenceRows` | `actions?: MenuAction[]` / none | The gear and its popover (theme, sound effects, then the actions: `{ label, icon, onSelect, testId }`); the rows alone go in a phone options sheet |
-| [`ReadyControls`](../client/src/platform/components/ReadyControls.tsx) | `me`, `context: 'lobby' \| 'podium'` | Not ready: "I'm ready" plus a small "Sit this one out"; ready: "You're ready" (tap to undo); sitting out: only "Count me in" (back in and ready in one tap); the host: only "Sit this one out" in the lobby (Start says they are in), "You start the game" on the podium |
+| [`ReadyControls`](../client/src/platform/components/ReadyControls.tsx) | `me`, `context: 'lobby' \| 'podium'`, `extra?` | Not ready: a big "I'm ready" over a row of equal secondary buttons, "Sit this one out" first and `extra` after it (the room's "Change my look", which opens the profile editor in a sheet); ready: "You're ready" (tap to undo) over the same row; sitting out: "Count me in" (back in and ready in one tap) and the hint, `extra` still in the row; the host: only the row in the lobby (Start says they are in), "You start the game" on the podium |
 | [`Avatar`](../client/src/platform/components/Avatar.tsx) | `avatar`, `size?: 'sm' \| 'md' \| 'lg' \| 'xl'`, `dimmed?`, `className?` | Dim disconnected players |
 | [`AvatarPicker`](../client/src/platform/components/AvatarPicker.tsx) | `value`, `onChange(next)`, `compact?` | Used by the front door's "Who's playing?" step and the lobby |
 | [`CodeInput`](../client/src/platform/components/CodeInput.tsx) | `value`, `onChange(code)`, `onSubmit()`, `onInvalidChar()`, `disabled?`, `invalid?`, `autoFocus?`, `labelledBy?`, `describedBy?`, `ref?: Ref<CodeInputHandle>` | The 4-box code field (A/B/C/D placeholders, uppercase, auto-advance, Backspace, arrows, paste of a code or an invite link, Enter submits, never auto-submits); `ref.focus(i)` moves to a box |
 | [`PlayerList`](../client/src/platform/components/PlayerList.tsx) | `room`, `meId: string \| null`, `isHost`, `mode: 'lobby' \| 'game'`, `game: AnyGameClientModule \| null` | Game mode ranks by score and shows kick / vote-kick; pass `useActiveGame()` as `game` to get your badges |
-| [`Chat`](../client/src/platform/components/Chat.tsx) | none | Reads the store; honours your `ChatInput` and `chatPlaceholder` |
-| [`SettingsPanel`](../client/src/platform/components/SettingsPanel.tsx) | `room`, `isHost`, `game` | Platform rows then your `SettingsFields`; the lobby renders it |
-| [`SettingRow`](../client/src/platform/components/SettingControls.tsx) | `label`, `value: string`, `testId`, `hint?`, `control?` | Test ids `settings-row-<id>`, `settings-value-<id>` |
-| `RangeControl` | `id`, `value`, `min`, `max`, `step?`, `onCommit(v)`, `label`, `revision` | Debounced 150 ms; test id `settings-<id>` |
-| `RangeSetting` | `RangeControl` props + `canEdit`, `display?`, `hint?`, `rowLabel?` | A row with the slider for editors and the value for everyone |
+| [`SettingsPanel`](../client/src/platform/components/SettingsPanel.tsx) | `room`, `game` | Platform rows then your `SettingsFields`; the lobby renders it for the host only |
+| [`SettingRow`](../client/src/platform/components/SettingControls.tsx) | `label`, `testId`, `hint?`, `control?` | A setting's title, its control, then the hint; no value beside the title (the chosen option is the readout). `.settings` spaces settings 24px apart, `.setting` puts 12px between a title and its options. Test id `settings-row-<id>` |
+| `RangeControl` | `id`, `value`, `min`, `max`, `step?`, `onCommit(v)`, `label`, `revision`, `format?(v)` | Debounced 150 ms; its value reads beside it and follows the thumb (`format`, the number by default). Keep `format` short: the value box is as wide as the longest value any slider in the panel can show (`ReadoutWidthScope` in the settings panel), so the tracks line up and never change length; test ids `settings-<id>`, `settings-value-<id>` |
+| `RangeSetting` | `RangeControl` props + `hint?`, `rowLabel?` | A setting with the slider and its value |
 | `ToggleSetting` | `id`, `checked`, `onChange(checked)`, `label`, `disabled?`, `hint?` | Test ids `settings-row-<id>`, `settings-<id>` |
-| `WordListSetting` | `id`, `label`, `words`, `canEdit`, `parse(text)`, `onCommit(words)`, `placeholder?`, `maxLength?` | A custom word list: a debounced textarea for editors, the list for everyone (Scribble's custom words); test ids `settings-row-<id>`, `settings-<id>-count`, `settings-<id>` |
+| `WordListSetting` | `id`, `label`, `words`, `parse(text)`, `split(text)`, `onCommit(words)`, `placeholder?`, `maxLength?`, `noun?`, `autoCapitalize?` | A custom list (Scribble's words, Quip Game's prompts): a debounced textarea, the count under it and an "Upload a .txt file" button. The file is read in the browser (plain text up to 100 KB, [`lib/wordFile.ts`](../client/src/platform/lib/wordFile.ts)), split by the same `parse` and added after what is typed without duplicates; a short line says how many were added and what was left out (repeats, too long, over the limit). `split` is how `parse` cuts text into entries before its rules (`splitWordList` in `shared/platform/words.ts`, or the game's own), so the line can count every entry. Test ids `settings-row-<id>`, `settings-<id>`, `settings-<id>-count`, `settings-<id>-upload`, `settings-<id>-file`, `settings-<id>-upload-status` |
 | [`PlayingCard`](../client/src/platform/components/PlayingCard.tsx) | `card: Card \| null`, `size?: 'sm' \| 'md' \| 'lg' \| 'xl'`, `testId?` ('card'), `slot?`, `highlight?`, `className?` | A white CSS card in both themes; a face-down card's markup carries no rank or suit (`data-face`, `data-rank`, `data-suit` on face-up cards); `cardName(card)` is its accessible name. Blackjack and Poker |
 | [`Chips`](../client/src/platform/components/Chips.tsx) | `value`, `size?`, `className?`, `testId?` | A chip count with the coin (`data-chips`); `ChipIcon` alone for inputs |
-| [`ChipsSetting`](../client/src/platform/components/ChipsSetting.tsx) | `id`, `label`, `value`, `min`, `max`, `presets`, `canEdit`, `onCommit(v)`, `hint?`, `display?` | A chip amount row: preset buttons and a numeric field committed on blur or Enter, clamped; test ids `settings-<id>`, `settings-<id>-<preset>` |
-| [`GuessTiles`](../client/src/platform/components/GuessTiles.tsx) | `mask`, `draft`, `onDraftChange(draft)`, `onSubmit(text): boolean`, `canSend`, `focusMemory?` | Type into the blanks of a masked word (layout in [`lib/wordMask.ts`](../client/src/platform/lib/wordMask.ts)); Scribble's guess bar |
+| [`ChipsSetting`](../client/src/platform/components/ChipsSetting.tsx) | `id`, `label`, `value`, `min`, `max`, `presets`, `onCommit(v)`, `hint?` | A chip amount setting: one row of preset buttons and a numeric field (which holds the value) committed on blur or Enter, clamped; test ids `settings-<id>`, `settings-<id>-<preset>` |
+| [`GuessTiles`](../client/src/platform/components/GuessTiles.tsx) | `mask`, `draft`, `onDraftChange(draft)`, `onSubmit(text): boolean`, `canSend` | Type into the blanks of a masked word (layout in [`lib/wordMask.ts`](../client/src/platform/lib/wordMask.ts)); Scribble's guess bar; test ids `guess-input`, `guess-send` |
 | [`Timer`](../client/src/platform/components/Timer.tsx) | `endsAt: number \| null \| undefined`, `warnUnder?` (10), `tickUnder?`, `size?: 'md' \| 'lg'`, `paused?`, `settling?` | Server-clock countdown in a ring whose lime arc empties toward the deadline (the length is the time left when this client first saw the deadline; reduced motion steps it once a second); plain seconds up to 99, m:ss beyond; the danger colour in the last 5 seconds (never with `warnUnder` 0); `tickUnder` plays a tick cue for the final seconds |
-| [`BottomSheet`](../client/src/platform/components/BottomSheet.tsx) | `open`, `title`, `onClose()`, `children`, `testId` | Phone sheet with focus trap and Escape; `${testId}-close`, `${testId}-backdrop` |
+| [`BottomSheet`](../client/src/platform/components/BottomSheet.tsx) | `open`, `title`, `onClose()`, `children`, `testId`, `className?` | Phone sheet with focus trap and Escape; `${testId}-close`, `${testId}-backdrop` |
 | [`PodiumOverlay`](../client/src/platform/components/PodiumOverlay.tsx) | `room`, `isHost` | Rendered by the shell on `'ended'`; you never render it. The small happy phone (96px at most), "Alice wins!" and the points, the top three on small lime / lilac / graphite blocks (`podium-step`), every player in order (`podium-entry` with `data-rank`), Ready / Sit this one out, the host's Play again / Back to lobby and a brief confetti |
 | [`Toasts`](../client/src/platform/components/Toasts.tsx), [`ConnectionPill`](../client/src/platform/components/ConnectionPill.tsx) | none | Toasts is rendered once by the shell; add toasts with `usePlatformStore.getState().addToast(kind, text)` (errors stay until dismissed); the pill renders nothing while connected |
-| [`Icons`](../client/src/platform/components/Icons.tsx) | `Icon({ paths, size?, ...svg })` (1.8px round stroke) plus `DiceIcon`, `CrownIcon`, `CheckIcon`, `CopyIcon`, `ShareIcon`, `ChatIcon`, `GearIcon`, `AlertIcon`, `LinkIcon`, `CloseIcon`, `UsersIcon`, `ChevronIcon`, `LogoutIcon`, `PlayIcon`, `KickIcon`, `SparkIcon`, `EditIcon`, `SendIcon`, `MoreIcon`, `MoonIcon`, `BackIcon` | Build game icons from the `Icon` primitive (24×24 stroke paths), as Scribble's [`Icons.tsx`](../client/src/games/skribble/components/Icons.tsx) does |
+| [`Icons`](../client/src/platform/components/Icons.tsx) | `Icon({ paths, size?, ...svg })` (1.8px round stroke) plus `DiceIcon`, `CrownIcon`, `CheckIcon`, `CopyIcon`, `ShareIcon`, `ChatIcon`, `GearIcon`, `AlertIcon`, `LinkIcon`, `CloseIcon`, `UsersIcon`, `ChevronIcon`, `LogoutIcon`, `PlayIcon`, `KickIcon`, `SparkIcon`, `EditIcon`, `SendIcon`, `UploadIcon`, `MoreIcon`, `MoonIcon`, `BackIcon` | Build game icons from the `Icon` primitive (24×24 stroke paths), as Scribble's [`Icons.tsx`](../client/src/games/skribble/components/Icons.tsx) does |
 
 ### 8.4 Mobile layout rules
 
@@ -1807,7 +1814,7 @@ layout, which is a good reference for a non-scrolling phone game.
 - **`PHONE_QUERY`** in [`lib/media.ts`](../client/src/platform/lib/media.ts)
   (`(max-width: 760px), (min-aspect-ratio: 3/2) and (max-height: 520px)`) with
   `useMediaQuery(PHONE_QUERY)` decides between desktop columns and phone stacking in JS when CSS
-  alone is not enough (Scribble swaps its players and chat columns for `BottomSheet`s).
+  alone is not enough (Scribble swaps its players column for a `BottomSheet`).
 - **Non-scrolling screens.** `useAppMode(isPhone)` from [`lib/useViewport.ts`](../client/src/platform/lib/useViewport.ts)
   puts `html.is-app` on the document (page never scrolls, `height: 100%`), and the shell publishes
   the visible viewport height as `--app-height` so a fixed layout sits above the on-screen
@@ -1927,7 +1934,7 @@ Run from the repository root; everything is green at HEAD.
    targets, as `home.spec.ts` does for the front door and `mobile.spec.ts` for Scribble.
 6. Manual pass: two browser tabs (or a phone on the same network via `npm run dev`), reload one
    mid-game (the seat survives, the view comes back from the snapshot and `welcome.extra`), let a
-   player leave mid-game, join mid-game with the code, kick someone, finish a game and return to
+   player leave mid-game, join mid-game with the code (you watch, then play the next game), kick someone, finish a game and return to
    the lobby, and one run with `REDIS_URL` pointing at a local Redis.
 7. Hygiene: no `Date.now` / `Math.random` / timers in `server/games/<id>/`, `.js` extensions on
    relative imports in `shared/` and `server/`, comments only where the logic is not obvious,
@@ -1945,8 +1952,8 @@ Run from the repository root; everything is green at HEAD.
 - **Codes are one namespace across games.** A code typed on Scribble's home can belong to a
   Click Race room; the preview says so and joining it enters that game. Don't assume the game from
   the URL before the room arrives; `room.gameId` is the truth.
-- **`room.game` is `null` in the lobby** and your `Screen` is not mounted then. `PlayerList`,
-  `Chat` and the settings hooks guard on it.
+- **`room.game` is `null` in the lobby** and your `Screen` is not mounted then. `PlayerList`
+  and the settings hooks guard on it.
 - **`score` does not snapshot.** Follow it with `{ type: 'snapshot', to: 'all' }` unless the same
   effect list ends the game.
 - **Effects after `abort` are dropped**, and `gameOver` is ignored unless the room is `'playing'`.
@@ -1958,9 +1965,9 @@ Run from the repository root; everything is green at HEAD.
   your `normalize` runs on the merged settings and may rewrite dependent fields. A field you add
   later is filled in from your defaults when an older stored room loads; retired keys stay,
   unread.
-- **`ctx.players` is the participants, not the room.** Players who sat the game out are in
+- **`ctx.players` is the participants, not the room.** Players who sat the game out or joined it mid-way are in
   `ctx.spectators` and in `room.players` with `participating: false`; they still receive every
-  snapshot and chat line, so views must not assume every `room.players` entry has a game entry.
+  snapshot and line, so views must not assume every `room.players` entry has a game entry.
 - **Content follows `ctx.settings.contentMode`.** Pick words, prompts and places through the
   shared pool helpers; never add a per-game "adult" switch.
 - **`meta.maxPlayers` is a seat limit, not a room cap.** `null` seats everyone (up to
@@ -1970,10 +1977,15 @@ Run from the repository root; everything is green at HEAD.
   itself justifies a number: Poker's 23 is what one deck can deal. Test a start with a full room
   (`server/games/bigParty.test.ts` does it for every live game) and keep long lists scrolling
   inside their own panel.
-- **Chat history** is capped at 60 lines and replayed in `welcome.chat`; private lines (explicit
-  recipient lists) are never stored, so a late joiner does not see them.
-- **`playerJoined` arrives mid-game only** (joins in the lobby are not game events) and only when
-  `allowMidGameJoin` is on; the newcomer is a participant and `ctx.players` already contains them.
+- **Chat history** (the lines behind Scribble's feed) is capped at 60 lines and replayed in
+  `welcome.chat`; private lines (explicit recipient lists) are never stored, so a late joiner does
+  not see them, and a replayed `'notice'` never pops up again.
+- **Settings are the host's alone.** Write `SettingsFields` for the host: there is no read-only
+  variant, and nothing echoes a chosen value beside a title (the chosen option is the readout; a
+  `RangeSetting` shows its own value, formatted by `format`).
+- **Joins are never game events.** A newcomer mid-game is in `ctx.spectators` from their first
+  snapshot to the end of the game; give spectators a read-only view (no controls, one line saying
+  they are watching and play the next game).
 - **Rate limits**: 60 game messages per second per socket are accepted, the rest dropped
   silently; chat is 6 per 4 s with a `RATE_LIMITED` error; room create/join 5 per 10 s.
 - **Message size**: 64 KB per WebSocket frame (`MAX_WS_MESSAGE_BYTES`).

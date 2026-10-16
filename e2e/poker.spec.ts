@@ -73,7 +73,7 @@ async function phoneLayoutHolds(p: Player, size: { width: number; height: number
   expect(panel.y + panel.height, `${p.name}: the panel ends on screen`).toBeLessThanOrEqual(size.height + 0.5);
   expect(panel.x + panel.width).toBeLessThanOrEqual(size.width + 0.5);
   const call = (await p.page.getByTestId('action-call').count()) > 0 ? 'action-call' : 'action-check';
-  for (const id of ['raise-input', 'raise-half', 'raise-pot', 'raise-max', 'action-fold', call, 'action-raise', 'action-allin', 'players-toggle', 'chat-toggle', 'game-menu']) {
+  for (const id of ['raise-input', 'raise-half', 'raise-pot', 'raise-max', 'action-fold', call, 'action-raise', 'action-allin', 'players-toggle', 'game-menu']) {
     const box = await boxOf(p.page.getByTestId(id));
     expect(box.height, `${p.name}: ${id} is a 44px target`).toBeGreaterThanOrEqual(MIN_TARGET);
     expect(box.y + box.height, `${p.name}: ${id} is on screen`).toBeLessThanOrEqual(size.height + 0.5);
@@ -138,7 +138,7 @@ async function tableAtRest(): Promise<void> {
 
 /**
  * Every page holds two cards of its own, face up, and none of them shows anywhere on another page:
- * the seats show backs without a rank, the board and the chat never name them.
+ * the seats show backs without a rank and the board never names them.
  */
 async function holeCardsStayPrivate(): Promise<Record<string, string[]>> {
   await tableAtRest();
@@ -154,7 +154,6 @@ async function holeCardsStayPrivate(): Promise<Record<string, string[]>> {
       for (const card of hands[q.name]) await expect(cardLocator(p.page, card), `${q.name}'s ${card} on ${p.name}'s page`).toHaveCount(0);
     }
   }
-  await expect(host.page.getByTestId('chat-log')).not.toContainText(/[♠♥♦♣]/);
   return hands;
 }
 
@@ -244,14 +243,22 @@ test('the host sets the stacks, the blinds and two hands, two phones join and th
   await expect(host.page.getByTestId('player-item')).toHaveCount(3);
 
   await host.page.getByTestId(`settings-startingChips-${STARTING_CHIPS}`).click();
-  await expect(pia.page.getByTestId('settings-value-startingChips')).toHaveText(String(STARTING_CHIPS));
+  await expect(host.page.getByTestId(`settings-startingChips-${STARTING_CHIPS}`)).toHaveAttribute('aria-pressed', 'true');
+  await expect(host.page.getByTestId('settings-startingChips')).toHaveValue(String(STARTING_CHIPS));
   await host.page.getByTestId(`settings-smallBlind-${SMALL_BLIND}`).click();
-  await expect(quinn.page.getByTestId('settings-value-smallBlind')).toHaveText(`${SMALL_BLIND}/${SMALL_BLIND * 2}`);
+  await expect(host.page.getByTestId(`settings-smallBlind-${SMALL_BLIND}`)).toHaveAttribute('aria-pressed', 'true');
+  // The sliders' tracks line up and keep their length as the value changes (the thumb never jumps).
+  const trackWidths = () => Promise.all(['hands', 'blindsIncreaseEvery'].map(async (id) => (await host.page.getByTestId(`settings-${id}`).boundingBox())?.width ?? 0));
+  await expect(host.page.getByTestId('settings-value-hands')).toHaveText('No limit');
+  const before = await trackWidths();
+  expect(before[0]).toBeGreaterThan(0);
+  expect(before[1]).toBe(before[0]);
   await host.page.getByTestId('settings-hands').fill('2');
-  await host.page.getByTestId('settings-actSeconds').fill('60');
-  await host.page.getByTestId('settings-resultsSeconds').fill('10');
-  await expect(pia.page.getByTestId('settings-value-hands')).toHaveText('2');
-  await expect(pia.page.getByTestId('settings-value-resultsSeconds')).toHaveText('10s');
+  await expect(host.page.getByTestId('settings-value-hands')).toHaveText('2');
+  expect(await trackWidths()).toEqual(before);
+  // No clocks to set: the turn and the results pause are fixed.
+  for (const id of ['actSeconds', 'resultsSeconds']) await expect(host.page.getByTestId(`settings-${id}`)).toHaveCount(0);
+  for (const p of phones()) await expect(p.page.getByTestId('settings-panel')).toHaveCount(0);
 
   await readyAll([pia.page, quinn.page]);
   await expectReadyCount(host.page, 3);
@@ -261,18 +268,22 @@ test('the host sets the stacks, the blinds and two hands, two phones join and th
     await expect(p.page.getByTestId('hand-indicator')).toHaveAttribute('data-hand', '1');
     await expect(p.page.getByTestId('hand-indicator')).toContainText('Hand 1 of 2');
     await expect(p.page.getByTestId('blinds')).toHaveAttribute('data-big', String(SMALL_BLIND * 2));
-    // The turn clock is in the spotlight, on the player to act.
-    await expect(p.page.getByTestId('spotlight').getByTestId('timer')).toBeVisible();
+    // No band across the table: the line under the ribbon says whose turn it is, with the turn clock.
+    await expect(p.page.getByTestId('table-turn').getByTestId('timer')).toBeVisible();
+    await expect(p.page.getByTestId('spotlight')).toHaveCount(0);
     await expect(p.page.getByTestId('board')).toHaveAttribute('data-street', 'preflop');
     await expect(p.page.getByTestId('community-slot')).toHaveCount(5);
     await expect(p.page.getByTestId('seat')).toHaveCount(2);
-    await expect(p.page.getByTestId('table-ribbon')).toContainText("NO LIMIT TEXAS HOLD'EM");
+    await expect(p.page.getByTestId('table-ribbon')).toContainText(`Blinds ${SMALL_BLIND}/${SMALL_BLIND * 2}`);
+    await expect(p.page.getByTestId('table-ribbon')).toContainText('Hand 1 of 2');
+    // Every stack reads in words, every bet as its own pill: never two bare numbers side by side.
+    for (const chips of await p.page.getByTestId('seat-chips').allTextContents()) expect(chips).toMatch(/^[\d,.k]+ chips?$/);
+    for (const bet of await p.page.locator('[data-testid="seat-bet"] .tbl-stake').allTextContents()) expect(bet).toMatch(/^Bet [\d,.k]+$/);
     await expect(p.page.getByTestId('overlay-results')).toHaveCount(0);
   }
   // The dealer button sits on exactly one seat on every page.
   for (const p of players) await expect(p.page.locator('[data-testid="seat-dealer"], [data-testid="my-dealer"]')).toHaveCount(1);
   await expect(host.page.getByTestId('pot')).toHaveAttribute('data-chips', String(SMALL_BLIND * 3));
-  await expect(host.page.getByTestId('chat-log')).toContainText(`Hand 1 (blinds ${SMALL_BLIND}/${SMALL_BLIND * 2})`);
   await expect(host.page.getByTestId('hotkey-hint')).toBeVisible();
   for (const p of phones()) await expect(p.page.getByTestId('hotkey-hint')).toHaveCount(0);
   await holeCardsStayPrivate();
@@ -294,7 +305,8 @@ test('hand one: a raise through the panel, a call and a fold, the board street b
   expect(min).toBe(SMALL_BLIND * 4);
   // The field starts at the minimum raise; the buttons walk it.
   await expect(raiser.page.getByTestId('raise-input')).toHaveValue(String(min));
-  await expect(raiser.page.getByTestId('action-raise')).toHaveText(`Raise to ${min}`);
+  await expect(raiser.page.getByTestId('action-raise')).toHaveText('Raise');
+  await expect(raiser.page.getByTestId('action-raise')).toHaveAttribute('aria-label', `Raise to ${min}`);
   await raiser.page.getByTestId('raise-max').click();
   await expect(panel).toHaveAttribute('data-amount', String(max));
   await raiser.page.getByTestId('raise-pot').click();
@@ -312,13 +324,17 @@ test('hand one: a raise through the panel, a call and a fold, the board street b
   // A typed amount, sent with Enter (the phone keyboard's Go).
   const to = min + 30;
   await raiser.page.getByTestId('raise-input').fill(String(to));
-  await expect(raiser.page.getByTestId('action-raise')).toHaveText(`Raise to ${to}`);
+  await expect(raiser.page.getByTestId('action-raise')).toHaveAttribute('aria-label', `Raise to ${to}`);
   const before = await stepOnHost();
   await raiser.page.getByTestId('raise-input').press('Enter');
   await expect.poll(stepOnHost).not.toBe(before);
   const watcher = raiser === host ? pia : host;
   await expect(watcher.page.locator(`[data-testid="seat"][data-name="${raiser.name}"]`)).toHaveAttribute('data-bet', String(to));
   await expect(watcher.page.locator(`[data-testid="seat"][data-name="${raiser.name}"] [data-testid="seat-line"]`)).toHaveText(`Raise to ${to}`);
+  // The raise is said under the ribbon too, and its pill on the raiser's seat reads as a bet, apart from the stack.
+  await expect(watcher.page.getByTestId('turn-sub')).toHaveText(`${raiser.name} raises to ${to}`);
+  await expect(raiser.page.getByTestId('turn-sub')).toHaveText(`You raise to ${to}`);
+  await expect(watcher.page.locator(`[data-testid="seat"][data-name="${raiser.name}"] [data-testid="seat-bet"] .tbl-stake`)).toHaveText(`Bet ${to}`);
   await chipsConserved();
 
   // The next player calls, the one after folds: a two-way pot goes to the flop.
@@ -423,7 +439,6 @@ test('hand two: two folds hand the pot over with no cards shown, and the last ha
     if (!me) throw new Error(`podium entry without a player: ${entry.name}`);
     expect(entry.rank).toBe(1 + players.filter((p) => chips[p.name] > chips[me.name]).length);
   }
-  await expect(host.page.getByTestId('chat-log')).toContainText('Game over!');
   await host.page.getByTestId('back-to-lobby').click();
   for (const p of players) await expect(p.page.getByTestId('room-code')).toHaveText(roomCode);
 });
@@ -450,7 +465,7 @@ test('a second game: the desktop shortcuts, the panel at 320x568, and the host e
   }
   await expect(host.page.getByTestId('action-fold')).toHaveAttribute('aria-keyshortcuts', 'F');
   const before = await stepOnHost();
-  await host.page.locator('body').click({ position: { x: 720, y: 450 } });
+  await host.page.getByTestId('hotkey-hint').click();
   await host.page.keyboard.press('c');
   await expect.poll(stepOnHost).not.toBe(before);
   await expect(host.page.getByTestId('my-area')).not.toHaveAttribute('data-status', 'folded');
@@ -499,8 +514,6 @@ async function bigTable(browser: Browser, base: string, size: number): Promise<v
   try {
     const code = await createParty(desk, 'Hana', 'poker');
     await joinByCode(phone, 'Pia', code);
-    await desk.getByTestId('settings-actSeconds').fill('60');
-    await expect(phone.getByTestId('settings-value-actSeconds')).toHaveText('60s');
     bots = await tableBots(size - 2, code, base, { game: 'poker', hold: true, thinkMs: 50 });
     await readyAll([phone]);
     await expectReadyCount(desk, size);
@@ -530,9 +543,16 @@ async function bigTable(browser: Browser, base: string, size: number): Promise<v
     };
     await fits(phone, PHONES);
     await fits(desk, DESKTOPS);
-    // The seat to act is lit on both pages (its tile, unless it is the page's own seat).
+    // The seat to act is lit on both pages (its tile, unless it is the page's own seat) and named under the ribbon.
     const turn = (await desk.getByTestId('poker-screen').getAttribute('data-turn-player')) ?? '';
-    for (const p of [desk, phone]) await expect(p.getByTestId('spotlight')).toHaveAttribute('data-player-id', turn);
+    for (const p of [desk, phone]) {
+      const own = await p.getByTestId('my-area').getAttribute('data-player-id');
+      if (own === turn) await expect(p.getByTestId('table-turn')).toHaveAttribute('data-state', 'mine');
+      else {
+        await expect(p.locator(`[data-testid="seat"][data-player-id="${turn}"]`)).toHaveAttribute('data-turn', 'true');
+        await expect(p.getByTestId('table-turn')).toHaveAttribute('data-state', 'turn');
+      }
+    }
     expect(errors).toEqual([]);
   } finally {
     for (const b of bots) b.close();
@@ -541,7 +561,7 @@ async function bigTable(browser: Browser, base: string, size: number): Promise<v
   }
 }
 
-for (const size of [6, 12, 23]) {
+for (const size of [2, 6, 12, 23]) {
   test(`${size} players: the table never scrolls on a phone or a desktop, my hand stays on screen and every tile reads`, async ({ browser, baseURL }) => {
     test.setTimeout(120_000);
     await bigTable(browser, baseURL ?? 'http://localhost:4173', size);

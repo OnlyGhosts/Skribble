@@ -10,6 +10,7 @@ export function viewFor(data: SkribbleData, viewerId: string | null, ctx: GameVi
     players[p.id] = { guessedThisTurn: data.turn?.guessed.includes(p.id) ?? false, turnPoints: data.turn?.points[p.id] ?? 0 };
   }
   return {
+    startedAt: data.startedAt ?? 0,
     phase: phaseFor(data, viewerId),
     round: data.round,
     totalRounds: ctx.settings.rounds,

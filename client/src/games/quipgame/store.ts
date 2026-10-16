@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react';
 import { create } from 'zustand';
 
 /** The phone sheets the screen can show; one at a time. */
-export type QuipgameSheet = 'players' | 'chat' | 'menu';
+export type QuipgameSheet = 'players' | 'menu';
 
 /** Quip Game's own client state: what is being typed, tapped or ranked before the server echoes it. */
 interface QuipgameState {

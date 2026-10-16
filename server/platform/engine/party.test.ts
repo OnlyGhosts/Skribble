@@ -1,8 +1,10 @@
 /** The party rules through the pure engine: the game context a module receives, game switches, and rooms stored before the party fields existed. */
 import { describe, expect, it } from 'vitest';
+import { QUIPGAME_VOTE_SECONDS, QUIPGAME_WRITE_SECONDS } from '../../../shared/games/quipgame/protocol.js';
+import { SPYGAME_ROUND_MINUTES } from '../../../shared/games/spygame/protocol.js';
 import { GAME_IDS, gameById } from '../../../shared/platform/games.js';
 import { GAMES } from '../../games/index.js';
-import { GAME_TEST_FIXTURES } from '../../games/testFixtures.js';
+import { GAME_TEST_FIXTURES, enoughNames } from '../../games/testFixtures.js';
 import { gameCtx } from './delegate.js';
 import { applyAction } from './reduce.js';
 import { upgradeRoomData, type PlatformPlayerData, type PlatformRoomData, type RoomSettingsData } from './state.js';
@@ -31,7 +33,7 @@ describe.each(GAME_IDS)('party (%s)', (gameId) => {
     const ctx = gameCtx({ data: s.data, effects: [], ctx: ctxAt(s.now), now: s.now });
     expect(ctx.players.map((p) => p.id)).toEqual(s.data.players.map((p) => p.id));
     expect(ctx.spectators).toEqual([]);
-    expect(ctx.settings).toMatchObject({ allowMidGameJoin: true, contentMode: 'family' });
+    expect(ctx.settings).toMatchObject({ contentMode: 'family' });
 
     s.apply({ type: 'platformMessage', playerId: alice, msg: { t: 'returnToLobby' } });
     s.apply({ type: 'join', name: 'Dave', avatar: AVATAR, connectionId: 'd' });
@@ -63,7 +65,7 @@ describe.each(GAME_IDS)('party (%s)', (gameId) => {
     if (!other) throw new Error('need two games');
     const effects = s.platform(alice, { t: 'selectGame', gameId: other });
     expect(s.data.gameId).toBe(other);
-    expect(s.data.settings).toEqual({ allowMidGameJoin: true, contentMode: 'unhinged', ...(GAMES[other].settings.defaults as Record<string, unknown>) });
+    expect(s.data.settings).toEqual({ contentMode: 'unhinged', ...(GAMES[other].settings.defaults as Record<string, unknown>) });
     expect(chatTexts(effects)).toEqual([`Host switched the party to ${gameById(other).name}`]);
     // A game with a side store leaves nothing behind for the next game.
     expect(effects.some((e) => e.type === 'side')).toBe(GAMES[gameId].createSideStore !== undefined);
@@ -95,6 +97,56 @@ describe('rooms stored before the party fields existed', () => {
     lobby.game = null;
     const loaded = applyAction(lobby, { type: 'tick' }, ctxAt(s.now, new Ids()));
     expect(loaded.data.players.every((p) => p.participating === false)).toBe(true);
+  });
+});
+
+/** Every setting retired since rooms were first stored: the mid-game join switch, the clocks, Quip Game's two switches and Blackjack's house rules. */
+const RETIRED_SETTINGS: Record<string, unknown> = {
+  allowMidGameJoin: false,
+  drawTime: 20,
+  roundMinutes: 3,
+  voteSeconds: 15,
+  writeSeconds: 30,
+  resultsSeconds: 4,
+  finalRound: false,
+  announcer: false,
+  actSeconds: 10,
+  dealerHitsSoft17: true,
+  blackjackPayout: '6:5',
+  allowDouble: false,
+  allowSplit: false,
+};
+
+describe.each(GAME_IDS)('retired settings (%s)', (gameId) => {
+  /** A seated room on the game's test settings, everyone readied up but the host. */
+  const lobby = (): { s: Sim; host: string } => {
+    const s = sim(gameId);
+    const ids = seat(s, enoughNames(gameId, ['Alice', 'Bob', 'Carol']));
+    readyUp(s, ids.slice(1));
+    return { s, host: ids[0] };
+  };
+
+  it('a patch carrying them is accepted and stores none of them', () => {
+    const { s, host } = lobby();
+    const before = structuredClone(s.data.settings);
+    expect(errorsOf(s.platform(host, { t: 'updateSettings', settings: RETIRED_SETTINGS }))).toEqual([]);
+    expect(s.data.settings).toEqual(before);
+  });
+
+  it('a room stored with them loads and starts exactly the game a room without them starts', () => {
+    const stored = lobby();
+    stored.s.data = upgradeRoomData({ ...stored.s.data, settings: { ...stored.s.data.settings, ...RETIRED_SETTINGS } });
+    stored.s.platform(stored.host, { t: 'start' });
+    const clean = lobby();
+    clean.s.platform(clean.host, { t: 'start' });
+    expect(stored.s.data.phase).toBe('playing');
+    expect(stored.s.data.game).toEqual(clean.s.data.game);
+    // And it runs on the same clocks: three minutes of deadlines later the two are still the same game.
+    for (const room of [stored.s, clean.s]) {
+      room.advance(3 * 60_000);
+      room.tick();
+    }
+    expect(stored.s.data.game).toEqual(clean.s.data.game);
   });
 });
 
@@ -189,9 +241,9 @@ describe('a host who sits the game out', () => {
     s.platform(alice, { t: 'start' });
     expect(s.data.phase).toBe('playing');
     expect(s.data.players.find((p) => p.id === alice)?.participating).toBe(false);
-    expect(errorsOf(s.game(alice, { t: 'accuse', playerId: bob }))).toEqual(['You are sitting this game out.']);
+    expect(errorsOf(s.game(alice, { t: 'accuse', playerId: bob }))).toEqual(['You are watching this game.']);
 
-    s.advance(3 * 60_000);
+    s.advance(SPYGAME_ROUND_MINUTES * 60_000);
     s.tick();
     expect(gamePhase(s)).toBe('reveal');
     expect(errorsOf(s.game(bob, { t: 'endGame' }))).toEqual(['Only the host can end the game.']);
@@ -206,13 +258,13 @@ describe('a host who sits the game out', () => {
     readyUp(s, [bob, carol, dave]);
     s.platform(alice, { t: 'start' });
     expect(s.data.phase).toBe('playing');
-    expect(errorsOf(s.game(alice, { t: 'answer', promptId: 'r1-p0', text: 'banana' }))).toEqual(['You are sitting this game out.']);
+    expect(errorsOf(s.game(alice, { t: 'answer', promptId: 'r1-p0', text: 'banana' }))).toEqual(['You are watching this game.']);
     // The skip reaches the module, which has nothing to skip yet.
     expect(errorsOf(s.game(alice, { t: 'next' }))).toEqual(['There is no result to skip.']);
 
-    s.advance(30_000);
+    s.advance(QUIPGAME_WRITE_SECONDS * 1000);
     s.tick();
-    s.advance(10_000);
+    s.advance(QUIPGAME_VOTE_SECONDS * 1000);
     s.tick();
     expect(gamePhase(s)).toBe('result');
     const before = structuredClone(s.data.game);
@@ -268,19 +320,40 @@ describe('the hold counts participants only', () => {
   });
 });
 
+describe.each(GAME_IDS)('joining while a game runs (%s)', (gameId) => {
+  it('lets the newcomer in to watch, even in a room stored with mid-game joins switched off', () => {
+    const s = sim(gameId);
+    const ids = seat(s, enoughNames(gameId, ['Alice', 'Bob']));
+    readyUp(s, ids.slice(1));
+    s.data = upgradeRoomData({ ...s.data, settings: { ...s.data.settings, allowMidGameJoin: false } });
+    s.platform(ids[0], { t: 'start' });
+    expect(s.data.phase).toBe('playing');
+    expect(previewOf(s.data)).toMatchObject({ inProgress: true, joinable: true });
+    const game = structuredClone(s.data.game);
+
+    s.apply({ type: 'join', name: 'Newt', avatar: AVATAR, connectionId: 'n' });
+    const newt = s.playerId('Newt');
+    expect(s.data.players.find((p) => p.id === newt)).toMatchObject({ participating: false, ready: false, sittingOut: false });
+    // The game is untouched and never lists the newcomer as a player, only as a spectator.
+    expect(s.data.game).toEqual(game);
+    const ctx = gameCtx({ data: s.data, effects: [], ctx: ctxAt(s.now), now: s.now });
+    expect(ctx.players.map((p) => p.id)).toEqual(ids);
+    expect(ctx.spectators).toEqual([{ id: newt, name: 'Newt', connected: true }]);
+    // Their snapshot carries the game, seen as a spectator sees it.
+    expect(viewFor(s.data, newt, s.now).game).toEqual(viewFor(s.data, null, s.now).game);
+  });
+});
+
 describe('joining between games', () => {
-  it('lets a newcomer in on the podium even with mid-game joins off, but not while the game runs', () => {
+  it('lets a newcomer in on the podium as an ordinary member', () => {
     const s = sim('template');
     const [alice] = seat(s, ['Alice']);
-    s.platform(alice, { t: 'updateSettings', settings: { allowMidGameJoin: false, targetClicks: 10 } });
+    s.platform(alice, { t: 'updateSettings', settings: { targetClicks: 10 } });
     s.platform(alice, { t: 'start' });
-    const during = applyAction(s.data, { type: 'join', name: 'Bob', avatar: AVATAR, connectionId: 'b' }, ctxAt(s.now, new Ids()));
-    expect(during.result).toMatchObject({ ok: false, code: 'GAME_IN_PROGRESS' });
-    expect(previewOf(s.data)).toMatchObject({ inProgress: true, joinable: false });
-
     for (let i = 0; i < 10; i++) s.game(alice, { t: 'click' });
     expect(s.data.phase).toBe('ended');
-    expect(previewOf(s.data)).toMatchObject({ inProgress: true, joinable: true });
+    // Nothing is running, so the front door does not offer to watch.
+    expect(previewOf(s.data)).toMatchObject({ inProgress: false, joinable: true });
     const podium = structuredClone(s.data.podium);
     s.apply({ type: 'join', name: 'Bob', avatar: AVATAR, connectionId: 'b' });
     expect(s.data.players.find((p) => p.name === 'Bob')).toMatchObject({ participating: false, ready: false });

@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
-import { createParty, expectReadyCount, joinByCode, readyAll } from './party';
+import { createParty, expectReadyCount, joinByCode, leaveLobby, readyAll } from './party';
 
 /**
  * The party stays together across games. Four players (one on a phone) create a Click Race
@@ -95,15 +95,46 @@ test('the host creates a Click Race party, three friends join, and the lobby sho
 
   // Click Race never reads the content mode, so nobody is offered one for it.
   for (const p of players) await expect(p.page.getByTestId('settings-contentMode')).toHaveCount(0);
+  // Only the host has settings; the others just sit in the room with their ready buttons.
+  await expect(host.page.getByTestId('settings-panel')).toBeVisible();
+  for (const g of guests()) await expect(g.page.getByTestId('settings-panel')).toHaveCount(0);
 
   // The phone lobby: the room bar first, then the picker; ready controls fit the screen with 44px targets.
   await expect(pia.page.locator('.lobby > section').first()).toHaveAttribute('data-testid', 'room-bar');
   await noHorizontalOverflow(pia.page, PORTRAIT.width);
-  for (const id of ['game-tile', 'ready-toggle', 'sitout-toggle', 'copy-code', 'share-invite', 'settings-menu']) {
+  for (const id of ['game-tile', 'ready-toggle', 'sitout-toggle', 'edit-profile', 'copy-code', 'share-invite', 'settings-menu']) {
     const box = await pia.page.getByTestId(id).first().boundingBox();
     expect(box?.height ?? 0, `${id} is a 44px target`).toBeGreaterThanOrEqual(MIN_TARGET);
     expect((box?.x ?? 0) + (box?.width ?? 0), `${id} fits the phone width`).toBeLessThanOrEqual(PORTRAIT.width + 0.5);
   }
+  // Sit this one out and Change my look are buttons side by side, under I'm ready.
+  const ready = await pia.page.getByTestId('ready-toggle').boundingBox();
+  const sitOut = await pia.page.getByTestId('sitout-toggle').boundingBox();
+  const look = await pia.page.getByTestId('edit-profile').boundingBox();
+  expect(Math.abs((sitOut?.y ?? 0) - (look?.y ?? 1)), 'one row').toBeLessThanOrEqual(0.5);
+  expect((sitOut?.x ?? 0) + (sitOut?.width ?? 0)).toBeLessThanOrEqual(look?.x ?? 0);
+  expect(sitOut?.y ?? 0).toBeGreaterThan((ready?.y ?? 0) + (ready?.height ?? 0) - 0.5);
+  await expect(pia.page.getByTestId('sitout-toggle')).toHaveClass(/btn--secondary/);
+  await expect(pia.page.getByTestId('edit-profile')).toHaveClass(/btn--secondary/);
+  // Change my look opens the editor in a sheet; Save closes it.
+  await pia.page.getByTestId('edit-profile').click();
+  await expect(pia.page.getByTestId('profile-sheet').getByTestId('profile-editor')).toBeVisible();
+  await pia.page.getByTestId('save-profile').click();
+  await expect(pia.page.getByTestId('profile-sheet')).toHaveCount(0);
+
+  // On a phone the room's logo is centred at the top, the settings gear still on its "o".
+  const header = pia.page.getByTestId('site-header');
+  const mark = await header.getByTestId('wordmark').boundingBox();
+  expect(Math.abs((mark?.x ?? 0) + (mark?.width ?? 0) / 2 - PORTRAIT.width / 2), 'the logo is centred').toBeLessThanOrEqual(1.5);
+  const gear = await header.locator('.wordmark__gear').boundingBox();
+  const gearButton = await header.getByTestId('settings-menu').boundingBox();
+  expect(Math.abs((gear?.x ?? 0) + (gear?.width ?? 0) / 2 - ((gearButton?.x ?? 0) + (gearButton?.width ?? 0) / 2))).toBeLessThanOrEqual(1.5);
+  await header.getByTestId('settings-menu').click();
+  await expectInsideViewport(pia.page, 'settings-popover', PORTRAIT);
+  await pia.page.keyboard.press('Escape');
+  // The desktop keeps the logo at the left.
+  const desk = await host.page.getByTestId('site-header').getByTestId('wordmark').boundingBox();
+  expect(desk?.x ?? 999).toBeLessThan(100);
 });
 
 test('players ready up: the count follows, Start waits for enough ready players and names who is not', async () => {
@@ -127,7 +158,7 @@ test('players ready up: the count follows, Start waits for enough ready players 
 
 test('the race is played to the podium: the winner is celebrated, Enter changes nothing, everyone readies up for the next game', async () => {
   await host.page.getByTestId('settings-targetClicks').fill('10');
-  await expect(quinn.page.getByTestId('settings-value-targetClicks')).toHaveText('10');
+  await expect(host.page.getByTestId('settings-value-targetClicks')).toHaveText('10');
   await host.page.getByTestId('start-game').click();
   for (const p of players) await expect(p.page.getByTestId('click-button')).toBeVisible();
   for (let i = 0; i < 2; i++) await quinn.page.getByTestId('click-button').click();
@@ -196,7 +227,6 @@ test('back to lobby keeps the party, and the host switches it to The Spy Game: t
     await expect(p.page.getByTestId('room-code')).toHaveText(code);
     await expect(p.page.getByTestId('player-item')).toHaveCount(4);
     await expect(p.page.getByTestId('game-picker')).toHaveAttribute('data-game', 'spygame');
-    await expect(p.page.getByTestId('chat-log')).toContainText('switched the party to The Spy Game');
     await expect(p.page.getByTestId('home-join')).toHaveCount(0);
     expect(await seatCode(p.page)).toBe(code);
   }
@@ -204,13 +234,14 @@ test('back to lobby keeps the party, and the host switches it to The Spy Game: t
   await expect(pia.page.getByTestId('game-picker').getByTestId('game-tile')).toHaveAttribute('data-game', 'spygame');
   await expect(host.page.getByTestId('settings-rounds')).toBeVisible();
   await expect(host.page.getByTestId('settings-targetClicks')).toHaveCount(0);
-  // The Spy Game reads the content mode: Family and Unhinged, nothing in between.
-  for (const p of players) await expect(p.page.getByTestId('settings-contentMode')).toHaveAttribute('data-value', 'family');
-  await expect(pia.page.locator('[data-testid^="content-mode-"]')).toHaveCount(2);
-  await expect(pia.page.getByTestId('content-mode-cheeky')).toHaveCount(0);
+  // The Spy Game reads the content mode: Family and Unhinged, nothing in between (and only the host sees it).
+  await expect(host.page.getByTestId('settings-contentMode')).toHaveAttribute('data-value', 'family');
+  await expect(host.page.locator('[data-testid^="content-mode-"]')).toHaveCount(2);
+  await expect(host.page.getByTestId('content-mode-cheeky')).toHaveCount(0);
+  await expect(pia.page.locator('[data-testid^="content-mode-"]')).toHaveCount(0);
   // Ready flags carried over; the Spy Game's own settings start fresh.
   await expect(host.page.getByTestId('player-count')).toHaveText('4 of 4 ready');
-  await expect(quinn.page.getByTestId('settings-value-rounds')).toHaveText('5');
+  await expect(host.page.getByTestId('settings-value-rounds')).toHaveText('5');
 });
 
 test('one player sits out, the host sets Unhinged, three play a one-round Spy Game while the fourth watches from the party', async () => {
@@ -221,18 +252,17 @@ test('one player sits out, the host sets Unhinged, three play a one-round Spy Ga
   await expect(rae.page.getByTestId('ready-toggle')).toHaveCount(0);
   await expect(rae.page.getByTestId('sitout-toggle')).toHaveText('Count me in');
   await expect(rae.page.getByTestId('sitout-hint')).toHaveText("You'll watch the next game.");
-  await expect(rae.page.getByTestId('ready-controls').getByRole('button')).toHaveCount(1);
+  await expect(rae.page.getByTestId('ready-controls').getByRole('button')).toHaveText(['Count me in', 'Change my look']);
   for (const p of players) await expect(p.page.locator(`[data-testid="player-item"][data-name="${rae.name}"]`)).toHaveAttribute('data-status', 'sittingOut');
   await expect(host.page.getByTestId('player-count')).toHaveText('3 of 3 ready');
 
   await host.page.getByTestId('content-mode-unhinged').click();
-  for (const p of players) await expect(p.page.getByTestId('settings-value-contentMode')).toHaveText('Unhinged');
-  await expect(pia.page.getByTestId('settings-contentMode')).toHaveAttribute('data-value', 'unhinged');
-  await expect(pia.page.getByTestId('content-mode-unhinged')).toBeDisabled();
-  await expect(pia.page.getByTestId('content-mode-unhinged')).toContainText('18+');
+  await expect(host.page.getByTestId('settings-contentMode')).toHaveAttribute('data-value', 'unhinged');
+  await expect(host.page.getByTestId('content-mode-unhinged')).toHaveAttribute('aria-checked', 'true');
+  await expect(host.page.getByTestId('content-mode-unhinged')).toContainText('18+');
 
   await host.page.getByTestId('settings-rounds').fill('1');
-  await expect(quinn.page.getByTestId('settings-value-rounds')).toHaveText('1');
+  await expect(host.page.getByTestId('settings-value-rounds')).toHaveText('1');
   await readyAll([pia.page, quinn.page]);
   await expectReadyCount(host.page, 3);
   await expect(host.page.getByTestId('start-confirm')).toHaveCount(0);
@@ -244,7 +274,6 @@ test('one player sits out, the host sets Unhinged, three play a one-round Spy Ga
   await expect(rae.page.getByTestId('spygame-role')).toHaveAttribute('data-role', 'spectator');
   await expect(rae.page).toHaveURL(new RegExp(`/spygame/${code}$`));
   await expect(rae.page.getByTestId('home-join')).toHaveCount(0);
-  await expect(host.page.getByTestId('chat-log')).toContainText(`${rae.name} sits this one out`);
   await rae.page.getByTestId('players-toggle').click();
   await expect(rae.page.getByTestId('players-sheet').getByTestId('player-item')).toHaveCount(4);
   await expect(rae.page.locator(`[data-testid="player-item"][data-name="${rae.name}"]`).getByTestId('player-sitting-out')).toBeVisible();
@@ -265,7 +294,7 @@ test('one player sits out, the host sets Unhinged, three play a one-round Spy Ga
   await host.page.getByTestId('spygame-next-round').click();
   for (const p of players) await expect(p.page.getByTestId('overlay-game-end')).toBeVisible();
   await expect(spy.page.getByTestId('podium-place')).toHaveText('You won!');
-  await expect(rae.page.getByTestId('podium-place')).toHaveText('You sat this one out');
+  await expect(rae.page.getByTestId('podium-place')).toHaveText('You watched this one');
   await expect(rae.page.getByTestId('overlay-game-end').getByTestId('podium-entry')).toHaveCount(3);
 
   await host.page.getByTestId('back-to-lobby').click();
@@ -289,7 +318,24 @@ test('one player sits out, the host sets Unhinged, three play a one-round Spy Ga
   for (const p of players) await expect(p.page.getByTestId('game-picker')).toHaveAttribute('data-game', 'poker');
   await expect(host.page.getByTestId('settings-contentMode')).toHaveCount(0);
   await host.page.getByTestId('game-picker').locator('[data-testid="game-tile"][data-game="quipgame"]').click();
-  for (const p of players) await expect(p.page.getByTestId('settings-contentMode')).toHaveAttribute('data-value', 'unhinged');
+  await expect(host.page.getByTestId('settings-contentMode')).toHaveAttribute('data-value', 'unhinged');
+});
+
+test('the host leaves: the new host gets the settings and the game picker at once', async () => {
+  await leaveLobby(host.page);
+  const rest = guests();
+  for (const p of rest) await expect(p.page.getByTestId('player-item')).toHaveCount(3);
+  // The host role goes to the longest-connected guest, Pia; her room grows the settings and the grid with no reload.
+  const crowned = pia;
+  await expect(crowned.page.locator(`[data-testid="player-item"][data-name="${crowned.name}"]`).getByTestId('host-crown')).toBeVisible();
+  await expect(crowned.page.getByTestId('settings-panel')).toBeVisible();
+  await expect(crowned.page.getByTestId('settings-contentMode')).toHaveAttribute('data-value', 'unhinged');
+  await expect(crowned.page.locator('button[data-testid="game-tile"]')).toHaveCount(5);
+  await expect(crowned.page.getByTestId('start-game')).toBeVisible();
+  for (const p of rest.filter((x) => x !== crowned)) {
+    await expect(p.page.getByTestId('settings-panel')).toHaveCount(0);
+    await expect(p.page.getByTestId('game-picker-note')).toHaveText(`${crowned.name} picks the game`);
+  }
 });
 
 test('no page errors were raised in any browser', async () => {

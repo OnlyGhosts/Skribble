@@ -1,15 +1,18 @@
 /* ---------- Card tables (platform/table): the screen, the felt, cards in motion, seats, the control panel ---------- */
 
-/* The screen: desktop is panel | table | chat, like Stake's left-hand controls. */
+/*
+ * The screen: desktop is panel | table, like Stake's left-hand controls. With no chat column the
+ * table takes the rest, up to the width the seats and the stage are laid out for.
+ */
 .tbl {
   --game-accent: var(--table-accent);
   display: grid;
-  grid-template-columns: 300px minmax(0, 1fr) 300px;
+  grid-template-columns: 300px minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr);
   gap: var(--space-4);
   height: 100dvh;
   padding: var(--space-4) var(--gutter);
-  width: min(1500px, 100%);
+  width: min(1280px, 100%);
   margin: 0 auto;
 }
 
@@ -33,21 +36,6 @@
   display: flex;
 }
 
-.tbl__chat {
-  grid-column: 3;
-  grid-row: 2;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  padding: var(--space-3);
-}
-
-.tbl__chat-sheet {
-  display: flex;
-  flex-direction: column;
-  height: min(60vh, 520px);
-}
-
 /* ---------- The felt ---------- */
 .tbl-felt {
   /* A game sets its card widths per place on the table (every card here is 2:3). */
@@ -66,14 +54,6 @@
   overflow: hidden;
 }
 
-/* Discards top left, the game's centre piece, the deck top right. */
-.tbl-felt__top {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: start;
-  gap: var(--space-3);
-}
-
 .tbl-card {
   /* A flex box, not inline: no baseline gap under the card. */
   display: flex;
@@ -85,7 +65,6 @@
 .tbl-flip .playing-card {
   --card-w: var(--tbl-w);
   --card-h: calc(var(--tbl-w) * 1.5);
-  --card-font: calc(var(--tbl-w) * 0.26 + 2px);
 }
 
 /* ---------- A card turning over ---------- */
@@ -115,50 +94,49 @@
 }
 
 /* ---------- Deck and discards ---------- */
-.tbl-deck,
-.tbl-discard {
+.tbl-deck {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
 }
 
-.tbl-deck {
-  grid-column: 3;
-  justify-self: end;
-}
-
-.tbl-discard {
-  grid-column: 1;
-  justify-self: start;
-}
-
-.tbl-deck__stack,
-.tbl-discard__slot {
-  position: relative;
-  display: block;
-  width: 36px;
-  height: 54px;
-}
-
-.tbl-discard__slot {
-  border-radius: 5px;
-  border: 1px dashed var(--color-border-strong);
-}
-
-.tbl-stack {
-  position: absolute;
-  inset: 0;
-}
-
+/* A card back in the stack: the same boredgames back as a face-down card (cards.css). */
 .tbl-stack__card {
+  --card-w: var(--deck-w, 36px);
   position: absolute;
   inset: 0;
-  border-radius: 5px;
-  background-color: var(--color-secondary);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8'%3E%3Cpath d='M4 0 8 4 4 8 0 4Z' fill='none' stroke='%23141514' stroke-opacity='.2' stroke-width='1'/%3E%3C/svg%3E");
-  background-size: 8px 8px;
-  border: 1px solid var(--color-surface);
+  border-radius: calc(var(--card-w) * 0.1);
+  background: var(--card-back-border);
+  border: 1px solid var(--color-border-strong);
+}
+
+/*
+ * The deck tucked into the table's top right corner, peeking down from its top edge (the felt
+ * clips the rest): bigger than a deck in a grid cell, so it reads as the shoe the cards come from.
+ */
+.tbl-deck--corner {
+  --deck-w: var(--tbl-deck-w, 56px);
+  position: absolute;
+  top: calc(var(--deck-w) * -0.62);
+  right: calc(var(--deck-w) * 0.45);
+  z-index: 0;
+  pointer-events: none;
+}
+
+.tbl-deck--corner .tbl-deck__stack {
+  width: var(--deck-w);
+  height: calc(var(--deck-w) * 1.5);
+}
+
+/* Where a calm table's cards go: just past its top left corner, so they sweep off the felt. */
+.tbl-discard-corner {
+  position: absolute;
+  top: -60px;
+  left: -40px;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
 }
 
 .tbl-deck__count {
@@ -170,28 +148,74 @@
   white-space: nowrap;
 }
 
-/* ---------- Ribbon ---------- */
+/* ---------- Ribbon: a low-contrast banner with folded ends, the rule under it, whose turn under that ---------- */
 .tbl-ribbon {
+  --ribbon-h: 28px;
+  isolation: isolate;
+  --ribbon-fold: 12px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
-  font-family: var(--font-mono);
-  text-transform: uppercase;
+  gap: 4px;
+  min-width: 0;
   text-align: center;
   line-height: 1.2;
 }
 
+.tbl-ribbon__band {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-width: calc(100% - 2 * var(--ribbon-fold) - 8px);
+  height: var(--ribbon-h);
+  padding: 0 18px;
+  background: var(--color-surface-2);
+  border-block: 1px solid var(--color-border);
+}
+
+/* The folded ends: a darker tail behind each end, notched like a ribbon. */
+.tbl-ribbon__band::before,
+.tbl-ribbon__band::after {
+  content: '';
+  position: absolute;
+  top: 5px;
+  width: calc(var(--ribbon-fold) + 8px);
+  height: var(--ribbon-h);
+  background: var(--color-surface-3);
+  border-block: 1px solid var(--color-border);
+  z-index: -1;
+}
+
+.tbl-ribbon__band::before {
+  right: calc(100% - 8px);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 34% 50%);
+}
+
+.tbl-ribbon__band::after {
+  left: calc(100% - 8px);
+  clip-path: polygon(0 0, 100% 0, 66% 50%, 100% 100%, 0 100%);
+}
+
 .tbl-ribbon__main {
-  font-size: 0.78rem;
-  font-weight: 600;
-  letter-spacing: 0.14em;
+  overflow: hidden;
+  font-family: var(--font-display);
+  font-size: 0.86rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   color: var(--color-text-muted);
 }
 
 .tbl-ribbon__sub {
+  margin-top: 3px;
+  font-family: var(--font-mono);
   font-size: 0.66rem;
+  font-weight: 600;
   letter-spacing: 0.12em;
+  text-transform: uppercase;
   color: var(--color-text-faint);
 }
 
@@ -324,82 +348,268 @@
   }
 }
 
-/* ---------- A tight table (a short phone, or ten or more others): the spotlight in one row ---------- */
-.tbl-stage--tight .tbl-spot--row {
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  grid-template-areas: 'who body clock' 'sub body clock';
-  column-gap: 6px;
+/* ---------- A hand: a stepped fan with its total over the top right corner (HandFan) ---------- */
+/*
+ * --tbl-w is the card width (set per place by the game). Each card sits a step right of and below
+ * the one before, the step right (--fan-step, in card widths) leaving the rank and suit in view,
+ * a "10" too; past four cards the step down shrinks, so the fan keeps one height (1.77 cards'
+ * width) however many hits. The pill overlaps the fan's top edge a little. A game sizes a fan of n
+ * cards as (1 + (n - 1) * --fan-step) card widths.
+ */
+:root {
+  --fan-step: 0.44;
 }
 
-.tbl-stage--tight .tbl-spot--row .tbl-spot__sub {
-  flex-direction: row;
+.tbl-hand {
+  --pill-h: var(--tbl-pill-h, 26px);
+  --fan-dx: calc(var(--tbl-w) * var(--fan-step));
+  --fan-dy: min(calc(var(--tbl-w) * 0.09), calc(var(--tbl-w) * 0.27 / max(1, var(--fan, 2) - 1)));
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  flex: none;
+  padding: calc(var(--pill-h) * 0.7) 3px 3px;
+  border-radius: var(--radius-item);
+}
+
+/* The pill (and the words beside it) over the fan's top right corner; it never widens the hand. */
+.tbl-hand__head {
+  position: absolute;
+  top: 0;
+  right: 3px;
+  z-index: 1;
+  display: flex;
   align-items: center;
-  justify-self: start;
-  gap: 8px;
-  text-align: left;
+  justify-content: flex-end;
+  gap: 4px;
+  height: var(--pill-h);
+  white-space: nowrap;
 }
 
-/* Stacked (split hands, the bets): whose turn, the stake and who is next share the first row. */
-.tbl-stage--tight .tbl-spot--stack {
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  grid-template-areas: 'who sub clock' 'body body body';
-  column-gap: 8px;
+.tbl-hand__head .tbl-pill {
+  height: var(--pill-h);
+  min-width: calc(var(--pill-h) * 1.3);
+  padding: 0 9px;
+  border-width: 1.5px;
+  font-family: var(--font-display);
+  font-size: calc(var(--pill-h) * 0.6);
+  font-weight: 800;
+  letter-spacing: -0.01em;
 }
 
-.tbl-stage--tight .tbl-spot--stack .tbl-spot__sub {
-  gap: 8px;
+/* A soft total ("10/20") is five characters: a touch smaller, so it stays inside its pill. */
+.tbl-hand__head .tbl-pill[data-long] {
+  padding: 0 6px;
+  font-size: calc(var(--pill-h) * 0.52);
 }
 
-.tbl-stage--tight .tbl-spot__label {
-  font-size: 1.15rem;
+.tbl-fan {
+  display: flex;
+  align-items: flex-start;
+  height: calc(var(--tbl-w) * 1.77);
 }
 
-.tbl-stage--tight .tbl-spot .timer--md {
-  width: 40px;
-  height: 40px;
-  font-size: 0.8rem;
+.tbl-fan__card {
+  display: flex;
+  flex: none;
+  margin-top: calc(var(--i, 0) * var(--fan-dy));
 }
 
-.tbl-stage--tight .tbl-spot__face .avatar {
-  width: 26px;
-  height: 26px;
-  font-size: 15px;
+.tbl-fan__card + .tbl-fan__card {
+  margin-left: calc(var(--fan-dx) - var(--tbl-w));
 }
 
-/* The narrowest phones: a smaller face and clock, so the label keeps its room. */
-@media (max-width: 360px) {
-  .tbl-stage--tight .tbl-spot .timer--md {
-    width: 34px;
-    height: 34px;
-    font-size: 0.75rem;
-  }
-
-  .tbl-stage--tight .tbl-spot__face .avatar {
-    width: 22px;
-    height: 22px;
-    font-size: 13px;
-  }
-
-  .tbl-stage--tight .tbl-spot__who {
-    gap: 6px;
-  }
+.tbl-fan__card > .playing-card {
+  --card-w: var(--tbl-w);
+  --card-h: calc(var(--tbl-w) * 1.5);
 }
 
-.tbl-stage--tight .tbl-me__label {
+/* An outcome: a thick outline round every card of the hand, in its colour (the pill takes it too). */
+.tbl-hand--win .tbl-fan .playing-card,
+.tbl-hand--blackjack .tbl-fan .playing-card,
+.tbl-hand--loss .tbl-fan .playing-card,
+.tbl-hand--bust .tbl-fan .playing-card,
+.tbl-hand--push .tbl-fan .playing-card {
+  outline: max(2px, calc(var(--tbl-w) * 0.045)) solid var(--hand-outcome);
+  outline-offset: -1px;
+}
+
+.tbl-hand--win {
+  --hand-outcome: var(--color-primary-text);
+}
+
+.tbl-hand--blackjack {
+  --hand-outcome: var(--color-warning);
+}
+
+.tbl-hand--loss,
+.tbl-hand--bust {
+  --hand-outcome: var(--color-danger);
+}
+
+.tbl-hand--push {
+  --hand-outcome: var(--color-border-strong);
+}
+
+/* The hand in play: its pill lit lime. */
+.tbl-hand--active .tbl-pill--active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-primary-contrast);
+}
+
+/* A pill with a word in it ("Lost 17") is wider than a two-card fan: the hand keeps room for it. */
+.tbl-hand--lead {
+  min-width: calc(var(--pill-h) * 2.2 + 6px);
+}
+
+/* An outcome's word inside the pill, before the total. */
+.tbl-pill__lead {
+  margin-right: 0.35em;
+  font-size: 0.82em;
+}
+
+/* How the hand ended, in words, left of the pill. */
+.tbl-flag {
+  font-family: var(--font-display);
+  font-size: calc(var(--pill-h) * 0.55);
+  font-weight: 800;
+  color: var(--color-text-muted);
+}
+
+/*
+ * Beside a hand's total the word is a quiet chip the pill's height: it overlaps the first card's
+ * top edge exactly as the pill does, and its own ground keeps the letters clear of the card.
+ */
+.tbl-hand__head .tbl-flag {
+  display: inline-flex;
+  align-items: center;
+  /* A flex box drops the space before "+20": the gap puts it back. */
+  gap: 0.3em;
+  height: var(--pill-h);
+  padding: 0 0.5em;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-2);
+  font-size: calc(var(--pill-h) * 0.5);
+  line-height: 1;
+}
+
+.tbl-flag--win {
+  color: var(--color-primary-text);
+}
+
+.tbl-flag--blackjack {
+  color: var(--color-warning-text);
+}
+
+.tbl-flag--loss,
+.tbl-flag--bust {
+  color: var(--color-danger-text);
+}
+
+.tbl-hand__head .tbl-tag {
+  font-size: calc(var(--pill-h) * 0.48);
+}
+
+/* On a seat: small cards with the pill beside them. */
+.tbl-hand--mini {
+  --pill-h: 18px;
+  flex-direction: row-reverse;
+  align-items: center;
+  gap: 3px;
+  padding: 0;
+}
+
+.tbl-hand--mini .tbl-hand__head {
+  position: static;
+  align-self: center;
+}
+
+.tbl-hand--mini .tbl-hand__head .tbl-pill {
+  min-width: 24px;
+  padding: 0 4px;
+  border-width: 1px;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+}
+
+.tbl-hand--mini .tbl-fan {
+  --fan-dy: min(calc(var(--tbl-w) * 0.06), calc(var(--tbl-w) * 0.12 / max(1, var(--fan, 2) - 1)));
+  height: calc(var(--tbl-w) * 1.62);
+}
+
+/* ---------- The stack and the stake (Stakes): "1,000 chips" and a "Bet 10" pill, never confused ---------- */
+.tbl-stackcount {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.25em;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.tbl-stackcount__value {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.1em;
+  color: var(--color-text);
+}
+
+/* A `fit` figure: in full, the short form only on a tile too narrow for it (the queries below). */
+.tbl-figure__short {
   display: none;
 }
 
-.tbl-stage--tight .tbl-me .avatar {
-  width: 20px;
-  height: 20px;
-  font-size: 12px;
+@container tile (max-width: 79px) {
+  .tbl-figure__full {
+    display: none;
+  }
+
+  .tbl-figure__short {
+    display: inline;
+  }
 }
 
-/* My half of a tight top row is a size container: the game fits my cards to it (cqw) rather than cut them. */
-.tbl-stage--tight .tbl-stage__mine {
-  min-width: 0;
-  overflow: hidden;
-  container-type: inline-size;
+.tbl-stackcount__word {
+  font-size: 0.88em;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.tbl-stake {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25em;
+  height: 1.85em;
+  padding: 0 0.42em;
+  border-radius: var(--radius-pill);
+  border: 1.5px solid var(--color-warning);
+  background: var(--color-warning-soft);
+  color: var(--color-warning-text);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.tbl-stake__word {
+  font-size: 0.76em;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.tbl-stake__value {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.04em;
+  color: var(--color-text);
+}
+
+.tbl-stake--pot {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface-3);
+  color: var(--color-text-muted);
 }
 
 /* ---------- Chips in the air (ChipFlights) ---------- */
@@ -427,230 +637,92 @@
   will-change: transform;
 }
 
-/* ---------- The stage: what is on the table, top to bottom, never scrolling ---------- */
-/* The game's centre piece (dealer, or pot and board), the ribbon, the spotlight, the players, my hand. */
-.tbl-stage {
+/* ---------- A calm table: the centre piece, the ribbon, the seats, the stage ---------- */
+/*
+ * The first row (the game's centre piece: Blackjack's dealer, Poker's pot and board) and the last
+ * (the stage with the hand that matters to me) have a fixed height the game sets for the screen
+ * alone (--tbl-head-h, --tbl-stage-h), never for the phase or the number of players. The ribbon
+ * and the seats in between take what is left, the seats last, down to nothing. The game also sets
+ * the gap between the rows (--tbl-row-gap) and the stage's side columns (--tbl-owner-w).
+ */
+.tbl-felt--calm {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
-  grid-template-areas: 'top' 'ribbon' 'spot' 'seats' 'mine';
-  justify-content: stretch;
+  grid-template-rows: var(--tbl-head-h) auto minmax(0, 1fr) var(--tbl-stage-h);
+  grid-template-areas: 'head' 'ribbon' 'seats' 'stage';
+  row-gap: var(--tbl-row-gap, var(--space-3));
+}
+
+/* Whose turn it is stays on every screen, however short (the banner itself may go). */
+.tbl-felt--calm > .tbl-ribbon {
+  grid-area: ribbon;
+  display: flex;
+  min-height: 0;
   overflow: hidden;
 }
 
-.tbl-stage > .tbl-felt__top {
-  grid-area: top;
+/* A crowd of 24 or more: the banner's small rule gives its line to the seats. */
+.tbl-felt--calm.tbl-crowd--dense .tbl-ribbon__sub {
+  display: none;
 }
 
-.tbl-stage > .tbl-ribbon {
-  grid-area: ribbon;
-}
-
-.tbl-stage > .tbl-spot {
-  grid-area: spot;
-}
-
-.tbl-stage > .tbl-grid {
+.tbl-felt--calm > .tbl-grid {
   grid-area: seats;
 }
 
-.tbl-stage > .tbl-stage__mine {
-  grid-area: mine;
-}
-
-/* ---------- The spotlight: the hand being played, large, with whose it is and the clock ---------- */
-/* Stacked: whose turn and the clock on top, the stake and who is next under it, then the hand. */
-.tbl-spot {
-  --tbl-w: var(--tbl-spot-w, 64px);
-  position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-areas: 'who clock' 'sub clock' 'body body';
+/* ---------- The line under the ribbon: whose turn it is (TurnLine) ---------- */
+.tbl-turn {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  column-gap: 10px;
-  row-gap: 2px;
-  min-width: 0;
-  padding: 6px 10px 8px;
-  border-radius: var(--radius-md);
-  border: 2px solid var(--color-border-strong);
-  background: var(--color-surface-2);
-  transition: border-color 150ms ease-out, background-color 150ms ease-out;
-}
-
-/* One hand: the label across the top, the stake and who is next beside the cards, the clock at the end. */
-.tbl-spot--row {
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-  grid-template-areas: 'who who clock' 'sub body clock';
-}
-
-.tbl-spot--row .tbl-spot__clock {
-  justify-self: end;
-}
-
-.tbl-spot--turn,
-.tbl-spot--mine {
-  border: 3px solid var(--color-primary-text);
-  padding: 5px 9px 7px;
-  background: var(--color-primary-soft);
-}
-
-.tbl-spot--dealer {
-  border-color: var(--color-secondary);
-}
-
-.tbl-spot--tone-win {
-  border-color: var(--color-primary-text);
-}
-
-.tbl-spot--tone-blackjack {
-  border-color: var(--color-warning);
-}
-
-.tbl-spot--tone-loss,
-.tbl-spot--tone-bust {
-  border-color: var(--color-danger);
-}
-
-.tbl-spot__who {
-  grid-area: who;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.tbl-spot__face {
-  display: flex;
-  flex: none;
-}
-
-.tbl-spot__face .avatar {
-  width: 40px;
-  height: 40px;
-  font-size: 24px;
-}
-
-.tbl-spot .timer--md {
-  width: 56px;
-  height: 56px;
-  font-size: 1.05rem;
-}
-
-.tbl-spot__label {
-  display: flex;
-  min-width: 0;
+  justify-content: center;
+  gap: 2px 10px;
+  margin: 2px 0 0;
+  max-width: 100%;
   font-family: var(--font-display);
+  font-size: 1.05rem;
   font-weight: 700;
-  font-size: 1.6rem;
-  line-height: 1.15;
-  letter-spacing: -0.01em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.25;
+  animation: tbl-slide-in 300ms var(--ease-out) both;
 }
 
-/* A long name gives way before "'s turn", down to its first few letters; a short one ("Ada") never does. */
-.tbl-spot__name {
-  min-width: min(5ch, 100%);
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.tbl-spot__name--short {
-  flex: none;
+.tbl-turn__text {
   min-width: 0;
 }
 
-/* "'s turn" keeps its room; only on the very narrowest does its end give way, never the short name before it. */
-.tbl-spot__rest {
-  flex: 0 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.tbl-spot--turn .tbl-spot__label,
-.tbl-spot--mine .tbl-spot__label,
-.tbl-spot--tone-win .tbl-spot__label {
+.tbl-turn--go {
   color: var(--color-primary-text);
 }
 
-.tbl-spot--dealer .tbl-spot__label {
+.tbl-turn--other {
   color: var(--color-secondary-text);
 }
 
-.tbl-spot--tone-blackjack .tbl-spot__label {
-  color: var(--color-warning-text);
-}
-
-.tbl-spot--tone-loss .tbl-spot__label,
-.tbl-spot--tone-bust .tbl-spot__label {
+.tbl-turn--bad {
   color: var(--color-danger-text);
 }
 
-.tbl-spot__sub {
-  grid-area: sub;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-  font-size: 0.8rem;
+.tbl-turn__sub {
+  font-family: var(--font-sans);
+  font-size: 0.78rem;
   font-weight: 600;
-  color: var(--color-text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-}
-
-.tbl-spot--row .tbl-spot__sub {
-  flex-direction: column;
-  align-items: flex-end;
-  justify-self: end;
-  gap: 2px;
-  max-width: 100%;
-  text-align: right;
-}
-
-/* Nothing in the body (the words alone): the line under the label lines up under it. */
-.tbl-spot--row:not(:has(.tbl-spot__body)) .tbl-spot__sub {
-  grid-column: 1 / -1;
-  align-items: flex-start;
-  justify-self: start;
-  text-align: left;
-}
-
-.tbl-spot__next {
-  min-width: 0;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
   color: var(--color-text-faint);
+  white-space: nowrap;
 }
 
-.tbl-spot__clock {
-  grid-area: clock;
+/* The turn clock, small, before the words. */
+.tbl-turn__clock {
   display: flex;
 }
 
-.tbl-spot__body {
-  grid-area: body;
-  display: flex;
-  justify-content: center;
-  align-items: flex-end;
-  gap: 8px;
-  min-width: 0;
-}
-
-/* A stacked spotlight's body is a size container: a game fits what it shows (split hands) to its width (cqw). */
-.tbl-spot--stack .tbl-spot__body {
-  container-type: inline-size;
-}
-
-.tbl-spot-in {
-  animation: tbl-spot-in 300ms var(--ease-out) both;
+.tbl-turn__clock .timer--md {
+  width: 30px;
+  height: 30px;
+  font-size: 0.72rem;
 }
 
 /* Up from just below, so nothing slides out past the table's edge (the table never scrolls). */
-@keyframes tbl-spot-in {
+@keyframes tbl-slide-in {
   from {
     opacity: 0;
     transform: translateY(10px);
@@ -659,6 +731,59 @@
     opacity: 1;
     transform: none;
   }
+}
+
+/* ---------- The stage (TableStage): whose hand, the hand big, a small extra at the side ---------- */
+.tbl-stage {
+  grid-area: stage;
+  justify-self: center;
+  width: min(100%, 760px);
+  display: grid;
+  grid-template-columns: var(--tbl-owner-w, 120px) minmax(0, 1fr) var(--tbl-owner-w, 120px);
+  column-gap: 6px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.tbl-stage__owner {
+  align-self: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  font-size: 0.78rem;
+}
+
+.tbl-stage__face {
+  display: flex;
+}
+
+.tbl-stage__face .avatar {
+  width: 34px;
+  height: 34px;
+  font-size: 20px;
+}
+
+.tbl-stage__name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+  color: var(--color-text-muted);
+}
+
+/* Another player's hand on the stage: their name lit, like their seat. */
+.tbl-stage__owner.is-turn .tbl-stage__name {
+  color: var(--color-secondary-text);
+}
+
+.tbl-stage__centre,
+.tbl-stage__aside {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
 }
 
 /* ---------- The players: a grid of tiles that never scrolls (grid.ts fits the columns) ---------- */
@@ -938,37 +1063,28 @@
   align-content: start;
 }
 
-/* A narrow full tile (a 320px phone): the Playing tag drops under the avatar and name, so both keep their room. */
+/* The stack, the bet pill and the line wrap onto a new line rather than run off the edge (Poker's "BB 10" too). */
+.tbl-tile--full .tbl-tile__meta {
+  flex-wrap: wrap;
+  row-gap: 3px;
+}
+
+.tbl-tile--full .tbl-tile__line {
+  max-width: 100%;
+}
+
+/* A narrow full tile (a phone): the Playing tag goes (the ring says it). */
 @container tile (max-width: 159px) {
-  .tbl-tile--full.tbl-tile--turn {
-    grid-template-columns: auto minmax(0, 1fr);
-    grid-template-areas: 'face name' 'tag tag' 'cards cards';
-  }
-
-  .tbl-tile--full.tbl-tile--turn .tbl-tile__tag {
-    justify-self: start;
-  }
-
-  /* The spotlight has the stack and the stake of the seat on turn. */
-  .tbl-tile--full.tbl-tile--turn .tbl-tile__meta {
+  .tbl-tile--full .tbl-tile__tag {
     display: none;
-  }
-
-  /* The stake and the last move wrap under the stack rather than run off the edge. */
-  .tbl-tile--full .tbl-tile__meta {
-    flex-wrap: wrap;
-    row-gap: 0;
-  }
-
-  .tbl-tile--full .tbl-tile__line {
-    flex-basis: 100%;
   }
 }
 
-@container tile (max-height: 80px) {
+/* Not tall enough for the cards: the total beside the name, the stack and the bet under them. */
+@container tile (max-height: 91px) {
   .tbl-tile--full {
     grid-template-rows: auto auto;
-    grid-template-areas: 'face name tag' 'face meta total';
+    grid-template-areas: 'face name total' 'face meta meta';
     align-content: center;
   }
 
@@ -978,59 +1094,35 @@
 
   .tbl-tile--full .tbl-tile__total {
     display: flex;
+    justify-self: end;
   }
 }
 
-/* A full tile both short and narrow: the name over the total; the stack and stake are on the seat's sheet. */
-@container tile (max-height: 80px) and (max-width: 159px) {
-  .tbl-tile--full,
-  .tbl-tile--full.tbl-tile--turn {
-    grid-template-columns: auto minmax(0, 1fr);
-    grid-template-areas: 'face name' 'face total';
-  }
-
-  .tbl-tile--full .tbl-tile__meta,
-  .tbl-tile--full .tbl-tile__tag {
-    display: none;
-  }
-
-  .tbl-tile--full .tbl-tile__total {
-    justify-self: start;
+/* Narrow and not tall: the stack and the bet take the whole width under the face and name. */
+@container tile (max-height: 91px) and (max-width: 159px) {
+  .tbl-tile--full {
+    --face: 24px;
+    column-gap: 4px;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas: 'face name total' 'meta meta meta';
   }
 }
 
 /*
- * Narrow and not tall enough for the cards too (a 320 or 360 phone with two or three others): the
- * cards give way to the stack and the last move, under the name across the whole tile. The bet
- * goes too: the last move names it ("SB 5", "Call 10"), and the seat's sheet has it.
+ * Narrow and short (four players on a 320px phone): the stack and the bet keep the second line,
+ * the status line gives way to the face's icon (the seat's sheet says it in words), and the icon
+ * moves to the face's top left, clear of the stack under it.
  */
-@container tile (max-width: 159px) and (min-height: 81px) and (max-height: 110px) {
-  .tbl-tile--full:not(.tbl-tile--turn) {
-    --face: 24px;
-    column-gap: 4px;
-    grid-template-columns: auto minmax(0, 1fr);
-    grid-template-rows: auto auto auto;
-    grid-template-areas: 'face name' 'face total' 'meta meta';
-    align-content: center;
-  }
-
-  .tbl-tile--full .tbl-tile__cards,
-  .tbl-tile--full .tbl-tile__bet {
+@container tile (max-height: 70px) and (max-width: 159px) {
+  .tbl-tile--full .tbl-tile__line {
     display: none;
   }
 
-  .tbl-tile--full:not(.tbl-tile--turn) .tbl-tile__total {
-    display: flex;
-    justify-self: start;
-  }
-
-  /* Poker's total is the stack, already in the line under the name. */
-  .tbl-tile--full.tbl-tile--line .tbl-tile__total {
-    display: none;
-  }
-
-  .tbl-tile--full:not(.tbl-tile--turn) .tbl-tile__tag {
-    display: none;
+  .tbl-tile--full .tbl-tile__mark {
+    top: -3px;
+    right: auto;
+    bottom: auto;
+    left: -4px;
   }
 }
 
@@ -1046,49 +1138,113 @@
   }
 }
 
-/* Compact (5 to 9): avatar with its status icon, name and tag; the total and the bet. */
+/* Compact (5 to 9): avatar with its status icon, name and total; the stack and the bet pill under them. The ring says whose turn it is. */
 .tbl-tile--compact {
   --face: 26px;
-  grid-template-columns: auto auto minmax(0, 1fr) auto;
-  grid-template-areas: 'face name name tag' 'face total meta meta';
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas: 'face name total' 'face meta meta';
 }
 
 .tbl-tile--compact .tbl-tile__total {
   display: flex;
-  justify-self: start;
+  justify-self: end;
 }
 
-.tbl-tile--compact .tbl-tile__chips,
-.tbl-tile--compact:not(.tbl-tile--line) .tbl-tile__line {
+.tbl-tile--compact .tbl-tile__tag,
+.tbl-tile--compact .tbl-tile__line {
   display: none;
 }
 
-/* The last move says the amount: the bet keeps its place for the chips to fly to, unseen. */
-.tbl-tile--compact.tbl-tile--line .tbl-tile__bet {
-  position: absolute;
-  opacity: 0;
+/* A narrow compact tile (a phone): the stack and the bet pill take the tile's whole width under the name. */
+@container tile (max-width: 139px) {
+  .tbl-tile--compact {
+    --face: 22px;
+    column-gap: 4px;
+    grid-template-areas: 'face name total' 'meta meta meta';
+    padding: 4px;
+  }
+
+  .tbl-tile--compact .tbl-stake {
+    padding: 0 0.35em;
+  }
+
+  .tbl-tile--compact .tbl-tile__meta {
+    font-size: 0.7rem;
+    flex-wrap: wrap;
+    row-gap: 3px;
+    column-gap: 3px;
+  }
 }
 
-.tbl-tile--compact.tbl-tile--line .tbl-tile__meta {
-  gap: 4px;
-  font-size: 0.68rem;
+/* Narrower still (a 360px phone): a touch smaller, so the stack and the bet keep to one line. */
+@container tile (max-width: 112px) {
+  .tbl-tile--compact .tbl-tile__meta {
+    font-size: 0.65rem;
+  }
 }
 
-/* On turn the bet and the total give way to the Playing tag (the spotlight has them). */
-.tbl-tile--compact.tbl-tile--turn {
-  grid-template-areas: 'face name name name' 'face tag tag tag';
-}
+/*
+ * Narrow and short (six players on a 320px phone, five on a 360px one): the stack over the bet
+ * pill, packed tight, the total beside the bet so the name keeps the whole first line, and the
+ * status icon on the face's top left, clear of the stack under it.
+ */
+@container tile (max-width: 112px) and (max-height: 70px) {
+  :is(.tbl-tile--compact, .tbl-tile--full) {
+    row-gap: 1px;
+    padding: 3px 4px;
+    grid-template-areas: 'face name name' 'chips chips chips' 'bet bet total';
+  }
 
-.tbl-tile--compact.tbl-tile--turn .tbl-tile__total {
-  display: none;
-}
+  /* A face a touch smaller, so it stays clear of the stack under it (outranks the narrow rule below). */
+  .tbl-tile:is(.tbl-tile--compact, .tbl-tile--full) {
+    --face: 20px;
+  }
 
-.tbl-tile--compact.tbl-tile--turn .tbl-tile__meta {
-  display: none;
-}
+  :is(.tbl-tile--compact, .tbl-tile--full) .tbl-tile__meta {
+    display: contents;
+  }
 
-.tbl-tile--compact .tbl-tile__tag {
-  justify-self: start;
+  :is(.tbl-tile--compact, .tbl-tile--full) .tbl-tile__chips {
+    grid-area: chips;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  :is(.tbl-tile--compact, .tbl-tile--full) .tbl-tile__bet {
+    grid-area: bet;
+    min-width: 0;
+  }
+
+  /* The bet shares its line with the total: its short form ("Bet 1k") keeps them side by side. */
+  :is(.tbl-tile--compact, .tbl-tile--full) .tbl-tile__bet .tbl-figure__full {
+    display: none;
+  }
+
+  :is(.tbl-tile--compact, .tbl-tile--full) .tbl-tile__bet .tbl-figure__short {
+    display: inline;
+  }
+
+  :is(.tbl-tile--compact, .tbl-tile--full) .tbl-tile__total .tbl-pill {
+    height: 17px;
+  }
+
+  :is(.tbl-tile--compact, .tbl-tile--full) .tbl-tile__meta {
+    row-gap: 2px;
+    font-size: 0.62rem;
+    line-height: 1.15;
+  }
+
+  :is(.tbl-tile--compact, .tbl-tile--full) .tbl-stake {
+    height: 1.65em;
+  }
+
+  :is(.tbl-tile--compact, .tbl-tile--full) .tbl-tile__mark {
+    top: -3px;
+    right: auto;
+    bottom: auto;
+    left: -4px;
+  }
 }
 
 @container tile (max-height: 46px) {
@@ -1126,10 +1282,6 @@
     justify-self: end;
   }
 
-  /* On turn the ring says it and the spotlight has the total: the name keeps the room. */
-  .tbl-tile--compact.tbl-tile--turn .tbl-tile__total {
-    display: none;
-  }
 }
 
 /* A narrow compact tile: the name and the total keep the room; the stake is on the seat's sheet. */
@@ -1139,8 +1291,8 @@
     column-gap: 4px;
   }
 
-  .tbl-tile--compact:not(.tbl-tile--line) .tbl-tile__meta {
-    display: none;
+  .tbl-tile--compact .tbl-tile__meta {
+    font-size: 0.66rem;
   }
 
   .tbl-tile--compact .tbl-tile__tag {
@@ -1149,14 +1301,7 @@
   }
 }
 
-/* A corner word ("All in") needs the room the name has; the mark on the avatar says it already. */
-@container tile (max-width: 129px) {
-  .tbl-tile--compact:not(.tbl-tile--turn) .tbl-tile__tag {
-    display: none;
-  }
-}
-
-/* A compact tile both narrow and short (a split in the spotlight on a small phone): the name keeps the room, the total goes. */
+/* A compact tile both narrow and short (a big table on a small phone): the name keeps the room, the total goes. */
 @container tile (max-height: 46px) and (max-width: 79px) {
   .tbl-tile--compact .tbl-tile__total {
     display: none;
@@ -1196,7 +1341,7 @@
   display: none;
 }
 
-/* On turn the name gives way to the Playing tag (the spotlight names them). */
+/* On turn the name gives way to the Playing tag (the line under the ribbon names them). */
 .tbl-tile--small .tbl-tile__tag {
   grid-area: name;
   justify-self: center;
@@ -1281,6 +1426,31 @@
   }
 }
 
+/* A tall small tile (a desktop): the stack and the bet under the name. */
+@container tile (min-height: 78px) {
+  .tbl-tile--small {
+    grid-template-areas: 'face total' 'name name' 'meta meta';
+    row-gap: 3px;
+  }
+
+  .tbl-tile--small .tbl-tile__meta {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    font-size: 0.66rem;
+  }
+
+  /* A slimmer bet pill, so it stays inside the tile under the thick ring of the seat on turn. */
+  .tbl-tile--small .tbl-stake {
+    height: 1.6em;
+  }
+
+  .tbl-tile--small .tbl-tile__line {
+    display: none;
+  }
+}
+
 @container tile (max-height: 35px) {
   .tbl-tile--small {
     --face: min(22px, calc(100cqh - 6px));
@@ -1294,7 +1464,7 @@
   }
 }
 
-/* A sliver of a tile (a 320px phone with a big table and split hands in the spotlight): the face and its dot only, no number cut in half. */
+/* A sliver of a tile (a 320px phone with a big table): the face and its dot only, no number cut in half. */
 @container tile (max-height: 15px) {
   .tbl-tile--small .tbl-tile__total,
   .tbl-tile--dense .tbl-tile__total {
@@ -1318,9 +1488,10 @@
 
 .tbl-tile--dense .tbl-tile__total .tbl-pill {
   height: 15px;
-  min-width: 18px;
-  padding: 0 2px;
-  font-size: 0.6rem;
+  min-width: 16px;
+  padding: 0 1px;
+  font-size: 0.58rem;
+  letter-spacing: -0.02em;
 }
 
 @container tile (max-width: 34px) {
@@ -1335,16 +1506,27 @@
   }
 }
 
-/* My face beside my hand at the bottom of the table. */
-.tbl-me {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1px;
-  flex: none;
-  font-size: 0.66rem;
-  font-weight: 700;
-  color: var(--color-text-muted);
+/*
+ * A total that only stands in for the stack (Poker's): hidden while the tile has room for the
+ * stack in words, shown where it is too short for them.
+ */
+.tbl-tile--full.tbl-tile--short-badge .tbl-tile__total,
+.tbl-tile--compact.tbl-tile--short-badge .tbl-tile__total {
+  display: none;
+}
+
+@container tile (max-height: 46px) {
+  .tbl-tile--full.tbl-tile--short-badge .tbl-tile__total,
+  .tbl-tile--compact.tbl-tile--short-badge .tbl-tile__total {
+    display: flex;
+    justify-self: end;
+  }
+}
+
+@container tile (min-height: 78px) {
+  .tbl-tile--small.tbl-tile--short-badge .tbl-tile__total {
+    display: none;
+  }
 }
 
 .tbl-seat-sheet {
@@ -1390,10 +1572,61 @@
   text-overflow: ellipsis;
 }
 
+/* A spectator's panel: the one line, wrapping rather than cut, with the eye in place of the dot. */
+.tbl-panel--watching {
+  justify-content: center;
+  min-height: 56px;
+}
+
+.tbl-panel__status--watching {
+  white-space: normal;
+  overflow: visible;
+  color: var(--color-text-muted);
+  font-weight: 600;
+}
+
+.tbl-panel__status--watching::before {
+  display: none;
+}
+
+.tbl-panel__status--watching .tbl-panel__status-text {
+  overflow: visible;
+  text-wrap: pretty;
+}
+
+.tbl-panel__watch-icon {
+  flex: none;
+  display: inline-flex;
+  color: var(--color-text-faint);
+}
+
+.tbl-panel__watch-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
 /* A status line with room for a small control at its end (it keeps that height with none on offer). */
 .tbl-panel__status.tbl-panel__status--slot {
   min-height: 30px;
   overflow: visible;
+}
+
+/* A desktop's narrow panel: the status keeps its words on one line and its controls move under it when they do not fit beside it. */
+@media (min-width: 761px) {
+  .tbl-panel__status.tbl-panel__status--slot {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+
+  .tbl-panel__status--slot .tbl-panel__status-text {
+    flex: 1 0 auto;
+  }
+
+  /* Two controls (Sit out and Deal now) go under the words together, side by side at the right. */
+  .tbl-panel__status--slot:has(.tbl-panel__act + .tbl-panel__act) .tbl-panel__status-text {
+    flex-basis: calc(100% - 16px);
+  }
 }
 
 .tbl-panel__act {
@@ -1456,6 +1689,11 @@
 
 .tbl-panel__status--go {
   color: var(--color-primary-text);
+}
+
+.tbl-panel__status--bottom.tbl-panel__status--other,
+.tbl-panel__status--bottom.tbl-panel__status--quiet {
+  color: var(--color-text-muted);
 }
 
 .tbl-panel__status--go::before {
@@ -1595,10 +1833,54 @@
   gap: var(--space-2);
 }
 
+/* An odd number of moves (Poker's Fold, Raise and All in) sits in one row. */
+.tbl-panel__moves--3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .tbl-move {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   min-width: 0;
   padding: 0 10px;
   touch-action: manipulation;
+}
+
+.tbl-move__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tbl-move__icon {
+  display: flex;
+  flex: none;
+  opacity: 0.8;
+}
+
+/*
+ * The status line under the controls: quiet, the table already says whose turn it is. It keeps
+ * its tone's colour and the small control at its end (Sit out, Deal now, Skip).
+ */
+.tbl-panel__status--bottom {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+/* A desktop panel has the height to spare: a long line ("Quinn wins 120 with two pair, aces and nines") wraps rather than being cut. */
+@media (min-width: 761px) {
+  .tbl-panel__status--bottom {
+    white-space: normal;
+  }
+
+  .tbl-panel__status--bottom .tbl-panel__status-text {
+    flex-shrink: 1;
+    overflow: visible;
+    text-wrap: pretty;
+  }
 }
 
 /* Dimmed, not gone: every control keeps its place all game long. */
@@ -1624,7 +1906,12 @@
 
 @media (max-width: 1100px) {
   .tbl {
-    grid-template-columns: 280px minmax(0, 1fr) 260px;
+    grid-template-columns: 280px minmax(0, 1fr);
+  }
+
+  .tbl-amount__step {
+    min-width: 42px;
+    padding: 0 6px;
   }
 }
 
@@ -1679,26 +1966,47 @@
     font-size: 0.6rem;
   }
 
-  .tbl-deck__stack,
-  .tbl-discard__slot {
+  .tbl-deck__stack {
     width: 26px;
     height: 39px;
   }
 
-  .tbl-spot__label {
-    font-size: 1.25rem;
+  .tbl-turn {
+    font-size: 0.95rem;
   }
 
-  .tbl-spot__face .avatar {
-    width: 30px;
-    height: 30px;
-    font-size: 18px;
+  .tbl-turn__clock .timer--md {
+    width: 26px;
+    height: 26px;
+    font-size: 0.66rem;
   }
 
-  .tbl-spot .timer--md {
-    width: 44px;
-    height: 44px;
-    font-size: 0.875rem;
+  .tbl-stage__face .avatar {
+    width: 26px;
+    height: 26px;
+    font-size: 15px;
+  }
+
+  .tbl-stage__owner {
+    font-size: 0.7rem;
+  }
+
+  /* The moves in one row: the table keeps the height. */
+  .tbl-panel__moves {
+    grid-template-columns: repeat(var(--moves, 2), minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .tbl-move {
+    padding: 0 4px;
+    gap: 4px;
+  }
+}
+
+/* Narrow phones: the move icons give their room to the words. */
+@media (max-width: 370px) {
+  .tbl-move__icon {
+    display: none;
   }
 }
 
@@ -1706,6 +2014,34 @@
 @media (max-width: 760px) and (max-height: 760px) {
   .tbl-ribbon__sub {
     display: none;
+  }
+}
+
+/* Short phones (an SE, a phone on its side): a calm table's banner goes, whose turn it is stays. */
+@media (max-width: 760px) and (max-height: 680px), (min-aspect-ratio: 3/2) and (max-height: 520px) {
+  .tbl-felt--calm .tbl-ribbon__band {
+    display: none;
+  }
+
+  .tbl-turn {
+    font-size: 0.88rem;
+    margin: 0;
+  }
+
+  .tbl-turn__sub {
+    font-size: 0.72rem;
+  }
+
+  .tbl-turn__clock .timer--md {
+    width: 22px;
+    height: 22px;
+    font-size: 0.6rem;
+  }
+
+  .tbl-stage__face .avatar {
+    width: 22px;
+    height: 22px;
+    font-size: 13px;
   }
 }
 
@@ -1720,8 +2056,7 @@
     display: none;
   }
 
-  .tbl-deck__stack,
-  .tbl-discard__slot {
+  .tbl-deck__stack {
     width: 28px;
     height: 42px;
   }
@@ -1790,7 +2125,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .tbl-flip,
-  .tbl-spot-in,
+  .tbl-turn,
   .tbl-payout {
     animation: none;
   }

@@ -158,9 +158,9 @@ function holdsPlace(data: PokerData, seat: SeatData | undefined): boolean {
 }
 
 /**
- * Participants with a stack to play the next hand: seated with chips, or a newcomer who takes
- * the starting stack when the next hand starts. Newcomers fill the free seats in join order;
- * the rest watch until a seat frees up.
+ * Participants with a stack to play the next hand: seated with chips, or one queued since the
+ * start (the table seats TABLE_SEATS) who takes the starting stack when the next hand starts.
+ * The queue fills the free seats in join order; the rest watch until a seat frees up.
  */
 export function stackedPlayers(ctx: Pick<Ctx, 'players'>, data: PokerData): PlatformPlayer[] {
   let free = TABLE_SEATS - ctx.players.filter((p) => holdsPlace(data, data.seats[p.id])).length;
@@ -179,6 +179,11 @@ export function isHeld(data: PokerData): boolean {
 
 export function systemMessage(gx: Gx, text: string): void {
   gx.effects.push({ type: 'chat', to: 'all', kind: 'system', text });
+}
+
+/** A line every client shows as a toast: an event the table does not show otherwise. */
+export function noticeMessage(gx: Gx, text: string): void {
+  gx.effects.push({ type: 'chat', to: 'all', kind: 'notice', text });
 }
 
 export function snapshot(gx: Gx): void {

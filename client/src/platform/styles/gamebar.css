@@ -1,4 +1,4 @@
-/* ---------- The game top bar (GameTopBar): back, name, round, chat/options; then the player chips and the timer ring ---------- */
+/* ---------- The game top bar (GameTopBar): back, name, round, options; then the player chips and the timer ring ---------- */
 .gbar {
   display: flex;
   flex-direction: column;
@@ -226,6 +226,30 @@
 
 .gbar--compact.gbar--phone .gbar__status {
   font-size: 0.8125rem;
+}
+
+/* A clock in the one-row bar: the ring at the buttons' height. */
+.gbar__clock--row {
+  margin-left: 2px;
+}
+
+.gbar .gbar__clock--row .timer--lg {
+  width: 48px;
+  height: 48px;
+  font-size: 1rem;
+}
+
+/* A one-row bar that also carries a clock has no room left for the name on a phone: the round, the clock and the buttons keep the row. */
+@media (max-width: 420px) {
+  .gbar--compact.gbar--phone:has(.gbar__clock--row) .gbar__name {
+    display: none;
+  }
+
+  .gbar--compact.gbar--phone:has(.gbar__clock--row) .gbar__status {
+    flex: 1 1 auto;
+    margin-left: 0;
+    text-align: left;
+  }
 }
 
 /* The narrowest phones: the round and the buttons keep the row; the game's name gives way. */

@@ -1,18 +1,31 @@
 /* ---------- Playing cards (PlayingCard.tsx) ---------- */
+/*
+ * The boredgames card back, fixed in both themes like the white faces: a cream border, a lime
+ * field with a fine ink lattice inside an ink rule, and the two phones on an ink medallion in the
+ * middle, drawn point-symmetric so the back reads the same upside down. Vector, so it stays crisp
+ * from a seat's small cards to the dealer's.
+ */
+:root {
+  --card-back-border: #f7f5ec;
+  --card-back-field: #c7e976;
+  --card-back-ink: #141514;
+  --card-back-mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='47' fill='%23141514'/%3E%3Ccircle cx='50' cy='50' r='41.5' fill='none' stroke='%23c7e976' stroke-width='1.6'/%3E%3Cg transform='translate(37 50) rotate(-12)'%3E%3Crect x='-12.5' y='-22' width='25' height='44' rx='6' fill='%23c7e976' stroke='%23141514' stroke-width='3'/%3E%3Cpath d='M-6.75 -1.76q2.5 -5 5 0M1.75 -1.76q2.5 -5 5 0M-3 -18.04h6' fill='none' stroke='%23141514' stroke-width='2.5' stroke-linecap='round'/%3E%3Cpath d='M-4.5 5.28h9q0 7.48 -4.5 7.48q-4.5 0 -4.5 -7.48z' fill='%23141514'/%3E%3C/g%3E%3Cg transform='translate(63 50) rotate(168)'%3E%3Crect x='-12.5' y='-22' width='25' height='44' rx='6' fill='%23c7e976' stroke='%23141514' stroke-width='3'/%3E%3Cpath d='M-6.75 -1.76q2.5 -5 5 0M1.75 -1.76q2.5 -5 5 0M-3 -18.04h6' fill='none' stroke='%23141514' stroke-width='2.5' stroke-linecap='round'/%3E%3Cpath d='M-4.5 5.28h9q0 7.48 -4.5 7.48q-4.5 0 -4.5 -7.48z' fill='%23141514'/%3E%3C/g%3E%3C/svg%3E");
+  --card-back-lattice: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M5 0 10 5 5 10 0 5Z' fill='none' stroke='%23141514' stroke-opacity='.26' stroke-width='.8'/%3E%3Cg fill='%23141514' fill-opacity='.3'%3E%3Ccircle cx='5' cy='5' r='.9'/%3E%3Ccircle r='.9'/%3E%3Ccircle cx='10' r='.9'/%3E%3Ccircle cy='10' r='.9'/%3E%3Ccircle cx='10' cy='10' r='.9'/%3E%3C/g%3E%3C/svg%3E");
+}
+
 .playing-card {
   /* Cards are white in both themes, like the canvas; their ink and the red suits are fixed too. */
   --card-face: #ffffff;
   --card-ink: #171717;
-  --card-red: #af233b;
+  --card-red: #c0283f;
   --card-w: 56px;
   --card-h: 78px;
-  --card-font: 1.05rem;
   position: relative;
   display: inline-block;
   flex: none;
   width: var(--card-w);
   height: var(--card-h);
-  border-radius: 6px;
+  border-radius: calc(var(--card-w) * 0.1);
   background: var(--card-face);
   color: var(--card-ink);
   border: 1px solid var(--color-border-strong);
@@ -30,22 +43,16 @@
 .playing-card--sm {
   --card-w: 30px;
   --card-h: 42px;
-  --card-font: 0.72rem;
-  border-radius: 4px;
 }
 
 .playing-card--lg {
   --card-w: 68px;
   --card-h: 96px;
-  --card-font: 1.25rem;
-  border-radius: 8px;
 }
 
 .playing-card--xl {
   --card-w: 84px;
   --card-h: 118px;
-  --card-font: 1.5rem;
-  border-radius: 10px;
 }
 
 .playing-card--highlight {
@@ -53,73 +60,62 @@
   outline-offset: 1px;
 }
 
+/* The face: a big bold rank at the top left and one big suit right under it, the part a fanned card leaves in view. */
 .playing-card__corner {
   position: absolute;
-  top: 4px;
-  left: 5px;
+  top: calc(var(--card-w) * 0.07);
+  left: calc(var(--card-w) * 0.08);
   display: flex;
   flex-direction: column;
   align-items: center;
-  font-size: var(--card-font);
-  letter-spacing: -0.03em;
+  gap: calc(var(--card-w) * 0.02);
 }
 
-.playing-card__corner--flip {
-  top: auto;
-  left: auto;
-  right: 5px;
-  bottom: 4px;
-  transform: rotate(180deg);
+.playing-card__rank {
+  font-size: calc(var(--card-w) * 0.4);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+
+/* "10" is two figures: narrower, so it keeps to the part of a fanned card left in view. */
+.playing-card__rank--wide {
+  font-size: calc(var(--card-w) * 0.36);
+  letter-spacing: -0.08em;
+  transform: scaleX(0.8);
+  transform-origin: left center;
 }
 
 .playing-card__suit {
   font-family: var(--font-sans);
-  font-size: calc(var(--card-font) * 0.8);
-  margin-top: 1px;
+  font-size: calc(var(--card-w) * 0.38);
 }
 
-.playing-card__pip {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  font-family: var(--font-sans);
-  font-size: calc(var(--card-font) * 1.7);
-}
-
-/* The small cards have no room for the middle pip or the mirrored corner. */
-.playing-card--sm .playing-card__pip,
-.playing-card--sm .playing-card__corner--flip {
-  display: none;
-}
-
-/* A small card shows its rank at the top left, the part that stays visible under the next card. */
-.playing-card--sm .playing-card__corner {
-  top: 3px;
-  left: 4px;
-  align-items: flex-start;
-}
-
-/* A face-down card: a lilac back with a fine diamond lattice and an inset frame, no rank or suit anywhere in the markup. */
+/* A face-down card: the cream border round the boredgames back; no rank or suit anywhere in the markup. */
 .playing-card--down {
-  background-color: var(--color-secondary);
-  /* A flat diamond lattice in ink at low opacity (an SVG tile, no shading). */
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10'%3E%3Cpath d='M5 0 10 5 5 10 0 5Z' fill='none' stroke='%23141514' stroke-opacity='.18' stroke-width='1.2'/%3E%3C/svg%3E");
-  background-size: 10px 10px;
-  border-color: var(--color-secondary);
+  background: var(--card-back-border);
+  border-color: var(--color-border-strong);
 }
 
+/* The field: the medallion over the lattice, inside an ink rule and a hairline of lime. */
 .playing-card__back {
   position: absolute;
-  inset: 5px;
-  border-radius: 3px;
-  border: 2px solid var(--color-secondary-contrast);
-  opacity: 0.7;
+  inset: calc(var(--card-w) * 0.07);
+  border-radius: calc(var(--card-w) * 0.05);
+  border: max(1px, calc(var(--card-w) * 0.025)) solid var(--card-back-ink);
+  background-color: var(--card-back-field);
+  background-image: var(--card-back-mark), var(--card-back-lattice);
+  background-repeat: no-repeat, repeat;
+  background-position: center, center;
+  background-size: 74% auto, max(4px, calc(var(--card-w) * 0.15)) max(4px, calc(var(--card-w) * 0.15));
 }
 
-.playing-card--sm .playing-card__back {
-  inset: 3px;
-  border-width: 1.5px;
+/* A fine inner rule, a lime hair inside the ink one: the printed frame of a real card back. */
+.playing-card__back::after {
+  content: '';
+  position: absolute;
+  inset: max(1px, calc(var(--card-w) * 0.03));
+  border-radius: calc(var(--card-w) * 0.03);
+  border: max(0.5px, calc(var(--card-w) * 0.012)) solid rgba(20, 21, 20, 0.45);
 }
 
 /* An empty slot before the deal. */
@@ -154,23 +150,26 @@
   gap: 8px;
 }
 
+/* One row of equal presets, whatever the screen: a wrapped row would leave one alone on the second line. */
 .chips-setting__presets {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
   gap: 6px;
 }
 
 .chips-setting__preset {
-  flex: 1 1 auto;
-  min-height: 40px;
-  padding: 0 10px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 2px;
   border-radius: var(--radius-item);
   border: 1px solid var(--color-border);
   background: var(--color-surface-2);
   color: var(--color-text);
   font-weight: 700;
-  font-size: 0.85rem;
+  font-size: clamp(0.75rem, 3.4vw, 0.85rem);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .chips-setting__preset.is-selected {

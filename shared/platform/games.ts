@@ -39,7 +39,7 @@ export const GAME_LIST: readonly GameMeta[] = [
     name: 'Scribble',
     howToPlay: [
       'Everyone takes turns drawing a word of their choice.',
-      'Guess in the chat: the faster you guess, the more points you score.',
+      'Type your guesses: the faster you guess, the more points you score.',
       'Letters are revealed as hints while the clock runs down.',
       'The drawer scores for every player who guesses the word.',
     ],
@@ -75,6 +75,7 @@ export const GAME_LIST: readonly GameMeta[] = [
     howToPlay: [
       'Each round you get two prompts; write a quick, funny answer to each on your phone.',
       'Answers go head to head: everyone except the two writers votes for the funnier one.',
+      'For each matchup one player is the announcer and reads the prompt and both answers out loud.',
       'Points follow the votes; take every vote in a matchup for a flawless bonus.',
       'Round two counts double, and the final round pits everyone against one prompt.',
     ],
@@ -95,7 +96,7 @@ export const GAME_LIST: readonly GameMeta[] = [
       'Hit to take a card, stand to stop. Over 21 and the hand is bust.',
       'Double your bet for exactly one more card.',
       'Split any pair into two hands, and split again if you get another pair.',
-      'The dealer draws to 17. Beat the dealer to win your bet back twice over; a natural blackjack pays extra.',
+      'The dealer draws to 17. Beat the dealer to win your bet back twice over; a natural blackjack pays 3 to 2.',
       'Run out of chips and you watch. Play goes on until one player has chips left, or the host ends the game.',
     ],
     minPlayers: 1,

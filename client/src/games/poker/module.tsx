@@ -1,7 +1,7 @@
 /**
- * Poker's client module: the table screen, the settings rows, the player-list badges, the chat
- * placeholder and what reacts to snapshots: the table's animation timeline (planned in the store
- * from each snapshot) and the cues. Snapshots carry everything, so there are no server messages.
+ * Poker's client module: the table screen, the settings rows, the player-list badges and what
+ * reacts to snapshots: the table's animation timeline (planned in the store from each snapshot)
+ * and the cues. Snapshots carry everything, so there are no server messages.
  */
 import type { PokerSettings, PokerView } from '@shared/games/poker/protocol';
 import { gameById } from '@shared/platform/games';
@@ -15,8 +15,7 @@ import { usePlatformStore } from '../../platform/store/usePlatformStore';
 import { cancelCue, cueAt } from '../../platform/table/cues';
 import { createEntryFlag } from '../../platform/table/entry';
 import { CardsIcon, OutIcon } from './components/Icons';
-import { isInHand, isMyTurn, seatOf, stepOf } from './hooks';
-import { chatPlaceholderFor } from './lib/text';
+import { isMyTurn, seatOf, stepOf } from './hooks';
 import { PokerScreen } from './Screen';
 import { PokerSettingsFields } from './SettingsFields';
 import { clearPokerSounds, playPokerSounds } from './sfx';
@@ -90,10 +89,6 @@ export const pokerClient = defineGameClient<PokerView, PokerSettings>({
     const seat = seatOf(view, player.id);
     if (seat?.busted) return 'player--out';
     return seat?.status === 'folded' ? 'player--folded' : undefined;
-  },
-
-  chatPlaceholder(room, meId) {
-    return chatPlaceholderFor(room.game?.phase, isInHand(room.game, meId));
   },
 
   onWelcome() {

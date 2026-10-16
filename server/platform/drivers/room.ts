@@ -4,7 +4,7 @@ import { isWireMessage, type ErrorCode, type RoomState } from '../../../shared/p
 import type { Action, ActionResult } from '../engine/actions.js';
 import { resolveRecipients, type Effect } from '../engine/effects.js';
 import { moduleFor } from '../engine/module.js';
-import { connectedIds, findPlayer, inProgress, isFull, isJoinable, platformPlayers } from '../engine/players.js';
+import { connectedIds, findPlayer, inProgress, isFull, platformPlayers } from '../engine/players.js';
 import { applyAction } from '../engine/reduce.js';
 import { createRoomData, type PlatformPlayerData, type PlatformRoomData } from '../engine/state.js';
 import { nextDeadline } from '../engine/time.js';
@@ -122,10 +122,6 @@ export class Room {
 
   get inProgress(): boolean {
     return inProgress(this.data);
-  }
-
-  get isJoinable(): boolean {
-    return isJoinable(this.data);
   }
 
   getPlayer(id: string): PlatformPlayerData | undefined {

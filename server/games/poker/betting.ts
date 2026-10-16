@@ -1,6 +1,6 @@
 /** The acting player's moves: fold, check, call, bet, raise, all in, and the clock running out. */
-import type { PokerActionKind, PokerActions, PokerClientMessage } from '../../../shared/games/poker/protocol.js';
-import { adjustChips, bigBlind, contenders, fail, nameOf, noteMove, ringAfter, snapshot, streetIdle, systemMessage, turnOf, type Gx, type PokerData } from './state.js';
+import { POKER_ACT_SECONDS, type PokerActionKind, type PokerActions, type PokerClientMessage } from '../../../shared/games/poker/protocol.js';
+import { adjustChips, bigBlind, contenders, fail, nameOf, noteMove, noticeMessage, ringAfter, snapshot, streetIdle, systemMessage, turnOf, type Gx, type PokerData } from './state.js';
 import { endStreet } from './streets.js';
 
 /** A move the player sent themselves (the clock's moves go through actTimedOut). */
@@ -91,7 +91,7 @@ function reopen(gx: Gx, playerId: string): void {
 function afterAction(gx: Gx): void {
   const { data, ctx } = gx;
   if (contenders(data).length <= 1 || streetIdle(data)) return endStreet(gx);
-  data.phase = { kind: 'acting', endsAt: ctx.now + ctx.settings.actSeconds * 1000 };
+  data.phase = { kind: 'acting', endsAt: ctx.now + POKER_ACT_SECONDS * 1000 };
   snapshot(gx);
 }
 
@@ -173,7 +173,7 @@ export function actTimedOut(gx: Gx): void {
   const turn = turnOf(gx.data);
   if (turn === null) return;
   const actions = actionsFor(gx.data, turn);
-  systemMessage(gx, `${nameOf(gx.ctx, turn)} ran out of time and ${actions.canCheck ? 'checks' : 'folds'}.`);
+  noticeMessage(gx, `${nameOf(gx.ctx, turn)} ran out of time and ${actions.canCheck ? 'checks' : 'folds'}.`);
   if (actions.canCheck) check(gx, turn);
   else fold(gx, turn);
 }

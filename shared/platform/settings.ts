@@ -25,9 +25,11 @@ export function upgradeContentMode(mode: unknown): ContentMode {
 /** Hard cap on seats in any room; games with a smaller table sit the extra players out. */
 export const ROOM_HARD_CAP = 50;
 
+/**
+ * The room's own settings. The retired `allowMidGameJoin` switch is gone (joining mid-game always
+ * means watching); zod strips it from a patch and a stored room keeps it, unread.
+ */
 export const platformSettingsSchema = z.object({
-  /** Let people join with the code while a game is running. */
-  allowMidGameJoin: z.boolean(),
   contentMode: z.enum(CONTENT_MODES),
 });
 
@@ -36,7 +38,7 @@ export type PlatformSettings = z.infer<typeof platformSettingsSchema>;
 export const platformSettingsPatchSchema = platformSettingsSchema.partial();
 
 export function defaultPlatformSettings(_meta: GameMeta): PlatformSettings {
-  return { allowMidGameJoin: true, contentMode: 'family' };
+  return { contentMode: 'family' };
 }
 
 /** The number of players a game can seat at once; null in the registry means "as many as the room holds". */

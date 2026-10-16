@@ -40,8 +40,6 @@ function handle(ctx: GameCtx<TemplateSettings>, data: TemplateData, event: GameE
   switch (event.type) {
     case 'message':
       return click(ctx, data, event.playerId);
-    case 'playerJoined':
-      return { data: { ...data, clicks: { ...data.clicks, [event.playerId]: 0 } }, effects: [{ type: 'snapshot', to: 'all' }] };
     case 'tick':
       return ctx.now >= data.endsAt ? finish(ctx, data, null) : { data, effects: [] };
     default:

@@ -8,6 +8,8 @@ interface Props {
   onClose(): void;
   children: ReactNode;
   testId: string;
+  /** Extra class on the sheet (a narrower panel on a desktop, say). */
+  className?: string;
 }
 
 /**
@@ -15,13 +17,13 @@ interface Props {
  * A modal dialog for keyboard and screen-reader users too: it takes the focus when it opens,
  * keeps Tab inside the panel and hands the focus back to the control that opened it.
  */
-export function BottomSheet({ open, title, onClose, children, testId }: Props) {
+export function BottomSheet({ open, title, onClose, children, testId, className }: Props) {
   const panelRef = useRef<HTMLDivElement | null>(null);
   useModalFocus(panelRef, open, onClose);
 
   if (!open) return null;
   return (
-    <div className="sheet" role="dialog" aria-modal="true" aria-label={title} data-testid={testId}>
+    <div className={`sheet${className ? ` ${className}` : ''}`} role="dialog" aria-modal="true" aria-label={title} data-testid={testId}>
       <button type="button" className="sheet__backdrop" aria-label="Close" tabIndex={-1} onClick={onClose} data-testid={`${testId}-backdrop`} />
       <div className="sheet__panel" ref={panelRef} tabIndex={-1}>
         <div className="sheet__handle" aria-hidden="true" />

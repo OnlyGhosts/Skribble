@@ -10,20 +10,18 @@ interface Props {
   min: number;
   max: number;
   presets: readonly number[];
-  canEdit: boolean;
   onCommit(value: number): void;
   hint?: string;
-  /** The read-only value; the formatted amount by default. */
-  display?: string;
 }
 
 /**
  * A chip amount setting: preset buttons for the usual stacks and a number field (the phone's
  * numeric keyboard) for anything else, committed on blur or Enter and clamped to the limits. A
- * field left blank commits nothing and shows the value again. Test ids: `settings-<id>` (the
- * field), `settings-<id>-<preset>`, plus the row's `settings-row-<id>` / `settings-value-<id>`.
+ * field left blank commits nothing and shows the value again. The field always holds the value,
+ * so it is the readout too. Test ids: `settings-<id>` (the field), `settings-<id>-<preset>`, plus
+ * the row's `settings-row-<id>`.
  */
-export function ChipsSetting({ id, label, value, min, max, presets, canEdit, onCommit, hint, display }: Props) {
+export function ChipsSetting({ id, label, value, min, max, presets, onCommit, hint }: Props) {
   const [text, setText] = useState(String(value));
   const [focused, setFocused] = useState(false);
   useEffect(() => {
@@ -73,5 +71,5 @@ export function ChipsSetting({ id, label, value, min, max, presets, canEdit, onC
       </label>
     </div>
   );
-  return <SettingRow label={label} testId={id} value={display ?? formatChips(value)} hint={hint} control={canEdit ? control : undefined} />;
+  return <SettingRow label={label} testId={id} hint={hint} control={control} />;
 }

@@ -110,3 +110,12 @@ export function errorsOf(effects: Effect[]): string[] {
 export function chatTexts(effects: Effect[]): string[] {
   return effects.flatMap((e) => (e.type === 'send' && e.msg.t === 'chat' ? [(e.msg as { message: { text: string } }).message.text] : []));
 }
+
+/** The notices (lines every client toasts) a set of effects carries, in order. */
+export function noticeTexts(effects: Effect[]): string[] {
+  return effects.flatMap((e) => {
+    if (e.type !== 'send' || e.msg.t !== 'chat') return [];
+    const { message } = e.msg as { message: { kind: string; text: string } };
+    return message.kind === 'notice' ? [message.text] : [];
+  });
+}

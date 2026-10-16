@@ -49,7 +49,7 @@ export function viewFor(data: BlackjackData, viewerId: string | null, ctx: GameV
     waitingFor: waitingFor(ctx, data),
     dealer: dealerView(data.dealer, data.holeHidden),
     players,
-    actions: actionsFor(data, ctx.settings, viewerId ?? ''),
+    actions: actionsFor(data, viewerId ?? ''),
     controls: controlsFor(ctx, data, viewerId ?? ''),
     lastRound: data.lastRound ? lastRoundView(data.lastRound, new Set(ctx.players.map((p) => p.id))) : null,
     endRequested: data.endRequested,

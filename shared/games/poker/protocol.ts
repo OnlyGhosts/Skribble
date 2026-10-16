@@ -22,22 +22,27 @@ export const POKER_SETTINGS_LIMITS = {
   blindsIncreaseEvery: { min: 0, max: 50 },
   /** Hands in the game; 0 plays until one player holds every chip. */
   hands: { min: 0, max: 100 },
-  actSeconds: { min: 10, max: 60 },
-  resultsSeconds: { min: 4, max: 20 },
 } as const;
+
+/*
+ * The clocks are fixed, not settings: change one here to change it everywhere.
+ */
+/** Seconds a player has to act; out of time, they check when it is free and fold otherwise. */
+export const POKER_ACT_SECONDS = 25;
+/** Seconds the result of a hand stays up (after the showdown's reveal) before the next deal; the host may deal sooner. */
+export const POKER_RESULTS_SECONDS = 8;
 
 const limited = (key: keyof typeof POKER_SETTINGS_LIMITS) => z.number().int().min(POKER_SETTINGS_LIMITS[key].min).max(POKER_SETTINGS_LIMITS[key].max);
 
+/** A room or a patch stored with the retired `actSeconds` and `resultsSeconds` keys loads and ignores them. */
 export const pokerSettingsSchema = z.object({
-  /** Chips every player (late joiners included) starts with; the score is the chip count. */
+  /** Chips every player starts with; the score is the chip count. */
   startingChips: limited('startingChips'),
   smallBlind: limited('smallBlind'),
   /** Every this many hands both blinds double; 0 keeps them fixed. */
   blindsIncreaseEvery: limited('blindsIncreaseEvery'),
   /** Hands to play; 0 plays until one player has all the chips. */
   hands: limited('hands'),
-  actSeconds: limited('actSeconds'),
-  resultsSeconds: limited('resultsSeconds'),
 });
 
 export type PokerSettings = z.infer<typeof pokerSettingsSchema>;
@@ -47,8 +52,6 @@ export const DEFAULT_POKER_SETTINGS: PokerSettings = {
   smallBlind: 5,
   blindsIncreaseEvery: 0,
   hands: 0,
-  actSeconds: 25,
-  resultsSeconds: 8,
 };
 
 /** Keeps the big blind affordable from the starting stack: nobody should be all in from the first blind. */
@@ -60,7 +63,7 @@ export function normalizePokerSettings(s: PokerSettings): PokerSettings {
 // Messages
 // ---------------------------------------------------------------------------
 
-/** A stack grows with every newcomer's starting chips, so amounts are bounded only by what JSON carries exactly. */
+/** A stack grows with every queued seat's starting chips, so amounts are bounded only by what JSON carries exactly. */
 const chipAmount = z.number().int().min(1).max(Number.MAX_SAFE_INTEGER);
 
 export const pokerClientMessageSchema = z.discriminatedUnion('t', [

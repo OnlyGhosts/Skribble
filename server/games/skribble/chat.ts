@@ -1,5 +1,6 @@
 /** Chat and guessing: who sees what, scoring a correct guess, close-guess hints. */
 import { containsWord, isCloseGuess, isCorrectGuess } from '../../../shared/games/skribble/guess.js';
+import { SKRIBBLE_DRAW_SECONDS } from '../../../shared/games/skribble/protocol.js';
 import { guesserPoints } from '../../../shared/games/skribble/scoring.js';
 import { everyoneGuessed, findPlayer } from './state.js';
 import { endTurn, snapshot, type Gx } from './turns.js';
@@ -33,7 +34,7 @@ export function chat(gx: Gx, playerId: string, text: string): boolean {
   }
   if (isCorrectGuess(text, turn.word)) {
     const remaining = Math.max(0, turn.endsAt - ctx.now);
-    const pts = guesserPoints(remaining, ctx.settings.drawTime * 1000);
+    const pts = guesserPoints(remaining, SKRIBBLE_DRAW_SECONDS * 1000);
     turn.guessed.push(player.id);
     turn.points[player.id] = (turn.points[player.id] ?? 0) + pts;
     turn.correct += 1;

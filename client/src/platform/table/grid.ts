@@ -1,13 +1,14 @@
 /**
- * How the other players' tiles fill the space under the spotlight: the tier (how much each tile
+ * How the other players' tiles fill the space the table leaves them: the tier (how much each tile
  * shows) goes by how many tiles there are, and the columns by the space the grid has, so a table
  * of any size fits without scrolling. Pure, for the grid component and the tests.
  */
 
 /**
- * - `full` (1 to 4 others): avatar, name, chips, bet, the cards in miniature and the total.
- * - `compact` (5 to 9): avatar, name, total, bet and a status icon; no cards.
- * - `small` (10 to 23): avatar with a status dot, total, the name shortened.
+ * - `full` (1 to 4 others): avatar, name, the stack and the bet, the cards in miniature and the total.
+ * - `compact` (5 to 9): avatar, name, total, the stack and the bet, and a status icon; no cards.
+ * - `small` (10 to 23): avatar with a status dot, total, the name shortened; the stack and the bet
+ *   too where the tile is tall enough (a desktop).
  * - `dense` (24 and up): an avatar chip with a total badge and a status dot.
  */
 export type TileTier = 'full' | 'compact' | 'small' | 'dense';
@@ -36,7 +37,7 @@ export interface TierShape {
 
 export const TIER_SHAPES: Record<TileTier, TierShape> = {
   full: { width: 168, height: 96, cols: [1, 4], maxCols: 4, minWidth: 92 },
-  compact: { width: 116, height: 56, cols: [3, 5], maxCols: 5, minWidth: 64 },
+  compact: { width: 116, height: 68, cols: [3, 5], maxCols: 5, minWidth: 64 },
   small: { width: 70, height: 50, cols: [4, 6], maxCols: 10, minWidth: 44 },
   dense: { width: 46, height: 30, cols: [6, 8], maxCols: 14, minWidth: 24 },
 };
@@ -45,7 +46,7 @@ export const TIER_SHAPES: Record<TileTier, TierShape> = {
 export const WIDE_TIER_SHAPES: Record<TileTier, TierShape> = {
   full: { width: 190, height: 104, cols: [1, 4], maxCols: 4, minWidth: 120 },
   compact: { width: 140, height: 60, cols: [3, 5], maxCols: 9, minWidth: 110 },
-  small: { width: 80, height: 56, cols: [4, 8], maxCols: 9, minWidth: 64 },
+  small: { width: 84, height: 84, cols: [4, 8], maxCols: 9, minWidth: 64 },
   dense: { width: 52, height: 34, cols: [6, 10], maxCols: 12, minWidth: 48 },
 };
 

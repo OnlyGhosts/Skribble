@@ -9,13 +9,6 @@
   gap: var(--space-4);
 }
 
-.race__grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(280px, 1fr);
-  gap: var(--space-4);
-  align-items: start;
-}
-
 .race__main {
   display: flex;
   flex-direction: column;
@@ -116,20 +109,4 @@
   font-variant-numeric: tabular-nums;
   min-width: 2ch;
   text-align: right;
-}
-
-.race__chat {
-  display: flex;
-  flex-direction: column;
-  height: min(70vh, 640px);
-}
-
-@media (max-width: 760px) {
-  .race__grid {
-    grid-template-columns: 1fr;
-  }
-
-  .race__chat {
-    height: 50vh;
-  }
 }

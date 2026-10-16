@@ -18,7 +18,7 @@ export function drawingPhase(drawerId: string, overrides: Partial<Extract<Skribb
 }
 
 export function view(phase: SkribblePhase, overrides: Partial<SkribbleView> = {}): SkribbleView {
-  return { phase, round: 1, totalRounds: 3, turn: 1, turnsInRound: 2, players: {}, ...overrides };
+  return { startedAt: 0, phase, round: 1, totalRounds: 3, turn: 1, turnsInRound: 2, players: {}, ...overrides };
 }
 
 /** A room in the middle of a Skribble turn. */
@@ -27,6 +27,6 @@ export function inTurn(phase: SkribblePhase, viewOverrides: Partial<SkribbleView
 }
 
 export function resetSkribbleStore(): void {
-  useSkribbleStore.setState({ guessDraft: '' });
+  useSkribbleStore.setState({ guessDraft: '', feedFrom: 0 });
   skribbleCanvas.store.setState({ canvas: [], canvasEpoch: 0 });
 }

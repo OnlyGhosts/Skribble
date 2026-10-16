@@ -1,7 +1,7 @@
 /** Runs the room's game module and folds its effects into the platform's state and effect list. */
 import { isWireMessage, type WireMessage } from '../../../shared/platform/protocol.js';
 import type { GameCtx, GameEffect, GameEvent, GameResult } from '../game.js';
-import { broadcastSnapshot, fail, pushChat, snapshotTo, systemMessage, type Cx } from './messaging.js';
+import { broadcastSnapshot, fail, noticeMessage, pushChat, snapshotTo, type Cx } from './messaging.js';
 import { moduleFor } from './module.js';
 import { findPlayer, platformPlayers, platformSpectators } from './players.js';
 import { finishGame, resetToLobby } from './lobby.js';
@@ -71,7 +71,7 @@ function applyEffect(cx: Cx, effect: GameEffect<unknown>, applied: Applied): voi
       if (cx.data.phase === 'playing') finishGame(cx);
       return;
     case 'abort':
-      systemMessage(cx, effect.reason);
+      noticeMessage(cx, effect.reason);
       resetToLobby(cx);
       return;
     case 'waiting':

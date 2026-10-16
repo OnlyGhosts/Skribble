@@ -38,6 +38,8 @@ export interface Scenario {
   stake: number;
   /** My hands are doubled (a "2x" beside the stake). */
   doubled: boolean;
+  /** My hand in play is a bust (10, 6, K): the settled table shows a bust. */
+  bust: boolean;
 }
 
 const NAMES = ['Pia', 'Quinn', 'Ada', 'Ben', 'Cleo', 'Dev', 'Eli', 'Fay', 'Gus', 'Ivy', 'Jas', 'Kit', 'Lou', 'Max', 'Nia', 'Oli', 'Pip', 'Rae', 'Sam', 'Tia', 'Uma', 'Vic', 'Wes', 'Xan'];
@@ -63,6 +65,7 @@ export function parseScenario(params: URLSearchParams): Scenario {
     names: (params.get('names') ?? '').split(',').filter((n) => n.length > 0),
     stake: Math.max(1, int(params, 'stake', 10)),
     doubled: params.get('doubled') === '1',
+    bust: params.get('bust') === '1',
   };
 }
 
@@ -132,8 +135,10 @@ export function scenarioRooms(s: Scenario): BlackjackRoomState[] {
   // The others play first, then me: on another player's turn my hands wait.
   const order = [...others, ME];
   const SOFT: Card[] = [{ rank: 'A', suit: 'S' }, { rank: '9', suit: 'H' }];
+  const BUST: Card[] = [{ rank: '10', suit: 'S' }, { rank: '6', suit: 'H' }, { rank: 'K', suit: 'D' }];
+  const special = s.soft ? SOFT : s.bust ? BUST : null;
   const myCards = (status: (i: number) => HandStatus) =>
-    Array.from({ length: s.hands }, (_, i) => hand(s.soft && i === s.active ? SOFT : cardsFor(i, i === s.active ? s.cards : 2), status(i), s.hands > 1, s.stake, s.doubled));
+    Array.from({ length: s.hands }, (_, i) => hand(special && i === s.active ? special : cardsFor(i, i === s.active ? s.cards : 2), status(i), s.hands > 1, s.stake, s.doubled));
   const otherHands = (id: string, status: HandStatus, count = 1) =>
     Array.from({ length: count }, (_, i) => hand(cardsFor(i + others.indexOf(id) + 3, 2), status, count > 1));
   const seat = (hands: HandView[], bet: number, extra: Partial<BlackjackPlayerView> = {}): BlackjackPlayerView => ({ chips: 900, bet, hands, inRound: true, sittingOut: false, bustedOut: false, ...extra });

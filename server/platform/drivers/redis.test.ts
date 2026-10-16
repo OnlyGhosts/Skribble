@@ -124,11 +124,11 @@ describe.skipIf(!hasRedisServer)('RedisDriver across two instances', () => {
   }
 
   /** A room with the host on A and the guest on B, deterministic words, one round. */
-  async function pair(a: RedisDriver, b: RedisDriver, drawTime = 60): Promise<{ host: Client; guest: Client; code: string }> {
+  async function pair(a: RedisDriver, b: RedisDriver): Promise<{ host: Client; guest: Client; code: string }> {
     const host = await create(a, 'Alice');
     const code = host.seat.code;
     const guest = await join(b, code, 'Bob');
-    await a.handle(host.seat, msg({ t: 'updateSettings', settings: { customWords: TEST_WORDS, customWordsOnly: true, rounds: 1, drawTime, hints: 2, wordChoices: 3 } }));
+    await a.handle(host.seat, msg({ t: 'updateSettings', settings: { customWords: TEST_WORDS, customWordsOnly: true, rounds: 1, hints: 2, wordChoices: 3 } }));
     await vi.waitFor(() => expect(guest.ws.last('room').room.settings.rounds).toBe(1), WAIT);
     // The guest readies up for the game (the host is ready by pressing start).
     await b.handle(guest.seat, msg({ t: 'ready', ready: true }));
@@ -221,9 +221,8 @@ describe.skipIf(!hasRedisServer)('RedisDriver across two instances', () => {
     await vi.waitFor(() => expect(host.ws.chats()).toContainEqual({ kind: 'correct', text: 'Bob guessed the word!' }), WAIT);
     expect(guest.ws.chats()).toContainEqual({ kind: 'correct', text: 'Bob guessed the word!' });
     await vi.waitFor(() => expect(late.ws.last('room').room.players.find((p) => p.name === 'Bob')?.score).toBeGreaterThan(0), WAIT);
-    // Carol has not guessed, so the turn goes on; her guess ends it for everyone.
-    expect(host.ws.last('room').room.game?.phase.kind).toBe('drawing');
-    await b.handle(late.seat, msg({ t: 'chat', text: word }));
+    // Carol joined mid-game, so she only watches: Bob was the last guesser and his guess ends the turn.
+    expect(late.ws.last('welcome').room.players.find((p) => p.name === 'Carol')?.participating).toBe(false);
     await vi.waitFor(() => expect(host.ws.last('room').room.game?.phase.kind).toBe('turnEnd'), WAIT);
     await vi.waitFor(() => expect(guest.ws.last('room').room.game?.phase.kind).toBe('turnEnd'), WAIT);
     expect(late.ws.last('room').room.game?.phase.kind).toBe('turnEnd');
@@ -277,7 +276,7 @@ describe.skipIf(!hasRedisServer)('RedisDriver across two instances', () => {
     const clock = { now: () => Date.now() + skew };
     const a = instance({ clock });
     const b = instance({ clock });
-    const { host, guest, code } = await pair(a, b, 20);
+    const { host, guest, code } = await pair(a, b);
     await a.handle(host.seat, msg({ t: 'start' }));
     await vi.waitFor(() => expect(guest.ws.last('room').room.game?.phase.kind).toBe('choosing'), WAIT);
     const before = await stored(code);

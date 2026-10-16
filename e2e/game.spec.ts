@@ -76,8 +76,8 @@ async function drawStroke(page: Page): Promise<void> {
   await page.mouse.up();
 }
 
-async function sendChat(page: Page, text: string): Promise<void> {
-  const input = page.getByTestId('chat-input');
+async function sendGuess(page: Page, text: string): Promise<void> {
+  const input = page.getByTestId('guess-input');
   await input.fill(text);
   await input.press('Enter');
 }
@@ -112,7 +112,7 @@ async function playOneTurn(): Promise<boolean> {
   for (const p of players) {
     if (p === drawer) continue;
     await expect(p.page.getByTestId('word-mask')).toBeVisible();
-    await sendChat(p.page, word);
+    await sendGuess(p.page, word);
   }
   await expect(drawer.page.getByTestId('overlay-turn-end')).toBeVisible();
   return true;
@@ -183,8 +183,6 @@ test('player 2 joins by typing the code and player 3 joins through the share lin
     await expect(playerItem(p.page, carol.name).getByTestId('host-crown')).toHaveCount(0);
     await expect(p.page).toHaveURL(new RegExp(`/scribble/${roomCode}$`));
   }
-  await expect(host.page.getByTestId('chat-log')).toContainText(`${bob.name} joined`);
-  await expect(host.page.getByTestId('chat-log')).toContainText(`${carol.name} joined`);
   // The host counts as ready by pressing Start; the others must ready up before the game can begin.
   await expect(host.page.getByTestId('start-game')).toBeDisabled();
   await expect(host.page.getByTestId('start-hint')).toContainText(`${bob.name} and ${carol.name}`);
@@ -194,19 +192,48 @@ test('player 2 joins by typing the code and player 3 joins through the share lin
   await expect(host.page.getByTestId('start-game')).toContainText('Start · 3 ready');
 });
 
-test('the host changes settings, everyone sees them and non-hosts cannot edit', async () => {
+test('only the host sees and changes the settings; the others just sit in the room with their buttons', async () => {
   await host.page.getByTestId('settings-rounds').fill('1');
-  await host.page.getByTestId('settings-drawTime').fill('20');
-  for (const p of players) {
-    await expect(p.page.getByTestId('settings-value-rounds')).toHaveText('1');
-    await expect(p.page.getByTestId('settings-value-drawTime')).toHaveText('20s');
+  await expect(host.page.getByTestId('settings-value-rounds')).toHaveText('1');
+  // No timing to set: every turn lasts the same, and the guesses end it early.
+  await expect(host.page.getByTestId('settings-drawTime')).toHaveCount(0);
+  for (const p of [bob, carol]) {
+    await expect(p.page.getByTestId('settings-panel')).toHaveCount(0);
+    await expect(p.page.getByTestId('settings-rounds')).toHaveCount(0);
+    await expect(p.page.getByTestId('settings-customWords')).toHaveCount(0);
+    await expect(p.page.getByTestId('game-tile')).toHaveCount(1);
+    await expect(p.page.getByTestId('ready-toggle')).toBeVisible();
   }
-  await expect(bob.page.getByTestId('settings-rounds')).toHaveCount(0);
-  await expect(bob.page.getByTestId('settings-drawTime')).toHaveCount(0);
-  await expect(bob.page.getByTestId('settings-customWords')).toHaveCount(0);
-  await expect(bob.page.getByTestId('settings-allowMidGameJoin')).toBeDisabled();
   await expect(bob.page.getByTestId('start-game')).toHaveCount(0);
   await expect(bob.page.getByTestId('waiting-for-host')).toContainText(host.name);
+});
+
+test('the host adds custom words from a .txt file: split like typed words, no duplicates, and says how many', async () => {
+  const box = host.page.getByTestId('settings-customWords');
+  const file = host.page.getByTestId('settings-customWords-file');
+  const status = host.page.getByTestId('settings-customWords-upload-status');
+  await box.fill('cat, dog');
+  await box.blur();
+  await file.setInputFiles({ name: 'words.txt', mimeType: 'text/plain', buffer: Buffer.from('Dog\nhot   dog, fish\n\nbird\n') });
+  await expect(status).toHaveText('Added 3 words. Left out 1 repeat.');
+  await expect(box).toHaveValue('cat\ndog\nhot dog\nfish\nbird');
+  await expect(host.page.getByTestId('settings-customWords-count')).toHaveText('5 words');
+  // The list went to the server: a reload brings the same words back.
+  await host.page.reload();
+  await expect(box).toHaveValue('cat\ndog\nhot dog\nfish\nbird', { timeout: 15_000 });
+
+  // Anything but plain text, or a file over 100 KB, is refused with a short message and changes nothing.
+  await file.setInputFiles({ name: 'cat.png', mimeType: 'image/png', buffer: Buffer.from([0x89, 0x50, 0x4e, 0x47]) });
+  await expect(status).toHaveText('Pick a plain .txt file.');
+  await file.setInputFiles({ name: 'big.txt', mimeType: 'text/plain', buffer: Buffer.alloc(100 * 1024 + 1, 'a') });
+  await expect(status).toHaveText('That file is too big. Keep it under 100 KB.');
+  await expect(box).toHaveValue('cat\ndog\nhot dog\nfish\nbird');
+
+  // Back to the built-in words for the game itself.
+  await box.fill('');
+  await box.blur();
+  await expect(host.page.getByTestId('settings-customWords-count')).toHaveText('0 words');
+  await expect(host.page.getByTestId('start-game')).toBeEnabled();
 });
 
 test('a full first turn: choosing, mask, live drawing, undo, guesses and scoring', async () => {
@@ -262,21 +289,26 @@ test('a full first turn: choosing, mask, live drawing, undo, guesses and scoring
     await expect(p.page.getByTestId('player-chip').filter({ hasText: g1.name })).toHaveAttribute('data-label', 'Guessing');
   }
 
-  // A wrong guess is public chat.
-  await sendChat(g1.page, 'definitely not it');
-  for (const p of players) await expect(p.page.getByTestId('chat-log')).toContainText('definitely not it');
+  // There is no chat to type in: the drawer reads a short line where the guess bar would be.
+  await expect(drawer.page.getByTestId('guess-input')).toHaveCount(0);
+  await expect(drawer.page.getByTestId('guess-idle')).toHaveText('Guesses show up here');
 
-  // A correct guess is announced without the word, scores points and changes the placeholder.
-  await expect(g2.page.getByTestId('chat-input')).toHaveAttribute('placeholder', /guess/i);
-  await sendChat(g2.page, word);
-  for (const p of players) await expect(p.page.getByTestId('chat-log')).toContainText(`${g2.name} guessed the word!`);
+  // A wrong guess shows in everyone's guess feed.
+  await sendGuess(g1.page, 'definitely not it');
+  for (const p of players) await expect(p.page.getByTestId('guess-feed')).toContainText('definitely not it');
+
+  // A correct guess is announced without the word, scores points and puts the guess bar away.
+  await expect(g2.page.getByTestId('guess-input')).toHaveAttribute('placeholder', /guess/i);
+  await sendGuess(g2.page, word);
+  for (const p of players) await expect(p.page.getByTestId('guess-feed')).toContainText(`${g2.name} guessed the word!`);
   await expect.poll(() => scoreOf(g1.page, g2.name)).toBeGreaterThan(0);
-  await expect(g2.page.getByTestId('chat-input')).toHaveAttribute('placeholder', 'Chat with players who guessed...');
+  await expect(g2.page.getByTestId('guess-input')).toHaveCount(0);
+  await expect(g2.page.getByTestId('guess-idle')).toContainText('You got it!');
   await expect(g2.page.getByTestId('word-plain')).toContainText(word);
   await expect(g1.page.getByTestId('word-mask')).toBeVisible();
 
   // The last guesser ends the turn.
-  await sendChat(g1.page, word);
+  await sendGuess(g1.page, word);
   for (const p of players) {
     const overlay = p.page.getByTestId('overlay-turn-end');
     await expect(overlay).toBeVisible();
@@ -339,12 +371,13 @@ test('a reload brings a player back into the same seat with the same score', asy
   await expect(bob.page.getByTestId('player-item')).toHaveCount(3);
   await expect(playerItem(bob.page, bob.name)).toHaveCount(1);
   expect(await scoreOf(bob.page, bob.name)).toBe(scoreBefore);
-  await expect(bob.page.getByTestId('chat-log')).toContainText('guessed the word!');
+  // The guess feed comes back with the history of the game.
+  await expect(bob.page.getByTestId('guess-feed')).toContainText('guessed the word!');
   for (const p of players) {
     await expect(p.page.getByTestId('player-item')).toHaveCount(3);
     await expect(playerItem(p.page, bob.name)).toHaveCount(1);
   }
-  await expect(host.page.getByTestId('chat-log')).toContainText(`${bob.name} reconnected`);
+  await expect(host.page.getByTestId('guess-feed')).toContainText(`${bob.name} reconnected`);
 });
 
 test('back to lobby resets the scores for everyone and keeps the party together', async () => {
@@ -367,7 +400,7 @@ test('leaving removes the player and tells the others', async () => {
   await expect(carol.page.getByTestId('code-input-0')).toHaveValue('');
   for (const p of [host, bob]) {
     await expect(p.page.getByTestId('player-item')).toHaveCount(2);
-    await expect(p.page.getByTestId('chat-log')).toContainText(`${carol.name} left`);
+    await expect(playerItem(p.page, carol.name)).toHaveCount(0);
   }
 });
 
