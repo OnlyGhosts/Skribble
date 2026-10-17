@@ -245,7 +245,9 @@ async function settledHands(p: Player): Promise<SettledHand[]> {
  * push the stake, win twice it, blackjack 3 to 2 on top) and the chips following the payouts.
  * `before` is each stack once the round's first stake left it.
  */
-async function checkSettlement(round: number, before: Record<string, number>, stakes: Record<string, number>): Promise<void> {
+/** Checks every hand's payout and each stack after the settle; returns the stacks, read while the table still shows them. */
+async function checkSettlement(round: number, before: Record<string, number>, stakes: Record<string, number>): Promise<Record<string, number>> {
+  const chips: Record<string, number> = {};
   for (const p of players) {
     await expect(p.page.getByTestId('bj-table')).toHaveAttribute('data-round', String(round));
     await expect(p.page.getByTestId('bj-table')).toHaveAttribute('data-settled', 'true');
@@ -280,7 +282,8 @@ async function checkSettlement(round: number, before: Record<string, number>, st
       }
     }
     // Doubles and splits took their extra stakes from the stack; the payouts came back to it.
-    await expect.poll(() => chipsOf(p), { message: `${p.name}: chips after the settle` }).toBe(before[p.name] - (staked - stakes[p.name]) + back);
+    chips[p.name] = before[p.name] - (staked - stakes[p.name]) + back;
+    await expect.poll(() => chipsOf(p), { message: `${p.name}: chips after the settle` }).toBe(chips[p.name]);
     // The other pages show the same seat settled in their strip.
     for (const other of players) {
       if (other === p) continue;
@@ -288,6 +291,7 @@ async function checkSettlement(round: number, before: Record<string, number>, st
       await expect(other.page.locator(`[data-testid="seat"][data-name="${p.name}"] [data-testid="seat-hand"]`)).toHaveCount(hands.length);
     }
   }
+  return chips;
 }
 
 test.beforeAll(async ({ browser }) => {
@@ -459,7 +463,8 @@ test('round two: the amount is remembered, Space bets on the desktop, and the ho
     for (const p of players) await expect(p.page.getByTestId('toast').filter({ hasText: 'The game ends after this hand.' })).toBeVisible();
   });
   turnsInSeatOrder(turns);
-  await checkSettlement(2, before, stakes);
+  // The stacks come from the settle itself: the game ends a few seconds after it, and the lobby shows no stacks.
+  const chips = await checkSettlement(2, before, stakes);
   if (turns.length === 0) {
     // A dealer blackjack (about one deal in 21) settled the round at the deal, before any hand was
     // played, so there was no hand to end the game after: the host ends it between hands instead.
@@ -468,8 +473,6 @@ test('round two: the amount is remembered, Space bets on the desktop, and the ho
     await host.page.getByTestId('end-game-yes').click();
   }
 
-  const chips: Record<string, number> = {};
-  for (const p of players) chips[p.name] = await chipsOf(p);
   for (const p of players) {
     const end = p.page.getByTestId('overlay-game-end');
     await expect(end).toBeVisible({ timeout: 20_000 });

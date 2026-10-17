@@ -140,7 +140,7 @@ test('the front door renders and the host creates a room with a readable 4-chara
   await expect(host.page).toHaveURL(new RegExp(`/scribble/${roomCode}$`));
   await expect(playerItem(host.page, host.name).getByTestId('host-crown')).toBeVisible();
   await expect(host.page.getByTestId('start-game')).toBeDisabled();
-  await expect(host.page.getByTestId('start-hint')).toBeVisible();
+  await expect(host.page.getByTestId('start-game')).toHaveText('Start · 1 ready, needs 2');
 });
 
 test('an invalid code shows the alphabet hint and an unknown code is reported as not found', async () => {
@@ -185,7 +185,8 @@ test('player 2 joins by typing the code and player 3 joins through the share lin
   }
   // The host counts as ready by pressing Start; the others must ready up before the game can begin.
   await expect(host.page.getByTestId('start-game')).toBeDisabled();
-  await expect(host.page.getByTestId('start-hint')).toContainText(`${bob.name} and ${carol.name}`);
+  // The button says what it waits for; the player rows say who.
+  await expect(host.page.getByTestId('start-game')).toHaveText('Start · 1 ready, needs 2');
   await readyAll([bob.page, carol.page]);
   await expect(host.page.getByTestId('player-count')).toHaveText('3 of 3 ready');
   await expect(host.page.getByTestId('start-game')).toBeEnabled();

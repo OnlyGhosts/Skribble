@@ -39,7 +39,7 @@ they need about each game from the registries and that record.
 | Test fixture | [`server/games/testFixtures.ts`](../server/games/testFixtures.ts) | Deterministic test settings, "long game" settings and one valid in-game message, read by the harnesses and the cross-game suites |
 | Shared protocol | `shared/games/<id>/protocol.ts` | Settings schema + defaults + limits, client message schema, server message type, the per-recipient view type |
 | Server module | `server/games/<id>/module.ts` (+ tests), registered in [`server/games/index.ts`](../server/games/index.ts) | `start` / `handle` / `nextDeadline` / `view` |
-| Client module | `client/src/games/<id>/` (`module.tsx`, `Screen.tsx`, `SettingsFields.tsx`, `<id>.css`), registered in [`client/src/games/index.ts`](../client/src/games/index.ts) | The screen, the settings rows, optional hooks |
+| Client module | `client/src/games/<id>/` (`module.tsx`, `Screen.tsx`, `SettingsFields.tsx`, `rules.ts`, `<id>.css`), registered in [`client/src/games/index.ts`](../client/src/games/index.ts) | The screen, the settings rows, the lobby's How to play rules, optional hooks |
 | E2E | a `test(...)` in `e2e/` | One whole game through the real server |
 
 The two existing games are the reference: [`template`](../server/games/template/module.ts) (Click
@@ -356,7 +356,6 @@ export interface GameMeta {
   /** URL segment. Lowercase letters only and never 4 characters long, so it can never collide with a room code. */
   slug: string;
   name: string;
-  howToPlay: string[];
   minPlayers: number;
   /** Seats the game can hold at once, or null when any number may play. Extra players sit a game out and stay in the party. */
   maxPlayers: number | null;
@@ -389,7 +388,7 @@ to; `'soon'` and `'hidden'` games are not offered (a hidden game is only reachab
 party through `/?game=<slug>`, which is how Click Race ships for its tests; the picker still shows
 it as the current game then). [`shared/platform/games.test.ts`](../shared/platform/games.test.ts)
 checks every entry: lowercase-letter slug, never 4 characters, unique id and slug, a non-empty
-name/howToPlay, path-data `glyph`, a boolean `contentModes`, a `#rrggbb` accent, `1 <= minPlayers` (and `minPlayers <= maxPlayers` when a
+name, path-data `glyph`, a boolean `contentModes`, a `#rrggbb` accent, `1 <= minPlayers` (and `minPlayers <= maxPlayers` when a
 limit is set; `seatLimit(meta)` in `settings.ts` turns `null` into the room's hard cap), and that
 `gameIdSchema` in `protocol.ts` lists every id.
 
@@ -686,10 +685,35 @@ export interface SettingsFieldsProps<S = Record<string, unknown>> {
   patch(partial: Partial<S>): void;
 }
 
+/**
+ * The rules of a game as the lobby's How to play card shows them: a one-line summary, then five
+ * short plain sections. Written from the server's rules in `client/src/games/<id>/rules.ts`, with
+ * every number a template over the game's shared constants so the copy can never drift from the
+ * code. Short plain words, curly apostrophes, no dashes; the card keeps each paragraph's last two
+ * words together.
+ */
+export interface GameRules {
+  summary: string;
+  /** How one round (or hand, at a card table) goes. */
+  round: string;
+  /** How you score. */
+  scoring: string;
+  /** How the game ends. */
+  end: string;
+  /** What the room's settings change. */
+  settings: string;
+  /** Who watches, and when they play. */
+  watchers: string;
+  /** 'hand' for a card table: the first section is "How a hand goes". Rounds when absent. */
+  unit?: 'round' | 'hand';
+}
+
 export interface GameClientModule<V = unknown, S = Record<string, unknown>> {
   meta: GameMeta;
   /** Rendered while the room is 'playing'; a finished game's results show over the lobby. */
   Screen: ComponentType<GameScreenProps<V, S>>;
+  /** The rules the lobby's How to play shows (client/src/games/<id>/rules.ts). */
+  rules: GameRules;
   /** The game's sound effects; the platform starts loading them when the game screen mounts. */
   sounds?: AnySoundBank;
   /** Extra rows inside the lobby settings panel, under the platform fields. */
@@ -727,7 +751,13 @@ export type AnyGameClientModule = GameClientModule<unknown, Record<string, unkno
 export function defineGameClient<V, S extends Record<string, unknown>>(module: GameClientModule<V, S>): AnyGameClientModule;
 ```
 
-Only `meta` and `Screen` are required. The platform's shell ([`client/src/App.tsx`](../client/src/App.tsx))
+Only `meta`, `Screen` and `rules` are required. The lobby's How to play button (every player sees
+it, beside the picked game) opens `rules` in a popover on a desktop and the bottom sheet on a
+phone; the card follows whichever game the host picks (the host's own tiles switch it without
+closing it), so a game cannot ship without its rules. `rules.ts` is the one place a game's rules
+copy lives: the registry carries none. Write them from the server module, under about 140 words,
+with every number a template over the shared constants, and say what the host's End game does
+(`client/src/games/rules.test.ts` checks every game's sections and copy). The platform's shell ([`client/src/App.tsx`](../client/src/App.tsx))
 renders `Lobby` while `phase === 'lobby'` (with the `ResultsPopup` over it once a game ended) and
 your `Screen` (keyed by room code) while `'playing'`, with the `WaitingOverlay` over it during a
 hold. Your top bar and options sheet carry End game and Leave room by themselves. The player list applies your
@@ -822,7 +852,6 @@ export type GameId = 'scribble' | 'template' | 'wordle';
   id: 'wordle',
   slug: 'wordle',
   name: 'Wordle Royale',
-  howToPlay: ['Type a five-letter word.', 'Green is right, yellow is misplaced.', 'Solve it in the fewest tries.'],
   minPlayers: 1,
   maxPlayers: null, // or a number when the game cannot seat everyone; the rest sit a game out
   glyph: 'M4 4h16v16H4z M4 10h16 M10 4v16', // 24px line icon, path data only
@@ -942,7 +971,7 @@ choices. Also test the module directly as a function (`module.handle(ctx, data, 
 
 ```bash
 mkdir -p client/src/games/wordle
-cp client/src/games/template/{module.tsx,Screen.tsx,SettingsFields.tsx} client/src/games/wordle/
+cp client/src/games/template/{module.tsx,Screen.tsx,SettingsFields.tsx,rules.ts} client/src/games/wordle/
 cp client/src/games/template/template.css client/src/games/wordle/wordle.css
 ```
 
@@ -960,7 +989,8 @@ export const GAMES: Readonly<Record<GameId, AnyGameClientModule>> = {
 
 `main.tsx` already calls `registerGames(GAMES)`; nothing else to wire. In `module.tsx` import your
 stylesheet (`import './wordle.css'`) and build the module with
-`defineGameClient<WordleView, WordleSettings>({ meta: gameById('wordle'), Screen, SettingsFields })`.
+`defineGameClient<WordleView, WordleSettings>({ meta: gameById('wordle'), Screen, rules, SettingsFields })`,
+where `rules` is your `rules.ts` (section 6.4): the How to play card in the lobby.
 
 Style rules that keep the look consistent (details in section 8):
 
@@ -1016,7 +1046,7 @@ The platform test ids you will use: `home-create`, `home-join`, `code-input-0..3
 `join-error`, `code-hint`, `room-code`, `game-picker` (with `data-game`), `game-tile` (with
 `data-game`), `player-item` (with `data-name`, `data-score`), `player-count`, `settings-row-<id>`,
 `settings-value-<id>` (a slider's value, host only), `settings-<id>`, `settings-panel` (host
-only), `start-game`, `start-hint`, `waiting-for-host`, `sitout-toggle`, `edit-profile`,
+only), `start-game`, `waiting-for-host`, `sitout-toggle`, `edit-profile`,
 `leave-room`, `timer`
 (with `data-seconds`), `overlay-game-end`, `results-entry` (with `data-rank`, `data-name`,
 `data-score`), `results-headline`, `results-place`, `results-reason`, `results-done`,
@@ -1317,9 +1347,9 @@ describe('Click Race', () => {
 });
 ```
 
-### 6.4 `client/src/games/template/module.tsx`
+### 6.4 `client/src/games/template/module.tsx` and `rules.ts`
 
-The smallest possible client module: `meta`, `Screen`, `SettingsFields`, its stylesheet.
+The smallest possible client module: `meta`, `Screen`, `rules`, `SettingsFields`, its stylesheet.
 
 ```tsx
 /**
@@ -1330,6 +1360,7 @@ The smallest possible client module: `meta`, `Screen`, `SettingsFields`, its sty
 import type { TemplateSettings, TemplateView } from '@shared/games/template/protocol';
 import { gameById } from '@shared/platform/games';
 import { defineGameClient } from '../../platform/game';
+import { templateRules } from './rules';
 import { ClickRaceScreen } from './Screen';
 import { ClickRaceSettingsFields } from './SettingsFields';
 import './template.css';
@@ -1337,8 +1368,28 @@ import './template.css';
 export const templateClient = defineGameClient<TemplateView, TemplateSettings>({
   meta: gameById('template'),
   Screen: ClickRaceScreen,
+  rules: templateRules,
   SettingsFields: ClickRaceSettingsFields,
 });
+```
+
+The rules the lobby's How to play shows, one short section each, the numbers templated over the
+shared constants:
+
+```ts
+/** Click Race's How to play: the template of a rules module, written from the server's rules. */
+import { TEMPLATE_SETTINGS_LIMITS as L } from '@shared/games/template/protocol';
+import type { GameRules } from '../../platform/game';
+import { JOIN_MID_GAME_TEXT } from '../../platform/lib/rules';
+
+export const templateRules: GameRules = {
+  summary: 'Tap the big button faster than everyone else.',
+  round: 'Everyone taps at once. The race ends when someone reaches the target or the clock runs out.',
+  scoring: 'The first to the target wins a bonus. Everyone else scores a point per tap when the race ends.',
+  end: 'After the one race. Most points wins.',
+  settings: `The target (${L.targetClicks.min} to ${L.targetClicks.max} taps) and the clock (${L.timeLimit.min} to ${L.timeLimit.max} seconds).`,
+  watchers: JOIN_MID_GAME_TEXT,
+};
 ```
 
 ### 6.5 `client/src/games/template/Screen.tsx`

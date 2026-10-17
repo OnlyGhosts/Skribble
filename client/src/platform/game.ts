@@ -37,10 +37,35 @@ export interface PlayerStatus {
   tone: 'ready' | 'done' | 'active' | 'out' | 'muted';
 }
 
+/**
+ * The rules of a game as the lobby's How to play card shows them: a one-line summary, then five
+ * short plain sections. Written from the server's rules in `client/src/games/<id>/rules.ts`, with
+ * every number a template over the game's shared constants so the copy can never drift from the
+ * code. Short plain words, curly apostrophes, no dashes; the card keeps each paragraph's last two
+ * words together.
+ */
+export interface GameRules {
+  summary: string;
+  /** How one round (or hand, at a card table) goes. */
+  round: string;
+  /** How you score. */
+  scoring: string;
+  /** How the game ends. */
+  end: string;
+  /** What the room's settings change. */
+  settings: string;
+  /** Who watches, and when they play. */
+  watchers: string;
+  /** 'hand' for a card table: the first section is "How a hand goes". Rounds when absent. */
+  unit?: 'round' | 'hand';
+}
+
 export interface GameClientModule<V = unknown, S = Record<string, unknown>> {
   meta: GameMeta;
   /** Rendered while the room is 'playing'; a finished game's results show over the lobby. */
   Screen: ComponentType<GameScreenProps<V, S>>;
+  /** The rules the lobby's How to play shows (client/src/games/<id>/rules.ts). */
+  rules: GameRules;
   /** The game's sound effects; the platform starts loading them when the game screen mounts. */
   sounds?: AnySoundBank;
   /** Extra rows inside the lobby settings panel, under the platform fields. */

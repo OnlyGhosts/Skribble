@@ -63,9 +63,14 @@ export function ordinal(n: number): string {
   }
 }
 
+/** A whole number with thousands separators: "1,500". */
+export function thousands(n: number): string {
+  return n.toLocaleString('en-US');
+}
+
 /** A chip count with thousands separators: "1,500". */
 export function formatChips(n: number): string {
-  return n.toLocaleString('en-US');
+  return thousands(n);
 }
 
 /** A chip count for a small tile: "950", "1.2k", "15k", "2.5M". */

@@ -75,9 +75,12 @@ export function drawCard(rng: () => number): Card {
   return { ...card };
 }
 
+/** A natural pays 3 to 2: `wins` chips for every `stake` chips bet. */
+export const NATURAL_PAYOUT = { wins: 3, stake: 2 } as const;
+
 /** The whole-chip winnings on a natural: 3 to 2 of the stake, rounded down. */
 export function naturalWinnings(bet: number): number {
-  return Math.floor((bet * 3) / 2);
+  return Math.floor((bet * NATURAL_PAYOUT.wins) / NATURAL_PAYOUT.stake);
 }
 
 export interface Settlement {

@@ -1,6 +1,7 @@
 /**
  * The game registry: every game the site offers, in library order. Adding a game means adding a
- * GameId, a GameMeta entry here, a server module (server/games) and a client module (client/src/games).
+ * GameId, a GameMeta entry here, a server module (server/games) and a client module (client/src/games,
+ * whose rules.ts is the one place the game's How to play copy lives).
  */
 export type GameId = 'scribble' | 'spygame' | 'quipgame' | 'blackjack' | 'poker' | 'template';
 
@@ -20,8 +21,6 @@ export interface GameMeta {
    */
   formerIds?: readonly string[];
   name: string;
-  /** The rules in a few short lines (plain copy, no taglines). */
-  howToPlay: string[];
   minPlayers: number;
   /** Seats the game can hold at once, or null when any number may play. Extra players sit a game out and stay in the party. */
   maxPlayers: number | null;
@@ -48,12 +47,6 @@ export const GAME_LIST: readonly GameMeta[] = [
     formerSlugs: ['skribble'],
     formerIds: ['skribble'],
     name: 'Scribble',
-    howToPlay: [
-      'Everyone takes turns drawing a word of their choice.',
-      'Type your guesses: the faster you guess, the more points you score.',
-      'Letters are revealed as hints while the clock runs down.',
-      'The drawer scores for every player who guesses the word.',
-    ],
     minPlayers: 2,
     maxPlayers: null,
     glyph: 'M5 19l2-6L17 3l4 4L11 17z M14 6l4 4 M4 21h7',
@@ -65,13 +58,6 @@ export const GAME_LIST: readonly GameMeta[] = [
     id: 'spygame',
     slug: 'spygame',
     name: 'The Spy Game',
-    howToPlay: [
-      'Everyone except the spy sees the secret location on their phone.',
-      'Take turns asking each other questions about the place without giving it away.',
-      'Agents accuse a suspect and vote; a passed vote is the group’s one guess for the round.',
-      'The spy wins by guessing the location from the 24 candidates within two tries.',
-      'Time runs out? The agents win the round.',
-    ],
     minPlayers: 3,
     maxPlayers: null,
     glyph: 'M4 11h16M7 10l2-6h6l2 6 M5 15h5v4H5z M14 15h5v4h-5z M10 16h4',
@@ -83,13 +69,6 @@ export const GAME_LIST: readonly GameMeta[] = [
     id: 'quipgame',
     slug: 'quipgame',
     name: 'Quip Game',
-    howToPlay: [
-      'Each round you get two prompts; write a quick, funny answer to each on your phone.',
-      'Answers go head to head: everyone except the two writers votes for the funnier one.',
-      'For each matchup one player is the announcer and reads the prompt and both answers out loud.',
-      'Points follow the votes; take every vote in a matchup for a flawless bonus.',
-      'Round two counts double, and the final round pits everyone against one prompt.',
-    ],
     minPlayers: 3,
     maxPlayers: null,
     glyph: 'M4 5h16v11H9l-5 4z M8 10h.1M12 10h.1M16 10h.1',
@@ -101,15 +80,6 @@ export const GAME_LIST: readonly GameMeta[] = [
     id: 'blackjack',
     slug: 'blackjack',
     name: 'Blackjack',
-    howToPlay: [
-      'Bet any amount each round, from 1 chip up to your whole stack. Everyone starts with the same stack.',
-      'No rush: the cards go out once everyone has bet. Tap Sit out to skip a hand and keep your chips.',
-      'Hit to take a card, stand to stop. Over 21 and the hand is bust.',
-      'Double your bet for exactly one more card.',
-      'Split any pair into two hands, and split again if you get another pair.',
-      'The dealer draws to 17. Beat the dealer to win your bet back twice over; a natural blackjack pays 3 to 2.',
-      'Run out of chips and you watch. Play goes on until one player has chips left, or the host ends the game.',
-    ],
     minPlayers: 1,
     maxPlayers: null,
     glyph: 'M5 3h14v18H5z M9 8l3-3 3 3-3 3z M9 16h6',
@@ -122,13 +92,6 @@ export const GAME_LIST: readonly GameMeta[] = [
     id: 'poker',
     slug: 'poker',
     name: 'Poker',
-    howToPlay: [
-      'Everyone starts with the same stack of chips; the blinds rotate with the dealer button.',
-      'You get two private cards. Fold, check, call, bet or raise as the five community cards come out.',
-      'A betting round ends once every player still in has matched the highest bet or is all in.',
-      'If only one player is left, they take the pot. Otherwise the best five cards out of seven win the showdown.',
-      'Run out of chips and you watch; the most chips at the end wins.',
-    ],
     minPlayers: 2,
     maxPlayers: 23,
     glyph: 'M12 2a10 10 0 1 0 0 20a10 10 0 1 0 0-20 M12 6a6 6 0 1 0 0 12a6 6 0 1 0 0-12 M12 2v4m10 6h-4m-6 10v-4M2 12h4',
@@ -141,7 +104,6 @@ export const GAME_LIST: readonly GameMeta[] = [
     id: 'template',
     slug: 'template',
     name: 'Click Race',
-    howToPlay: ['Tap the big button as fast as you can.', 'The first player to reach the target wins 100 points.', 'Everyone else scores one point per tap when the race ends.'],
     minPlayers: 1,
     maxPlayers: null,
     glyph: 'M9 11V5a2 2 0 0 1 4 0v6 M13 10a2 2 0 0 1 4 0v2 M17 11a2 2 0 0 1 4 0v4a7 7 0 0 1-7 7h-1a7 7 0 0 1-6-3l-3-5a2 2 0 0 1 3-2l2 2',

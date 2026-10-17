@@ -29,7 +29,6 @@ describe('game registry', () => {
   it('describes every game well enough for a library card', () => {
     for (const g of GAME_LIST) {
       expect(g.name.length).toBeGreaterThan(0);
-      expect(g.howToPlay.length).toBeGreaterThan(0);
       expect(g.accent).toMatch(/^#[0-9a-f]{6}$/);
       // A 24px line glyph: path data only.
       expect(g.glyph).toMatch(/^[MmLlHhVvCcSsQqTtAaZz0-9 .,-]+$/);

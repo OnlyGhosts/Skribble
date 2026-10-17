@@ -1,4 +1,6 @@
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
+import { DEALER_STANDS_AT } from '../shared/games/blackjack/cards';
+import { SPYGAME_ROUND_MINUTES } from '../shared/games/spygame/protocol';
 import { closeResults, createParty, expectReadyCount, expectResults, joinByCode, leaveLobby, readyAll, roomTabTitle } from './party';
 
 /**
@@ -18,6 +20,8 @@ const PORTRAIT = { width: 390, height: 844 };
 const SMALL = { width: 320, height: 568 };
 /** playwright.config's default viewport, restored after a small-screen check. */
 const DESKTOP = { width: 1280, height: 800 };
+/** The smallest desktop-sized screen, where How to play is a popover with little room under its button. */
+const LANDSCAPE_TABLET = { width: 1024, height: 768 };
 const MIN_TARGET = 44;
 
 interface Player {
@@ -401,6 +405,132 @@ test('the lobby keeps the party, and the host switches it to The Spy Game: the U
   // Ready flags carried over; the Spy Game's own settings start fresh.
   await expect(host.page.getByTestId('player-count')).toHaveText('4 of 4 ready');
   await expect(host.page.getByTestId('settings-value-rounds')).toHaveText('5');
+  // A dragged slider glides under the pointer (no step grid while held) and snaps to a whole step when let go.
+  const slider = host.page.getByTestId('settings-rounds');
+  const box = (await slider.boundingBox())!;
+  const min = Number(await slider.getAttribute('min'));
+  const max = Number(await slider.getAttribute('max'));
+  const thumbX = box.x + 11 + ((5 - min) / (max - min)) * (box.width - 22);
+  await host.page.mouse.move(thumbX, box.y + box.height / 2);
+  await host.page.mouse.down();
+  await host.page.mouse.move(thumbX - box.width * 0.17, box.y + box.height / 2, { steps: 6 });
+  await expect(slider).toHaveAttribute('step', 'any');
+  expect(Number(await slider.inputValue()) % 1).not.toBe(0);
+  await host.page.mouse.up();
+  await expect(slider).toHaveAttribute('step', '1');
+  const landed = Number(await slider.inputValue());
+  expect(landed % 1).toBe(0);
+  expect(landed).toBeLessThan(5);
+  await expect(host.page.getByTestId('settings-value-rounds')).toHaveText(String(landed));
+});
+
+test('How to play shows the rules of the game picked, follows the host’s switch, and Escape closes it back onto its button', async () => {
+  // On a desktop the card is a popover hanging off the button, with the room still usable under it.
+  const page = quinn.page;
+  const button = page.getByTestId('how-to-play');
+  await expect(button).toHaveAttribute('aria-expanded', 'false');
+  await button.click();
+  const popover = page.getByRole('dialog', { name: 'How to play The Spy Game' });
+  await expect(popover).toBeVisible();
+  await expect(popover).toHaveAttribute('data-testid', 'how-to-play-popover');
+  await expect(button).toHaveAttribute('aria-expanded', 'true');
+  const card = page.getByTestId('how-to-play-card');
+  await expect(card).toHaveAttribute('data-mode', 'popover');
+  await expect(card.getByTestId('rules-name')).toHaveText('The Spy Game');
+  await expect(card.getByTestId('rules-section')).toHaveCount(5);
+  await expect(card.getByTestId('rules-section').first()).toContainText('How a round goes');
+  await expect(card).toContainText(`${SPYGAME_ROUND_MINUTES} minutes`);
+  await expect(card).toContainText('Watching');
+  // Attached to the button: right under it, inside the screen, and nothing dims the room (the players stay reachable).
+  const anchor = await button.boundingBox();
+  const panel = await popover.boundingBox();
+  const gapBelow = (panel?.y ?? 0) - ((anchor?.y ?? 0) + (anchor?.height ?? 0));
+  const gapAbove = (anchor?.y ?? 0) - ((panel?.y ?? 0) + (panel?.height ?? 0));
+  expect(Math.min(...[gapBelow, gapAbove].filter((g) => g >= 0)), 'right under or over the button').toBeLessThanOrEqual(16);
+  expect(Math.abs((panel?.x ?? 0) - (anchor?.x ?? 0)) <= 1 || Math.abs((panel?.x ?? 0) + (panel?.width ?? 0) - ((anchor?.x ?? 0) + (anchor?.width ?? 0))) <= 1, 'lined up with one of its edges').toBe(true);
+  await expectInsideViewport(page, 'how-to-play-popover', DESKTOP);
+  await expect(page.locator('.sheet__backdrop')).toHaveCount(0);
+  const firstRow = page.getByTestId('player-item').first();
+  const rowBox = await firstRow.boundingBox();
+  const under = await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.closest('[data-testid="player-item"]') !== null, [(rowBox?.x ?? 0) + 24, (rowBox?.y ?? 0) + (rowBox?.height ?? 0) / 2]);
+  expect(under, 'the players list is not covered').toBe(true);
+
+  // The host switches the game while the card is open: the card follows, to a card table's hands.
+  await host.page.getByTestId('game-picker').locator('[data-testid="game-tile"][data-game="blackjack"]').click();
+  await expect(page.getByTestId('game-picker')).toHaveAttribute('data-game', 'blackjack');
+  await expect(page.getByRole('dialog', { name: 'How to play Blackjack' })).toBeVisible();
+  await expect(card.getByTestId('rules-name')).toHaveText('Blackjack');
+  await expect(card.getByTestId('rules-section').first()).toContainText('How a hand goes');
+  await expect(card).toContainText(`stands on every ${DEALER_STANDS_AT}`);
+  await expect(page.getByTestId('game-picker-meta')).toHaveCount(0);
+  await expect(host.page.getByTestId('game-picker-meta')).toHaveText('Blackjack · 1+ players');
+
+  // Escape closes it and hands the focus back to the button.
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('how-to-play-popover')).toHaveCount(0);
+  await expect(button).toHaveAttribute('aria-expanded', 'false');
+  await expect.poll(() => page.evaluate(() => document.activeElement?.getAttribute('data-testid') ?? null)).toBe('how-to-play');
+
+  // The host's own card follows a tile press too, instead of closing: back to The Spy Game for the rest of the party.
+  const hostButton = host.page.getByTestId('how-to-play');
+  await hostButton.click();
+  await expect(host.page.getByRole('dialog', { name: 'How to play Blackjack' })).toBeVisible();
+  await host.page.getByTestId('game-picker').locator('[data-testid="game-tile"][data-game="spygame"]').click();
+  for (const p of players) await expect(p.page.getByTestId('game-picker')).toHaveAttribute('data-game', 'spygame');
+  await expect(host.page.getByRole('dialog', { name: 'How to play The Spy Game' })).toBeVisible();
+  await expect(hostButton).toHaveAttribute('aria-expanded', 'true');
+  await host.page.keyboard.press('Escape');
+  await expect(host.page.getByTestId('how-to-play-popover')).toHaveCount(0);
+
+  // On a 1024x768 desktop the host's button sits low: the card opens over it rather than hide Start under the footer.
+  await host.page.setViewportSize(LANDSCAPE_TABLET);
+  await hostButton.click();
+  const lowPanel = await host.page.getByTestId('how-to-play-popover').boundingBox();
+  const footer = await host.page.getByTestId('lobby-footer').boundingBox();
+  expect((lowPanel?.y ?? 0) + (lowPanel?.height ?? 0), 'the card ends above the footer').toBeLessThanOrEqual((footer?.y ?? 0) + 0.5);
+  await expectInsideViewport(host.page, 'how-to-play-popover', LANDSCAPE_TABLET);
+  await expect(host.page.getByTestId('rules-section')).toHaveCount(5);
+  await host.page.keyboard.press('Escape');
+  await expect(host.page.getByTestId('how-to-play-popover')).toHaveCount(0);
+  await host.page.setViewportSize(DESKTOP);
+
+  // On a phone the rules come up in the sheet; the button is a 44px target that fits beside the picker at 390 and 320.
+  for (const size of [PORTRAIT, SMALL]) {
+    await pia.page.setViewportSize(size);
+    const phoneButton = pia.page.getByTestId('how-to-play');
+    const box = await phoneButton.boundingBox();
+    expect(box?.height ?? 0, `${size.width}: a 44px target`).toBeGreaterThanOrEqual(MIN_TARGET);
+    expect((box?.x ?? 0) + (box?.width ?? 0), `${size.width}: fits the screen`).toBeLessThanOrEqual(size.width + 0.5);
+    const note = await pia.page.getByTestId('game-picker-note').boundingBox();
+    expect(box?.y ?? 0, `${size.width}: under who picks, never over it`).toBeGreaterThanOrEqual((note?.y ?? 0) + (note?.height ?? 0) - 0.5);
+    await noHorizontalOverflow(pia.page, size.width);
+    await phoneButton.click();
+    const sheet = pia.page.getByRole('dialog', { name: 'How to play The Spy Game' });
+    await expect(sheet).toHaveAttribute('data-testid', 'how-to-play-sheet');
+    await expect(pia.page.getByTestId('how-to-play-card')).toHaveAttribute('data-mode', 'sheet');
+    await expect(sheet.getByTestId('rules-name')).toHaveText('The Spy Game');
+    await expect(sheet.getByTestId('rules-section')).toHaveCount(5);
+    await expectInsideViewport(pia.page, 'how-to-play-sheet-close', size);
+    await pia.page.keyboard.press('Escape');
+    await expect(pia.page.getByTestId('how-to-play-sheet')).toHaveCount(0);
+    await expect.poll(() => pia.page.evaluate(() => document.activeElement?.getAttribute('data-testid') ?? null)).toBe('how-to-play');
+  }
+  await pia.page.setViewportSize(PORTRAIT);
+  // The host's button, beside the game's line under the tiles, is a 44px target on a small phone too.
+  for (const size of [PORTRAIT, SMALL]) {
+    await host.page.setViewportSize(size);
+    await host.page.evaluate(() => window.scrollTo(0, 0));
+    const box = await host.page.getByTestId('how-to-play').boundingBox();
+    const meta = await host.page.getByTestId('game-picker-meta').boundingBox();
+    expect(box?.height ?? 0, `${size.width}: the host's button is a 44px target`).toBeGreaterThanOrEqual(MIN_TARGET);
+    expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(size.width + 0.5);
+    // One row: the line ends before the button, which stays in the first screen above the sticky footer.
+    expect((meta?.x ?? 0) + (meta?.width ?? 0), `${size.width}: the line ends before the button`).toBeLessThanOrEqual((box?.x ?? 0) + 0.5);
+    const hostFooter = await host.page.getByTestId('lobby-footer').boundingBox();
+    expect((box?.y ?? 0) + (box?.height ?? 0), `${size.width}: the button is above the footer without scrolling`).toBeLessThanOrEqual((hostFooter?.y ?? 0) + 0.5);
+    await noHorizontalOverflow(host.page, size.width);
+  }
+  await host.page.setViewportSize(DESKTOP);
 });
 
 test('one player sits out, the host sets Unhinged, three play a one-round Spy Game while the fourth watches from the party', async () => {

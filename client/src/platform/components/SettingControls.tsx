@@ -91,37 +91,73 @@ function useReadoutChars(own: number): number {
   return Math.max(own, scope?.chars ?? 0);
 }
 
+/** The nearest value on the slider's step grid, inside its range: a glide while dragging ends on it. */
+export function snapToStep(v: number, min: number, max: number, step: number): number {
+  const snapped = min + Math.round((v - min) / step) * step;
+  return Math.min(max, Math.max(min, snapped));
+}
+
 /**
  * Range input that tracks the drag immediately but sends at most one patch per short pause, and
  * at once when the thumb is let go (the native change event). Its value reads beside it
- * (`settings-value-<id>`) and follows the thumb while it moves.
+ * (`settings-value-<id>`) and follows the thumb while it moves. A pointer drag glides (the
+ * thumb follows the finger, not the step grid) and snaps to the step when let go; the keyboard
+ * steps as ever.
  */
 export function RangeControl({ id, value, min, max, step = 1, onCommit, label, revision, format = String }: RangeProps) {
   const [local, setLocal] = useState(value);
+  const [dragging, setDragging] = useState(false);
+  const draggingRef = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const commitRef = useRef(onCommit);
   commitRef.current = onCommit;
+  const snapRef = useRef((v: number) => v);
+  snapRef.current = (v: number) => snapToStep(v, min, max, step);
+  const snap = snapRef.current;
   const readoutChars = useReadoutChars(longestReadout(min, max, step, format));
   useEffect(() => setLocal(value), [value]);
   // The server may refuse a patch and echo the old value: with no pending drag, follow it.
   useEffect(() => {
-    if (timer.current === null) setLocal(value);
+    if (timer.current === null && !draggingRef.current) setLocal(value);
   }, [value, revision]);
   useEffect(() => {
     const input = inputRef.current;
     if (!input) return undefined;
-    // React's onChange is the input event; the native change event fires once the drag ends.
+    const settle = () => {
+      if (timer.current !== null) clearTimeout(timer.current);
+      timer.current = null;
+    };
+    // React's onChange is the input event; the native change event fires once a keyboard step or a drag ends.
     const release = () => {
       if (timer.current === null) return;
-      clearTimeout(timer.current);
-      timer.current = null;
-      commitRef.current(Number(input.value));
+      settle();
+      commitRef.current(snapRef.current(Number(input.value)));
+    };
+    const start = () => {
+      draggingRef.current = true;
+      setDragging(true);
+    };
+    // The finger lifts anywhere on the page: the thumb snaps to its step and that value goes out at once.
+    const end = () => {
+      if (!draggingRef.current) return;
+      draggingRef.current = false;
+      setDragging(false);
+      const snapped = snapRef.current(Number(input.value));
+      setLocal(snapped);
+      settle();
+      commitRef.current(snapped);
     };
     input.addEventListener('change', release);
+    input.addEventListener('pointerdown', start);
+    window.addEventListener('pointerup', end);
+    window.addEventListener('pointercancel', end);
     return () => {
       input.removeEventListener('change', release);
-      if (timer.current !== null) clearTimeout(timer.current);
+      input.removeEventListener('pointerdown', start);
+      window.removeEventListener('pointerup', end);
+      window.removeEventListener('pointercancel', end);
+      settle();
     };
   }, []);
   return (
@@ -133,10 +169,10 @@ export function RangeControl({ id, value, min, max, step = 1, onCommit, label, r
         type="range"
         min={min}
         max={max}
-        step={step}
+        step={dragging ? 'any' : step}
         value={local}
         aria-label={label}
-        aria-valuetext={format(local)}
+        aria-valuetext={format(snap(local))}
         data-testid={`settings-${id}`}
         onChange={(e) => {
           const v = Number(e.target.value);
@@ -144,12 +180,12 @@ export function RangeControl({ id, value, min, max, step = 1, onCommit, label, r
           if (timer.current !== null) clearTimeout(timer.current);
           timer.current = setTimeout(() => {
             timer.current = null;
-            onCommit(v);
+            onCommit(snap(v));
           }, RANGE_DEBOUNCE_MS);
         }}
       />
       <output className="range-field__value" htmlFor={id} aria-hidden="true" data-testid={`settings-value-${id}`} style={{ width: `calc(${readoutChars}ch + 18px)` }}>
-        {format(local)}
+        {format(snap(local))}
       </output>
     </div>
   );

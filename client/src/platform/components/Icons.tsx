@@ -34,6 +34,8 @@ export const CopyIcon = (p: IconProps) => <Icon {...p} paths={['M10 8h8a2 2 0 0 
 export const ShareIcon = (p: IconProps) => (
   <Icon {...p} paths={['M18 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z', 'M6 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z', 'M18 22a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z', 'm8.6 13.5 6.8 4', 'm15.4 6.5-6.8 4']} />
 );
+/** A question mark in a circle: How to play. */
+export const HelpIcon = (p: IconProps) => <Icon {...p} paths={['M12 2a10 10 0 1 0 0 20a10 10 0 1 0 0-20', 'M9.3 9.3a2.7 2.7 0 1 1 3.9 2.4c-.8.4-1.2 1-1.2 1.8', 'M12 17h.01']} />;
 export const MoonIcon = (p: IconProps) => <Icon {...p} paths="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5Z" />;
 export const BackIcon = (p: IconProps) => <Icon {...p} paths={['M20 12H4', 'm10 6-6 6 6 6']} />;
 export const ChatIcon = (p: IconProps) => <Icon {...p} paths="M3 4h18v13H9l-6 4z" />;

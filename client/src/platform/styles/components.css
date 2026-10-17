@@ -1128,8 +1128,9 @@
   border-bottom: 0;
 }
 
+/* Your own row: a soft lime tint says "you", in place of a word after the name. */
 .player--me {
-  background: var(--color-surface-2);
+  background: color-mix(in srgb, var(--color-primary) 12%, var(--color-surface));
 }
 
 .player--offline {
@@ -1196,24 +1197,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.player__tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  flex: none;
-  padding: 1px 6px;
-  border-radius: var(--radius-pill);
-  font-size: 0.6875rem;
-  font-weight: 600;
-  border: 1px solid var(--color-border);
-  color: var(--color-text-muted);
-}
-
-.player__host {
-  color: var(--color-warning-text);
-  border-color: currentColor;
 }
 
 .player__crown {

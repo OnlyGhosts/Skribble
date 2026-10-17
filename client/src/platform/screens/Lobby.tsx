@@ -102,7 +102,7 @@ export function Lobby({ room, game }: Props) {
         {/* Only the host sees the settings: everyone else sees what is next, who is here and their own buttons. */}
         <div className={`lobby__grid${isHost ? '' : ' lobby__grid--guest'}`}>
           <div className="lobby__col">
-            <GamePicker room={room} isHost={isHost} />
+            <GamePicker room={room} isHost={isHost} game={game} />
 
             <section className="lobby__players" aria-labelledby="players-heading">
               <h2 className="sr-only" id="players-heading">
@@ -193,13 +193,10 @@ function StartControls({ room }: { room: RoomState }) {
         </div>
       ) : (
         <button type="button" className="btn btn--primary btn--lg btn--block" onClick={onStart} disabled={!startable} data-testid="start-game" data-ready={ready}>
-          Start · {ready} ready
+          {/* Short of players, the button says what it waits for (the rows above say who), so nothing under it comes and goes. */}
+          {startable ? `Start · ${ready} ready` : `Start · ${ready} ready, needs ${meta.minPlayers}`}
         </button>
       )}
-      {/* The line keeps its place when there is nothing to say, so Start never jumps as it comes and goes. */}
-      <p className="field__hint lobby__start-hint" data-testid="start-hint" data-empty={startable ? 'true' : undefined}>
-        {!startable && `${meta.name} needs at least ${meta.minPlayers} ready ${meta.minPlayers === 1 ? 'player' : 'players'}.${notReady.length > 0 ? ` Not ready yet: ${listNames(notReady.map((p) => p.name))}.` : ''}`}
-      </p>
     </>
   );
 }

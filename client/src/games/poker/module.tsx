@@ -16,6 +16,7 @@ import { cancelCue, cueAt } from '../../platform/table/cues';
 import { createEntryFlag } from '../../platform/table/entry';
 import { CardsIcon, OutIcon } from './components/Icons';
 import { isMyTurn, seatOf, stepOf } from './hooks';
+import { pokerRules } from './rules';
 import { PokerScreen } from './Screen';
 import { PokerSettingsFields } from './SettingsFields';
 import { clearPokerSounds, playPokerSounds } from './sfx';
@@ -31,6 +32,7 @@ const meta = gameById('poker');
 export const pokerClient = defineGameClient<PokerView, PokerSettings>({
   meta,
   Screen: PokerScreen,
+  rules: pokerRules,
   SettingsFields: PokerSettingsFields,
   sounds: pokerSounds,
 

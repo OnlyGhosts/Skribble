@@ -16,6 +16,7 @@ import { scribbleCanvas } from './canvas';
 import { PencilIcon } from './components/Icons';
 import { ScribbleSettingsFields } from './components/SettingsFields';
 import { drawerIdOf, hasGuessed, isNewTurn } from './hooks';
+import { scribbleRules } from './rules';
 import { ScribbleScreen } from './Screen';
 import { scribbleSounds as sfx } from './sounds';
 import { useScribbleStore } from './store';
@@ -42,6 +43,7 @@ function isDrawerOf(room: ScribbleRoomState, player: PlayerPublic): boolean {
 export const scribbleClient = defineGameClient<ScribbleView, ScribbleSettings>({
   meta: gameById('scribble'),
   Screen: ScribbleScreen,
+  rules: scribbleRules,
   sounds: sfx,
   SettingsFields: ScribbleSettingsFields,
 

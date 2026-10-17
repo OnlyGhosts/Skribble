@@ -41,6 +41,8 @@
   --shadow-sm: none;
   --shadow-md: none;
   --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.28);
+  /* The shadow a scroll box shows at an edge with more to read. */
+  --color-scroll-shadow: rgba(0, 0, 0, 0.55);
 
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
 
@@ -77,7 +79,7 @@
   --color-focus: #c7e976;
   /* A lime fill's edge: the lime itself on dark, a deeper lime on the off-white page, where lime alone has no edge. */
   --color-primary-edge: #c7e976;
-  /* The lime as a mark on the page (the wordmark's "games"): the lime itself on dark, cut to 3:1 on the off-white page. */
+  /* The lime as a mark on the page (the wordmark's "games"): the same lime as the buttons, on dark and on the off-white page alike. */
   --color-primary-mark: #c7e976;
   /* A disabled button: a quiet fill and muted text, never just faded. */
   --btn-disabled-bg: #2b2e29;
@@ -118,6 +120,7 @@
 :root[data-theme='light'] {
   color-scheme: light;
   --shadow-lg: 0 16px 48px rgba(20, 25, 18, 0.18);
+  --color-scroll-shadow: rgba(20, 25, 18, 0.22);
 
   --color-bg: #f5f6ef;
   --color-surface: #ffffff;
@@ -135,7 +138,7 @@
   --color-primary-soft: #e6f3c3;
   --color-primary-text: #3d6b0f;
   --color-primary-edge: #a9cf47;
-  --color-primary-mark: #6f9a1c;
+  --color-primary-mark: #c7e976;
   --color-secondary: #a699d5;
   --color-secondary-hover: #9686ca;
   --color-secondary-contrast: #141514;

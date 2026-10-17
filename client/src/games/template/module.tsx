@@ -6,6 +6,7 @@
 import type { TemplateSettings, TemplateView } from '@shared/games/template/protocol';
 import { gameById } from '@shared/platform/games';
 import { defineGameClient } from '../../platform/game';
+import { templateRules } from './rules';
 import { ClickRaceScreen } from './Screen';
 import { ClickRaceSettingsFields } from './SettingsFields';
 import './template.css';
@@ -13,5 +14,6 @@ import './template.css';
 export const templateClient = defineGameClient<TemplateView, TemplateSettings>({
   meta: gameById('template'),
   Screen: ClickRaceScreen,
+  rules: templateRules,
   SettingsFields: ClickRaceSettingsFields,
 });

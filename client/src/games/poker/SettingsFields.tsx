@@ -2,7 +2,6 @@ import { POKER_SETTINGS_LIMITS, type PokerSettings } from '@shared/games/poker/p
 import { ChipsSetting } from '../../platform/components/ChipsSetting';
 import { RangeSetting } from '../../platform/components/SettingControls';
 import type { SettingsFieldsProps } from '../../platform/game';
-import { formatChips } from '../../platform/lib/format';
 
 const L = POKER_SETTINGS_LIMITS;
 
@@ -31,7 +30,7 @@ export function PokerSettingsFields({ settings, patch }: SettingsFieldsProps<Pok
         max={maxSmall}
         presets={[1, 5, 10, 25, 50, 100].filter((b) => b <= maxSmall)}
         onCommit={(v) => patch({ smallBlind: v })}
-        hint={`The small blind. The big blind is twice it, so the blinds are ${formatChips(settings.smallBlind)}/${formatChips(settings.smallBlind * 2)}.`}
+        hint="The small blind. Big blind is 2x small blind."
       />
       <RangeSetting id="blindsIncreaseEvery" label="Double the blinds every this many hands" rowLabel="Blinds double" value={settings.blindsIncreaseEvery} format={blindsIncreaseLabel} min={L.blindsIncreaseEvery.min} max={L.blindsIncreaseEvery.max} onCommit={(v) => patch({ blindsIncreaseEvery: v })} hint="Counted in hands. 0 keeps them fixed all game." {...range} />
       <RangeSetting id="hands" label="Hands to play" rowLabel="Hands" value={settings.hands} format={handsLabel} min={L.hands.min} max={L.hands.max} onCommit={(v) => patch({ hands: v })} hint="0 plays until one player has every chip." {...range} />

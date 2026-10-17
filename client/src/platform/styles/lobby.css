@@ -76,6 +76,8 @@
   font-family: var(--font-display);
   font-size: 1.9375rem;
   font-weight: 700;
+  /* A touch bolder than the font's heaviest weight: a hairline stroke in the glyph's own colour. */
+  -webkit-text-stroke: 0.5px currentColor;
   line-height: 1;
   user-select: all;
 }
@@ -281,12 +283,6 @@
   font-weight: 500;
 }
 
-/* The host's line under Start keeps one line of room even while empty, so the buttons never move when it appears or goes. */
-.lobby__start-hint {
-  line-height: 1.4;
-  min-height: 1.4em;
-}
-
 /* ---------- Game picker: square-ish tiles, three to a row; a short last row stretches to fill it ---------- */
 .game-picker {
   display: flex;
@@ -377,6 +373,207 @@ button.game-tile:active {
   overflow-wrap: anywhere;
 }
 
+/* The picked game's line and How to play share one row under the tiles: on the narrowest phones the line wraps, so the button stays in the first screen. */
+.game-picker__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.game-picker__meta {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--color-text-muted);
+  font-weight: 500;
+  font-size: 0.9375rem;
+  line-height: 1.3;
+}
+
+/* When the line must wrap it breaks at the dot, never inside the count. */
+.game-picker__count {
+  white-space: nowrap;
+}
+
+.game-picker__foot .how-to-play {
+  flex: none;
+}
+
+/* A guest: who picks, then How to play, beside the one tile. */
+.game-picker__about {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* ---------- How to play: the rules of the picked game in a popover (desktop) or the bottom sheet (phones, tablets) ---------- */
+.how-to-play {
+  position: relative;
+}
+
+.how-to-play__btn {
+  min-height: 44px;
+  padding: 0 14px 0 12px;
+  gap: 6px;
+  font-size: 0.875rem;
+}
+
+/* The card hangs off the button's left edge (or its right, when the screen ends first), an arrow pointing at it. */
+.how-to-play__popover {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 0;
+  z-index: 70;
+  width: min(380px, calc(100vw - 2 * var(--gutter)));
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-lg);
+  animation: pop-in 160ms ease-out;
+}
+
+.how-to-play__popover--right {
+  left: auto;
+  right: 0;
+}
+
+.how-to-play__popover::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: calc(var(--anchor-x, 24px) - 6px);
+  width: 11px;
+  height: 11px;
+  background: var(--color-surface);
+  border-left: 1px solid var(--color-border);
+  border-top: 1px solid var(--color-border);
+  transform: rotate(45deg);
+}
+
+.how-to-play__popover--right::before {
+  left: auto;
+  right: calc(var(--anchor-x, 24px) - 6px);
+}
+
+/* Over the button when the screen under it is short: the arrow points down from the card's bottom edge. */
+.how-to-play__popover--above {
+  top: auto;
+  bottom: calc(100% + 10px);
+}
+
+.how-to-play__popover--above::before {
+  top: auto;
+  bottom: -6px;
+  border: 0;
+  border-right: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* The card takes the focus when it opens (its name is read out); the ring belongs on its close button, not around the card. */
+.how-to-play__popover:focus {
+  outline: none;
+}
+
+.how-to-play__close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+}
+
+/*
+ * The rules scroll inside the card when the screen is short; the arrow and the close button stay put.
+ * A shadow at whichever edge has more to read marks the box as scrollable (the surface-coloured
+ * covers scroll with the text and hide the shadows at the ends).
+ */
+.how-to-play__scroll {
+  max-height: var(--popover-max, none);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-4);
+  background:
+    linear-gradient(var(--color-surface) 40%, transparent) top / 100% 36px no-repeat local,
+    linear-gradient(transparent, var(--color-surface) 60%) bottom / 100% 36px no-repeat local,
+    radial-gradient(farthest-side at top, var(--color-scroll-shadow) 0%, transparent) top / 100% 12px no-repeat scroll,
+    radial-gradient(farthest-side at bottom, var(--color-scroll-shadow) 0%, transparent) bottom / 100% 12px no-repeat scroll;
+}
+
+.how-to-play__popover .rules__head {
+  padding-right: 36px;
+}
+
+/* ---------- The rules card: the game's glyph on its accent, its name and summary, then five short sections ---------- */
+.rules {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  text-wrap: pretty;
+}
+
+.rules__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.rules__glyph {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--game-accent);
+  color: var(--game-ink);
+}
+
+.rules__intro {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.rules__name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.125rem;
+  line-height: 1.2;
+}
+
+.rules__summary {
+  color: var(--color-text-muted);
+  font-weight: 500;
+  font-size: 0.9375rem;
+  line-height: 1.35;
+}
+
+.rules__section {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.rules__heading {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-faint);
+}
+
+.rules__text {
+  font-size: 0.9375rem;
+  line-height: 1.45;
+}
+
+/* In the sheet the card ends with the panel's own padding. */
+.sheet .rules {
+  padding-bottom: var(--space-2);
+}
+
 /* ---------- Ready / sit out: the big button, then equal secondary buttons side by side ---------- */
 .ready-controls {
   margin-top: var(--space-3);
@@ -406,6 +603,18 @@ button.game-tile:active {
 @media (max-width: 359px) {
   .ready-controls__more .btn svg {
     display: none;
+  }
+}
+
+/* The narrowest phones: slightly shorter tiles and a tighter picker, so the host's How to play row sits above the footer on a 320x568 screen. */
+@media (max-width: 359px) {
+  .game-picker {
+    gap: var(--space-2);
+  }
+
+  .game-tile {
+    min-height: 80px;
+    padding: 8px 4px;
   }
 }
 
@@ -566,6 +775,11 @@ button.content-mode:not(:disabled):hover {
   .lobby--guest {
     --guest-column: 720px;
   }
+
+  /* The wordmark's ink sits high in its box (the mascots and ascenders above, only the g's tail below): a nudge down centres it on the bar by eye. */
+  .lobby__top .wordmark {
+    transform: translateY(2px);
+  }
 }
 
 .lobby .site-header {
@@ -585,10 +799,14 @@ button.content-mode:not(:disabled):hover {
 
 /*
  * Phones: the bar splits. The logo bare and centred at the top of the room, the code card under it
- * (the label over the tiles, Copy and Share as squares at its right end), and the gear's popover
- * centred under the logo, inside the screen.
+ * (the tiles, Copy and Share as squares at its right end), and the gear's popover centred under the
+ * logo, inside the screen.
  */
 @media (max-width: 760px), (min-aspect-ratio: 3/2) and (max-height: 520px) {
+  .lobby__top .wordmark {
+    transform: none;
+  }
+
   .lobby__top {
     flex-direction: column;
     align-items: stretch;

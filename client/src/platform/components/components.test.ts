@@ -11,6 +11,7 @@ installBrowserGlobals();
 const { usePlatformStore } = await import('../store/usePlatformStore');
 const { player, registryOf, resetStore, room, welcome } = await import('../../test/fixtures');
 const { SettingsPanel } = await import('./SettingsPanel');
+const { snapToStep } = await import('./SettingControls');
 const { Timer } = await import('./Timer');
 const { ResultsPopup } = await import('./ResultsPopup');
 const { EndGameConfirm, ExitActions, LeaveConfirm, endGameNote, leaveNote } = await import('./GameExit');
@@ -487,7 +488,7 @@ describe('wordmark and mascots', () => {
     expect(css).not.toMatch(/\.wordmark__accent[^{]*\{[^}]*stroke/);
     const tokens = stylesheet('tokens.css');
     expect(tokens).toContain('--color-primary-mark: #c7e976;');
-    expect(tokens.slice(tokens.indexOf(":root[data-theme='light']"))).toContain('--color-primary-mark: #6f9a1c;');
+    expect(tokens.slice(tokens.indexOf(":root[data-theme='light']"))).toContain('--color-primary-mark: #c7e976;');
   });
 
   it('renders the mascots flat and decorative: solid fills, an ink outline and shadow, no screen lines', () => {
@@ -565,7 +566,7 @@ describe('wordmark and mascots', () => {
     for (const g of GAME_LIST) {
       expect(tokens).toContain(`--game-${g.id}: ${g.accent};`);
     }
-    const html = renderToString(createElement(GamePicker, { room: room(), isHost: true }));
+    const html = renderToString(createElement(GamePicker, { room: room(), isHost: true, game: null }));
     for (const g of GAME_LIST.filter((x) => x.status === 'live')) expect(html).toContain(`data-glyph="${g.id}"`);
     expect(html).toContain('Scribble');
     // A name of more words keeps its last two together, so a narrow tile never leaves "Game" alone.
@@ -708,10 +709,27 @@ describe('ready controls', () => {
   });
 });
 
+describe('sliders', () => {
+  it('glide under a finger and snap to the step when let go: the nearest step inside the range', () => {
+    expect(snapToStep(3.4, 1, 10, 1)).toBe(3);
+    expect(snapToStep(3.6, 1, 10, 1)).toBe(4);
+    expect(snapToStep(0.2, 1, 10, 1)).toBe(1);
+    expect(snapToStep(10.7, 1, 10, 1)).toBe(10);
+    expect(snapToStep(12, 0, 100, 5)).toBe(10);
+    expect(snapToStep(13, 0, 100, 5)).toBe(15);
+    // The grid starts at the minimum, not at zero.
+    expect(snapToStep(7.4, 5, 25, 5)).toBe(5);
+    expect(snapToStep(7.6, 5, 25, 5)).toBe(10);
+  });
+});
+
 describe('player rows', () => {
-  it('say "you" as a plain word and keep one badge a player: the Host tag in the room, a crown by the name in a game', () => {
+  it('mark your own row with a lime tint, not the word "you", and the host with a crown by the name, in the room and in a game', () => {
     const markup = renderToString(createElement(PlayerList, { room: room(), meId: 'host', isHost: true, mode: 'game', game: null }));
-    expect(markup).toContain('<span class="player__you">you</span>');
+    expect(markup).not.toContain('player__you');
+    expect(markup).toContain('<span class="sr-only">(you)</span>');
+    expect(tagWith(markup, 'player-item')).toContain('player--me');
+    expect(ruleOf(stylesheet('components.css'), '.player--me')).toContain('color-mix(in srgb, var(--color-primary) 12%, var(--color-surface))');
     expect(markup).not.toContain('player__tag');
     expect(tagWith(markup, 'host-crown')).toContain('class="player__crown"');
     // An image role, so a screen reader hears the crown's label (a plain span would drop it).
@@ -719,8 +737,9 @@ describe('player rows', () => {
     expect(tagWith(markup, 'host-crown')).toContain('aria-label="Host"');
     expect(markup).toContain('player__name-text">host<');
     const lobby = renderToString(createElement(PlayerList, { room: room(), meId: 'bob', isHost: false, mode: 'lobby', game: null }));
-    expect(tagWith(lobby, 'host-crown')).toContain('player__tag player__host');
-    expect(lobby).toContain('Host</span>');
+    expect(tagWith(lobby, 'host-crown')).toContain('class="player__crown"');
+    expect(lobby).not.toContain('player__tag');
+    expect(lobby).not.toMatch(/>\s*Host</);
     const css = stylesheet('components.css');
     expect(ruleOf(css, '.player__name')).toContain('flex-wrap: wrap');
   });
@@ -993,14 +1012,13 @@ describe('lobby', () => {
     expect(tagWith(markup, 'start-game')).toBeTruthy();
   });
 
-  it('keeps the line under Start in place while it has nothing to say, so Start never jumps', () => {
+  it('says on Start itself how many ready players the game still needs, with no line under it to come and go', () => {
     const short = enter('host', room({ players: [player('host', { ready: true }), player('bob', { joinOrder: 1 })] }));
-    expect(tagWith(short, 'start-hint')).not.toContain('data-empty');
-    expect(short).toContain('needs at least 2 ready players. Not ready yet: bob.');
+    expect(short).toContain('>Start · 1 ready, needs 2</button>');
+    expect(short).not.toContain('start-hint');
+    expect(short).not.toContain('needs at least');
     const ready = enter('host', room({ players: [player('host', { ready: true }), player('bob', { joinOrder: 1, ready: true })] }));
-    expect(tagWith(ready, 'start-hint')).toContain('data-empty="true"');
-    expect(ready).toMatch(/data-testid="start-hint"[^>]*><\/p>/);
-    expect(ruleOf(stylesheet('lobby.css'), '.lobby__start-hint')).toContain('min-height: 1.4em');
+    expect(ready).toContain('>Start · 2 ready</button>');
   });
 
   it('has no chat: no chat box, log or input for the host or a guest', () => {
@@ -1390,7 +1408,7 @@ describe('player chips', () => {
 
   it("use the game’s own status when it has one", () => {
     const r = room({ phase: 'playing' });
-    const game = { meta: gameById('scribble'), Screen: () => null, playerStatus: () => ({ label: 'Drawing', icon: null, tone: 'active' as const }) };
+    const game = { meta: gameById('scribble'), Screen: () => null, rules: { summary: '', round: '', scoring: '', end: '', settings: '', watchers: '' }, playerStatus: () => ({ label: 'Drawing', icon: null, tone: 'active' as const }) };
     expect(chipStatus(r, player('host'), game).label).toBe('Drawing');
     expect(chipStatus(r, player('host', { connected: false }), game).label).toBe('Away');
     expect(chipStatus(r, player('host'), null).label).toBe('Ready');

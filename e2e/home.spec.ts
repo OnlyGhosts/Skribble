@@ -487,7 +487,7 @@ test('the settings menu switches to the light theme and the choice survives a re
   expect(await pageColor()).toBe('rgb(245, 246, 239)');
   await expect.poll(panelColor).toBe('rgb(255, 255, 255)');
   await expect(page.getByTestId('home-join')).toHaveCSS('background-color', 'rgb(199, 233, 118)');
-  await expect(games).toHaveCSS('color', 'rgb(111, 154, 28)');
+  await expect(games).toHaveCSS('color', 'rgb(199, 233, 118)');
   // Escape closes the menu and gives the focus back to the gear.
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('settings-popover')).toHaveCount(0);

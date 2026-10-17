@@ -8,6 +8,9 @@ import { useEffect, useState } from 'react';
  */
 export const PHONE_QUERY = '(max-width: 760px), (min-aspect-ratio: 3/2) and (max-height: 520px)';
 
+/** A desktop-sized screen: where a sheet becomes a centred box and How to play a popover (the stylesheets' 1024px breakpoint). */
+export const DESKTOP_QUERY = '(min-width: 1024px)';
+
 /** Fine pointer and hover: a desktop-class device where focusing an input never pops up a keyboard. */
 export const FINE_POINTER_QUERY = '(hover: hover) and (pointer: fine)';
 

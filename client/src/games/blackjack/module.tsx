@@ -16,6 +16,7 @@ import { isActing, prefersReducedMotion, seatOf } from './hooks';
 import { sendQueuedBet } from './actions';
 import { answered } from './lib/pending';
 import { formatChips } from './lib/text';
+import { blackjackRules } from './rules';
 import { BlackjackScreen } from './Screen';
 import { BlackjackSettingsFields } from './SettingsFields';
 import { clearBlackjackSounds, playBlackjackSounds } from './sfx';
@@ -31,6 +32,7 @@ const meta = gameById('blackjack');
 export const blackjackClient = defineGameClient<BlackjackView, BlackjackSettings>({
   meta,
   Screen: BlackjackScreen,
+  rules: blackjackRules,
   SettingsFields: BlackjackSettingsFields,
   sounds: blackjackSounds,
 
