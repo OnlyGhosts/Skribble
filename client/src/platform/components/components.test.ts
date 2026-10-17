@@ -17,7 +17,7 @@ const { EndGameConfirm, ExitActions, LeaveConfirm, endGameNote, leaveNote } = aw
 const { WaitingOverlay, clockText, missingPlayers, waitingHint, waitingTitle } = await import('./WaitingOverlay');
 const { ConnectionNotice, NoticeCard } = await import('./ConnectionNotice');
 const { gameById } = await import('@shared/platform/games');
-const { Home, cleanName, firstInvalidBox, focusAfterRefusal, homeView, initialGame, previewLine } = await import('../screens/Home');
+const { Home, QuietHome, REJOIN_QUIET_MS, cleanName, firstInvalidBox, focusAfterRefusal, homeView, initialGame, previewLine } = await import('../screens/Home');
 const { Wordmark } = await import('./Wordmark');
 const { WORDMARK_BOX, WORDMARK_GEAR_CENTRE, WORDMARK_GEAR_POSITION } = await import('../brand/wordmark');
 const { PlayerList } = await import('./PlayerList');
@@ -304,11 +304,24 @@ describe('connection notice', () => {
 });
 
 describe('front door', () => {
-  it('shows the rejoining spinner or the form, never both once the rejoin has dragged on', () => {
-    expect(homeView(false, false)).toBe('form');
-    expect(homeView(false, true)).toBe('form');
-    expect(homeView(true, false)).toBe('rejoining');
-    expect(homeView(true, true)).toBe('stale');
+  it('keeps quiet for the first moment of a rejoin, then shows the spinner or the form, never both once the rejoin has dragged on', () => {
+    expect(REJOIN_QUIET_MS).toBe(700);
+    expect(homeView(false, false, true)).toBe('form');
+    expect(homeView(false, true, false)).toBe('form');
+    expect(homeView(true, false, true)).toBe('quiet');
+    expect(homeView(true, false, false)).toBe('rejoining');
+    expect(homeView(true, true, false)).toBe('stale');
+    expect(homeView(true, true, true)).toBe('stale');
+  });
+
+  it('shows the bare page, not the logo and a "Rejoining" flash, while a reload is still being answered', () => {
+    const html = renderToString(createElement(QuietHome));
+    expect(html).toContain('data-testid="home-quiet"');
+    expect(html).toContain('aria-busy="true"');
+    expect(html).not.toContain('rejoining-banner');
+    expect(html).not.toContain('join-panel');
+    expect(html).not.toContain('wordmark');
+    expect(html).not.toContain('spinner');
   });
 
   it('starts a new party on the first live game of the registry', () => {

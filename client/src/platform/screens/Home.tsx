@@ -19,15 +19,23 @@ type Intent = 'create' | 'join';
 
 /** A rejoin still not answered after this long (server unreachable) gives the form back. */
 export const REJOIN_FORM_DELAY_MS = 15_000;
+/**
+ * A rejoin answered within this shows nothing at all: a reload lands straight in the room, as a
+ * page load does, instead of flashing "Rejoining" for a few frames on the way.
+ */
+export const REJOIN_QUIET_MS = 700;
+
+export type HomeView = 'quiet' | 'rejoining' | 'stale' | 'form';
 
 /**
- * What the front door shows: the rejoining spinner while a resumable seat is being tried, the
- * form with a note once that has dragged on past REJOIN_FORM_DELAY_MS (the spinner goes: one or
- * the other, never both), or the plain form.
+ * What the front door shows while a resumable seat is being tried: nothing for the first moment
+ * (`quiet`), then the rejoining spinner, then the form with a note once that has dragged on past
+ * REJOIN_FORM_DELAY_MS (the spinner goes: one or the other, never both); otherwise the plain form.
  */
-export function homeView(rejoining: boolean, rejoinStale: boolean): 'rejoining' | 'stale' | 'form' {
+export function homeView(rejoining: boolean, rejoinStale: boolean, quiet: boolean): HomeView {
   if (!rejoining) return 'form';
-  return rejoinStale ? 'stale' : 'rejoining';
+  if (rejoinStale) return 'stale';
+  return quiet ? 'quiet' : 'rejoining';
 }
 
 /**
@@ -95,15 +103,23 @@ export function Home({ code: linkedCode, game: linkedGame }: Props) {
   const latestCode = useRef(code);
   latestCode.current = code;
 
-  // A seat we can resume is tried first; the form only shows when that fails (or drags on).
+  // A seat we can resume is tried first, quietly at first; the spinner only shows when that takes
+  // a moment, the form only when it fails (or drags on).
   const [rejoinStale, setRejoinStale] = useState(false);
+  const [rejoinQuiet, setRejoinQuiet] = useState(true);
   useEffect(() => {
     setRejoinStale(false);
+    setRejoinQuiet(true);
     if (!rejoining) return;
-    const timer = window.setTimeout(() => setRejoinStale(true), REJOIN_FORM_DELAY_MS);
-    return () => window.clearTimeout(timer);
+    const quiet = window.setTimeout(() => setRejoinQuiet(false), REJOIN_QUIET_MS);
+    const stale = window.setTimeout(() => setRejoinStale(true), REJOIN_FORM_DELAY_MS);
+    return () => {
+      window.clearTimeout(quiet);
+      window.clearTimeout(stale);
+    };
   }, [rejoining]);
-  const view = homeView(rejoining, rejoinStale);
+  const view = homeView(rejoining, rejoinStale, rejoinQuiet);
+  const formShown = view === 'form' || view === 'stale';
 
   useEffect(() => {
     document.title = SITE_NAME;
@@ -117,8 +133,8 @@ export function Home({ code: linkedCode, game: linkedGame }: Props) {
     setStep('home');
   }, [linkedCode]);
   useEffect(() => {
-    if (linkedCode && view !== 'rejoining') joinRef.current?.focus();
-  }, [linkedCode, view]);
+    if (linkedCode && formShown) joinRef.current?.focus();
+  }, [linkedCode, formShown]);
 
   // A join refused by the server: back to the boxes, code kept, focus on the first invalid one
   // or on Join room (once they are mounted again, when the refusal came during the name step).
@@ -203,6 +219,8 @@ export function Home({ code: linkedCode, game: linkedGame }: Props) {
   const joinErrorText = codeHint ?? errorFor('join');
   const busy = (which: Intent) => joinPending && intent === which;
 
+  if (view === 'quiet') return <QuietHome />;
+
   return (
     <div className="home">
       <SiteHeader hero />
@@ -221,7 +239,7 @@ export function Home({ code: linkedCode, game: linkedGame }: Props) {
           </div>
         )}
 
-        {view !== 'rejoining' && step === 'home' && (
+        {formShown && step === 'home' && (
           <div className="home__start">
             <section className="home__join" aria-labelledby="join-heading" data-testid="join-panel">
               {/* Named for screen readers only: the boxes and Join say it on screen. */}
@@ -290,7 +308,7 @@ export function Home({ code: linkedCode, game: linkedGame }: Props) {
           </div>
         )}
 
-        {view !== 'rejoining' && step === 'name' && (
+        {formShown && step === 'name' && (
           <section className="card panel panel--who" aria-labelledby="who-heading" data-testid="name-step">
             <div className="panel__head">
               <h2 className="panel__title" id="who-heading">
@@ -374,6 +392,15 @@ export function Home({ code: linkedCode, game: linkedGame }: Props) {
  * A quiet line about the room the code names: who is there and what they are playing. Only a
  * full room is closed; a game in progress can be joined to watch.
  */
+/** The quiet moment of a rejoin: the bare page, so the room then appears the way any page loads. */
+export function QuietHome() {
+  return (
+    <div className="home" aria-busy="true" data-testid="home-quiet">
+      <h1 className="sr-only">{SITE_NAME}</h1>
+    </div>
+  );
+}
+
 export function previewLine(preview: RoomPreview): { text: string; ok: boolean; note?: string } | null {
   if (!preview.exists) return null;
   const count = `${preview.players} ${preview.players === 1 ? 'player' : 'players'}`;
