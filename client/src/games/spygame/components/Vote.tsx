@@ -1,7 +1,6 @@
 import type { SpygameRoomState, SpygameView, SpygameVoteView } from '@shared/games/spygame/protocol';
 import { Avatar } from '../../../platform/components/Avatar';
 import { BottomSheet } from '../../../platform/components/BottomSheet';
-import { Timer } from '../../../platform/components/Timer';
 import { castVote } from '../actions';
 import { nameOf, playerOf, voteRoleOf, type VoteRole } from '../hooks';
 import { useSpygame } from '../store';
@@ -29,13 +28,13 @@ function Tally({ vote, testId }: { vote: SpygameVoteView; testId: string }) {
 function statusLine(role: VoteRole, accusedName: string): string {
   switch (role) {
     case 'accuser':
-      return "You started this vote. You're counted as Yes.";
+      return "You started this vote. You’re counted as Yes.";
     case 'accused':
-      return "You've been accused! You can't vote on yourself.";
+      return "You’ve been accused! You can’t vote on yourself.";
     case 'voter':
       return `Is ${accusedName} the spy?`;
     case 'watcher':
-      return "You don't vote in this one.";
+      return "You don’t vote in this one.";
   }
 }
 
@@ -52,7 +51,7 @@ function Buttons({ vote }: { vote: SpygameVoteView }) {
   );
 }
 
-/** The accusation, the live tally and the countdown; voters get their Yes/No in the sheet, under the countdown. */
+/** The accusation and the live tally (the header ring counts the vote); voters get their Yes/No in the sheet, under the tally. */
 function VoteBody({ room, view, meId, role, withButtons, testIdPrefix }: Props & { role: VoteRole; withButtons: boolean; testIdPrefix: string }) {
   const vote = view.vote;
   if (!vote) return null;
@@ -75,7 +74,6 @@ function VoteBody({ room, view, meId, role, withButtons, testIdPrefix }: Props &
       <p className={`spy-vote__status${role === 'accused' ? ' spy-vote__status--accused' : ''}`}>{statusLine(role, accusedName)}</p>
       <div className="spy-vote__foot">
         <Tally vote={vote} testId={`${testIdPrefix}-tally`} />
-        <Timer endsAt={vote.endsAt} size="md" warnUnder={5} />
       </div>
       {withButtons && role === 'voter' && <Buttons vote={vote} />}
       {role === 'voter' && vote.myVote !== null && <p className="spy-vote__mine">You voted {vote.myVote ? 'Yes' : 'No'}. You can change it until the vote closes.</p>}

@@ -82,7 +82,17 @@ async function phoneLayoutHolds(p: Player, size: { width: number; height: number
     expect(box.height, `${p.name}: ${id} is a 44px target`).toBeGreaterThanOrEqual(MIN_TARGET);
     expect(box.y + box.height, `${p.name}: ${id} is on screen`).toBeLessThanOrEqual(size.height + 0.5);
   }
+  // The table's own button under Bet (Sit out, Deal now or Skip, or Sit out dimmed) keeps its place: a 44px target on screen.
+  const act = await boxOf(p.page.locator('.tbl-panel__actions button').first());
+  expect(act.height, `${p.name}: the table’s own button is a 44px target`).toBeGreaterThanOrEqual(MIN_TARGET);
+  expect(act.y + act.height, `${p.name}: the table’s own button is on screen`).toBeLessThanOrEqual(size.height + 0.5);
   expect(await p.page.getByTestId('bet-input').evaluate((el) => parseFloat(getComputedStyle(el).fontSize)), 'the bet field is 16px so iOS does not zoom').toBeGreaterThanOrEqual(16);
+  // The amount always shows in full, even a whole stack of four digits.
+  const amount = p.page.getByTestId('bet-input');
+  const was = await amount.inputValue();
+  await amount.fill('1000000');
+  expect(await amount.evaluate((el) => (el as HTMLInputElement).scrollWidth <= (el as HTMLInputElement).clientWidth), `${p.name}: seven digits fit the field`).toBe(true);
+  await amount.fill(was);
   await nothingScrolls(p.page, p.name);
 }
 
@@ -171,10 +181,10 @@ async function playOutRound(round: number, hostDoubles: boolean, onFirstTurn?: (
     }
     for (const p of players) {
       if (p === acting) {
-        await expect(p.page.getByTestId('turn-status')).toHaveAttribute('data-state', 'my-turn');
+        await expect(p.page.getByTestId('table-turn')).toHaveAttribute('data-state', 'mine');
         continue;
       }
-      await expect(p.page.getByTestId('turn-status')).toHaveText(`${acting.name}'s turn`);
+      await expect(p.page.getByTestId('table-turn').locator('.tbl-turn__text')).toHaveText(new RegExp(`^${acting.name}’s turn`));
       for (const id of ['action-hit', 'action-stand', 'action-double', 'action-split', 'place-bet']) await expect(p.page.getByTestId(id)).toBeDisabled();
     }
     expect(turnPlayer).not.toBeNull();
@@ -244,7 +254,7 @@ async function checkSettlement(round: number, before: Record<string, number>, st
     // data-cards counts the dealer's cards that have landed on screen: after a dealer blackjack the
     // round settles at the deal, before any card has landed, so wait for them.
     await expect
-      .poll(async () => Number(await p.page.getByTestId('dealer-hand').getAttribute('data-cards')), { message: `${p.name}: the dealer's cards on the table` })
+      .poll(async () => Number(await p.page.getByTestId('dealer-hand').getAttribute('data-cards')), { message: `${p.name}: the dealer’s cards on the table` })
       .toBeGreaterThanOrEqual(2);
     const hands = await settledHands(p);
     let staked = 0;
@@ -318,15 +328,18 @@ test('the host sets up a Blackjack table (only the starting chips to set) and tw
     await expect(p.page.getByTestId('round-indicator')).toContainText('Round 1');
     await expect(p.page.getByTestId('round-indicator')).not.toContainText(' of ');
     await expect(p.page.getByTestId('table-ribbon')).toContainText('Blackjack pays 3 to 2');
-    await expect(p.page.getByTestId('turn-status')).toHaveText('Place your bet');
+    await expect(p.page.getByTestId('table-turn').locator('.tbl-turn__text')).toHaveText('Place your bet');
+    // The round is on the table, not in the top bar; the panel has no status line of its own.
+    await expect(p.page.getByTestId('blackjack-header')).not.toContainText('Round');
+    await expect(p.page.getByTestId('turn-status')).toHaveCount(0);
     // No countdown anywhere, and a way to sit the hand out instead of betting.
     await expect(p.page.getByTestId('timer')).toHaveCount(0);
     await expect(p.page.getByTestId('sit-out')).toBeVisible();
     expect(await chipsOf(p)).toBe(STARTING_CHIPS);
   }
-  await expect(host.page.getByTestId('hotkey-hint')).toBeVisible();
+  // The keys still work on the desktop (and say so to a screen reader), with no hint line spelling them out.
   await expect(host.page.getByTestId('place-bet')).toHaveAttribute('aria-keyshortcuts', 'Space');
-  for (const p of phones()) await expect(p.page.getByTestId('hotkey-hint')).toHaveCount(0);
+  for (const p of players) await expect(p.page.getByTestId('hotkey-hint')).toHaveCount(0);
   await scoresMatchChips();
 });
 
@@ -359,7 +372,7 @@ test('round one: the phone layout fits, and bets go in through the panel', async
   await host.page.getByTestId('bet-input').fill('75');
   await placeBetWith(host, () => host.page.getByTestId('bet-input').press('Enter'), 75);
   expect(await chipsOf(host)).toBe(STARTING_CHIPS - 75);
-  await expect(host.page.getByTestId('turn-status')).toHaveText('Waiting for Pia and Quinn');
+  await expect(host.page.getByTestId('table-turn').locator('.tbl-turn__text')).toHaveText('Waiting for Pia and Quinn');
   await expect(pia.page.locator('[data-testid="seat"][data-name="Hana"]')).toHaveAttribute('data-bet', '75');
 
   // Quinn types more than she holds: the amount is clamped to her whole stack; half of it goes in.
@@ -441,7 +454,7 @@ test('round two: the amount is remembered, Space bets on the desktop, and the ho
     await expect(host.page.getByTestId('end-game-confirm')).toContainText('It ends after the hand in play.');
     await host.page.getByTestId('end-game-yes').click();
     await expect(host.page.getByTestId('end-game-requested')).toBeVisible();
-    await expect(host.page.getByTestId('phase-kicker')).toHaveText('Last hand');
+    await expect(host.page.getByTestId('table-rule')).toHaveText('Last hand');
     // Nothing else tells the table: everyone gets a toast.
     for (const p of players) await expect(p.page.getByTestId('toast').filter({ hasText: 'The game ends after this hand.' })).toBeVisible();
   });
@@ -524,17 +537,19 @@ async function fitsEverySize(page: Page, sizes: { width: number; height: number 
 
 const PHONES = [PORTRAIT, { width: 360, height: 740 }, SMALL];
 const DESKTOPS = [
+  { width: 1024, height: 768 },
   { width: 1280, height: 800 },
   { width: 1440, height: 900 },
 ];
 
 /**
  * On every page the seat whose turn it is is lit, and only that one: its tile ringed on the
- * others' pages, its hands on the stage everywhere (the acting page's own hands).
+ * others' pages; every page keeps its own hands on the stage, never the acting player's.
  */
 async function turnMarked(pages: { page: Page; acting: boolean }[], turnId: string): Promise<void> {
   for (const { page, acting } of pages) {
-    await expect(page.getByTestId('hand-stage')).toHaveAttribute('data-player-id', turnId);
+    await expect(page.getByTestId('hand-stage').getByTestId('my-area')).toHaveCount(1);
+    await expect(page.getByTestId('stage-hand')).toHaveCount(0);
     await expect(page.getByTestId('hand-stage')).toHaveAttribute('data-kind', acting ? 'mine' : 'turn');
     await expect(page.getByTestId('table-turn')).toHaveAttribute('data-state', acting ? 'mine' : 'turn');
     const lit = page.locator('[data-testid="seat"][data-turn="true"]');
@@ -606,36 +621,38 @@ async function bigTable(browser: Browser, base: string, size: number): Promise<v
           [desk, phone].map((page) => ({ page, acting: page === acting })),
           turn,
         );
-        await fitsEverySize(phone, PHONES, `${size} players, ${acting === phone ? "Pia's own" : "Hana's"} turn`);
-        if (acting === desk) await fitsEverySize(desk, DESKTOPS, `${size} players, Hana's own turn`);
+        await fitsEverySize(phone, PHONES, `${size} players, ${acting === phone ? "Pia’s own" : "Hana’s"} turn`);
+        if (acting === desk) await fitsEverySize(desk, DESKTOPS, `${size} players, Hana’s own turn`);
         await acting.getByTestId('action-stand').click();
       }
       await expect.poll(async () => (await screenOf(desk).getAttribute('data-turn-player')) !== turn, { timeout: 10_000 }).toBe(true);
     }
     if (bots.length > 0) {
-      // A bot holds its turn: its tile is lit on both pages, its hand on the stage.
+      // A bot holds its turn: its tile is lit on both pages; each page keeps its own hand on the stage.
       const turn = (await screenOf(desk).getAttribute('data-turn-player')) ?? '';
       expect(botIds.has(turn), `${size} players: the turn reaches a bot`).toBe(true);
       for (const p of [desk, phone]) {
         const lit = p.locator('[data-testid="seat"][data-turn="true"]');
         await expect(lit).toHaveCount(1);
         await expect(lit).toHaveAttribute('data-player-id', turn);
-        await expect(p.getByTestId('hand-stage')).toHaveAttribute('data-player-id', turn);
+        await expect(p.getByTestId('hand-stage').getByTestId('my-area')).toHaveCount(1);
+        await expect(p.getByTestId('stage-hand')).toHaveCount(0);
       }
-      await expect(phone.getByTestId('turn-status')).toHaveText(/'s turn$/);
-      await fitsEverySize(phone, PHONES, `${size} players, a bot's turn`);
-      await fitsEverySize(desk, DESKTOPS, `${size} players, a bot's turn`);
+      await expect(phone.getByTestId('table-turn').locator('.tbl-turn__text')).toHaveText(/’s turn$/);
+      await fitsEverySize(phone, PHONES, `${size} players, a bot’s turn`);
+      await fitsEverySize(desk, DESKTOPS, `${size} players, a bot’s turn`);
       for (const b of bots) b.setHold(false);
     }
     // The dealer plays at the top of the table, then the settled round stays up with my outcome on my hand.
     await expect(phone.getByTestId('hand-stage')).toHaveAttribute('data-kind', /^(dealer|result)$/, { timeout: 30_000 });
-    if ((await phone.getByTestId('hand-stage').getAttribute('data-kind')) === 'dealer') await nothingScrolls(phone, `${size} players, the dealer's turn`);
+    if ((await phone.getByTestId('hand-stage').getAttribute('data-kind')) === 'dealer') await nothingScrolls(phone, `${size} players, the dealer’s turn`);
     await expect(phone.getByTestId('hand-stage')).toHaveAttribute('data-kind', 'result', { timeout: 30_000 });
-    await expect(phone.getByTestId('turn-status')).toHaveAttribute('data-state', 'bet');
+    await expect(phone.getByTestId('table-turn')).toHaveAttribute('data-state', 'result');
+    await expect(phone.getByTestId('place-bet')).toBeEnabled();
     await fitsEverySize(phone, PHONES, `${size} players, settled`);
-    // The tiles step down with the table.
-    const tier = size - 1 <= 4 ? 'full' : size - 1 <= 9 ? 'compact' : size - 1 <= 23 ? 'small' : 'dense';
-    await expect(phone.getByTestId('seats')).toHaveAttribute('data-tier', tier);
+    // The tiles step down with the table (and the room a 390x844 phone leaves the seats: grid.ts tierFor).
+    const tiers: Record<number, string> = { 2: 'full', 6: 'compact', 12: 'small', 24: 'small', 50: 'dense' };
+    await expect(phone.getByTestId('seats')).toHaveAttribute('data-tier', tiers[size]);
     expect(errors).toEqual([]);
   } finally {
     for (const b of bots) b.close();
@@ -711,8 +728,8 @@ test('no clocks: a player sits a hand out, the host deals now to whoever has bet
     // Round 1: Pia sits it out. The deal waits for nobody else once the host bets.
     await expect(phone.getByTestId('sit-out')).toBeVisible();
     await phone.getByTestId('sit-out').click();
-    await expect(phone.getByTestId('turn-status')).toHaveAttribute('data-state', 'sat-out');
-    await expect(phone.getByTestId('turn-status')).toHaveText('You sit this hand out');
+    await expect(phone.getByTestId('table-turn')).toHaveAttribute('data-state', 'sat-out');
+    await expect(phone.getByTestId('table-turn').locator('.tbl-turn__text')).toHaveText('You sit this hand out');
     await expect(phone.getByTestId('sit-out')).toHaveCount(0);
     // A bet would still bring her back in.
     await expect(phone.getByTestId('place-bet')).toBeEnabled();
@@ -727,7 +744,7 @@ test('no clocks: a player sits a hand out, the host deals now to whoever has bet
     await expect.poll(() => roundOn(desk), { timeout: 20_000 }).toBe(2);
     await expect(desk.getByTestId('place-bet')).toBeEnabled({ timeout: 20_000 });
     await desk.getByTestId('place-bet').click();
-    await expect(desk.getByTestId('turn-status')).toHaveText('Waiting for Pia');
+    await expect(desk.getByTestId('table-turn').locator('.tbl-turn__text')).toHaveText('Waiting for Pia');
     await expect(desk.getByTestId('deal-now')).toBeVisible();
     await expect(phone.getByTestId('deal-now')).toHaveCount(0);
     await expect(phone.getByTestId('sit-out')).toBeVisible();
@@ -753,25 +770,25 @@ test('no clocks: a player sits a hand out, the host deals now to whoever has bet
         if (now === 'hana') {
           await expect(desk.getByTestId('skip-turn')).toHaveCount(0);
           // An idle host never stalls the table: on the host's own turn Pia may stand it.
-          await expect(phone.getByTestId('skip-turn')).toHaveAttribute('aria-label', "Stand Hana's hand");
+          await expect(phone.getByTestId('skip-turn')).toHaveAttribute('aria-label', "Stand Hana’s hand");
           const before = await turnKeyOn(desk);
           await desk.getByTestId('action-stand').click();
           await expect.poll(async () => (await roundOn(desk)) > round || (await turnKeyOn(desk)) !== before).toBe(true);
           continue;
         }
-        await expect(phone.getByTestId('turn-status')).toHaveAttribute('data-state', 'my-turn');
+        await expect(phone.getByTestId('table-turn')).toHaveAttribute('data-state', 'mine');
         await expect(phone.getByTestId('skip-turn')).toHaveCount(0);
-        await expect(desk.getByTestId('turn-status')).toHaveText("Pia's turn");
-        await expect(desk.getByTestId('skip-turn')).toHaveAttribute('aria-label', "Stand Pia's hand");
+        await expect(desk.getByTestId('table-turn').locator('.tbl-turn__text')).toHaveText("Pia’s turn");
+        await expect(desk.getByTestId('skip-turn')).toHaveAttribute('aria-label', "Stand Pia’s hand");
         for (const p of [desk, phone]) await expect(p.getByTestId('timer')).toHaveCount(0);
         await desk.getByTestId('skip-turn').click();
         // The table shows the hand standing; the toast says who stood it.
-        for (const p of [desk, phone]) await expect(p.getByTestId('toast').filter({ hasText: "Hana stood Pia's hand." })).toBeVisible();
+        for (const p of [desk, phone]) await expect(p.getByTestId('toast').filter({ hasText: "Hana stood Pia’s hand." })).toBeVisible();
         await expect(phone.getByTestId('action-stand')).toBeDisabled();
         skipped = true;
       }
     }
-    expect(skipped, "Pia's turn came up within six rounds").toBe(true);
+    expect(skipped, "Pia’s turn came up within six rounds").toBe(true);
     expect(await phone.evaluate(() => document.body.innerText.includes('\u2014'))).toBe(false);
     expect(errors).toEqual([]);
   } finally {

@@ -6,9 +6,8 @@ import { registeredGame } from '../registry';
 import { selectIsHost } from '../store/selectors';
 import { usePlatformStore } from '../store/usePlatformStore';
 import { BottomSheet } from './BottomSheet';
-import { ConnectionPill } from './ConnectionPill';
 import { EndGameButton, EndGameConfirm, ExitActions, LeaveConfirm, canEndGame, type ExitKind } from './GameExit';
-import { BackIcon, FlagIcon, LogoutIcon, MenuIcon, UsersIcon } from './Icons';
+import { BackIcon, EndIcon, LogoutIcon, MenuIcon, UsersIcon } from './Icons';
 import { PlayerChips } from './PlayerChips';
 import { PreferenceRows, SettingsMenu, type MenuAction } from './Preferences';
 
@@ -27,8 +26,8 @@ interface Props {
   testId: string;
   /** The game layout's own class for the bar (its grid placement). */
   className?: string;
-  /** Right of the game's name: the round, turn or hand. */
-  status: ReactNode;
+  /** Right of the game's name: the round, turn or hand (a card table has none: its round is on the table). */
+  status?: ReactNode;
   /** Test id and data attributes of the status ('round-indicator' by default). */
   statusTestId?: string;
   statusData?: DataAttrs;
@@ -52,7 +51,8 @@ interface Props {
 
 /**
  * Every game's top bar, as on the brand board: a back arrow (leaving asks first), the game's name
- * large and the round on the right, then a row of player chips with the timer ring at its end.
+ * large and the round on the right (under the name on a phone), then a row of player chips with
+ * the timer ring at its end.
  * The options button is a small icon button on the first row of a phone; a desktop has the host's
  * End game and the gear (preferences, End game, Leave room) there instead of the options sheet.
  */
@@ -63,8 +63,15 @@ export function GameTopBar({ meta, room, isPhone, testId, className, status, sta
   const [exit, setExit] = useState<ExitKind | null>(null);
   const closeExit = () => setExit(null);
   const hostCanEnd = canEndGame(room, isHost);
+  // A phone puts the round under the game's name, so neither ever squeezes the buttons; a desktop has it on the right.
+  const statusEl =
+    status === undefined ? null : (
+      <span className="gbar__status" data-testid={statusTestId} {...statusData}>
+        {status}
+      </span>
+    );
   const menuActions: MenuAction[] = [
-    ...(hostCanEnd && !room.endRequested ? [{ label: 'End game', icon: <FlagIcon size={16} />, onSelect: () => setExit('end'), testId: 'menu-end-game', tone: 'danger' as const }] : []),
+    ...(hostCanEnd && !room.endRequested ? [{ label: 'End game', icon: <EndIcon size={16} />, onSelect: () => setExit('end'), testId: 'menu-end-game', tone: 'danger' as const }] : []),
     { label: 'Leave room', icon: <LogoutIcon size={16} />, onSelect: () => setExit('leave'), testId: 'menu-leave-room' },
   ];
   return (
@@ -82,25 +89,28 @@ export function GameTopBar({ meta, room, isPhone, testId, className, status, sta
           >
             <BackIcon size={24} />
           </button>
-          <strong className="gbar__name">{meta.name}</strong>
+          <div className="gbar__title">
+            <strong className="gbar__name">{meta.name}</strong>
+            {isPhone && statusEl}
+          </div>
           {middle && <div className="gbar__middle">{middle}</div>}
-          <span className="gbar__status" data-testid={statusTestId} {...statusData}>
-            {status}
-          </span>
+          {!isPhone && statusEl}
           <div className="gbar__side">
             {compact && clock && <div className="gbar__clock gbar__clock--row">{clock}</div>}
             {compact && (
               <button
                 type="button"
-                className="icon-btn gbar__btn gbar__count"
+                className="gbar__count"
                 onClick={players.onOpen}
                 aria-haspopup="dialog"
                 aria-expanded={players.open}
                 aria-label={`${players.label ?? 'Players'} (${room.players.length})`}
                 data-testid="players-toggle"
               >
-                <UsersIcon size={18} />
-                <span className="gbar__count-n">{room.players.length}</span>
+                <span className="gbar__count-pill">
+                  <UsersIcon size={18} />
+                  <span className="gbar__count-n">{room.players.length}</span>
+                </span>
               </button>
             )}
             {isPhone ? (
@@ -109,7 +119,6 @@ export function GameTopBar({ meta, room, isPhone, testId, className, status, sta
               </button>
             ) : (
               <>
-                <ConnectionPill />
                 {hostCanEnd && <EndGameButton room={room} open={exit === 'end'} onOpen={() => setExit('end')} />}
                 <SettingsMenu actions={menuActions} />
               </>
@@ -134,22 +143,9 @@ export function GameTopBar({ meta, room, isPhone, testId, className, status, sta
   );
 }
 
-/**
- * The part of a status the narrowest phones leave out so the game's name stays whole: wrap
- * "Round " in it and "Round 1/5" reads "1/5" there.
- */
-export function Wide({ children }: { children: ReactNode }) {
-  return <span className="gbar__wide">{children}</span>;
-}
-
-/** "Round 1/5" (just "1/5" on the narrowest phones). */
+/** "Round 1/5". */
 export function RoundStatus({ round, total }: { round: number; total: number }) {
-  return (
-    <>
-      <Wide>Round </Wide>
-      {round}/{total}
-    </>
-  );
+  return <>{`Round ${round}/${total}`}</>;
 }
 
 /**

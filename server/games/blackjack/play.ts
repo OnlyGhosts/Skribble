@@ -105,7 +105,7 @@ export function skip(gx: Gx, playerId: string, target: { playerId: string; handI
   const actor = data.phase.playerId;
   const hand = actingHand(data, actor);
   if (!hand) return nextHand(gx);
-  noticeMessage(gx, `${nameOf(ctx, playerId)} stood ${nameOf(ctx, actor)}'s hand.`);
+  noticeMessage(gx, `${nameOf(ctx, playerId)} stood ${nameOf(ctx, actor)}’s hand.`);
   finishHand(gx, actor, hand, 'stood');
 }
 

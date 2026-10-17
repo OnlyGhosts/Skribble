@@ -9,8 +9,8 @@ export function accuse(gx: Gx, playerId: string, accusedId: string): void {
   if (data.phase === 'voting') return fail(gx, playerId, 'A vote is already running.');
   if (data.phase !== 'playing') return fail(gx, playerId, 'The round is over.');
   if (!isRoundPlayer(data, playerId)) return fail(gx, playerId, 'You are watching this round.');
-  if (playerId === current.spyId) return fail(gx, playerId, "The spy can't accuse anyone.");
-  if (accusedId === playerId) return fail(gx, playerId, "You can't accuse yourself.");
+  if (playerId === current.spyId) return fail(gx, playerId, "The spy can’t accuse anyone.");
+  if (accusedId === playerId) return fail(gx, playerId, "You can’t accuse yourself.");
   if (!isRoundPlayer(data, accusedId)) return fail(gx, playerId, 'You can only accuse a player in this round.');
   if (current.accusers.includes(playerId)) return fail(gx, playerId, 'You already started a vote this round.');
   // The waiting card is up: nobody could reach the vote's buttons.
@@ -33,7 +33,7 @@ export function accuse(gx: Gx, playerId: string, accusedId: string): void {
 export function vote(gx: Gx, playerId: string, yes: boolean): void {
   const { data } = gx;
   if (data.phase !== 'voting' || !data.vote) return fail(gx, playerId, 'There is no vote running.');
-  if (!data.vote.eligible.includes(playerId)) return fail(gx, playerId, "You can't vote in this one.");
+  if (!data.vote.eligible.includes(playerId)) return fail(gx, playerId, "You can’t vote in this one.");
   if (playerId === data.vote.accuserId) return fail(gx, playerId, 'You started this vote. You count as Yes.');
   data.vote.votes[playerId] = yes;
   if (!resolveIfComplete(gx)) snapshot(gx);

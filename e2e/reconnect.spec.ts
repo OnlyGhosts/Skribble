@@ -97,11 +97,8 @@ test('two players start a turn and the drawer draws', async () => {
   await drawStroke(drawer.page, 0.2, 0.5);
   await expect.poll(() => nonWhitePixels(guesser.page), { timeout: 2_000 }).toBeGreaterThan(0);
 
-  // Ratings: the guesser likes the drawing, the drawer sees the count but cannot rate.
-  await expect(drawer.page.getByTestId('rate-like')).toBeDisabled();
-  await guesser.page.getByTestId('rate-like').click();
-  await expect(drawer.page.getByTestId('rate-like')).toContainText('1');
-  await expect(guesser.page.getByTestId('rate-like')).toHaveAttribute('aria-pressed', 'true');
+  // No drawing ratings on the canvas for anyone.
+  for (const p of [drawer, guesser]) await expect(p.page.getByTestId('rating')).toHaveCount(0);
 });
 
 test('the guesser reloads mid-turn: same seat, canvas restored, game still running', async () => {

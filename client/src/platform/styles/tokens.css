@@ -3,7 +3,8 @@
  *
  * Dark is the default theme: a near-black page, flat graphite panels separated by fine borders,
  * off-white type, lime for action and brand, lilac for selection. The light theme is the same
- * system on a pale green-grey page.
+ * system on an off-white page: white panels, raised surfaces in a pale lime (never a grey-green),
+ * the brand colours cut darker wherever they carry text.
  *
  * Two rules keep the palette legible in both themes:
  * - `--color-primary` / `--color-secondary` are FILLS and always carry `--color-*-contrast` (ink) text.
@@ -74,8 +75,23 @@
   --color-danger-text: #ffb0ba;
   --color-info-soft: #243542;
   --color-focus: #c7e976;
+  /* A lime fill's edge: the lime itself on dark, a deeper lime on the off-white page, where lime alone has no edge. */
+  --color-primary-edge: #c7e976;
+  /* The lime as a mark on the page (the wordmark's "games"): the lime itself on dark, cut to 3:1 on the off-white page. */
+  --color-primary-mark: #c7e976;
+  /* A disabled button: a quiet fill and muted text, never just faded. */
+  --btn-disabled-bg: #2b2e29;
+  --btn-disabled-border: #2b2e29;
+  --btn-disabled-fg: #b9c0b3;
+  /* Laid over a player's colour (under the face) to soften it; nothing on dark. */
+  --avatar-wash: transparent;
 
   --overlay-bg: rgba(0, 0, 0, 0.72);
+  /* The connection notice: the page's colours inverted, so it reads apart from every surface. */
+  --notice-bg: #f1f0e8;
+  --notice-fg: #141514;
+  --notice-muted: #4f5c46;
+  --notice-accent: #405d17;
   --canvas-bg: #ffffff;
   --chat-correct-bg: #203a2a;
   --chat-correct-fg: #a0e9b8;
@@ -94,16 +110,21 @@
   --game-ink: #141514;
 }
 
+/*
+ * Light: an off-white page, white panels on a crisp border, raised surfaces and the ribbon in a
+ * pale lime, inset wells a shade under white. Lime and lilac stay the fills; every brand colour
+ * that carries text is a darker cut of itself (AA on white, on the pale lime and on the felt).
+ */
 :root[data-theme='light'] {
   color-scheme: light;
-  --shadow-lg: 0 16px 48px rgba(20, 25, 18, 0.16);
+  --shadow-lg: 0 16px 48px rgba(20, 25, 18, 0.18);
 
   --color-bg: #f5f6ef;
   --color-surface: #ffffff;
-  --color-surface-2: #edf0e5;
-  --color-surface-3: #f0f3e8;
-  --color-border: #ced4c5;
-  --color-border-strong: #78846d;
+  --color-surface-2: #eaf0d9;
+  --color-surface-3: #f3f5ec;
+  --color-border: #cdd4bf;
+  --color-border-strong: #76836a;
   --color-text: #1a2217;
   --color-text-muted: #4f5c46;
   --color-text-faint: #59654f;
@@ -111,30 +132,41 @@
   --color-primary: #c7e976;
   --color-primary-hover: #b7db60;
   --color-primary-contrast: #141514;
-  --color-primary-soft: #e9f3d6;
-  --color-primary-text: #405d17;
+  --color-primary-soft: #e6f3c3;
+  --color-primary-text: #3d6b0f;
+  --color-primary-edge: #a9cf47;
+  --color-primary-mark: #6f9a1c;
   --color-secondary: #a699d5;
   --color-secondary-hover: #9686ca;
   --color-secondary-contrast: #141514;
-  --color-secondary-soft: #eee9f7;
+  --color-secondary-soft: #ece7f7;
   --color-secondary-text: #5e468c;
   --color-success: #287643;
-  --color-success-soft: #e0f1e5;
+  --color-success-soft: #dff0e3;
   --color-success-text: #246b3c;
   --color-warning: #8a6116;
-  --color-warning-soft: #fff0ce;
+  --color-warning-soft: #fdf0cc;
   --color-warning-text: #7c5510;
   --color-danger: #b43249;
-  --color-danger-soft: #fbe5e9;
+  --color-danger-soft: #fbe4e8;
   --color-danger-text: #a5293f;
   --color-info-soft: #e4eff5;
-  --color-focus: #536e22;
+  --color-focus: #3d6b0f;
+  --btn-disabled-bg: #e9ebe3;
+  --btn-disabled-border: #d4d8cb;
+  --btn-disabled-fg: #5f6956;
+  --avatar-wash: rgb(255 255 255 / 0.16);
 
-  --overlay-bg: rgba(20, 25, 18, 0.48);
-  --chat-correct-bg: #e0f1e5;
+  /* Ink at three fifths: the page dims clearly behind a card instead of going grey. */
+  --overlay-bg: rgba(26, 34, 23, 0.6);
+  --notice-bg: #1a2217;
+  --notice-fg: #f5f6ef;
+  --notice-muted: #c9d0bf;
+  --notice-accent: #c7e976;
+  --chat-correct-bg: #dff0e3;
   --chat-correct-fg: #246b3c;
-  --chat-close-bg: #fff0ce;
+  --chat-close-bg: #fdf0cc;
   --chat-close-fg: #7c5510;
-  --chat-guessed-bg: #eee9f7;
+  --chat-guessed-bg: #ece7f7;
   --chat-guessed-fg: #5e468c;
 }

@@ -230,7 +230,7 @@ describe('Blackjack: the table', () => {
     expect([chips(s, alice), chips(s, bob)]).toEqual([1015, 1040]);
   });
 
-  it('has no insurance anywhere; the host has Deal now and Skip, even while sitting the game out (End game is the platform\'s)', () => {
+  it('has no insurance anywhere; the host has Deal now and Skip, even while sitting the game out (End game is the platform’s)', () => {
     const s = table();
     const [alice] = startGame(s, ['Alice', 'Bob']);
     expect(JSON.stringify(blackjackModule.settings.defaults)).not.toMatch(/insur/i);
@@ -622,7 +622,7 @@ describe('Blackjack: the deal and the moves', () => {
   });
 });
 
-describe('Blackjack: away players and the host\'s Skip', () => {
+describe('Blackjack: away players and the host’s Skip', () => {
   it('stands the hand of a player who drops on their turn at once, and plays on; back again, they play their next hand as usual', () => {
     const s = table();
     const [alice, bob] = startGame(s, ['Alice', 'Bob']);
@@ -666,7 +666,7 @@ describe('Blackjack: away players and the host\'s Skip', () => {
     expect(view(s).phase).toBe('results');
   });
 
-  it('lets only the host skip, and only on another player\'s turn: the hand in play stands, a split hand at a time', () => {
+  it('lets only the host skip, and only on another player’s turn: the hand in play stands, a split hand at a time', () => {
     const s = table();
     const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol']);
     // Alice 10 + 9, Bob 8 + 8 (a pair), Carol 10 + 7; the dealer 6 + 10.
@@ -691,8 +691,8 @@ describe('Blackjack: away players and the host\'s Skip', () => {
     act(s, bob, { t: 'split' });
     expect(view(s).turn).toEqual({ playerId: bob, handIndex: 0 });
     const skipped = act(s, alice, skipNow(s));
-    expect(chatTexts(skipped)).toEqual(["Alice stood Bob's hand."]);
-    expect(noticeTexts(skipped)).toEqual(["Alice stood Bob's hand."]);
+    expect(chatTexts(skipped)).toEqual(["Alice stood Bob’s hand."]);
+    expect(noticeTexts(skipped)).toEqual(["Alice stood Bob’s hand."]);
     expect(handsOf(s, bob).map((h) => h.status)).toEqual(['stood', 'acting']);
     expect(view(s).turn).toEqual({ playerId: bob, handIndex: 1 });
     act(s, alice, skipNow(s));
@@ -700,7 +700,7 @@ describe('Blackjack: away players and the host\'s Skip', () => {
 
     // Skipping the last hand sends the play to the dealer, who plays it out at once: nothing is left to skip.
     const last = act(s, alice, skipNow(s));
-    expect(chatTexts(last)[0]).toBe("Alice stood Carol's hand.");
+    expect(chatTexts(last)[0]).toBe("Alice stood Carol’s hand.");
     expect(view(s).phase).toBe('results');
     expect(lastHands(s, carol)[0].status).not.toBe('acting');
     expect(controls(s, alice).canSkip).toBe(false);
@@ -717,7 +717,7 @@ describe('Blackjack: away players and the host\'s Skip', () => {
     expect(view(s).turn).toEqual({ playerId: ben, handIndex: 0 });
     // Two taps on Ben's turn: both aimed at Ben's hand.
     const tap = skipNow(s);
-    expect(chatTexts(act(s, hana, tap))).toEqual(["Hana stood Ben's hand."]);
+    expect(chatTexts(act(s, hana, tap))).toEqual(["Hana stood Ben’s hand."]);
     expect(view(s).turn).toEqual({ playerId: cleo, handIndex: 0 });
     expect(act(s, hana, tap)).toEqual([]);
     expect(handsOf(s, cleo)[0].status).toBe('acting');
@@ -727,7 +727,7 @@ describe('Blackjack: away players and the host\'s Skip', () => {
     expect(view(s).turn).toEqual({ playerId: cleo, handIndex: 0 });
   });
 
-  it('never lets an idle host stall the table: while it waits on the host, anyone may deal now or skip the host\'s hand', () => {
+  it('never lets an idle host stall the table: while it waits on the host, anyone may deal now or skip the host’s hand', () => {
     const s = table();
     const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol']);
     act(s, bob, { t: 'bet', amount: 10 });
@@ -749,7 +749,7 @@ describe('Blackjack: away players and the host\'s Skip', () => {
     expect(controls(s, bob)).toEqual({ canSitOut: false, canDealNow: false, canSkip: true });
     expect(controls(s, carol).canSkip).toBe(true);
     expect(controls(s, alice).canSkip).toBe(false);
-    expect(chatTexts(act(s, carol, skipNow(s)))).toEqual(["Carol stood Alice's hand."]);
+    expect(chatTexts(act(s, carol, skipNow(s)))).toEqual(["Carol stood Alice’s hand."]);
     // Bob's turn: only the host may skip it.
     expect(view(s).turn).toEqual({ playerId: bob, handIndex: 0 });
     expect(controls(s, carol).canSkip).toBe(false);
@@ -794,7 +794,7 @@ describe('Blackjack: away players and the host\'s Skip', () => {
     expect(view(s).turn).toEqual({ playerId: pia, handIndex: 0 });
     const skipped = act(s, hana, skipNow(s));
     expect(errorsOf(skipped)).toEqual([]);
-    expect(chatTexts(skipped)).toContain("Hana stood Pia's hand.");
+    expect(chatTexts(skipped)).toContain("Hana stood Pia’s hand.");
     expect(view(s).phase).toBe('results');
   });
 });
@@ -1127,7 +1127,7 @@ describe('Blackjack: the dealer', () => {
 });
 
 describe('Blackjack: rounds', () => {
-  it("shows a settled table for the dealer's reveal only, then opens the next betting, unclocked, with the last table on show until the deal", () => {
+  it("shows a settled table for the dealer’s reveal only, then opens the next betting, unclocked, with the last table on show until the deal", () => {
     const s = table();
     const [alice, bob] = startGame(s, ['Alice', 'Bob']);
     rig(s, '10S', '5H', '9D', '6H', '6C', '7S', '2C');
@@ -1893,7 +1893,7 @@ describe('Blackjack: a phone that went quiet', () => {
     expect(nextDeadline(s.data)).toBeNull();
     expect(tick(s, LONG_MS)).toEqual([]);
     expect(view(s).turn?.playerId).toBe(bob);
-    expect(chatTexts(act(s, carol, skipNow(s)))).toEqual(["Carol stood Bob's hand."]);
+    expect(chatTexts(act(s, carol, skipNow(s)))).toEqual(["Carol stood Bob’s hand."]);
     expect(view(s).turn?.playerId).toBe(carol);
     // Not waited on any more: not shown away.
     expect(view(s).away).toEqual([]);

@@ -1,8 +1,6 @@
 import type { BlackjackPhase, BlackjackView, HandOutcome } from '@shared/games/blackjack/protocol';
-import { RESTARTING_PILL_LABEL } from '../../../platform/components/ConnectionPill';
 import { formatChips } from '../../../platform/lib/format';
-import { WATCHING_TEXT } from '../../../platform/lib/watching';
-import type { PanelStatus, StatusTone } from '../../../platform/table/ControlPanel';
+import type { TurnTone } from '../../../platform/table/TurnLine';
 import type { BjFocus } from './focus';
 
 export { formatChips };
@@ -10,28 +8,6 @@ export { formatChips };
 /** "Round 4": the rounds never run out. A hold before the first deal reads as round 1. */
 export function roundLabel(round: number): string {
   return `Round ${Math.max(1, round)}`;
-}
-
-/**
- * The small line under the round in the top bar. While the settled round's reveal still plays on
- * screen (`dealerPlaying`) it is the dealer's turn, whatever the next phase already is.
- */
-export function phaseKicker(view: BlackjackView, turnName: string, mine: boolean, dealerPlaying = false): string {
-  if (dealerPlaying && view.phase !== 'held') return "Dealer's turn";
-  if (view.endRequested && view.phase === 'acting') return 'Last hand';
-  switch (view.phase) {
-    case 'betting':
-      return 'Place your bets';
-    case 'acting':
-      return mine ? 'Your turn' : `${turnName}'s turn`;
-    case 'results':
-      return 'Next round soon';
-    case 'held':
-      return 'Waiting for players';
-    case 'ending':
-    case 'gameOver':
-      return 'Game over';
-  }
 }
 
 /** "Pia", "Pia and Quinn", "Pia, Quinn and Hana". */
@@ -50,9 +26,14 @@ export function waitingText(names: readonly string[]): string {
   return `Waiting for ${joined}`;
 }
 
-/** The banner across the table (shown in capitals), with the small rule under it: the house rules are fixed. */
+/** The banner across the table, with the small rule under it beside the round: the house rules are fixed. */
 export const RIBBON_TEXT = 'Blackjack pays 3 to 2';
 export const DEALER_RULE_TEXT = 'Dealer stands on 17';
+
+/** Beside the round under the banner: the dealer's rule, or "Last hand" once the host has ended the game mid-hand. */
+export function ruleText(view: Pick<BlackjackView, 'endRequested' | 'phase'>): string {
+  return view.endRequested && view.phase === 'acting' ? 'Last hand' : DEALER_RULE_TEXT;
+}
 
 const OUTCOME_LABELS: Record<HandOutcome, string> = { win: 'Win', blackjack: 'Blackjack', push: 'Push', loss: 'Lost' };
 
@@ -65,85 +46,38 @@ export function payoutText(payout: number): string {
   return payout > 0 ? `+${formatChips(payout)}` : '';
 }
 
-export const HOTKEY_HINT = 'Space bet · H hit · S stand · D double · P split';
+/**
+ * Where I stand at the table when I am not simply playing the round: watching the game, out of
+ * chips, sitting this hand out, or in from the next round (a newcomer). The line under the ribbon
+ * says it, since the panel has no line of its own.
+ */
+export type Standing = 'playing' | 'watching' | 'out' | 'sat-out' | 'next-round';
 
-export type PanelState = 'spectating' | 'out' | 'offline' | 'held' | 'over' | 'dealer' | 'results' | 'next-round' | 'sat-out' | 'bet' | 'waiting' | 'dealing' | 'my-turn' | 'their-turn';
-
-const TONES: Record<PanelState, StatusTone> = {
-  spectating: 'quiet',
-  out: 'bad',
-  offline: 'quiet',
-  held: 'quiet',
-  over: 'quiet',
-  dealer: 'other',
-  results: 'quiet',
-  'next-round': 'quiet',
-  'sat-out': 'quiet',
-  bet: 'go',
-  waiting: 'quiet',
-  dealing: 'quiet',
-  'my-turn': 'go',
-  'their-turn': 'other',
-};
-
-export type { PanelStatus };
-
-export interface PanelStatusInput {
+export interface StandingInput {
   phase: BlackjackPhase;
   seated: boolean;
   bustedOut: boolean;
-  connected: boolean;
-  /** Not connected because the server is restarting: the line says so rather than "Reconnecting…". */
-  restarting?: boolean;
+  /** Dealt into the round in play (the bets: seated for it). */
   inRound: boolean;
   /** A seat with chips: one not dealt in sat the hand out rather than waiting for a seat. */
   hasChips: boolean;
-  betPlaced: boolean;
   /** Chose to sit this hand out while the bets are open. */
   sittingOut: boolean;
-  /** Names of the seats the deal still waits for, the viewer left out. */
-  pending: string[];
-  myTurn: boolean;
-  turnName: string;
-  /** The hand in play and how many the viewer holds, for "Your turn, hand 2 of 3". */
-  handIndex: number;
-  handCount: number;
-  /** The dealer's reveal is still playing on screen. */
-  dealerPlaying: boolean;
-  /** My turn, but my cards are still sliding in: the moves wait a moment. */
-  dealing?: boolean;
-  /** The player whose turn it is has gone quiet (asleep, frozen, in the background). */
-  turnAway?: boolean;
-  /** A bet tapped before the bets opened: it goes out as they do. */
-  betQueued?: boolean;
 }
 
-function line(state: PanelState, text: string): PanelStatus {
-  return { state, text, tone: TONES[state] };
+export function standingOf(s: StandingInput): Standing {
+  if (!s.seated) return 'watching';
+  if (s.bustedOut) return 'out';
+  if (s.phase === 'betting') return !s.inRound ? 'next-round' : s.sittingOut ? 'sat-out' : 'playing';
+  if (s.phase === 'acting' && !s.inRound) return s.hasChips ? 'sat-out' : 'next-round';
+  return 'playing';
 }
 
-/** The one line in the panel that says what is happening and whose turn it is. */
-export function panelStatus(s: PanelStatusInput): PanelStatus {
-  if (!s.seated) return line('spectating', WATCHING_TEXT);
-  if (s.phase === 'ending' || s.phase === 'gameOver') return line('over', 'Game over');
-  if (s.bustedOut) return line('out', "You're out of chips");
-  if (!s.connected) return line('offline', s.restarting ? RESTARTING_PILL_LABEL : 'Reconnecting…');
-  if (s.phase === 'held') return line('held', 'Waiting for players');
-  if (s.dealerPlaying) return line('dealer', "Dealer's turn");
-  if (s.phase === 'results') return line('results', s.betQueued ? 'Bet placed. Next round soon' : 'Next round soon');
-  if (s.phase === 'betting') {
-    if (!s.inRound) return line('next-round', "You're in from the next round");
-    if (s.sittingOut) return line('sat-out', 'You sit this hand out');
-    if (!s.betPlaced) return line('bet', 'Place your bet');
-    if (s.pending.length > 0) return line('waiting', waitingText(s.pending));
-    return line('dealing', 'Dealing');
-  }
-  // Seated with chips but not dealt in: they sat the hand out (a newcomer has no chips yet).
-  if (!s.inRound) return line('next-round', s.hasChips ? 'You sit this hand out' : "You're in from the next round");
-  if (s.myTurn && s.dealing) return line('dealing', 'Dealing');
-  if (s.myTurn) return line('my-turn', s.handCount > 1 ? `Your turn, hand ${s.handIndex + 1} of ${s.handCount}` : 'Your turn');
-  return line('their-turn', s.turnAway ? `${s.turnName} is away` : `${s.turnName}'s turn`);
-}
+const STANDING_LINES: Record<Exclude<Standing, 'playing' | 'watching'>, string> = {
+  out: "You’re out of chips",
+  'sat-out': 'You sit this hand out',
+  'next-round': "You’re in from the next round",
+};
 
 /** The line under the ribbon for my settled round: "You win +200", "Blackjack +250", "Push", "You lost". */
 export function resultLabel(outcome: HandOutcome, back: number): string {
@@ -172,11 +106,11 @@ const DEALER_DRAWS = 'Draws to 17';
 const IDLE_LINES = { held: 'Waiting for players', over: 'Game over', next: 'Next round soon' } as const;
 
 export interface FocusLine {
-  /** The state, for data-state: the focus's kind. */
+  /** The state, for data-state: the focus's kind, or where I stand when that is the news. */
   state: string;
   text: string;
-  tone: StatusTone;
-  /** A quieter second part: who is next, how many bets are in, the dealer's rule. */
+  tone: TurnTone;
+  /** A quieter second part: who is next, how many bets are in, the dealer's rule, where I stand. */
   sub?: string;
 }
 
@@ -187,34 +121,47 @@ export interface FocusLineInput {
   handCount: number;
   /** My settled round, for a `result` focus. */
   result?: { outcome: HandOutcome; back: number };
+  /** Where I stand when I am not simply playing (playing by default). */
+  standing?: Standing;
+  /** The player on turn has gone quiet (asleep, frozen, in the background). */
+  turnAway?: boolean;
+  /** My bet is queued for the bets about to open. */
+  betQueued?: boolean;
 }
 
 /**
- * The short line under the ribbon: whose turn it is ("Pia's turn, hand 2 of 3", with who is next),
- * the dealer playing, the bets going down (and how many are in), or how my round went.
+ * The one line on the table that says what is happening, under the ribbon: whose turn it is
+ * ("Pia's turn, hand 2 of 3", with who is next), the dealer playing, the bets going down (and how
+ * many are in), or how my round went; where I stand when that matters more (sitting a hand out,
+ * out of chips), in the second part while somebody plays.
  */
 export function focusLine(focus: BjFocus, s: FocusLineInput): FocusLine {
+  const standing = s.standing ?? 'playing';
+  const note = standing === 'playing' || standing === 'watching' ? undefined : STANDING_LINES[standing];
   switch (focus.kind) {
     case 'turn': {
       const which = s.handCount > 1 ? `, hand ${focus.handIndex + 1} of ${s.handCount}` : '';
       if (focus.mine) return { state: 'mine', text: `Your turn${which}`, tone: 'go' };
       const next = focus.next === null ? 'Dealer' : focus.next === s.meId ? 'You' : s.nameOf(focus.next);
-      return { state: 'turn', text: `${s.nameOf(focus.playerId)}'s turn${which}`, tone: 'other', sub: `Next: ${next}` };
+      const name = s.nameOf(focus.playerId);
+      return { state: 'turn', text: s.turnAway ? `${name} is away` : `${name}’s turn${which}`, tone: 'other', sub: note ?? `Next: ${next}` };
     }
     case 'dealer':
-      return { state: 'dealer', text: "Dealer's turn", tone: 'other', sub: DEALER_DRAWS };
+      return { state: 'dealer', text: "Dealer’s turn", tone: 'other', sub: DEALER_DRAWS };
     case 'bets': {
+      const sub = `${focus.placed.length} of ${focus.placed.length + focus.waiting.length} bets in`;
+      if (note) return { state: standing, text: note, tone: standing === 'out' ? 'bad' : 'quiet', sub };
       const names = focus.waiting.filter((id) => id !== s.meId).map(s.nameOf);
       const meWaiting = focus.waiting.includes(s.meId);
-      const sub = `${focus.placed.length} of ${focus.placed.length + focus.waiting.length} bets in`;
       return { state: 'bets', text: betsLabel(meWaiting, names, focus.placed.length > 0), tone: meWaiting ? 'go' : 'quiet', sub };
     }
     case 'result': {
       const outcome = s.result?.outcome ?? 'push';
-      const tone: StatusTone = outcome === 'loss' ? 'bad' : outcome === 'push' ? 'quiet' : 'go';
-      return { state: 'result', text: resultLabel(outcome, s.result?.back ?? 0), tone };
+      const tone: TurnTone = outcome === 'loss' ? 'bad' : outcome === 'push' ? 'quiet' : 'go';
+      return { state: 'result', text: resultLabel(outcome, s.result?.back ?? 0), tone, sub: s.betQueued ? 'Bet placed' : undefined };
     }
     case 'idle':
-      return { state: 'idle', text: IDLE_LINES[focus.reason], tone: 'quiet' };
+      if (focus.reason === 'next' && standing === 'out') return { state: 'out', text: STANDING_LINES.out, tone: 'bad' };
+      return { state: 'idle', text: IDLE_LINES[focus.reason], tone: 'quiet', sub: focus.reason === 'next' && s.betQueued ? 'Bet placed' : undefined };
   }
 }

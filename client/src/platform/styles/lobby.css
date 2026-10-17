@@ -1,12 +1,35 @@
-/* ---------- The party lobby: room bar, game grid, players, the host's settings, a sticky Start footer ---------- */
+/* ---------- The party lobby: room bar, game grid, players, the host's settings, a Start footer pinned to the bottom ---------- */
 .lobby {
-  width: min(calc(1120px + 2 * var(--lobby-gutter, 16px)), 100%);
   min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Everything above the footer, in the page's column; it grows to fill a short page, so the footer sits at the bottom of the screen. */
+.lobby__body {
+  flex: 1 0 auto;
+  width: min(calc(1120px + 2 * var(--lobby-gutter, 16px)), 100%);
   margin: 0 auto;
-  padding: calc(var(--space-3) + env(safe-area-inset-top)) max(var(--lobby-gutter, 16px), env(safe-area-inset-right)) 0 max(var(--lobby-gutter, 16px), env(safe-area-inset-left));
+  padding: calc(var(--space-3) + env(safe-area-inset-top)) max(var(--lobby-gutter, 16px), env(safe-area-inset-right)) var(--space-4) max(var(--lobby-gutter, 16px), env(safe-area-inset-left));
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+}
+
+/* The logo and the room code share one row on a wider screen (phones stack them, below). */
+.lobby__top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+}
+
+.lobby__top .site-header {
+  flex: none;
+}
+
+.lobby__top .room-card {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 /* ---------- Room code card: the label over the big code, Copy and Share as square buttons on the right ---------- */
@@ -50,6 +73,7 @@
   border-radius: 10px;
   background: var(--color-primary);
   color: var(--color-primary-contrast);
+  box-shadow: inset 0 0 0 1.5px var(--color-primary-edge);
 }
 
 /* Icon over a short label, a square of at least 64px. */
@@ -115,8 +139,33 @@
 .lobby__players .player {
   flex: none;
   min-height: 52px;
-  padding: 8px 12px 8px 14px;
+  padding: 4px 4px 4px 14px;
   gap: 14px;
+}
+
+/* Between games the kick button always shows, a 44px target, quiet until pointed at. */
+.lobby__players .player__kick {
+  width: 44px;
+  height: 44px;
+  opacity: 1;
+  color: var(--color-text-faint);
+}
+
+.lobby__players .player__actions--spacer {
+  width: 44px;
+}
+
+.lobby__players .player__kick:hover {
+  color: var(--color-danger-text);
+}
+
+.lobby__players .player__actions {
+  margin-left: -6px;
+}
+
+/* Alone in the room there is no button column: the status keeps the row's own inset from the edge. */
+.lobby__players .player:not(:has(.player__actions)) {
+  padding-right: 14px;
 }
 
 .lobby__players .player__name {
@@ -127,33 +176,24 @@
   font-size: 0.9375rem;
 }
 
-.lobby__alone {
-  margin-top: var(--space-3);
-  color: var(--color-text-muted);
-  font-size: 0.875rem;
-}
-
 /* The panel's title stands a little apart from the first setting's title. */
 .lobby__settings .card__head {
   margin-bottom: var(--space-4);
 }
 
-/* A guest has no settings column: one centred column as wide as the footer. */
-.lobby__grid--guest {
-  width: min(560px, 100%);
-  margin: 0 auto;
+/* A guest has no settings column: one centred column, the logo and code row and the footer's buttons as wide as it. */
+.lobby--guest {
+  --guest-column: 560px;
 }
 
-/* The room card and the footer share the guest's column; on a phone the footer still spans the screen. */
-.lobby--guest .room-card {
-  align-self: center;
-  width: min(560px, 100%);
+.lobby__grid--guest,
+.lobby--guest .lobby__top {
+  width: min(var(--guest-column), 100%);
+  margin-inline: auto;
 }
 
-.lobby--guest .lobby__footer {
-  align-self: center;
-  width: min(calc(560px + 2 * var(--lobby-gutter, 16px)), calc(100% + 2 * var(--lobby-gutter, 16px)));
-  margin-inline: 0;
+.lobby--guest .lobby__footer-inner {
+  width: min(var(--guest-column), 100%);
 }
 
 /* Name, face and colour in the "Change my look" sheet, Save at the bottom. */
@@ -164,15 +204,20 @@
   padding-bottom: var(--space-2);
 }
 
-/* ---------- Sticky footer: Start for the host, Ready for everyone else. It sits in the flow, so it never covers the last panel. ---------- */
+/*
+ * ---------- The footer: Start for the host, Ready for everyone else ----------
+ * Always at the bottom of the screen: the body above fills a short page, and on a long one the
+ * footer sticks. It sits in the flow, so it never covers the last panel. Its line spans the page.
+ */
 .lobby__footer {
   position: sticky;
   bottom: 0;
   z-index: 20;
-  margin: 0 calc(-1 * var(--lobby-gutter, 16px));
-  padding: var(--space-3) var(--lobby-gutter, 16px) calc(var(--space-3) + env(safe-area-inset-bottom));
+  padding: var(--space-3) max(var(--lobby-gutter, 16px), env(safe-area-inset-right)) calc(var(--space-3) + env(safe-area-inset-bottom)) max(var(--lobby-gutter, 16px), env(safe-area-inset-left));
   background: var(--color-bg);
   border-top: 1px solid var(--color-border);
+  /* The page colour carried a little past the bottom edge, so a sticky footer snapped to a whole pixel never lets the page show under it. */
+  box-shadow: 0 16px 0 var(--color-bg);
 }
 
 .lobby__footer-inner {
@@ -195,6 +240,20 @@
   font-family: var(--font-display);
   font-weight: 700;
   font-size: 1.375rem;
+}
+
+/* A short screen keeps more of the room in view: a slimmer Start or Ready. */
+@media (max-height: 600px) {
+  .lobby__footer [data-testid='start-game'],
+  .lobby__footer .ready-toggle {
+    min-height: 48px;
+    font-size: 1.1875rem;
+  }
+
+  .lobby__footer {
+    padding-top: var(--space-2);
+    padding-bottom: calc(var(--space-2) + env(safe-area-inset-bottom));
+  }
 }
 
 .lobby__waiting {
@@ -314,6 +373,17 @@ button.game-tile:active {
   padding: 0 var(--space-3);
 }
 
+/* The icon keeps its size; on the narrowest phones it gives way so the label fits whole. */
+.ready-controls__more .btn svg {
+  flex: none;
+}
+
+@media (max-width: 359px) {
+  .ready-controls__more .btn svg {
+    display: none;
+  }
+}
+
 .ready-toggle.is-ready {
   background: var(--color-success-soft);
   color: var(--color-success-text);
@@ -378,6 +448,17 @@ button.game-tile:active {
     background-color 100ms ease-out;
 }
 
+/* The narrowest phones: a little less padding, so "Crude and filthy." keeps to one line under its label. */
+@media (max-width: 340px) {
+  .content-mode {
+    padding: 8px;
+  }
+
+  .content-mode.is-selected {
+    padding: 7px;
+  }
+}
+
 button.content-mode:not(:disabled):hover {
   border-color: var(--color-border-strong);
 }
@@ -428,8 +509,12 @@ button.content-mode:not(:disabled):hover {
 @media (min-width: 768px) {
   .lobby {
     --lobby-gutter: 32px;
+  }
+
+  .lobby__body {
     gap: var(--space-4);
-    padding-top: calc(var(--space-4) + env(safe-area-inset-top));
+    padding-top: calc(var(--space-5) + env(safe-area-inset-top));
+    padding-bottom: var(--space-5);
   }
 
   .room-card {
@@ -455,6 +540,13 @@ button.content-mode:not(:disabled):hover {
   }
 }
 
+/* The logo and the code side by side need a little more than the guest's phone-sized column. */
+@media (min-width: 761px) {
+  .lobby--guest {
+    --guest-column: 680px;
+  }
+}
+
 /* The narrowest phones: smaller squares so the code keeps its size. */
 @media (max-width: 359px) {
   .room-card {
@@ -472,30 +564,27 @@ button.content-mode:not(:disabled):hover {
   --wordmark-height: 30px;
 }
 
+/* Beside the code card a slightly bigger logo balances the row. */
+@media (min-width: 761px) {
+  .lobby .site-header {
+    --wordmark-height: 34px;
+  }
+}
+
 /*
- * Phones: the logo centred at the top of the room. The connection pill sits over the right edge,
- * out of the flow (its dot only, the words are its accessible name), so it never pushes the logo
- * off centre, and the gear's popover opens centred under the logo, inside the screen.
+ * Phones: the logo centred at the top of the room, the code card under it, and the gear's popover
+ * centred under the logo, inside the screen.
  */
 @media (max-width: 760px), (min-aspect-ratio: 3/2) and (max-height: 520px) {
+  .lobby__top {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-3);
+  }
+
   .lobby .site-header {
     position: relative;
     justify-content: center;
-  }
-
-  .lobby .site-header__actions {
-    position: absolute;
-    top: 50%;
-    right: 0;
-    transform: translateY(-50%);
-  }
-
-  .lobby .site-header .conn-pill {
-    padding: 6px;
-  }
-
-  .lobby .site-header .conn-pill__label {
-    display: none;
   }
 
   .lobby .settings-menu--logo .settings-menu__panel {
@@ -503,9 +592,16 @@ button.content-mode:not(:disabled):hover {
   }
 }
 
-/* The narrowest phones: a slightly smaller logo leaves room for the pill beside it. */
+/* The narrowest phones: a slightly smaller logo. */
 @media (max-width: 360px) {
   .lobby .site-header {
     --wordmark-height: 26px;
+  }
+}
+
+/* In the desktop box the panel's own padding ends it under Save. */
+@media (min-width: 1024px) {
+  .sheet--dialog .profile-editor {
+    padding-bottom: 0;
   }
 }

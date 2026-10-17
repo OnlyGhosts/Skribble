@@ -28,12 +28,6 @@ function phaseFor(data: ScribbleData, viewerId: string | null): ScribblePhase {
       return viewerId !== null && viewerId === turn?.drawerId ? { ...base, choices: [...(turn?.choices ?? [])] } : base;
     }
     case 'drawing': {
-      let likes = 0;
-      let dislikes = 0;
-      for (const rating of Object.values(turn?.ratings ?? {})) {
-        if (rating === 'like') likes++;
-        else dislikes++;
-      }
       const word = turn?.word ?? '';
       const out: ScribblePhase = {
         kind: 'drawing',
@@ -41,12 +35,8 @@ function phaseFor(data: ScribbleData, viewerId: string | null): ScribblePhase {
         startedAt: turn?.startedAt ?? 0,
         endsAt: turn?.endsAt ?? 0,
         mask: maskWord(word, turn?.revealed ?? []),
-        likes,
-        dislikes,
       };
       if (viewerId !== null && turn && (viewerId === turn.drawerId || turn.guessed.includes(viewerId))) out.word = word;
-      const mine = viewerId !== null ? turn?.ratings[viewerId] : undefined;
-      if (mine) out.myRating = mine;
       return out;
     }
     case 'turnEnd':

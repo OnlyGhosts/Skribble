@@ -11,8 +11,6 @@ export function drawingPhase(drawerId: string, overrides: Partial<Extract<Scribb
     startedAt: Date.now(),
     endsAt: Date.now() + 60_000,
     mask: '_____',
-    likes: 0,
-    dislikes: 0,
     ...overrides,
   };
 }

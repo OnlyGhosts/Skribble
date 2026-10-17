@@ -224,7 +224,8 @@ export function Home({ code: linkedCode, game: linkedGame }: Props) {
         {view !== 'rejoining' && step === 'home' && (
           <div className="home__start">
             <section className="home__join" aria-labelledby="join-heading" data-testid="join-panel">
-              <h2 className="home__title" id="join-heading">
+              {/* Named for screen readers only: the boxes and Join say it on screen. */}
+              <h2 className="sr-only" id="join-heading">
                 Join a room
               </h2>
               <form
@@ -293,7 +294,7 @@ export function Home({ code: linkedCode, game: linkedGame }: Props) {
           <section className="card panel panel--who" aria-labelledby="who-heading" data-testid="name-step">
             <div className="panel__head">
               <h2 className="panel__title" id="who-heading">
-                Who's playing?
+                Who’s playing?
               </h2>
               <p className="panel__text">
                 {intent === 'join' ? (
@@ -301,7 +302,7 @@ export function Home({ code: linkedCode, game: linkedGame }: Props) {
                     Joining room <strong className="panel__code">{code}</strong>
                   </>
                 ) : (
-                  "You'll host the room."
+                  "You’ll host the room."
                 )}
               </p>
             </div>

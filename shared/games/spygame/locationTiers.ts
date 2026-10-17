@@ -70,7 +70,7 @@ export const UNHINGED_LOCATIONS: readonly SpyLocation[] = [
   { id: 'wake-in-a-wetherspoons', name: 'Wake in a Wetherspoons', emoji: '🍺', hue: 42 },
   { id: 'morgue-night-shift', name: 'Morgue Night Shift', emoji: '🧊', hue: 200 },
   { id: 'swingers-cruise', name: "Swingers' Cruise", emoji: '🛳️', hue: 184 },
-  { id: 'mums-sex-toy-party', name: "Mum's Sex Toy Party", emoji: '🎉', hue: 332 },
+  { id: 'mums-sex-toy-party', name: "Mum’s Sex Toy Party", emoji: '🎉', hue: 332 },
   { id: 'vasectomy-clinic', name: 'Vasectomy Clinic', emoji: '✂️', hue: 262 },
   { id: 'embalming-room', name: 'Embalming Room', emoji: '⚰️', hue: 272 },
   { id: 'rave-toilet-cubicle', name: 'Toilets at a Rave', emoji: '💊', hue: 282 },

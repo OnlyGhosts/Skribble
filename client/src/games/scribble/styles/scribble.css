@@ -8,11 +8,9 @@
 }
 
 .word__label {
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--color-text-faint);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
 }
 
 .word__text {
@@ -154,58 +152,6 @@
   min-width: 0;
   display: flex;
   justify-content: center;
-}
-
-/* The rating sits in the canvas's bottom-right corner, opposite the "is drawing" caption. */
-.rating {
-  position: absolute;
-  right: 12px;
-  bottom: 12px;
-  display: flex;
-  gap: 6px;
-}
-
-/* The drawer's tally is for reading only: strokes go through it to the canvas. */
-.rating--tally {
-  pointer-events: none;
-}
-
-.rating__btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 40px;
-  padding: 0 12px;
-  border-radius: var(--radius-pill);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  color: var(--color-text);
-  font-weight: 700;
-  font-size: 0.85rem;
-  font-variant-numeric: tabular-nums;
-  transition:
-    background-color 100ms ease-out,
-    color 100ms ease-out;
-}
-
-.rating__btn:hover:not(:disabled) {
-  background: var(--color-surface-2);
-}
-
-.rating__btn:disabled {
-  color: var(--color-text-muted);
-}
-
-.rating__btn.is-active {
-  background: var(--color-success-soft);
-  border-color: var(--color-success);
-  color: var(--color-success-text);
-}
-
-.rating__btn--down.is-active {
-  background: var(--color-danger-soft);
-  border-color: var(--color-danger);
-  color: var(--color-danger-text);
 }
 
 .game__players {
@@ -389,8 +335,20 @@
     max-height: calc(75vw + 120px);
   }
 
+  /*
+   * The drawer's feed keeps the last two guesses in view (two lines and the fade above them; the
+   * canvas gives up the height on the shortest phones) and fades out at its top edge, so a line
+   * it cannot fit reads as scrolled away, never cut through.
+   */
   .game--drawer .game__guesses .feed {
-    min-height: 0;
+    min-height: 72px;
+    -webkit-mask-image: linear-gradient(to bottom, transparent, #000 14px);
+    mask-image: linear-gradient(to bottom, transparent, #000 14px);
+  }
+
+  /* The lines sit at the bottom of that feed, so the fade only ever touches what has scrolled off, never the first line. */
+  .game--drawer .game__guesses .feed > :first-child {
+    margin-top: auto;
   }
 
   /*
@@ -448,18 +406,8 @@
     min-height: 44px;
   }
 
-  .rating {
-    right: 8px;
-    bottom: 8px;
-    gap: 4px;
-  }
-
-  .rating__btn {
-    min-height: 44px;
-    padding: 0 10px;
-  }
-
-  .rating--tally .rating__btn {
+  /* The drawer never gets the guess bar in its slot (the toolbar goes with the turn anyway): a shorter line, so the canvas keeps the height. */
+  .game--drawer .game__guesses .guess-idle {
     min-height: 32px;
   }
 
@@ -520,7 +468,6 @@
     grid-row: 1;
   }
 
-  /* The side column is too narrow for every control in one row: the ratings take a tidy second row. */
   .game__center {
     grid-column: 1;
     grid-row: 1 / 3;

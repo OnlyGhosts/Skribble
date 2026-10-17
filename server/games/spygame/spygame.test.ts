@@ -219,8 +219,8 @@ describe('The Spy Game: accusations and votes', () => {
     const refused = (effects: ReturnType<Sim['game']>, message: string): void => {
       expect(effects).toEqual([expect.objectContaining({ type: 'send', msg: { t: 'error', code: 'NOT_ALLOWED', message } })]);
     };
-    refused(s.game(alice, { t: 'accuse', playerId: bob }), "The spy can't accuse anyone.");
-    refused(s.game(bob, { t: 'accuse', playerId: bob }), "You can't accuse yourself.");
+    refused(s.game(alice, { t: 'accuse', playerId: bob }), "The spy can’t accuse anyone.");
+    refused(s.game(bob, { t: 'accuse', playerId: bob }), "You can’t accuse yourself.");
     refused(s.game(bob, { t: 'accuse', playerId: 'ghost' }), 'You can only accuse a player in this round.');
 
     s.game(bob, { t: 'accuse', playerId: carol });
@@ -256,8 +256,8 @@ describe('The Spy Game: accusations and votes', () => {
     const refused = (effects2: ReturnType<Sim['game']>, message: string): void => {
       expect(effects2).toEqual([expect.objectContaining({ type: 'send', msg: { t: 'error', code: 'NOT_ALLOWED', message } })]);
     };
-    refused(s.game(carol, { t: 'vote', yes: false }), "You can't vote in this one.");
-    refused(s.game(alice, { t: 'vote', yes: true }), "You can't vote in this one.");
+    refused(s.game(carol, { t: 'vote', yes: false }), "You can’t vote in this one.");
+    refused(s.game(alice, { t: 'vote', yes: true }), "You can’t vote in this one.");
     refused(s.game(bob, { t: 'vote', yes: false }), 'You started this vote. You count as Yes.');
     expect(data(s).phase).toBe('voting');
   });
@@ -327,7 +327,7 @@ describe('The Spy Game: accusations and votes', () => {
     expect(view(s, dave).role).toBe('agent');
   });
 
-  it('with three players an accusation of the only other agent passes on the accuser\'s vote alone', () => {
+  it('with three players an accusation of the only other agent passes on the accuser’s vote alone', () => {
     const s = sim('spygame');
     const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol']);
     s.game(bob, { t: 'accuse', playerId: carol });
@@ -405,7 +405,7 @@ describe('The Spy Game: accusations and votes', () => {
   });
 });
 
-describe('The Spy Game: the clock and the spy\'s connection', () => {
+describe('The Spy Game: the clock and the spy’s connection', () => {
   it('ends the round with timeUp when the clock runs out: agents +1', () => {
     const s = sim('spygame');
     const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol']);
@@ -413,7 +413,7 @@ describe('The Spy Game: the clock and the spy\'s connection', () => {
     expect(s.tick()).toEqual([]);
     s.now += 1;
     const effects = s.tick();
-    expect(chatTexts(effects)).toContain("Time's up! Alice was the spy. The agents win. It was the Airplane.");
+    expect(chatTexts(effects)).toContain("Time’s up! Alice was the spy. The agents win. It was the Airplane.");
     expect(data(s).reveal).toMatchObject({ outcome: 'timeUp', spyId: alice, points: { [bob]: 1, [carol]: 1 }, endsAt: s.now + REVEAL_MS });
     expect(nextDeadline(s.data)).toBe(s.now + REVEAL_MS);
   });
@@ -614,7 +614,7 @@ describe('The Spy Game: reveal, rounds and the end', () => {
     expect(s.data.players.map((p) => p.score)).toEqual([0, 0, 0]);
   });
 
-  it('ends the game with the results after the last round\'s reveal', () => {
+  it('ends the game with the results after the last round’s reveal', () => {
     const s = sim('spygame');
     const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol'], { rounds: 2 });
     spyWins(s); // Alice +4

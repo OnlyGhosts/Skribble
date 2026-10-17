@@ -107,7 +107,7 @@ export function answer(gx: Gx, playerId: string, promptId: string, text: string)
   if (data.phase !== 'writing' && data.phase !== 'finalWriting') return fail(gx, playerId, 'Writing is over.');
   if (!data.roundPlayers.includes(playerId)) return fail(gx, playerId, 'You are watching this round.');
   const prompt = promptById(data, promptId);
-  if (!prompt || !prompt.authorIds.includes(playerId)) return fail(gx, playerId, "That's not one of your prompts.");
+  if (!prompt || !prompt.authorIds.includes(playerId)) return fail(gx, playerId, "That’s not one of your prompts.");
   const existing = answerFor(data, promptId, playerId);
   if (existing) {
     existing.text = text;
@@ -149,7 +149,7 @@ export function finishWriting(gx: Gx, why: 'everyoneIn' | 'timeUp'): void {
       data.answers.push({ id: ctx.newId(), promptId: prompt.id, authorId, authorName: nameOf(ctx, authorId), text: pickOne(FALLBACK_ANSWERS, ctx.rng), fallback: true });
     }
   }
-  systemMessage(gx, why === 'everyoneIn' ? "Everyone's in. Time to vote!" : "Time's up. Time to vote!");
+  systemMessage(gx, why === 'everyoneIn' ? "Everyone’s in. Time to vote!" : "Time’s up. Time to vote!");
   if (isFinalRound(data)) return startFinalVoting(gx);
   data.matchups = data.prompts.map((prompt): MatchupData => {
     const ids = prompt.authorIds.map((authorId) => answerFor(data, prompt.id, authorId)?.id ?? '');

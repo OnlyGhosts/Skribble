@@ -99,10 +99,8 @@
   align-items: center;
   gap: 2px;
   white-space: nowrap;
-  font-size: 0.6rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  font-size: 0.6875rem;
+  font-weight: 700;
   color: var(--color-warning-text);
 }
 
@@ -532,10 +530,8 @@ button.spy-accuse__row:disabled {
 
 .spy-vote__accuses {
   color: var(--color-text-muted);
-  font-size: 0.85rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  font-size: 0.875rem;
+  font-weight: 600;
 }
 
 .spy-vote__status {
@@ -739,7 +735,8 @@ button.spy-accuse__row:disabled {
     flex: none;
   }
 
-  .spy-clock__label {
+  .spy-clock__label,
+  .spy__top .timer__label {
     display: none;
   }
 

@@ -12,9 +12,11 @@ import { tableBots, type TableBot } from './tableBots';
  * move or resize through the betting, the deal, my turn, another player's turn, the dealer's play
  * and the settled table. Then a harness (e2e/harness: the real components and styles, served by
  * Vite, fed rigged snapshots) seats me with 2 to 16 split hands at every phone size and on a
- * desktop: nothing scrolls, every hand (full or folded into a chip) is wholly inside my place, and
- * another player's many hands fit the stage on their turn. The cards are really shuffled on the
- * real table, so a natural or the dealer's blackjack just means another round.
+ * desktop: nothing scrolls, every hand (full or folded into a chip) is wholly inside my place, my
+ * hands keep the stage on another player's turn, and a watcher sees that player's many hands fit
+ * the stage. On another player's turn on the real table my hand stays at the bottom centre at full
+ * size and theirs shows once, in their seat. The cards are really shuffled on the real table, so a
+ * natural or the dealer's blackjack just means another round.
  */
 test.describe.configure({ mode: 'serial' });
 
@@ -71,6 +73,43 @@ async function nothingScrolls(page: Page, label: string): Promise<void> {
 }
 
 /**
+ * Another player's turn: my hand stays on the stage at the bottom centre at full size (its cards
+ * as wide as the dealer's, never shrunk into a side column), and the acting player's hand shows
+ * at most once, in their own seat and never on the stage; exactly once where the seats show their
+ * cards (four or fewer other players).
+ */
+async function turnShownOnce(page: Page, turnId: string, label: string): Promise<void> {
+  const read = () =>
+    page.evaluate((turn) => {
+      const stage = document.querySelector('[data-testid="hand-stage"]')?.getBoundingClientRect();
+      const hand = document.querySelector('[data-testid="hand-stage"] [data-testid="my-area"] [data-testid="my-hand"]');
+      const mine = hand?.getBoundingClientRect();
+      const myCard = hand?.querySelector('[data-testid="card"]')?.getBoundingClientRect();
+      const dealerCard = document.querySelector('[data-testid="dealer-card"]')?.getBoundingClientRect();
+      const seat = document.querySelector(`[data-testid="seat"][data-player-id="${turn}"]`);
+      const tier = document.querySelector('[data-testid="seats"]')?.getAttribute('data-tier');
+      return {
+        onStage: !!(mine && stage),
+        centred: !!(mine && stage && mine.left <= stage.left + stage.width / 2 && mine.right >= stage.left + stage.width / 2),
+        atBottom: !!(mine && stage && Math.abs(mine.bottom - stage.bottom) <= 6),
+        fullSize: !!(myCard && dealerCard && Math.abs(myCard.width - dealerCard.width) <= 1),
+        theirsOnStage: document.querySelectorAll('[data-testid="stage-hand"], [data-testid="hand-stage"] [data-testid="seat-hand"]').length,
+        theirsShown: (seat?.querySelectorAll('[data-testid="seat-hand"]').length ?? 0) + document.querySelectorAll('[data-testid="stage-hand"]').length,
+        tier,
+      };
+    }, turnId);
+  await expect
+    .poll(
+      async () => {
+        const r = await read();
+        return { onStage: r.onStage, centred: r.centred, atBottom: r.atBottom, fullSize: r.fullSize, theirsOnStage: r.theirsOnStage, once: r.tier === 'full' ? r.theirsShown === 1 : r.theirsShown <= 1 };
+      },
+      { message: `${label}: my hand at the bottom centre at full size, theirs once, in their seat` },
+    )
+    .toEqual({ onStage: true, centred: true, atBottom: true, fullSize: true, theirsOnStage: 0, once: true });
+}
+
+/**
  * One table of `players` at `size`: the places are read in every phase of a round and must never
  * move. Rounds go on until my turn and a bot's turn have both been seen (a natural skips a turn).
  */
@@ -94,7 +133,7 @@ async function fixedPlaces(browser: Browser, base: string, size: { width: number
     const seen = new Set<string>();
     const check = async (phase: string) => {
       const now = await places(page);
-      expectSame(`${label}, ${phase}: the dealer's hand`, ref.dealer, now.dealer);
+      expectSame(`${label}, ${phase}: the dealer’s hand`, ref.dealer, now.dealer);
       expectSame(`${label}, ${phase}: my hands`, ref.mine, now.mine);
       await nothingScrolls(page, `${label}, ${phase}`);
       // Every other player's stack and bet read at a glance, however small the phone.
@@ -104,7 +143,7 @@ async function fixedPlaces(browser: Browser, base: string, size: { width: number
     };
     await check('betting');
     const roundOf = async () => Number(await page.getByTestId('round-indicator').getAttribute('data-round'));
-    for (let round = 1; round <= 8 && !(seen.has('my turn') && seen.has("another player's turn")); round++) {
+    for (let round = 1; round <= 8 && !(seen.has('my turn') && seen.has("another player’s turn")); round++) {
       await expect.poll(roundOf, { timeout: 20_000 }).toBe(round);
       for (const b of bots) b.setHold(true);
       await expect(page.getByTestId('place-bet')).toBeEnabled({ timeout: 20_000 });
@@ -131,18 +170,19 @@ async function fixedPlaces(browser: Browser, base: string, size: { width: number
           continue;
         }
         await expect(page.getByTestId('hand-stage')).toHaveAttribute('data-kind', 'turn');
-        await check("another player's turn");
+        await check("another player’s turn");
+        await turnShownOnce(page, (await screen.getAttribute('data-turn-player')) ?? '', `${label}, another player’s turn`);
         for (const b of bots) b.setHold(false);
         break;
       }
       // The dealer plays where it always sits (caught when the reveal is still on), then the settled table.
       const kind = page.getByTestId('hand-stage');
       await expect(kind).toHaveAttribute('data-kind', /^(dealer|result|bets)$/, { timeout: 30_000 });
-      if ((await kind.getAttribute('data-kind')) === 'dealer') await check("the dealer's play");
+      if ((await kind.getAttribute('data-kind')) === 'dealer') await check("the dealer’s play");
       await expect(kind).toHaveAttribute('data-kind', /^(result|bets)$/, { timeout: 30_000 });
       await check('the results');
     }
-    expect([...seen].sort(), label).toEqual(expect.arrayContaining(['another player\'s turn', 'betting', 'my turn', 'the deal', 'the results']));
+    expect([...seen].sort(), label).toEqual(expect.arrayContaining(['another player’s turn', 'betting', 'my turn', 'the deal', 'the results']));
     expect(errors).toEqual([]);
   } finally {
     for (const b of bots) b.close();
@@ -152,7 +192,7 @@ async function fixedPlaces(browser: Browser, base: string, size: { width: number
 
 for (const players of [2, 6]) {
   for (const size of SIZES) {
-    test(`${players} players at ${size.width}x${size.height}: the dealer's hand and mine never move or resize, whatever the phase`, async ({ browser, baseURL }) => {
+    test(`${players} players at ${size.width}x${size.height}: the dealer’s hand and mine never move or resize, whatever the phase`, async ({ browser, baseURL }) => {
       test.setTimeout(120_000);
       await fixedPlaces(browser, baseURL ?? 'http://localhost:4173', size, players);
     });
@@ -256,7 +296,7 @@ test.describe('many hands (the harness)', () => {
             // My row and the dealer's never move, however many hands.
             const now = await places(page);
             if (ref === null) ref = now;
-            expectSame(`${label}: the dealer's hand`, ref.dealer, now.dealer);
+            expectSame(`${label}: the dealer’s hand`, ref.dealer, now.dealer);
             expectSame(`${label}: the stage`, ref.mine, now.mine);
             if (phase === 'mine') {
               // The hand in play is always full size and lit.
@@ -267,12 +307,18 @@ test.describe('many hands (the harness)', () => {
             }
           }
         }
-        // Another player's many hands fit the stage on their turn: the hand in play full size, the line under the banner says which, the rest as chips.
+        // Another player's many hands: dealt in, mine keep the stage and theirs stay in their seat.
+        await open(page, 'phase=other&others=5&otherHands=7&active=0&hands=2');
+        await expect(page.getByTestId('hand-stage').getByTestId('my-hand')).toHaveCount(2);
+        await expect(page.getByTestId('stage-hand')).toHaveCount(0);
+        // A watcher sees them fit the stage: the hand in play full size and named, the line under the banner says which, the rest as chips.
         for (const [others, otherHands] of [[5, 2], [5, 7], [5, 16], [23, 9], [49, 16]]) {
-          await open(page, `phase=other&others=${others}&otherHands=${otherHands}&active=0`);
-          const label = `another player's ${otherHands} hands at a table of ${others + 1}`;
+          await open(page, `phase=other&others=${others}&otherHands=${otherHands}&active=0&watch=1`);
+          const label = `another player’s ${otherHands} hands at a table of ${others + 1}, watching`;
           await nothingScrolls(page, label);
           await expect(page.getByTestId('hand-stage')).toHaveAttribute('data-kind', 'turn');
+          await expect(page.getByTestId('stage-owner')).toHaveCount(1);
+          await expect.poll(() => allInside(page, 'hand-stage', '[data-testid="stage-owner"]'), { message: `${label}: the name by the hand` }).toEqual({ outside: 0, count: 1 });
           await expect(page.getByTestId('table-turn')).toContainText(`hand 1 of ${otherHands}`);
           await expect.poll(() => allInside(page, 'hand-stage', '[data-testid="stage-hand"], [data-testid="stage-chip"], [data-testid="stage-chip-more"]'), { message: label }).toMatchObject({ outside: 0 });
           // Every hand is there: the one in play, a chip each, or in the "+N".
@@ -331,12 +377,13 @@ test.describe('many hands (the harness)', () => {
             expect(f.grounded, `${query}: the outcome word on its own ground`).toBe(true);
           }
         }
-        // The "+N" past what my row holds opens every one of my hands.
-        await open(page, 'phase=mine&others=5&hands=16&active=8&cards=3');
+        // The "+N" past what my row holds opens every one of my hands (a phone's row holds fifteen or so chips; a desktop's sixteen hands and more).
+        const many = size.width < 760 ? 30 : 16;
+        await open(page, `phase=mine&others=5&hands=${many}&active=8&cards=3`);
         const more = page.getByTestId('my-chip-more');
         if (size.width < 760) {
           await more.click();
-          await expect(page.getByTestId('seat-detail').getByTestId('detail-hand')).toHaveCount(16);
+          await expect(page.getByTestId('seat-detail').getByTestId('detail-hand')).toHaveCount(many);
         } else {
           await expect(more).toHaveCount(0);
         }
@@ -346,11 +393,11 @@ test.describe('many hands (the harness)', () => {
         await expect(soft).toHaveText('10/20');
         const pill = await soft.evaluate((el) => ({ sw: el.scrollWidth, cw: el.clientWidth }));
         expect(pill.sw, 'the soft total fits its pill').toBeLessThanOrEqual(pill.cw);
-        // The same soft total on my small hand at the side of another player's turn: it stays in its column.
+        // The same soft total on another player's turn: my hand keeps its place and size, the total inside my row.
         await open(page, 'phase=other&others=5&hands=1&active=0&soft=1');
         await expect(page.getByTestId('my-area').getByTestId('hand-total')).toHaveText('10/20');
-        await nothingScrolls(page, 'a soft total at the side');
-        await expect.poll(() => allInside(page, 'my-area', '[data-testid="my-hand"], [data-testid="hand-total"]'), { message: 'a soft total at the side' }).toMatchObject({ outside: 0 });
+        await nothingScrolls(page, "a soft total on another player’s turn");
+        await expect.poll(() => allInside(page, 'my-area', '[data-testid="my-hand"], [data-testid="hand-total"]'), { message: "a soft total on another player’s turn" }).toMatchObject({ outside: 0 });
         // Long names: the count of bets in always shows, and the wait reads in full.
         await open(page, 'phase=betting&others=3&myBet=10&names=Pia,Bartholomew,Christabel');
         const count = page.getByTestId('bets-count');
@@ -361,9 +408,10 @@ test.describe('many hands (the harness)', () => {
           return { width: r.width, parent: parent?.width ?? 0, sw: el.scrollWidth };
         });
         expect(shown.parent, 'the count has its room').toBeGreaterThanOrEqual(shown.sw);
-        await expect(page.getByTestId('turn-status')).toHaveText('Waiting for 2 players');
-        const status = await page.getByTestId('turn-status').evaluate((el) => ({ sw: el.scrollWidth, cw: el.clientWidth }));
-        expect(status.sw, 'the panel line in full').toBeLessThanOrEqual(status.cw);
+        const waiting = page.getByTestId('table-turn').locator('.tbl-turn__text');
+        await expect(waiting).toHaveText('Waiting for 2 players');
+        const status = await waiting.evaluate((el) => ({ sw: el.scrollWidth, cw: el.clientWidth }));
+        expect(status.sw, 'the line in full').toBeLessThanOrEqual(status.cw);
       } finally {
         await ctx.close();
       }

@@ -138,7 +138,7 @@ describe('Poker sounds follow the cards', () => {
     }
   });
 
-  it("tosses another seat's folded hand once as it goes to the muck, and two folds at the same moment once", () => {
+  it("tosses another seat’s folded hand once as it goes to the muck, and two folds at the same moment once", () => {
     seed(flop());
     const bobFolds = flop({ players: { ...flop().players, bob: seat({ status: 'folded' }) }, lastMove: { kind: 'fold', amount: 0, seq: 3, playerId: 'bob', street: 'flop' } });
     const tl = step(bobFolds);

@@ -686,7 +686,7 @@ describe.each(GAME_IDS)('platform room (%s)', (gameId: GameId) => {
       expect(h.transport.last(bob, 'room').room.results).toBeNull();
     });
 
-    it('lets only the host end a running game, for everyone at once, with the results in everyone\'s lobby', () => {
+    it('lets only the host end a running game, for everyone at once, with the results in everyone’s lobby', () => {
       const h = harness();
       const [alice, bob] = startGame(h, ['Alice', 'Bob'], GAME_TEST_FIXTURES[gameId].longSettings);
       h.send(bob, { t: 'endGame' });
@@ -864,7 +864,7 @@ describe.each(GAME_IDS)('platform room (%s)', (gameId: GameId) => {
       expect(h.room.state.game).toEqual(game);
     });
 
-    it('gives a player who drops and comes back mid-game their own seat, not a spectator\'s', () => {
+    it('gives a player who drops and comes back mid-game their own seat, not a spectator’s', () => {
       const h = harness();
       const [alice, bob] = startGame(h, ['Alice', 'Bob', 'Carol']);
       h.room.handleDisconnect(bob);
@@ -1003,7 +1003,7 @@ describe('platform room: seat limits and spectators (Click Race)', () => {
 });
 
 describe('platform room: the end of a game', () => {
-  it('keeps every seat, closes nothing and puts the results in everyone\'s lobby snapshot when the last click ends a Click Race', () => {
+  it('keeps every seat, closes nothing and puts the results in everyone’s lobby snapshot when the last click ends a Click Race', () => {
     const h = createHarness({ gameId: 'template' });
     const alice = h.join('Alice');
     const bob = h.join('Bob');

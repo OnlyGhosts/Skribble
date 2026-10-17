@@ -161,7 +161,7 @@ describe('the screen per role', () => {
     const html = render(state, 'eve');
     expect(attr(tagWith(html, 'spygame-role'), 'data-role')).toBe('spectator');
     expect(attr(tagWith(html, 'spygame-role'), 'data-watching')).toBe('false');
-    expect(html).toContain('You&#x27;ll join the next round');
+    expect(html).toContain('You’ll join the next round');
     expect(tagsWith(html, 'candidate-tile').some((t) => attr(t, 'data-state') === 'real')).toBe(false);
     expect(html).not.toContain('Stay vague');
     expect(html).toContain('data-testid="players-toggle"');
@@ -173,17 +173,21 @@ describe('the screen per role', () => {
     });
     const html = render(state, 'eve');
     expect(attr(tagWith(html, 'spygame-role'), 'data-watching')).toBe('true');
-    expect(html).toContain('You&#x27;re watching');
+    expect(html).toContain('You’re watching');
     expect(html).toContain('You can play the next game.');
     expect(html).not.toContain('next round');
     expect(attr(tagWith(html, 'accuse-list'), 'data-interactive')).toBe('false');
     expect(tagsWith(html, 'guess-tile')).toHaveLength(0);
   });
 
-  it('freezes the clock with the kept time while a vote runs and while the spy is away', () => {
+  it('counts the vote in the header ring while the round clock waits, and freezes it while the spy is away', () => {
     const voting = render(spyRoom(view({ phase: 'voting', vote: VOTE, clock: { endsAt: null, pausedRemainingMs: 61_000, pausedReason: 'vote', waitingForId: null } })), 'carol');
+    // One countdown on the screen: the header ring counts the vote; the vote panel has none of its own.
+    expect(tagsWith(voting, 'timer')).toHaveLength(1);
     expect(tagWith(voting, 'timer')).toContain('data-paused="vote"');
-    expect(tagWith(voting, 'timer')).toContain('data-seconds="61"');
+    expect(tagWith(voting, 'timer')).toContain('data-counting="Vote"');
+    expect(tagWith(voting, 'timer')).toMatch(/data-seconds="1[45]"/);
+    expect(voting).toContain('class="timer__label" aria-hidden="true">Vote<');
     const away = render(spyRoom(view({ clock: { endsAt: null, pausedRemainingMs: 30_000, pausedReason: 'spyAway', waitingForId: 'host' } })), 'bob');
     expect(tagWith(away, 'timer')).toContain('data-paused="spyAway"');
     expect(tagWith(away, 'spygame-waiting')).toBeTruthy();
@@ -311,9 +315,10 @@ describe('the reveal', () => {
     const heldGuest = render(revealRoom(NOW - 3_000, 'bob', hold), 'bob');
     expect(tagWith(heldGuest, 'reveal-countdown')).toContain('data-countdown="paused"');
     expect(heldGuest).toContain('Next round is paused');
-    const heldTimer = heldGuest.slice(heldGuest.indexOf('data-testid="spygame-reveal"'));
-    expect(tagWith(heldTimer, 'timer')).toContain('data-paused="players"');
-    expect(heldTimer).not.toContain('timer--urgent');
+    // The reveal has no timer of its own: the header ring is the one countdown, frozen under the hold.
+    expect(tagsWith(heldGuest, 'timer')).toHaveLength(1);
+    expect(tagWith(heldGuest, 'timer')).toContain('data-paused="players"');
+    expect(heldGuest).not.toContain('timer--urgent');
     const heldHost = render(revealRoom(NOW - 3_000, 'host', hold), 'host');
     expect(tagWith(heldHost, 'spygame-next-round')).toContain('disabled');
     expect(heldHost).toContain('(paused)');
@@ -322,10 +327,11 @@ describe('the reveal', () => {
     const settlingGuest = render(revealRoom(NOW - 3_000, 'bob'), 'bob');
     expect(tagWith(settlingGuest, 'reveal-countdown')).toContain('data-countdown="settling"');
     expect(settlingGuest).toContain('Next round is starting');
-    const settlingTimer = settlingGuest.slice(settlingGuest.indexOf('data-testid="spygame-reveal"'));
-    expect(tagWith(settlingTimer, 'timer')).toContain('data-face="settling"');
-    expect(settlingTimer).not.toContain('timer--urgent');
-    expect(settlingTimer).not.toMatch(/timer__value">0</);
+    expect(tagsWith(settlingGuest, 'timer')).toHaveLength(1);
+    expect(tagWith(settlingGuest, 'timer')).toContain('data-face="settling"');
+    expect(tagWith(settlingGuest, 'timer')).toContain('data-counting="Next"');
+    expect(settlingGuest).not.toContain('timer--urgent');
+    expect(settlingGuest).not.toMatch(/timer__value">0</);
     const settlingHost = render(revealRoom(NOW - 3_000, 'host'), 'host');
     expect(tagWith(settlingHost, 'spygame-next-round')).not.toContain('disabled');
     expect(settlingHost).toContain('Next round…');
@@ -334,7 +340,9 @@ describe('the reveal', () => {
     // Still counting: the plain countdown.
     const running = render(revealRoom(NOW + 15_000, 'bob'), 'bob');
     expect(tagWith(running, 'reveal-countdown')).toContain('data-countdown="running"');
-    expect(running).toContain('Next round in');
+    expect(running).toContain('Next round soon');
+    expect(tagWith(running, 'timer')).toContain('data-face="running"');
+    expect(tagWith(running, 'timer')).toContain('data-paused="reveal"');
   });
 
   it('names a spy who has left the room from the reveal itself and lists the points in the platform result list', () => {

@@ -27,6 +27,8 @@ export interface SubjectInput {
   /** The settled outcomes are on screen. */
   outcomesShown: boolean;
   meId: string | null;
+  /** My bet is on its way (tapped, or queued for the bets about to open): it counts as in. */
+  betSent?: boolean;
 }
 
 /** The next seat in play order with a hand still to play, after `playerId`. */
@@ -35,7 +37,7 @@ function nextToPlay(view: BlackjackView, playerId: string): string | null {
   return view.order.slice(at + 1).find((id) => (view.players[id]?.hands ?? []).some((h) => h.status === 'waiting' || h.status === 'acting')) ?? null;
 }
 
-export function focusOf({ view, table, dealerPlaying, outcomesShown, meId }: SubjectInput): BjFocus {
+export function focusOf({ view, table, dealerPlaying, outcomesShown, meId, betSent = false }: SubjectInput): BjFocus {
   if (view.phase === 'held') return { kind: 'idle', reason: 'held' };
   if (dealerPlaying) return { kind: 'dealer' };
   if (view.phase === 'acting') {
@@ -46,9 +48,12 @@ export function focusOf({ view, table, dealerPlaying, outcomesShown, meId }: Sub
   const settledMine = meId !== null && Boolean(table?.settled) && outcomesShown && (table?.hands[meId]?.length ?? 0) > 0;
   if (view.phase === 'ending' || view.phase === 'gameOver') return settledMine && meId !== null ? { kind: 'result', playerId: meId } : { kind: 'idle', reason: 'over' };
   if (view.phase === 'results') return settledMine && meId !== null ? { kind: 'result', playerId: meId } : { kind: 'idle', reason: 'next' };
-  // Betting: my outcome stays up until my next stake goes down.
-  if (settledMine && meId !== null && (view.players[meId]?.bet ?? 0) === 0) return { kind: 'result', playerId: meId };
-  return { kind: 'bets', placed: view.order.filter((id) => (view.players[id]?.bet ?? 0) > 0), waiting: pendingBettors(view) };
+  // Betting: my outcome stays up until my next stake is on its way.
+  if (settledMine && meId !== null && (view.players[meId]?.bet ?? 0) === 0 && !betSent) return { kind: 'result', playerId: meId };
+  // My bet on its way already counts: the count goes up as I tap Bet, not when the table answers.
+  const sent = (id: string) => betSent && id === meId;
+  const waiting = pendingBettors(view).filter((id) => !sent(id));
+  return { kind: 'bets', placed: view.order.filter((id) => (view.players[id]?.bet ?? 0) > 0 || sent(id)), waiting };
 }
 
 /** A stable key per subject: a new key slides the line under the ribbon over to it. */
@@ -74,14 +79,22 @@ export function seatOutcome(hands: readonly TableHand[]): HandOutcome | null {
   return back > staked ? 'win' : back === staked ? 'push' : 'loss';
 }
 
+/** Where I am at the table: `dealtIn` when I hold hands in the round on screen. */
+export interface StageSeat {
+  seated: boolean;
+  dealtIn: boolean;
+}
+
 /**
- * Whose hands take the stage at the bottom of the table: another player's on their turn (their
- * hits are what everyone watches, and a seat is too small to follow them), otherwise mine when I
- * am seated; a spectator sees the hand in play, or nothing.
+ * Whose hands take the stage at the bottom of the table: mine whenever I am dealt in, on every
+ * turn and in every phase (the player on turn plays in their own seat). Not dealt in (watching,
+ * sitting out, out of chips), the hand in play, named on the hand (its seat then leaves its cards
+ * out); between turns my empty places when I am seated, otherwise nobody's.
  */
-export function stageOwner(focus: BjFocus, seated: boolean, meId: string): string | null {
-  if (focus.kind === 'turn' && !focus.mine) return focus.playerId;
-  return seated ? meId : null;
+export function stageOwner(focus: BjFocus, me: StageSeat, meId: string): string | null {
+  if (me.dealtIn) return meId;
+  if (focus.kind === 'turn') return focus.playerId;
+  return me.seated ? meId : null;
 }
 
 /** The stage's kind, for its data: my turn reads `mine`, another's `turn`, the rest as the focus. */

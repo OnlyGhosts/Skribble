@@ -1,5 +1,4 @@
 import type { PokerRoomState, PokerView } from '@shared/games/poker/protocol';
-import { tileTier } from '../../../platform/table/grid';
 import { PayoutFloat } from '../../../platform/table/Outcome';
 import { PlayerTile, PlayersGrid, SeatSheet, tileFigures, type SeatLine, type SeatMark } from '../../../platform/table/PlayersGrid';
 import { StackCount, StakePill } from '../../../platform/table/Stakes';
@@ -18,6 +17,8 @@ interface Props {
   view: PokerView;
   ids: string[];
   meId: string;
+  /** Whose cards are on my stage: that seat leaves them to the stage. */
+  staged: string | null;
   table: PokerTable | null;
   timeline: Timeline;
   /** The current timeline, for the numbers on show. */
@@ -103,60 +104,62 @@ function SeatDetail({ view, id, meId, table, timeline, now, leaving }: { view: P
  * words ("990 chips"), the bet this street as its own pill ("Bet 10"), the dealer button, their
  * backs and their last move; folded and busted seats dimmed, all in tagged, the seat to act lit
  * with the lime ring, a winner outlined in lime. A tile too small for the words keeps the stack
- * as its badge (the bet is left to the seat's sheet there).
+ * as its badge (the bet is left to the seat's sheet there). The seat whose cards are on my stage
+ * (I am not dealt in) leaves them to the stage.
  */
-export function Seats({ room, view, ids, meId, table, timeline, live, now, leaving, wide }: Props) {
+export function Seats({ room, view, ids, meId, staged, table, timeline, live, now, leaving, wide }: Props) {
   const turnId = view.phase === 'acting' ? (view.turn ?? undefined) : undefined;
   const best = winningCards(table, timeline, now);
   const open = usePoker((s) => s.seat);
   const openSeat = usePokerStore.getState().openSeat;
   const openPlayer = open !== null && ids.includes(open) ? playerOf(room, open) : undefined;
   if (ids.length === 0) return null;
-  const tier = tileTier(ids.length);
   return (
     <>
-      <PlayersGrid count={ids.length} label="Other players" wide={wide}>
-        {ids.map((id) => {
-          const player = playerOf(room, id);
-          const seat = view.players[id];
-          if (!player || !seat) return null;
-          const won = wonOnScreen(table, timeline, id, now);
-          const bet = valueAt(live, betValue(id), seat.bet, now);
-          const stack = valueAt(live, chipsValue(id), seat.chips, now);
-          const status = seat.busted ? 'out' : seat.status;
-          const line = seatLine(view, table, id, timeline, now);
-          return (
-            <PlayerTile
-              key={id}
-              playerId={id}
-              name={player.name}
-              avatar={player.avatar}
-              connected={player.connected}
-              count={ids.length}
-              turn={turnId === id}
-              line={line}
-              mark={seatMark(line)}
-              outcome={won > 0 ? 'win' : null}
-              chips={stack}
-              bet={
-                <span className="pk-bet" data-table-anchor={betAnchor(id)} data-testid="seat-bet" data-bet={bet}>
-                  {bet > 0 && <StakePill value={bet} format={tileFigures(tier)} />}
-                </span>
-              }
-              total={{ text: shortChips(stack), tone: won > 0 ? 'win' : 'neutral' }}
-              shortBadge
-              dimmed={seat.busted || seat.status === 'folded' || !view.order.includes(id)}
-              badge={seat.isDealer && <DealerButton testId="seat-dealer" />}
-              tag={seat.status === 'allIn' && !seat.busted ? 'All in' : null}
-              onOpen={() => openSeat(id)}
-              data={{ 'data-chips': seat.chips, 'data-bet': seat.bet, 'data-status': status, 'data-dealer': seat.isDealer, 'data-outcome': won > 0 ? 'win' : undefined, 'data-payout': won > 0 ? won : undefined }}
-              cards={holeOnScreen(table, timeline, id, meId, now).map((c) => (
-                <TableCard key={`${timeline.id}:${c.key}`} card={c.card} size="sm" motion={c.motion} leaving={leaving || c.leaving} flipping={c.flipping} highlight={c.card !== null && best.some((b) => c.card !== null && sameCard(b, c.card))} testId="seat-card" />
-              ))}
-              extra={won > 0 && paidOut(timeline, now) ? <PayoutFloat text={payoutText(won)} /> : undefined}
-            />
-          );
-        })}
+      <PlayersGrid count={ids.length} label="Other players" wide={wide} bare={ids.every((id) => holeOnScreen(table, timeline, id, meId, now).length === 0)}>
+        {(tier) =>
+          ids.map((id) => {
+            const player = playerOf(room, id);
+            const seat = view.players[id];
+            if (!player || !seat) return null;
+            const won = wonOnScreen(table, timeline, id, now);
+            const bet = valueAt(live, betValue(id), seat.bet, now);
+            const stack = valueAt(live, chipsValue(id), seat.chips, now);
+            const status = seat.busted ? 'out' : seat.status;
+            const line = seatLine(view, table, id, timeline, now);
+            return (
+              <PlayerTile
+                key={id}
+                playerId={id}
+                name={player.name}
+                avatar={player.avatar}
+                connected={player.connected}
+                tier={tier}
+                turn={turnId === id}
+                line={line}
+                mark={seatMark(line)}
+                outcome={won > 0 ? 'win' : null}
+                chips={stack}
+                bet={
+                  <span className="pk-bet" data-table-anchor={betAnchor(id)} data-testid="seat-bet" data-bet={bet}>
+                    {bet > 0 && <StakePill value={bet} format={tileFigures(tier)} />}
+                  </span>
+                }
+                total={{ text: shortChips(stack), tone: won > 0 ? 'win' : 'neutral' }}
+                shortBadge
+                dimmed={seat.busted || seat.status === 'folded' || !view.order.includes(id)}
+                badge={seat.isDealer && <DealerButton testId="seat-dealer" />}
+                tag={seat.status === 'allIn' && !seat.busted ? 'All in' : null}
+                onOpen={() => openSeat(id)}
+                data={{ 'data-chips': seat.chips, 'data-bet': seat.bet, 'data-status': status, 'data-dealer': seat.isDealer, 'data-outcome': won > 0 ? 'win' : undefined, 'data-payout': won > 0 ? won : undefined }}
+                cards={(id === staged ? [] : holeOnScreen(table, timeline, id, meId, now)).map((c) => (
+                  <TableCard key={`${timeline.id}:${c.key}`} card={c.card} size="sm" motion={c.motion} leaving={leaving || c.leaving} flipping={c.flipping} highlight={c.card !== null && best.some((b) => c.card !== null && sameCard(b, c.card))} testId="seat-card" />
+                ))}
+                extra={won > 0 && paidOut(timeline, now) ? <PayoutFloat text={payoutText(won)} /> : undefined}
+              />
+            );
+          })
+        }
       </PlayersGrid>
       <SeatSheet title={openPlayer ? openPlayer.name : null} onClose={() => openSeat(null)}>
         {openPlayer && <SeatDetail view={view} id={openPlayer.id} meId={meId} table={table} timeline={timeline} now={now} leaving={leaving} />}

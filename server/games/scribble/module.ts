@@ -19,7 +19,7 @@ import { defineSettings, withDraft, type GameEvent, type GameResult, type GameSe
 import { createScribbleCanvasStore } from './canvas.js';
 import { chat } from './chat.js';
 import { everyoneGuessed, findPlayer, isDrawer, type Ctx, type ScribbleData } from './state.js';
-import { beginNextTurn, chooseTimedOut, chooseWord, endTurn, rate, restartTurn, resumeHeldTurn, revealHint, snapshot, systemMessageForDrawerGone, type Gx } from './turns.js';
+import { beginNextTurn, chooseTimedOut, chooseWord, endTurn, restartTurn, resumeHeldTurn, revealHint, snapshot, systemMessageForDrawerGone, type Gx } from './turns.js';
 import { viewFor } from './view.js';
 
 type Result = GameResult<ScribbleData, ScribbleServerMessage>;
@@ -71,7 +71,8 @@ function onMessage(gx: Gx, playerId: string, msg: ScribbleClientMessage): void {
     case 'chooseWord':
       return chooseWord(gx, playerId, msg.index);
     case 'rate':
-      return rate(gx, playerId, msg.value);
+      // Ratings are gone; an old cached page may still send one.
+      return;
     case 'draw':
     case 'undo':
     case 'clear':
@@ -86,11 +87,8 @@ function onPlayerLeft(gx: Gx, playerId: string): void {
   if (!wasParticipant(data, playerId)) return resumeHeldTurn(gx);
   const queued = data.turnQueue.indexOf(playerId);
   if (queued > data.turnIndex) data.turnQueue.splice(queued, 1);
-  // Their guess still counts for the drawer (turn.correct / guesserIds); the summary and the rating tally forget them.
-  if (data.turn) {
-    delete data.turn.points[playerId];
-    delete data.turn.ratings[playerId];
-  }
+  // Their guess still counts for the drawer (turn.correct / guesserIds); the summary forgets them.
+  if (data.turn) delete data.turn.points[playerId];
   if (isDrawer(data, playerId) && (data.phase.kind === 'choosing' || data.phase.kind === 'drawing')) return endTurn(gx, 'drawerLeft');
   if (data.phase.kind === 'drawing' && everyoneGuessed(gx.ctx, data)) return endTurn(gx, 'allGuessed');
   // A held boundary no longer waits for a seat that emptied (the platform aborts when too few remain).

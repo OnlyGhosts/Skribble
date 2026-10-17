@@ -990,7 +990,7 @@ describe('Poker: a second tap', () => {
     expect(data(s).seats[alice].status).toBe('folded');
   });
 
-  it('deals one next hand on a double tap of the host\'s Next', () => {
+  it('deals one next hand on a double tap of the host’s Next', () => {
     const s = sim('poker');
     const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol'], { hands: 0 });
     act(s, alice, { t: 'fold' });

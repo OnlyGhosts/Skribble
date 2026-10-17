@@ -14,14 +14,14 @@ export function chat(gx: Gx, playerId: string, text: string): boolean {
   if (!player) {
     // A spectator's line is plain chat that never scores, so the word must not slip through it to the guessers.
     if (data.phase.kind !== 'drawing' || !containsWord(text, turn.word)) return false;
-    gx.effects.push({ type: 'chat', to: [playerId], kind: 'system', text: "You can't give away the word!" });
+    gx.effects.push({ type: 'chat', to: [playerId], kind: 'system', text: "You can’t give away the word!" });
     return true;
   }
   if (player.id === turn.drawerId) {
     // While choosing, the drawer already knows every candidate: none of them may reach the guessers.
     const secrets = data.phase.kind === 'choosing' ? turn.choices : [turn.word];
     if (secrets.some((w) => containsWord(text, w))) {
-      gx.effects.push({ type: 'chat', to: [playerId], kind: 'system', text: "You can't give away the word!" });
+      gx.effects.push({ type: 'chat', to: [playerId], kind: 'system', text: "You can’t give away the word!" });
       return true;
     }
     gx.effects.push({ type: 'chat', to: guessedRecipients(gx), kind: 'guessed', text, playerId, name: player.name });
@@ -45,7 +45,7 @@ export function chat(gx: Gx, playerId: string, text: string): boolean {
     else snapshot(gx);
     return true;
   }
-  if (isCloseGuess(text, turn.word)) gx.effects.push({ type: 'chat', to: [playerId], kind: 'close', text: `'${text}' is close!` });
+  if (isCloseGuess(text, turn.word)) gx.effects.push({ type: 'chat', to: [playerId], kind: 'close', text: `‘${text}’ is close!` });
   return false;
 }
 

@@ -272,7 +272,7 @@ export function WordListSetting({ id, label, words, parse, split, onCommit, plac
     try {
       fileText = await file.text();
     } catch {
-      return setUpload({ ok: false, text: "Couldn't read that file. Try another one." });
+      return setUpload({ ok: false, text: "Couldn’t read that file. Try another one." });
     }
     if (!looksLikeText(fileText)) return setUpload({ ok: false, text: 'Pick a plain .txt file.' });
     const merged = mergeWordFile(text, fileText, { split, parse });

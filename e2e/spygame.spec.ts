@@ -59,7 +59,7 @@ async function castOf(): Promise<{ spy: Player; agents: Player[] }> {
   return { spy: spies[0], agents: players.filter((_, i) => roles[i] === 'agent') };
 }
 
-/** The round clock in the header (the vote and the reveal carry timers of their own). */
+/** The header ring: the round clock, counting the vote or the next round while the round clock waits (the one countdown on screen). */
 function clock(p: Player): Locator {
   return p.page.getByTestId('spygame-header').getByTestId('timer');
 }
@@ -180,9 +180,10 @@ test('the host creates a Spy Game room, two phones join by code and the host set
     await expect(clock(p)).toBeVisible();
   }
   for (const p of players) await expect(p.page.getByTestId('round-indicator')).toContainText('1/2');
-  // A phone's one-row top bar cuts nothing: the round stays on one line beside the clock (the name gives way to them there).
+  // A phone's one-row top bar cuts nothing: the name stays whole beside the round and the clock, which keep their own space.
   await gameNameWhole(pia.page);
-  await expect(pia.page.getByTestId('spygame-header').locator('.gbar__name')).toBeHidden();
+  await expect(pia.page.getByTestId('spygame-header').locator('.gbar__name')).toBeVisible();
+  await expect(pia.page.getByTestId('round-indicator')).toBeVisible();
   await expect(clock(pia)).toBeVisible();
 });
 
@@ -284,7 +285,7 @@ test('an accusation pauses the clock and opens the vote sheet; a tie fails and p
   await expect(other.page.getByTestId('vote-sheet')).not.toContainText('to go');
   // The spy (here the accused) has no say, and neither does the accuser beyond their fixed Yes.
   await expect(spy.page.getByTestId('vote-panel')).toHaveAttribute('data-role', 'accused');
-  await expect(spy.page.getByTestId('vote-panel')).toContainText("You've been accused!");
+  await expect(spy.page.getByTestId('vote-panel')).toContainText("You’ve been accused!");
   await expect(spy.page.getByTestId('vote-yes')).toHaveCount(0);
   await expect(spy.page.getByTestId('vote-sheet')).toHaveCount(0);
   await expect(spy.page.getByTestId('vote-panel-tally')).toHaveAttribute('data-yes', '1');
@@ -303,7 +304,7 @@ test('an accusation pauses the clock and opens the vote sheet; a tie fails and p
     await expect(p.page.getByTestId('spygame-reveal')).toHaveCount(0);
   }
   await expect(other.page.getByTestId('vote-sheet')).toHaveCount(0);
-  await expect(accuser.page.getByTestId('accuse-hint')).toContainText("You've used your accusation this round.");
+  await expect(accuser.page.getByTestId('accuse-hint')).toContainText("You’ve used your accusation this round.");
   await expect(accuseRow(accuser, spy.name)).toBeDisabled();
   await expect(accuseRow(other, spy.name)).toBeEnabled();
 });
@@ -331,7 +332,7 @@ test('the other agent accuses the spy, the vote passes and the reveal shows spyC
   // Ending the game is the top bar's (or the options sheet's), not the reveal's.
   await expect(host.page.getByTestId('spygame-end-game')).toHaveCount(0);
   for (const p of phones()) {
-    await expect(p.page.getByTestId('reveal-countdown')).toContainText('Next round in');
+    await expect(p.page.getByTestId('reveal-countdown')).toContainText('Next round soon');
     await expect(p.page.getByTestId('spygame-next-round')).toHaveCount(0);
     await noHorizontalOverflow(p);
   }

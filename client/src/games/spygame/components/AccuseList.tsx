@@ -86,7 +86,7 @@ export function AccuseList({ room, view, meId }: Props) {
               </span>
               {interactive && (
                 <span className="spy-accuse__action" data-testid="accuse-action">
-                  {state === 'highlighted' ? 'Tap again to accuse' : targetBlock ?? ''}
+                  {state === 'highlighted' ? 'Tap again to accuse' : player.id === meId ? '' : (targetBlock ?? '')}
                 </span>
               )}
             </>

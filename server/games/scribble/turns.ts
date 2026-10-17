@@ -100,7 +100,6 @@ function startChoosing(gx: Gx, drawer: PlatformPlayer): void {
     guesserIds: [],
     guessed: [drawer.id],
     points: {},
-    ratings: {},
   };
   if (choices.length === 0) {
     data.phase = { kind: 'choosing', endsAt: ctx.now };
@@ -219,16 +218,6 @@ function holdTurnBoundary(gx: Gx): void {
 /** Re-evaluates a held turn boundary after the player list changed: resume, or refresh the hold. */
 export function resumeHeldTurn(gx: Gx): void {
   if (isHeld(gx.data)) beginNextTurn(gx);
-}
-
-export function rate(gx: Gx, playerId: string, value: 'like' | 'dislike'): void {
-  const { data } = gx;
-  if (data.phase.kind !== 'drawing' || !data.turn) return fail(gx, playerId, 'There is nothing to rate right now.');
-  if (!findPlayer(gx.ctx, playerId)) return fail(gx, playerId, 'Only the players in the game rate drawings.');
-  if (data.turn.drawerId === playerId) return fail(gx, playerId, "You can't rate your own drawing.");
-  if (data.turn.ratings[playerId] === value) delete data.turn.ratings[playerId];
-  else data.turn.ratings[playerId] = value;
-  snapshot(gx);
 }
 
 /** The chat line when a server restart sends a turn back to the start. */

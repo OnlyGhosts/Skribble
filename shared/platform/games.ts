@@ -6,6 +6,8 @@ export type GameId = 'scribble' | 'spygame' | 'quipgame' | 'blackjack' | 'poker'
 
 export type GameStatus = 'live' | 'soon' | 'hidden';
 
+export type ScoreUnit = 'points' | 'chips';
+
 export interface GameMeta {
   id: GameId;
   /** URL segment. Lowercase letters only and never 4 characters long, so it can never collide with a room code. */
@@ -32,6 +34,8 @@ export interface GameMeta {
   accent: string;
   /** Whether the game reads `settings.contentMode`; the lobby only offers Family / Unhinged for these. */
   contentModes: boolean;
+  /** What a score counts: points, or chips for a card table (its score is the stack). Points when absent. */
+  scoreUnit?: ScoreUnit;
   /** 'hidden' games are never offered in the lobby picker but a party can start on one through '/?game=slug' (development, tests). */
   status: GameStatus;
 }
@@ -64,7 +68,7 @@ export const GAME_LIST: readonly GameMeta[] = [
     howToPlay: [
       'Everyone except the spy sees the secret location on their phone.',
       'Take turns asking each other questions about the place without giving it away.',
-      'Agents accuse a suspect and vote; a passed vote is the group\'s one guess for the round.',
+      'Agents accuse a suspect and vote; a passed vote is the group’s one guess for the round.',
       'The spy wins by guessing the location from the 24 candidates within two tries.',
       'Time runs out? The agents win the round.',
     ],
@@ -111,6 +115,7 @@ export const GAME_LIST: readonly GameMeta[] = [
     glyph: 'M5 3h14v18H5z M9 8l3-3 3 3-3 3z M9 16h6',
     accent: '#86d9a3',
     contentModes: false,
+    scoreUnit: 'chips',
     status: 'live',
   },
   {
@@ -129,6 +134,7 @@ export const GAME_LIST: readonly GameMeta[] = [
     glyph: 'M12 2a10 10 0 1 0 0 20a10 10 0 1 0 0-20 M12 6a6 6 0 1 0 0 12a6 6 0 1 0 0-12 M12 2v4m10 6h-4m-6 10v-4M2 12h4',
     accent: '#e7a1cb',
     contentModes: false,
+    scoreUnit: 'chips',
     status: 'live',
   },
   {

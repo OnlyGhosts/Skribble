@@ -35,7 +35,7 @@ export function RoleCard({ view, watching = false }: { view: SpygameView; watchi
   if (view.role === 'spectator') {
     return (
       <section className="card spy-role spy-role--spectator" aria-label="Your role" data-testid="spygame-role" data-role="spectator" data-watching={watching}>
-        <h1 className="spy-role__title">{watching ? "You're watching" : "You'll join the next round"}</h1>
+        <h1 className="spy-role__title">{watching ? "You’re watching" : "You’ll join the next round"}</h1>
         <p className="spy-role__text">{watching ? 'Someone here is the spy. You can play the next game.' : 'Someone here is the spy. Watch how it plays out.'}</p>
       </section>
     );

@@ -8,7 +8,7 @@ import { tilesReadable } from './tableFit';
  * game a player who sat it out watches the same way.
  */
 const PHONE = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true };
-const WATCHING = "You're watching. You can play the next game.";
+const WATCHING = "You’re watching. You can play the next game.";
 
 async function phone(browser: Browser): Promise<Page> {
   const context = await browser.newContext(PHONE);
@@ -19,7 +19,7 @@ async function phone(browser: Browser): Promise<Page> {
 async function expectWatching(page: Page): Promise<void> {
   await expect(page.getByTestId('blackjack-screen')).toBeVisible();
   await expect(page.getByTestId('bj-panel')).toHaveAttribute('data-watching', 'true');
-  await expect(page.getByTestId('turn-status')).toHaveText(WATCHING);
+  await expect(page.getByTestId('watching-note')).toHaveText(WATCHING);
   for (const id of ['place-bet', 'bet-input', 'action-hit', 'action-stand', 'action-split', 'action-double', 'sit-out']) await expect(page.getByTestId(id)).toHaveCount(0);
   const scroll = await page.evaluate(() => ({ height: document.documentElement.scrollHeight, width: document.documentElement.scrollWidth }));
   expect(scroll.height).toBeLessThanOrEqual(844);
@@ -107,8 +107,14 @@ test('a phone that joins a running Poker hand watches it, every seat read in ful
   await rae.getByTestId('home-join').click();
   await enterNameIfAsked(rae, 'Rae');
   await expect(rae.getByTestId('pk-panel')).toHaveAttribute('data-watching', 'true');
-  await expect(rae.getByTestId('turn-status')).toHaveText(WATCHING);
+  await expect(rae.getByTestId('watching-note')).toHaveText(WATCHING);
   for (const id of ['action-fold', 'action-raise', 'action-call']) await expect(rae.getByTestId(id)).toHaveCount(0);
+  // Not dealt in, Rae watches the hand in play on the stage, named by its pill; that seat leaves its cards to the stage, so they show once.
+  const turn = (await rae.getByTestId('poker-screen').getAttribute('data-turn-player')) ?? '';
+  await expect(rae.getByTestId('hand-stage')).toHaveAttribute('data-player-id', turn);
+  await expect(rae.getByTestId('stage-owner')).toBeVisible();
+  await expect(rae.getByTestId('stage-card')).toHaveCount(2);
+  await expect(rae.locator(`[data-testid="seat"][data-player-id="${turn}"] [data-testid="seat-card"]`)).toHaveCount(0);
   // Both players sit as tiles side by side; the big blind's line ("BB 10") reads in full beside the stack and the bet.
   await expect(rae.getByTestId('seat')).toHaveCount(2);
   await expect(rae.locator('[data-testid="seat-line"]', { hasText: /^BB \d+$/ })).toBeVisible();

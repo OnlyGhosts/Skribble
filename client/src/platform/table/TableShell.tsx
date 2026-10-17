@@ -18,10 +18,6 @@ interface Props {
   mainTestId: string;
   data?: DataAttrs;
   isPhone: boolean;
-  /** The line under the game's name in the top bar (round or hand, and the phase). */
-  status: ReactNode;
-  statusTestId: string;
-  statusData?: DataAttrs;
   /** The room, for the top bar's player chips and the players sheet. */
   room: RoomState;
   /** The players list, in its sheet. */
@@ -33,11 +29,12 @@ interface Props {
 }
 
 /**
- * A card table's screen: a top bar (what is being played, players, options; one row on a phone,
- * where every player is on the table), the table, and the control panel always in the same place:
- * docked under the table on a phone, in a left column on a desktop (table.css).
+ * A card table's screen: a top bar in one row (what is being played, the players button, options;
+ * every player is on the table, and the round is on its ribbon), the table, and the control panel
+ * always in the same place: docked under the table on a phone, in a left column on a desktop
+ * (table.css).
  */
-export function TableShell({ meta, className, testId, headerTestId, mainTestId, data, isPhone, status, statusTestId, statusData, room, players, sheet, onSheet, table, panel }: Props) {
+export function TableShell({ meta, className, testId, headerTestId, mainTestId, data, isPhone, room, players, sheet, onSheet, table, panel }: Props) {
   const closeSheet = () => onSheet(null);
   const style = { '--table-accent': meta.accent } as CSSProperties;
   return (
@@ -48,11 +45,8 @@ export function TableShell({ meta, className, testId, headerTestId, mainTestId, 
         isPhone={isPhone}
         testId={headerTestId}
         className="tbl__top"
-        status={status}
-        statusTestId={statusTestId}
-        statusData={statusData}
         players={{ open: sheet === 'players', onOpen: () => onSheet('players') }}
-        compact={isPhone}
+        compact
         menu={{ open: sheet === 'menu', onOpen: () => onSheet('menu') }}
       />
 

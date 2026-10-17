@@ -220,7 +220,7 @@ function outcomeLine(gx: Gx, outcome: SpygameOutcome, accusedId: string | null):
     case 'wrongAccusation':
       return `${accusedId !== null ? nameOf(gx.ctx, accusedId) : 'That'} was not the spy. ${spy} wins the round. It was the ${place}.`;
     case 'timeUp':
-      return `Time's up! ${spy} was the spy. The agents win. It was the ${place}.`;
+      return `Time’s up! ${spy} was the spy. The agents win. It was the ${place}.`;
     case 'spyLeft':
       return `${spy} (the spy) left. The agents win the round. It was the ${place}.`;
   }

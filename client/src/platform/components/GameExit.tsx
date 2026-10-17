@@ -2,7 +2,7 @@ import { gameById } from '@shared/platform/games';
 import type { RoomState } from '@shared/platform/protocol';
 import { endGame, leaveRoom } from '../net/actions';
 import { registeredGame } from '../registry';
-import { FlagIcon, LogoutIcon } from './Icons';
+import { EndIcon, LogoutIcon } from './Icons';
 
 /** Which way out a confirm step is about. */
 export type ExitKind = 'end' | 'leave';
@@ -19,7 +19,7 @@ export function endGameNote(room: RoomState): string {
 
 /** What leaving does, in a few words: the game goes on, unless too few players would be left. */
 export function leaveNote(room: RoomState | null, meId: string | null): string {
-  if (!room || room.phase !== 'playing') return "You'd need the code to come back in.";
+  if (!room || room.phase !== 'playing') return "You’d need the code to come back in.";
   const me = room.players.find((p) => p.id === meId);
   if (!me?.participating) return 'The game goes on. You need the code to come back.';
   const left = room.players.filter((p) => p.participating && p.id !== me.id).length;
@@ -40,7 +40,7 @@ export function EndGameConfirm({ room, onCancel, testId }: ConfirmProps) {
   return (
     <div className="exit-confirm exit-confirm--end" role="group" aria-label="End the game?" data-testid={`${testId}-confirm`}>
       <span className="exit-confirm__icon" aria-hidden="true">
-        <FlagIcon size={22} />
+        <EndIcon size={22} />
       </span>
       <p className="exit-confirm__title">End the game for everyone?</p>
       {room && <p className="exit-confirm__note">{endGameNote(room)}</p>}
@@ -54,7 +54,7 @@ export function EndGameConfirm({ room, onCancel, testId }: ConfirmProps) {
           }}
           data-testid={`${testId}-yes`}
         >
-          <FlagIcon size={16} /> End game
+          <EndIcon size={16} /> End game
         </button>
         <button type="button" className="btn btn--ghost" onClick={onCancel} data-testid={`${testId}-no`}>
           Keep playing
@@ -97,7 +97,7 @@ export function ExitActions({ room, isHost, onPick }: { room: RoomState | null; 
         (ending ? (
           <p className="exit-action exit-action--end exit-action--pending" data-testid="end-game-requested">
             <span className="exit-action__icon" aria-hidden="true">
-              <FlagIcon size={18} />
+              <EndIcon size={18} />
             </span>
             <span className="exit-action__text">
               <strong>Ending soon</strong>
@@ -107,7 +107,7 @@ export function ExitActions({ room, isHost, onPick }: { room: RoomState | null; 
         ) : (
           <button type="button" className="exit-action exit-action--end" onClick={() => onPick('end')} data-testid="end-game">
             <span className="exit-action__icon" aria-hidden="true">
-              <FlagIcon size={18} />
+              <EndIcon size={18} />
             </span>
             <span className="exit-action__text">
               <strong>End game</strong>
@@ -133,13 +133,13 @@ export function EndGameButton({ room, onOpen, open }: { room: RoomState; onOpen(
   if (room.endRequested) {
     return (
       <span className="gbar-end gbar-end--pending" data-testid="end-game-requested">
-        <FlagIcon size={15} /> Ending soon
+        <EndIcon size={15} /> Ending soon
       </span>
     );
   }
   return (
     <button type="button" className="btn btn--sm gbar-end" onClick={onOpen} aria-haspopup="dialog" aria-expanded={open} data-testid="end-game">
-      <FlagIcon size={15} /> End game
+      <EndIcon size={15} /> End game
     </button>
   );
 }

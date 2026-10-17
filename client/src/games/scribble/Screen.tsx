@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState } from 'react';
-import type { ScribblePhase, ScribbleSettings, ScribbleView } from '@shared/games/scribble/protocol';
+import type { ScribbleSettings, ScribbleView } from '@shared/games/scribble/protocol';
 import { gameById } from '@shared/platform/games';
 import { BottomSheet } from '../../platform/components/BottomSheet';
 import { GameMenuSheet, GameTopBar, RoundStatus } from '../../platform/components/GameTopBar';
@@ -12,9 +12,8 @@ import { useAppMode } from '../../platform/lib/useViewport';
 import { useActiveGame } from '../../platform/store/selectors';
 import { usePlatformStore } from '../../platform/store/usePlatformStore';
 import { DEFAULT_DRAWING_SETTINGS, GameCanvas, Toolbar, type DrawingSettings } from '../../platform/canvas';
-import { clearCanvas, rateDrawing, redoStroke, undoStroke } from './actions';
+import { clearCanvas, redoStroke, undoStroke } from './actions';
 import { scribbleCanvas } from './canvas';
-import { ThumbDownIcon, ThumbUpIcon } from './components/Icons';
 import { GuessBox } from './components/GuessBox';
 import { GuessFeed } from './components/GuessFeed';
 import { ChoosingOverlay, DrawingCaption, TurnEndOverlay } from './components/Overlays';
@@ -22,41 +21,6 @@ import { WordDisplay } from './components/WordDisplay';
 import { drawerIdOf, hasGuessed } from './hooks';
 
 const meta = gameById('scribble');
-
-type DrawingPhase = Extract<ScribblePhase, { kind: 'drawing' }>;
-
-/**
- * Guessers rate the drawing from the canvas corner; the drawer and anyone sitting the game out
- * only see the tally there (it lets the drawer's strokes through to the canvas).
- */
-function Rating({ phase, canRate }: { phase: DrawingPhase; canRate: boolean }) {
-  return (
-    <div className={`rating${canRate ? '' : ' rating--tally'}`} role="group" aria-label="Rate the drawing" data-testid="rating">
-      <button
-        type="button"
-        className={`rating__btn${phase.myRating === 'like' ? ' is-active' : ''}`}
-        onClick={() => rateDrawing('like')}
-        disabled={!canRate}
-        aria-pressed={phase.myRating === 'like'}
-        aria-label={`Like this drawing (${phase.likes})`}
-        data-testid="rate-like"
-      >
-        <ThumbUpIcon size={16} /> <span>{phase.likes}</span>
-      </button>
-      <button
-        type="button"
-        className={`rating__btn rating__btn--down${phase.myRating === 'dislike' ? ' is-active' : ''}`}
-        onClick={() => rateDrawing('dislike')}
-        disabled={!canRate}
-        aria-pressed={phase.myRating === 'dislike'}
-        aria-label={`Dislike this drawing (${phase.dislikes})`}
-        data-testid="rate-dislike"
-      >
-        <ThumbDownIcon size={16} /> <span>{phase.dislikes}</span>
-      </button>
-    </div>
-  );
-}
 
 /** The Scribble game screen: header, canvas with overlays and toolbar, players (a sheet on phones), the guess feed and the guess box. */
 export function ScribbleScreen({ room, meId, isHost }: GameScreenProps<ScribbleView, ScribbleSettings>) {
@@ -108,8 +72,6 @@ export function ScribbleScreen({ room, meId, isHost }: GameScreenProps<ScribbleV
   const drawerId = drawerIdOf(view);
   const drawer = drawerId ? (room.players.find((p) => p.id === drawerId) ?? null) : null;
   const isDrawer = drawerId !== null && drawerId === meId;
-  const participating = room.players.find((p) => p.id === meId)?.participating ?? false;
-  const canRate = participating && !isDrawer;
   const guessed = hasGuessed(view, meId);
   const canDraw = isDrawer && phase.kind === 'drawing';
   const canUndo = hasStrokes && connected;
@@ -159,11 +121,7 @@ export function ScribbleScreen({ room, meId, isHost }: GameScreenProps<ScribbleV
         className="game__top"
         status={
           <>
-            <RoundStatus round={view.round} total={view.totalRounds} />
-            <span className="gbar__more">
-              {' '}
-              · Turn {view.turn}/{view.turnsInRound}
-            </span>
+            <RoundStatus round={view.round} total={view.totalRounds} /> · Turn {view.turn}/{view.turnsInRound}
           </>
         }
         statusData={{ 'data-round': view.round, 'data-turn': view.turn }}
@@ -190,7 +148,6 @@ export function ScribbleScreen({ room, meId, isHost }: GameScreenProps<ScribbleV
           {phase.kind === 'choosing' && <ChoosingOverlay phase={phase} room={room} isDrawer={isDrawer} paused={holding} />}
           {phase.kind === 'turnEnd' && <TurnEndOverlay phase={phase} room={room} paused={holding} />}
           {phase.kind === 'drawing' && !isDrawer && <DrawingCaption drawer={drawer} />}
-          {phase.kind === 'drawing' && <Rating phase={phase} canRate={canRate} />}
         </GameCanvas>
       </main>
 

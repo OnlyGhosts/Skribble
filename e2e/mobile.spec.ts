@@ -249,7 +249,7 @@ test.afterAll(async () => {
 test('the phone front door fits the viewport and its primary buttons are 44px targets', async () => {
   await phone.page.goto('/');
   await expect(phone.page.getByTestId('home-create')).toBeVisible();
-  await expect(phone.page.getByTestId('connection-status')).toHaveCount(0);
+  await expect(phone.page.getByTestId('connection-notice')).toHaveCount(0);
   await expectNoHorizontalOverflow(phone.page, PORTRAIT.width);
   for (const id of ['home-create', 'home-join', 'code-input-0']) {
     await expectTallEnough(phone.page.getByTestId(id), id);

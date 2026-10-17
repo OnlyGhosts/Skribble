@@ -55,7 +55,7 @@ describe('a word list from a .txt file', () => {
     expect(wordFileSummary({ text: 'a', added: 1, repeats: 2, tooLong: 1, overLimit: 3 }, WORDS)).toBe('Added 1 word. Left out 2 repeats, 1 too long and 3 over the limit.');
   });
 
-  it("reads a game's own list the same way: Quip Game's prompts are one per line", () => {
+  it("reads a game’s own list the same way: Quip Game’s prompts are one per line", () => {
     const merged = mergeWordFile('', 'The worst gift, ever\nA bad name for a boat\nthe worst gift, ever', QUIP);
     expect(merged.text).toBe('The worst gift, ever\nA bad name for a boat');
     expect(wordFileSummary(merged, { one: 'prompt', many: 'prompts' })).toBe('Added 2 prompts. Left out 1 repeat.');

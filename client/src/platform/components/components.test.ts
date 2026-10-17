@@ -15,7 +15,7 @@ const { Timer } = await import('./Timer');
 const { ResultsPopup } = await import('./ResultsPopup');
 const { EndGameConfirm, ExitActions, LeaveConfirm, endGameNote, leaveNote } = await import('./GameExit');
 const { WaitingOverlay, clockText, missingPlayers, waitingHint, waitingTitle } = await import('./WaitingOverlay');
-const { ReconnectingBanner, reconnectLabel } = await import('./ReconnectingBanner');
+const { ConnectionNotice, NoticeCard } = await import('./ConnectionNotice');
 const { gameById } = await import('@shared/platform/games');
 const { Home, cleanName, firstInvalidBox, focusAfterRefusal, homeView, initialGame, previewLine } = await import('../screens/Home');
 const { Wordmark } = await import('./Wordmark');
@@ -23,7 +23,7 @@ const { WORDMARK_BOX, WORDMARK_GEAR_CENTRE, WORDMARK_GEAR_POSITION } = await imp
 const { PlayerList } = await import('./PlayerList');
 const { BoredArt, HappyArt, MASCOTS_VIEWBOX, PHONE_BORED_VIEWBOX, PHONE_HAPPY_VIEWBOX, PhoneBored, PhoneHappy } = await import('./Mascots');
 const { SiteHeader } = await import('./SiteHeader');
-const { connectionLabel, shownConnectionLabel } = await import('./ConnectionPill');
+const { noticeFor } = await import('../lib/connectionNotice');
 const { ReadyControls, readyState } = await import('./ReadyControls');
 const { AvatarPicker } = await import('./AvatarPicker');
 const { GamePicker } = await import('./GamePicker');
@@ -191,7 +191,7 @@ describe('waiting overlay', () => {
     expect(html.match(/avatar--dimmed/g)).toHaveLength(2);
   });
 
-  it('counts down a hold with a limit (The Spy Game\'s away spy), without the player count when enough are connected', () => {
+  it('counts down a hold with a limit (The Spy Game’s away spy), without the player count when enough are connected', () => {
     expect(clockText(90)).toBe('1:30');
     expect(clockText(5)).toBe('0:05');
     expect(waitingHint(null)).toBe('The game carries on by itself as soon as they are back.');
@@ -252,12 +252,18 @@ describe('waiting overlay', () => {
     expect(renderToString(createElement(WaitingOverlay, { room: empty, waiting: empty.waiting, isHost: true, meId: 'host' }))).toBe('');
   });
 
-  it('stacks above the phone bottom sheets (the hold can start while one is open) and below the toasts', () => {
+  it('stacks above the phone bottom sheets (the hold can start while one is open) and below the toasts, like the results popup', () => {
     const css = readFileSync(fileURLToPath(new URL('../styles/components.css', import.meta.url)), 'utf8');
     const sheet = zIndexOf(css, '.sheet');
+    const toasts = zIndexOf(css, '.toasts');
     expect(zIndexOf(css, '.waiting-overlay')).toBeGreaterThan(sheet);
     expect(zIndexOf(css, '.results-popup')).toBeGreaterThan(sheet);
-    expect(zIndexOf(css, '.waiting-overlay')).toBeLessThan(zIndexOf(css, '.toasts'));
+    // What happens while a card is up ("Pia left the room") still shows: the toasts stay above both cards, under the connection notice.
+    expect(toasts).toBeGreaterThan(zIndexOf(css, '.waiting-overlay'));
+    expect(toasts).toBeGreaterThan(zIndexOf(css, '.results-popup'));
+    expect(toasts).toBeLessThan(zIndexOf(css, '.conn-notice'));
+    // On a phone the notice drops under the top bar's first row, like the toasts, clear of the back arrow and the game's name.
+    expect(css).toMatch(/@media \(max-width: 760px\) \{\s*\.conn-notice \{\s*top: calc\(64px \+ env\(safe-area-inset-top\)\);/);
     // The remove buttons keep a 44px target and let a long name wrap instead of overflowing the card.
     const remove = css.slice(css.indexOf('.waiting__remove .btn {'));
     expect(remove.slice(0, remove.indexOf('}'))).toMatch(/min-height: 44px/);
@@ -265,26 +271,35 @@ describe('waiting overlay', () => {
   });
 });
 
-describe('reconnecting banner', () => {
-  it('shows over the game screen while the socket is down and not at all while connected', () => {
-    expect(reconnectLabel('reconnecting')).toBe('Reconnecting…');
-    expect(reconnectLabel('connecting')).toBe('Connecting…');
-    expect(reconnectLabel('connected')).toBeNull();
-    // A restart says the game carries on, kept from leaving one word alone on its last line.
-    expect(reconnectLabel('restarting')).toBe('The server is restarting. Your game will carry\u00a0on.');
-    expect(stylesheet('components.css')).toMatch(/\.reconnect-banner\[data-status='restarting'\]\s*\{[^}]*white-space:\s*normal/);
-    // Centred from the middle of the screen, it takes its own width, or it would wrap into three lines on a phone.
-    expect(stylesheet('components.css')).toMatch(/\.reconnect-banner\[data-status='restarting'\]\s*\{[^}]*width:\s*max-content/);
-    // Its entry keeps the centring: an animated transform without translateX(-50%) slides it in off to the right.
-    const banner = stylesheet('components.css').match(/\.reconnect-banner\s*\{[^}]*animation:\s*([\w-]+)/);
-    const frames = stylesheet('components.css').match(new RegExp(`@keyframes ${banner?.[1] ?? '-'}\\s*\\{([\\s\\S]*?)\\n\\}`));
-    expect(frames?.[1].match(/transform:[^;]*/g)).toEqual(['transform: translate(-50%, -8px)', 'transform: translate(-50%, 0)']);
-    // The store starts out connecting (react-dom/server reads the store's initial state).
-    const html = renderToString(createElement(ReconnectingBanner));
-    const tag = tagWith(html, 'reconnecting-banner');
-    expect(tag).toContain('data-status="connecting"');
-    expect(tag).toContain('role="status"');
-    expect(html).toContain('Connecting…');
+describe('connection notice', () => {
+  it('says plainly what is happening, with room for a second line', () => {
+    const notice = noticeFor('reconnecting', false, true);
+    expect(notice).toEqual({ status: 'reconnecting', title: 'Reconnecting…', detail: 'Your place in the room is kept.' });
+    const html = renderToString(createElement(NoticeCard, { notice: notice! }));
+    expect(tagWith(html, 'connection-notice')).toContain('data-status="reconnecting"');
+    expect(html).toContain('class="conn-notice__title">Reconnecting…</strong>');
+    expect(html).toContain('class="conn-notice__detail">Your place in the room is kept.</span>');
+    // Off the room, one line is enough.
+    expect(renderToString(createElement(NoticeCard, { notice: noticeFor('reconnecting', false, false)! }))).not.toContain('conn-notice__detail');
+  });
+
+  it('says a restart carries the game on, in two lines with no word alone on the last', () => {
+    expect(noticeFor('restarting', false, true)).toEqual({ status: 'restarting', title: 'The server is restarting.', detail: 'Your game will carry\u00a0on.' });
+    expect(noticeFor('restarting', true, false)?.status).toBe('restarting');
+  });
+
+  it('keeps an empty live region on first paint, so a screen reader hears it arrive', () => {
+    const html = renderToString(createElement(ConnectionNotice));
+    expect(html).toBe('<div class="conn-notice" role="status" aria-live="polite"></div>');
+  });
+
+  it('sits at the top of the screen over everything, inverted so it never reads cream on cream', () => {
+    const css = stylesheet('components.css');
+    expect(ruleOf(css, '.conn-notice')).toContain('position: fixed');
+    expect(zIndexOf(css, '.conn-notice')).toBeGreaterThan(zIndexOf(css, '.waiting-overlay'));
+    expect(zIndexOf(css, '.conn-notice')).toBeGreaterThan(zIndexOf(css, '.results-popup'));
+    expect(ruleOf(css, '.conn-notice__card')).toContain('background: var(--notice-bg)');
+    expect(css).not.toMatch(/conn-pill|reconnect-banner/);
   });
 });
 
@@ -340,6 +355,9 @@ describe('front door', () => {
     expect(html).not.toContain('<footer');
     expect(html).toContain('data-testid="join-panel"');
     expect(html).toContain('data-testid="create-panel"');
+    // "Join a room" names the boxes' section for screen readers only: on screen the boxes and Join say it.
+    expect(html).toMatch(/<h2 class="sr-only" id="join-heading">Join a room<\/h2>/);
+    expect(tagWith(html, 'join-panel')).toContain('aria-labelledby="join-heading"');
     // The status line under the boxes stays in the DOM as a polite live region, empty until there is something to say.
     expect(tagWith(html, 'room-preview')).toContain('aria-live="polite"');
     expect(html).toMatch(/data-testid="room-preview"><\/div>/);
@@ -385,6 +403,58 @@ describe('front door', () => {
   });
 });
 
+describe('the light theme', () => {
+  /** The declarations of the light theme's token block. */
+  const lightBlock = () => {
+    const tokens = stylesheet('tokens.css');
+    const start = tokens.indexOf(":root[data-theme='light'] {");
+    expect(start).toBeGreaterThan(0);
+    return tokens.slice(start, tokens.indexOf('}', start));
+  };
+
+  it('is the same system on an off-white page: white panels, raised surfaces in a pale lime, the brand cut darker for text', () => {
+    const light = lightBlock();
+    expect(light).toContain('--color-bg: #f5f6ef;');
+    expect(light).toContain('--color-surface: #ffffff;');
+    // Never the grey-green that made the raised surfaces look dirty.
+    expect(light).not.toContain('#edf0e5');
+    expect(light).toContain('--color-surface-2: #eaf0d9;');
+    expect(light).toContain('--color-primary: #c7e976;');
+    expect(light).toContain('--color-primary-text: #3d6b0f;');
+    // The page dims clearly behind a card (ink at three fifths), never to a murky grey.
+    expect(light).toContain('--overlay-bg: rgba(26, 34, 23, 0.6);');
+  });
+
+  it('gives a lime fill an edge, a disabled button a border and a player colour a wash, through tokens the dark theme leaves invisible', () => {
+    const tokens = stylesheet('tokens.css');
+    const dark = tokens.slice(0, tokens.indexOf(":root[data-theme='light']"));
+    const light = lightBlock();
+    expect(dark).toContain('--color-primary-edge: #c7e976;');
+    expect(light).toContain('--color-primary-edge: #a9cf47;');
+    expect(dark).toContain('--avatar-wash: transparent;');
+    expect(light).toMatch(/--avatar-wash: rgb\(255 255 255 \/ 0\.\d+\);/);
+    expect(dark).toContain('--btn-disabled-bg: #2b2e29;');
+    expect(dark).toContain('--btn-disabled-border: #2b2e29;');
+    expect(light).toContain('--btn-disabled-border: #d4d8cb;');
+    const css = stylesheet('components.css');
+    expect(ruleOf(css, '.btn:disabled')).toContain('background: var(--btn-disabled-bg)');
+    expect(ruleOf(css, '.btn:disabled')).toContain('border-color: var(--btn-disabled-border)');
+    expect(ruleOf(css, '.btn--primary')).toContain('border-color: var(--color-primary-edge)');
+    expect(ruleOf(css, '.avatar')).toContain('var(--avatar-wash)');
+    expect(ruleOf(css, '.avatar-picker__group .swatch.is-selected')).toContain('var(--avatar-wash)');
+    expect(ruleOf(stylesheet('lobby.css'), '.room-card__char')).toContain('var(--color-primary-edge)');
+    expect(ruleOf(stylesheet('table.css'), '.tbl-panel .btn:disabled')).toContain('background: var(--btn-disabled-bg)');
+  });
+
+  it('keeps the felt on a light table: a pale green with white seats and ribbon, so cards never sit white on white', () => {
+    const felt = ruleOf(stylesheet('table.css'), ":root[data-theme='light'] .tbl-felt");
+    expect(felt).toContain('--color-surface: #e2e9d1');
+    expect(felt).toContain('--color-surface-2: #ffffff');
+    expect(ruleOf(stylesheet('table.css'), '.tbl-felt')).toContain('background: var(--color-surface)');
+    expect(ruleOf(stylesheet('table.css'), '.tbl-ribbon__band')).toContain('background: var(--color-surface-2)');
+  });
+});
+
 describe('wordmark and mascots', () => {
   it('renders the outlined wordmark as vector paths with "boredgames.io" as its accessible name, never as live text', () => {
     const html = renderToString(createElement(Wordmark));
@@ -395,16 +465,16 @@ describe('wordmark and mascots', () => {
     expect(html.match(/<path [^>]*fill="currentColor"/g)?.length).toBe(3);
     expect(html).toContain('class="wordmark__accent"');
     expect(html).toContain('class="wordmark__gear"');
-    // On light, "games" stays lime and a copy of it underneath draws an ink outline; dark has no outline.
-    expect(html).toMatch(/<path class="wordmark__accent-outline" d="[^"]+" fill="none">/);
-    const css = stylesheet('components.css');
-    expect(ruleOf(css, '.wordmark__accent-outline')).toContain('display: none');
-    expect(ruleOf(css, ":root[data-theme='light'] .wordmark__accent")).toContain('color: var(--color-primary)');
-    expect(ruleOf(css, ":root[data-theme='light'] .wordmark__accent-outline")).toContain('stroke: var(--color-primary-contrast)');
     expect(html).not.toContain('<text');
     expect(html).not.toMatch(/font-family/);
-    // "games" follows the theme: lime on dark, the deep olive cut on light.
-    expect(ruleOf(stylesheet('components.css'), '.wordmark__accent')).toContain('color: var(--color-primary-text)');
+    // "games" follows the theme through the mark token: the lime on dark, the lime cut to 3:1 on light, and never an outline (it swelled the letters into a blob on phones).
+    expect(html).not.toContain('wordmark__accent-outline');
+    const css = stylesheet('components.css');
+    expect(ruleOf(css, '.wordmark__accent')).toContain('color: var(--color-primary-mark)');
+    expect(css).not.toMatch(/\.wordmark__accent[^{]*\{[^}]*stroke/);
+    const tokens = stylesheet('tokens.css');
+    expect(tokens).toContain('--color-primary-mark: #c7e976;');
+    expect(tokens.slice(tokens.indexOf(":root[data-theme='light']"))).toContain('--color-primary-mark: #6f9a1c;');
   });
 
   it('renders the mascots flat and decorative: solid fills, an ink outline and shadow, no screen lines', () => {
@@ -464,21 +534,10 @@ describe('wordmark and mascots', () => {
     expect(html).not.toContain('theme-toggle');
   });
 
-  it('shows the connection pill only while the socket is not connected (no "Connected" badge)', () => {
-    expect(connectionLabel('connected')).toBeNull();
-    expect(connectionLabel('reconnecting')).toBe('Reconnecting…');
-    expect(connectionLabel('connecting')).toBe('Connecting…');
-    expect(connectionLabel('restarting')).toBe('Server restarting…');
-    // A first connect waits out its grace in JS, so reduced motion (which cuts CSS animations short) cannot flash it.
-    expect(shownConnectionLabel('connecting', false)).toBeNull();
-    expect(shownConnectionLabel('connecting', true)).toBe('Connecting…');
-    expect(shownConnectionLabel('reconnecting', false)).toBe('Reconnecting…');
-    expect(shownConnectionLabel('connected', true)).toBeNull();
-    expect(stylesheet('components.css')).not.toMatch(/conn-pill--connecting\s*\{[^}]*animation/);
-    // react-dom/server reads the store's initial state, which is connecting: nothing on first paint.
+  it('puts no connection badge beside the logo: the one connection notice lives at the top of the page', () => {
     const html = renderToString(createElement(SiteHeader));
-    expect(html).not.toContain('connection-status');
-    expect(html).not.toContain('Connected<');
+    expect(html).not.toContain('connection-');
+    expect(html).not.toContain('Connect');
   });
 
   it('ships no pre-Pocket-Party assets: no old game icons, nothing in the old purple', () => {
@@ -545,9 +604,14 @@ describe('platform settings', () => {
     expect(tagWith(html, 'content-mode-unhinged')).toContain('aria-checked="true"');
     expect(html).not.toContain('Only the host can change settings.');
     const css = stylesheet('components.css');
-    // 12px from a title to its options, 24px from one setting to the next.
-    expect(css).toMatch(/\n\.settings \{[^}]*gap: var\(--space-5\)/);
-    expect(css).toMatch(/\n\.setting \{[^}]*gap: var\(--space-3\)/);
+    // 10px from a title to its control, the hint 4px under the control, 32px from one setting to the next.
+    expect(css).toMatch(/\n\.settings \{[^}]*gap: var\(--space-6\)/);
+    expect(css).toMatch(/\n\.setting \{[^}]*gap: 10px/);
+    expect(ruleOf(css, '.setting__hint')).toContain('margin-top: -6px');
+    // A word list's count and Upload sit right under the box.
+    expect(ruleOf(css, '.word-list__foot')).toContain('margin-top: -4px');
+    // The small upload button is still a 44px target on a phone.
+    expect(ruleOf(css, '.word-list__upload')).toContain('min-height: 44px');
     expect(css).not.toContain('.setting__value');
     // A slider's value sits in the control, in the text colour rather than the brand's.
     expect(ruleOf(css, '.range-field__value')).toContain('color: var(--color-text)');
@@ -576,12 +640,12 @@ describe('ready controls', () => {
   const html = (overrides: Parameters<typeof player>[1]) => renderToString(createElement(ReadyControls, { me: player('bob', { participating: false, ...overrides }) }));
   const buttons = (markup: string) => markup.match(/<button[^>]*>/g) ?? [];
 
-  it("not ready: one I'm ready over a secondary Sit this one out button", () => {
+  it("not ready: one I’m ready over a secondary Sit this one out button", () => {
     const markup = html({});
     expect(readyState(player('bob'))).toBe('notReady');
     expect(buttons(markup)).toHaveLength(2);
     expect(tagWith(markup, 'ready-toggle')).toContain('aria-pressed="false"');
-    expect(markup).toContain('I&#x27;m ready');
+    expect(markup).toContain('I’m ready');
     expect(tagWith(markup, 'sitout-toggle')).toContain('btn btn--secondary');
     expect(markup).toContain('Sit this one out');
     expect(markup).not.toContain('Count me in');
@@ -592,7 +656,7 @@ describe('ready controls', () => {
     expect(stylesheet('components.css')).not.toContain('.text-btn');
   });
 
-  it('puts extra buttons (the room\'s Change my look) in the same row, sitting out included', () => {
+  it('puts extra buttons (the room’s Change my look) in the same row, sitting out included', () => {
     const extra = createElement('button', { type: 'button', className: 'btn btn--secondary', 'data-testid': 'edit-profile' }, 'Change my look');
     for (const overrides of [{}, { sittingOut: true }]) {
       const markup = renderToString(createElement(ReadyControls, { me: player('bob', overrides), extra }));
@@ -601,12 +665,12 @@ describe('ready controls', () => {
     }
   });
 
-  it("ready: the same button checked (You're ready, tap to undo) and the same Sit this one out", () => {
+  it("ready: the same button checked (You’re ready, tap to undo) and the same Sit this one out", () => {
     const markup = html({ ready: true });
     expect(buttons(markup)).toHaveLength(2);
     expect(tagWith(markup, 'ready-toggle')).toContain('aria-pressed="true"');
     expect(tagWith(markup, 'ready-toggle')).not.toContain('disabled');
-    expect(markup).toContain('You&#x27;re ready');
+    expect(markup).toContain('You’re ready');
     expect(markup).toContain('Sit this one out');
   });
 
@@ -617,7 +681,7 @@ describe('ready controls', () => {
     expect(markup).not.toContain('data-testid="ready-toggle"');
     expect(tagWith(markup, 'sitout-toggle')).toContain('btn--primary');
     expect(markup).toContain('Count me in');
-    expect(markup).toContain('You&#x27;ll watch the next game.');
+    expect(markup).toContain('You’ll watch the next game.');
   });
 
   it('the host is in by pressing Start: only the way out is left', () => {
@@ -630,13 +694,48 @@ describe('ready controls', () => {
 });
 
 describe('player rows', () => {
-  it('label You and Host in text and never squeeze the name out of a narrow column', () => {
+  it('say "you" as a plain word and keep one badge a player: the Host tag in the room, a crown by the name in a game', () => {
     const markup = renderToString(createElement(PlayerList, { room: room(), meId: 'host', isHost: true, mode: 'game', game: null }));
-    expect(markup).toContain('>You</span>');
-    expect(markup).toContain('Host</span>');
+    expect(markup).toContain('<span class="player__you">you</span>');
+    expect(markup).not.toContain('player__tag');
+    expect(tagWith(markup, 'host-crown')).toContain('class="player__crown"');
+    // An image role, so a screen reader hears the crown's label (a plain span would drop it).
+    expect(tagWith(markup, 'host-crown')).toContain('role="img"');
+    expect(tagWith(markup, 'host-crown')).toContain('aria-label="Host"');
     expect(markup).toContain('player__name-text">host<');
+    const lobby = renderToString(createElement(PlayerList, { room: room(), meId: 'bob', isHost: false, mode: 'lobby', game: null }));
+    expect(tagWith(lobby, 'host-crown')).toContain('player__tag player__host');
+    expect(lobby).toContain('Host</span>');
     const css = stylesheet('components.css');
     expect(ruleOf(css, '.player__name')).toContain('flex-wrap: wrap');
+  });
+
+  it('never cut a score or this turn’s points: the points take a second line when the column is narrow', () => {
+    const meta = ruleOf(stylesheet('components.css'), '.player__meta');
+    expect(meta).toContain('flex-wrap: wrap');
+    expect(meta).not.toContain('overflow');
+    expect(meta).toContain('white-space: nowrap');
+  });
+
+  it('put the kick button last, after the status, in a column that lines up down the list', () => {
+    const state = room({ players: [player('host'), player('bob', { joinOrder: 1 }), player('carol', { joinOrder: 2, connected: false })] });
+    const markup = renderToString(createElement(PlayerList, { room: state, meId: 'host', isHost: true, mode: 'lobby', game: null }));
+    for (const id of ['bob', 'carol']) {
+      const row = markup.slice(markup.indexOf(`data-player-id="${id}"`));
+      const li = row.slice(0, row.indexOf('</li>'));
+      expect(li.indexOf('data-testid="player-status"'), id).toBeGreaterThan(-1);
+      expect(li.indexOf('data-testid="player-status"'), id).toBeLessThan(li.indexOf('data-testid="kick-player"'));
+    }
+    // Your own row keeps the button's column empty, so its status lines up with the others'.
+    const mine = markup.slice(markup.indexOf('data-player-id="host"'));
+    expect(mine.slice(0, mine.indexOf('</li>'))).toMatch(/data-testid="player-status".*player__actions--spacer/);
+    // Alone in the room nobody has a kick button, so nothing is held free.
+    const alone = renderToString(createElement(PlayerList, { room: room({ players: [player('host')] }), meId: 'host', isHost: true, mode: 'lobby', game: null }));
+    expect(alone).not.toContain('player__actions');
+    // In the room the button is a 44px target that always shows; the empty column is as wide.
+    const lobby = stylesheet('lobby.css');
+    expect(ruleOf(lobby, '.lobby__players .player__kick')).toMatch(/width: 44px;[^}]*height: 44px;[^}]*opacity: 1/);
+    expect(ruleOf(lobby, '.lobby__players .player__actions--spacer')).toContain('width: 44px');
   });
 });
 
@@ -648,8 +747,9 @@ describe('avatar picker', () => {
     expect(AVATAR_FACES).toHaveLength(50);
     const css = stylesheet('components.css');
     expect(css).not.toMatch(/\.avatar-picker__emojis \{[^}]*(max-height|overflow)/);
-    // A colour dot stays round: square up to 48px, never squashed by a height cap.
-    expect(ruleOf(css, '.avatar-picker__group .swatch')).not.toContain('max-height');
+    // A colour fills its column at a face's height, so the colours line up with the faces under them.
+    expect(ruleOf(css, '.avatar-picker__group .swatch')).toMatch(/width: 100%;[^}]*height: 44px/);
+    expect(ruleOf(css, '.emoji-choice')).toContain('height: 44px');
   });
 
   it('names each face and shows its picture, the chosen one checked', () => {
@@ -665,7 +765,7 @@ describe('avatar picker', () => {
     expect(markup).toContain('alt="Your avatar: Dragon face"');
   });
 
-  it('lays the faces out in full rows only: 5 or 10 equal columns, 4, 6 or 12 for the colours, each at least 44px', () => {
+  it('lays the faces out in full rows only: 5 or 10 equal columns, the colours 6 by 2 down to the name step on a 320px phone (4 by 3 narrower still), each 44px tall', () => {
     const css = stylesheet('components.css');
     expect(ruleOf(css, '.avatar-picker')).toContain('container-type: inline-size');
     expect(ruleOf(css, '.avatar-picker__group')).toContain('grid-template-columns: repeat(5, minmax(0, 1fr))');
@@ -677,17 +777,17 @@ describe('avatar picker', () => {
       count: Number(m[4]),
     }));
     expect(columns).toEqual([
-      { bound: 'max', width: 263.98, group: 'colors', count: 4 },
+      { bound: 'max', width: 247.98, group: 'colors', count: 4 },
       { bound: 'min', width: 476, group: 'emojis', count: 10 },
-      { bound: 'min', width: 528, group: 'colors', count: 12 },
     ]);
-    // Every count divides its list, and every column switch leaves each choice 44px or more (faces with 4px gaps, colours with none).
+    expect(ruleOf(css, '.avatar-picker__group')).toContain('gap: 4px');
+    // Every count divides its list, and every column switch leaves each choice 44px or more with its 4px gaps.
     for (const { bound, width, group, count } of columns) {
       const items = group === 'emojis' ? AVATAR_FACES.length : AVATAR_COLORS.length;
       expect(items % count).toBe(0);
-      if (bound === 'min') expect((width - (group === 'emojis' ? 4 * (count - 1) : 0)) / count).toBeGreaterThanOrEqual(44);
-      // Just past a max-width switch the six colour columns take over.
-      else expect(Math.ceil(width) / 6).toBeGreaterThanOrEqual(44);
+      if (bound === 'min') expect((width - 4 * (count - 1)) / count).toBeGreaterThanOrEqual(44);
+      // Just past a max-width switch the six colour columns take over, each at least 38px wide (and 44px tall).
+      else expect((Math.ceil(width) - 4 * 5) / 6).toBeGreaterThanOrEqual(38);
     }
     expect(css).not.toContain('auto-fill, minmax(44px');
   });
@@ -742,6 +842,50 @@ describe('lobby', () => {
     expect(tagWith(markup, 'settings-menu')).toBeTruthy();
   });
 
+  it('puts the logo and the room code card on one row on a wider screen, stacked on a phone', () => {
+    const markup = renderToString(createElement(Lobby, { room: room(), game: null }));
+    const top = markup.slice(markup.indexOf('class="lobby__top"'));
+    expect(top.indexOf('data-testid="site-header"')).toBeLessThan(top.indexOf('data-testid="room-bar"'));
+    expect(top.indexOf('data-testid="room-bar"')).toBeLessThan(top.indexOf('data-testid="game-picker"'));
+    const css = stylesheet('lobby.css');
+    expect(ruleOf(css, '.lobby__top')).toMatch(/display: flex;[^}]*align-items: center/);
+    expect(ruleOf(css, '.lobby__top .room-card')).toContain('flex: 1 1 auto');
+    const phone = mediaBlock(css, '(max-width: 760px), (min-aspect-ratio: 3/2) and (max-height: 520px)');
+    expect(phone).toMatch(/\.lobby__top \{[^}]*flex-direction: column/);
+  });
+
+  it('pins Start, Ready and the row under them to the bottom of the screen, short page or long, its line across the whole page', () => {
+    const markup = renderToString(createElement(Lobby, { room: room(), game: null }));
+    // The footer sits outside the page's centred column, so its border spans the full width.
+    const body = markup.indexOf('class="lobby__body"');
+    const footer = markup.indexOf('data-testid="lobby-footer"');
+    expect(body).toBeGreaterThan(-1);
+    expect(markup.slice(body, footer)).toContain('data-testid="player-list"');
+    const css = stylesheet('lobby.css');
+    expect(ruleOf(css, '.lobby')).toMatch(/min-height: 100dvh;[^}]*flex-direction: column/);
+    expect(ruleOf(css, '.lobby')).not.toContain('width:');
+    expect(ruleOf(css, '.lobby__body')).toContain('flex: 1 0 auto');
+    const bar = ruleOf(css, '.lobby__footer');
+    expect(bar).toMatch(/position: sticky;[^}]*bottom: 0/);
+    expect(bar).toContain('border-top: 1px solid var(--color-border)');
+    expect(bar).not.toMatch(/margin|width/);
+  });
+
+  it('says nothing about being alone: the code card already asks to be shared', () => {
+    const markup = renderToString(createElement(Lobby, { room: room({ players: [player('host')] }), game: null }));
+    expect(markup).not.toContain('lobby-alone');
+    expect(markup).not.toContain('No one else is here yet');
+  });
+
+  it('opens Change my look as a centred box over the dimmed page on a desktop, a drawer on tablets and phones', () => {
+    const css = stylesheet('components.css');
+    const desktop = mediaBlock(css, '(min-width: 1024px)');
+    expect(desktop).toMatch(/\.sheet--dialog \{[^}]*justify-content: center;[^}]*align-items: center/);
+    expect(desktop).toMatch(/\.sheet--dialog \.sheet__panel \{[^}]*border-radius: var\(--radius-lg\)/);
+    expect(desktop).toMatch(/\.sheet--dialog \.sheet__handle \{[^}]*display: none/);
+    expect(css).not.toMatch(/@media \((max|min)-width: (7\d\d|8\d\d|9\d\d)px\) \{[^@]*\.sheet--dialog/);
+  });
+
   it('shows each character of the room code on its own lime block with an ink letter, so it stands out to read aloud', () => {
     const char = ruleOf(stylesheet('lobby.css'), '.room-card__char');
     expect(char).toContain('background: var(--color-primary)');
@@ -773,11 +917,10 @@ describe('lobby', () => {
     expect(markup.match(/class="player__check"/g)).toHaveLength(2);
     expect(markup).toContain('Sitting out');
     expect(tagWith(markup, 'player-count')).toContain('sr-only');
-    // The status is the row's last item, so the tick and "Ready" sit at its right end, after the kick button.
+    // The kick button is the row's last item, after the status.
     const bob = markup.slice(markup.indexOf('data-player-id="bob"'));
-    expect(bob.indexOf('data-testid="votekick-player"')).toBeLessThan(bob.indexOf('data-testid="player-status"'));
-    expect(bob.indexOf('data-testid="player-status"')).toBeLessThan(bob.indexOf('</li>'));
-    expect(markup).not.toContain('player__actions--spacer');
+    expect(bob.indexOf('data-testid="player-status"')).toBeLessThan(bob.indexOf('data-testid="votekick-player"'));
+    expect(bob.indexOf('data-testid="votekick-player"')).toBeLessThan(bob.indexOf('</li>'));
   });
 
   const enter = (meId: string, state = room()) => {
@@ -831,11 +974,11 @@ describe('lobby', () => {
     }
   });
 
-  it('centres the logo on a phone, the connection pill out of the flow so it never pushes the logo aside', () => {
+  it('centres the logo on a phone, with nothing beside it to push it aside', () => {
     const css = stylesheet('lobby.css');
     const phone = mediaBlock(css, '(max-width: 760px), (min-aspect-ratio: 3/2) and (max-height: 520px)');
     expect(phone).toMatch(/\.lobby \.site-header \{[^}]*justify-content: center/);
-    expect(phone).toMatch(/\.lobby \.site-header__actions \{[^}]*position: absolute/);
+    expect(renderToString(createElement(SiteHeader, {}))).not.toContain('site-header__actions');
     expect(phone).toMatch(/\.lobby \.settings-menu--logo \.settings-menu__panel \{[^}]*left: calc\(50% - /);
   });
 });
@@ -895,10 +1038,15 @@ describe('results popup', () => {
   });
 
   it('prints the standings like the headline: grouped thousands and "1 pt" for a single point', async () => {
-    const { pointsShort } = await import('../lib/format');
-    expect(pointsShort(1)).toBe('1 pt');
-    expect(pointsShort(0)).toBe('0 pts');
-    expect(pointsShort(1100)).toBe('1,100 pts');
+    const { scoreShort, scoreWords } = await import('../lib/format');
+    expect(scoreShort(1)).toBe('1 pt');
+    expect(scoreShort(0)).toBe('0 pts');
+    expect(scoreShort(1100)).toBe('1,100 pts');
+    // A card table's score is its stack: chips, never points.
+    expect(scoreShort(1, 'chips')).toBe('1 chip');
+    expect(scoreShort(1040, 'chips')).toBe('1,040 chips');
+    expect(scoreWords(1040, 'chips')).toBe('1,040 chips');
+    expect(scoreWords(1)).toBe('1 point');
     const html = popup('bob', results({ entries: [
       { playerId: 'host', name: 'host', avatar: AV, score: 1100, rank: 1 },
       { playerId: 'bob', name: 'bob', avatar: AV, score: 1, rank: 2 },
@@ -994,7 +1142,7 @@ describe('the ways out of a game', () => {
     expect(css).toMatch(/\n\.exit-action \{[^}]*min-height: 60px/);
   });
 
-  it('asks before ending, in short plain words, with the game\'s own note where it has one', () => {
+  it('asks before ending, in short plain words, with the game’s own note where it has one', () => {
     const html = renderToString(createElement(EndGameConfirm, { room: playing(), onCancel: () => undefined, testId: 'end-game' }));
     expect(html).toContain('End the game for everyone?');
     expect(html).toContain('Everyone sees the scores so far.');
@@ -1010,7 +1158,7 @@ describe('the ways out of a game', () => {
     // Scribble needs two: with three in it, one leaving leaves enough; with two, it ends.
     expect(leaveNote(playing({ players: players.slice(0, 2) }), 'bob')).toBe('Too few would be left, so the game ends for everyone.');
     expect(leaveNote(playing(), 'dan')).toBe('The game goes on. You need the code to come back.');
-    expect(leaveNote(room(), 'bob')).toBe("You'd need the code to come back in.");
+    expect(leaveNote(room(), 'bob')).toBe("You’d need the code to come back in.");
     const html = renderToString(createElement(LeaveConfirm, { room: playing(), meId: 'bob', onCancel: () => undefined, testId: 'game-leave' }));
     expect(html).toContain('Leave the room?');
     expect(html).toContain('The game goes on without you.');
@@ -1018,7 +1166,7 @@ describe('the ways out of a game', () => {
     expect(textOf(html, 'game-leave-no')).toBe('Stay');
   });
 
-  it('puts both in the phone\'s options sheet, under the preferences', () => {
+  it('puts both in the phone’s options sheet, under the preferences', () => {
     usePlatformStore.getState().handleServerMessage(welcome('host', playing()));
     const host = renderToString(createElement(GameMenuSheet, { open: true, onClose: () => undefined }));
     expect(host.indexOf('data-testid="sound-toggle"')).toBeGreaterThan(-1);
@@ -1030,7 +1178,7 @@ describe('the ways out of a game', () => {
     expect(guest).toContain('data-testid="leave-room"');
   });
 
-  it('puts End game in the desktop top bar for the host, and both in the gear\'s menu', () => {
+  it('puts End game in the desktop top bar for the host, and both in the gear’s menu', () => {
     usePlatformStore.getState().handleServerMessage(welcome('host', playing()));
     const bar = (state: RoomState) =>
       renderToString(
@@ -1087,16 +1235,39 @@ describe('GameTopBar', () => {
     expect(html).not.toContain('data-testid="leave-sheet"');
   });
 
-  it('keeps the game name whole on a phone: the status is short and on one line, "Round" giving way first on the narrowest', () => {
-    const html = renderToString(createElement(RoundStatus, { round: 1, total: 5 }));
-    expect(html).toBe('<span class="gbar__wide">Round </span>1<!-- -->/<!-- -->5');
+  it('puts the round under the name on a phone, so the name, the round and the buttons each keep their own space', () => {
+    expect(renderToString(createElement(RoundStatus, { round: 1, total: 5 }))).toBe('Round 1/5');
+    const phone = bar(true);
+    const title = phone.slice(phone.indexOf('class="gbar__title"'), phone.indexOf('data-testid="game-menu"'));
+    expect(title.indexOf('The Spy Game')).toBeLessThan(title.indexOf('data-testid="round-indicator"'));
+    // A desktop keeps the round on the right, outside the title.
+    const desk = bar(false);
+    const deskTitle = desk.slice(desk.indexOf('class="gbar__title"'));
+    expect(deskTitle.slice(0, deskTitle.indexOf('</div>'))).not.toContain('round-indicator');
     const css = stylesheet('gamebar.css');
-    // The name never shrinks faster than the status (it used to give way four times as fast and read "The Spy Ga...").
-    expect(ruleOf(css, '.gbar__name')).toContain('flex: 0 1 auto');
-    const status = ruleOf(css, '.gbar--phone:not(.gbar--compact) .gbar__status');
-    expect(status).toContain('flex: none');
-    expect(status).toContain('white-space: nowrap');
-    expect(css).toMatch(/@media \(max-width: 360px\) \{[^@]*\.gbar--phone \.gbar__wide \{\s*display: none;/);
+    expect(ruleOf(css, '.gbar--phone .gbar__title')).toContain('flex-direction: column');
+    expect(ruleOf(css, '.gbar--phone .gbar__status')).toContain('white-space: nowrap');
+    // The name never gives way to the round any more.
+    expect(css).not.toMatch(/\.gbar__name \{\s*display: none/);
+  });
+
+  it('draws the players button as a pill with the people icon and the count, in a 44px target', () => {
+    const html = renderToString(
+      createElement(GameTopBar, {
+        meta: gameById('poker'),
+        room: room({ gameId: 'poker', phase: 'playing', players }),
+        isPhone: true,
+        testId: 'poker-header',
+        players: { open: false, onOpen: noop },
+        menu: { open: false, onOpen: noop },
+        compact: true,
+      }),
+    );
+    const button = html.slice(html.indexOf('data-testid="players-toggle"'));
+    expect(button.slice(0, button.indexOf('</button>'))).toMatch(/class="gbar__count-pill"><svg[^]*class="gbar__count-n">4</);
+    const css = stylesheet('gamebar.css');
+    expect(ruleOf(css, '.gbar__count')).toContain('height: 44px');
+    expect(ruleOf(css, '.gbar__count-pill')).toContain('border-radius: var(--radius-pill)');
   });
 
   it('gives every player a chip with a status badge: the platform says Ready, Away and Watching', () => {
@@ -1168,7 +1339,7 @@ describe('player chips', () => {
     expect(chipOrder(list).map((p) => p.id)).toEqual(['c', 'a', 'b']);
   });
 
-  it("use the game's own status when it has one", () => {
+  it("use the game’s own status when it has one", () => {
     const r = room({ phase: 'playing' });
     const game = { meta: gameById('scribble'), Screen: () => null, playerStatus: () => ({ label: 'Drawing', icon: null, tone: 'active' as const }) };
     expect(chipStatus(r, player('host'), game).label).toBe('Drawing');
@@ -1188,8 +1359,12 @@ describe('RoundResult', () => {
     expect(html).toContain('+120');
     expect(html).toContain('drawer');
     expect(renderToString(createElement(ResultPoints, { rows: [], label: 'Points', empty: 'Nobody scored.' }))).toContain('Nobody scored.');
-    const paused = renderToString(createElement(ResultNext, { noun: 'Next turn', endsAt: null, paused: true, settling: false, testId: 'next' }));
+    const paused = renderToString(createElement(ResultNext, { noun: 'Next turn', paused: true, settling: false, testId: 'next' }));
     expect(tagWith(paused, 'next')).toContain('data-countdown="paused"');
     expect(paused).toContain('Next turn is paused');
+    // One countdown per screen: the top bar's ring counts; the result only says what comes next.
+    const running = renderToString(createElement(ResultNext, { noun: 'Next turn', paused: false, settling: false, testId: 'next' }));
+    expect(running).toContain('Next turn soon');
+    expect(running).not.toContain('data-testid="timer"');
   });
 });

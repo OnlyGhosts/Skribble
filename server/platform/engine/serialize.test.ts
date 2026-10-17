@@ -3,7 +3,7 @@ import { DRAWER_DISCONNECT_GRACE_MS, TURN_END_SECONDS } from '../../../shared/ga
 import { GAME_IDS } from '../../../shared/platform/games.js';
 import type { ScribbleData } from '../../games/scribble/state.js';
 import { createRoomData, type PlatformRoomData } from './state.js';
-import { AVATAR, START, sim, startGame } from './testHarness.js';
+import { AVATAR, START, errorsOf, sim, startGame } from './testHarness.js';
 
 function roundTrip(data: PlatformRoomData): PlatformRoomData {
   return JSON.parse(JSON.stringify(data)) as PlatformRoomData;
@@ -40,6 +40,24 @@ describe.each(GAME_IDS)('room data serialisation (%s)', (gameId) => {
   });
 });
 
+describe('room data stored before drawing ratings were removed', () => {
+  it('loads a Scribble turn that still carries ratings and plays on, and ignores a rating sent to it', () => {
+    const s = sim();
+    const [alice, bob, carol] = startGame(s, ['Alice', 'Bob', 'Carol']);
+    s.game(alice, { t: 'chooseWord', index: 0 });
+    const stored = roundTrip(s.data);
+    const turn = (stored.game as ScribbleData).turn;
+    expect(turn).not.toBeNull();
+    Object.assign(turn ?? {}, { ratings: { [bob]: 'like', [carol]: 'dislike' } });
+    s.data = roundTrip(stored);
+
+    expect(errorsOf(s.game(carol, { t: 'rate', value: 'like' }))).toEqual([]);
+    s.platform(bob, { t: 'chat', text: (s.data.game as ScribbleData).turn?.word ?? '' });
+    expect((s.data.game as ScribbleData).turn?.guessed).toContain(bob);
+    expect(roundTrip(s.data)).toStrictEqual(s.data);
+  });
+});
+
 describe('room data serialisation (scribble)', () => {
   it('survives JSON at every point of a game, including grace periods, votes and chat', () => {
     const s = sim();
@@ -48,7 +66,6 @@ describe('room data serialisation (scribble)', () => {
 
     s.game(alice, { t: 'chooseWord', index: 0 });
     s.platform(bob, { t: 'chat', text: 'apple' });
-    s.game(carol, { t: 'rate', value: 'like' });
     s.platform(bob, { t: 'voteKick', playerId: carol });
     s.drop(alice, 'conn-Alice');
     expect((s.data.game as ScribbleData).grace.drawerGoneAt).not.toBeNull();

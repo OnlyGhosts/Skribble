@@ -53,7 +53,7 @@ export function ClickRaceScreen({ room, meId, isHost }: GameScreenProps<Template
           style={{ background: meta.accent }}
           onClick={() => socket.send({ t: 'click' })}
           disabled={!racing}
-          aria-label={spectating ? "You're watching this race" : `Tap! ${mine} of ${target}`}
+          aria-label={spectating ? "You’re watching this race" : `Tap! ${mine} of ${target}`}
           data-testid="click-button"
           data-spectating={spectating}
         >

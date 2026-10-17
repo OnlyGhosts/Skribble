@@ -52,7 +52,7 @@ export function Writing({ view, open }: Props) {
                 <span className="quip-write__sent-prompt">{p.text}</span>
                 <strong className="quip-write__sent-answer">{view.myAnswers[p.id] ?? ''}</strong>
               </span>
-              <button type="button" className="btn btn--ghost btn--sm" onClick={() => useQuipgameStore.getState().editPrompt(p.id)} disabled={!open} aria-label={`Edit your answer to: ${p.text}`} data-testid="write-edit">
+              <button type="button" className="btn btn--secondary btn--sm" onClick={() => useQuipgameStore.getState().editPrompt(p.id)} disabled={!open} aria-label={`Edit your answer to: ${p.text}`} data-testid="write-edit">
                 <EditIcon size={16} /> Edit
               </button>
             </li>

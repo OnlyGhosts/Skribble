@@ -174,11 +174,13 @@ test.describe('Scribble keeps going through a dropped link and a discarded tab',
     const wentOffline = Date.now();
     await goOffline(offline, links.get(offline) as Link);
     await expect(other.page.locator(`[data-testid="player-item"][data-name="${offline.name}"]`)).toHaveClass(/player--offline/);
-    await expect(offline.page.getByTestId('connection-status')).toHaveAttribute('data-status', 'reconnecting');
-    // The game screen itself says so, persistently (the toast comes later and goes again).
-    await expect(offline.page.getByTestId('reconnecting-banner')).toBeVisible();
-    await expect(offline.page.getByTestId('reconnecting-banner')).toHaveAttribute('data-status', 'reconnecting');
-    await expect(other.page.getByTestId('reconnecting-banner')).toHaveCount(0);
+    // One notice says so, and only once the link has been gone about 2 s: no pill, banner or toast besides it.
+    const notice = offline.page.getByTestId('connection-notice');
+    await expect(notice).toHaveAttribute('data-status', 'reconnecting');
+    expect(Date.now() - wentOffline).toBeGreaterThanOrEqual(1900);
+    await expect(notice).toContainText('Reconnecting…');
+    await expect(offline.page.getByTestId('toast')).toHaveCount(0);
+    await expect(other.page.getByTestId('connection-notice')).toHaveCount(0);
 
     // The game holds at the next boundary rather than returning to the lobby.
     await expect(other.page.getByTestId('overlay-waiting')).toBeVisible({ timeout: 60_000 });
@@ -197,9 +199,9 @@ test.describe('Scribble keeps going through a dropped link and a discarded tab',
     if (remaining > 0) await other.page.waitForTimeout(remaining);
     await goOnline(offline, links.get(offline) as Link);
 
-    // Back online: the status pill goes away (there is no Connected badge).
-    await expect(offline.page.getByTestId('connection-status')).toHaveCount(0, { timeout: 15_000 });
-    await expect(offline.page.getByTestId('reconnecting-banner')).toHaveCount(0);
+    // Back online: the notice goes, with no "Reconnected" toast or Connected badge after it.
+    await expect(offline.page.getByTestId('connection-notice')).toHaveCount(0, { timeout: 15_000 });
+    await expect(offline.page.getByTestId('toast')).toHaveCount(0);
     await expect(other.page.getByTestId('overlay-waiting')).toHaveCount(0, { timeout: 15_000 });
     // The player who came back never saw a nameless "waiting for players" of their own.
     await expect(offline.page.getByTestId('overlay-waiting')).toHaveCount(0);
@@ -302,7 +304,7 @@ test.describe('Spy Game holds for a dropped phone and the host may remove it', (
     await expect(guest.page.getByTestId('players-sheet')).toBeVisible();
 
     await goOffline(offline, links.get(offline) as Link);
-    await expect(offline.page.getByTestId('reconnecting-banner')).toBeVisible();
+    await expect(offline.page.getByTestId('connection-notice')).toBeVisible();
     for (const p of others) {
       await expect(p.page.getByTestId('overlay-waiting')).toBeVisible({ timeout: 45_000 });
       await expect(p.page.getByTestId('overlay-waiting')).toContainText(`Waiting for ${offline.name} to reconnect`);

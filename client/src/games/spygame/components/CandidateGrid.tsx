@@ -9,10 +9,10 @@ export function CandidateGrid({ view }: { view: SpygameView }) {
     <section className="card spy-grid-card" aria-label="Possible locations">
       <header className="spy-grid-card__head">
         <div className="spy-grid-card__top">
-          <h2 className="spy-grid-card__title">The spy's options</h2>
+          <h2 className="spy-grid-card__title">The spy’s options</h2>
           <GuessesLeft view={view} />
         </div>
-        <p className="spy-grid-card__hint">{view.role === 'agent' ? "Stay vague: don't give away which one it is." : 'The agents know which one it is.'}</p>
+        <p className="spy-grid-card__hint">{view.role === 'agent' ? "Stay vague: don’t give away which one it is." : 'The agents know which one it is.'}</p>
       </header>
       <ol className="spy-grid spy-grid--reference" data-testid="candidate-grid">
         {view.candidates.map((id) => {

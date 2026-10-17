@@ -61,7 +61,8 @@ for (const [label, options] of [['phone', PHONE], ['desktop', DESKTOP]] as const
     await expect(faces).toHaveCount(50);
     const columns = fullRows(await grid(page, '.avatar-picker__emojis'), [5, 10]);
     expect(50 % columns).toBe(0);
-    fullRows(await grid(page, '.avatar-picker__colors'), [4, 6, 12]);
+    // The twelve colours: six to a row (four on the narrowest screens), never one long row.
+    fullRows(await grid(page, '.avatar-picker__colors'), [4, 6]);
     for (const size of await page.locator('.emoji-choice, .avatar-picker__colors .swatch').evaluateAll((els) => els.map((e) => Math.min(e.getBoundingClientRect().width, e.getBoundingClientRect().height)))) {
       expect(size).toBeGreaterThanOrEqual(44);
     }

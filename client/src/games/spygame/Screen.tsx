@@ -15,7 +15,7 @@ import { RevealOverlay } from './components/RevealOverlay';
 import { RoleCard } from './components/RoleCard';
 import { RoundClock } from './components/RoundClock';
 import { VotePanel, VoteSheet } from './components/Vote';
-import { nameOf } from './hooks';
+import { clockStandIn, nameOf } from './hooks';
 import { waitingNotice, wrongGuessNotice } from './lib/text';
 import { useSpygame } from './store';
 
@@ -56,7 +56,7 @@ export function SpyGameScreen({ room, meId, isHost }: GameScreenProps<SpygameVie
         testId="spygame-header"
         className="spy__top"
         status={<RoundStatus round={view.round} total={view.totalRounds} />}
-        clock={<RoundClock clock={view.clock} holding={holding} />}
+        clock={<RoundClock clock={view.clock} holding={holding} standIn={clockStandIn(view)} />}
         players={{ label: 'Scores', open: playersOpen, onOpen: () => openSheet('players') }}
         menu={{ open: menuOpen, onOpen: () => openSheet('menu') }}
         compact={isPhone}

@@ -194,10 +194,10 @@ const stepOnHost = (): Promise<string> => stepOn(host);
 async function onlyActorCanMove(acting: Player): Promise<void> {
   for (const p of players) {
     if (p === acting) {
-      await expect(p.page.getByTestId('turn-status')).toHaveText('Your turn');
+      await expect(p.page.getByTestId('table-turn').locator('.tbl-turn__text')).toHaveText('Your turn');
       continue;
     }
-    await expect(p.page.getByTestId('turn-status')).toHaveText(`${acting.name}'s turn`);
+    await expect(p.page.getByTestId('table-turn').locator('.tbl-turn__text')).toHaveText(`${acting.name}’s turn`);
     await expect(p.page.locator('[data-testid="pk-panel"] button:not([disabled])')).toHaveCount(0);
     await expect(p.page.locator(`[data-testid="seat"][data-name="${acting.name}"]`)).toHaveAttribute('data-turn', 'true');
   }
@@ -276,6 +276,10 @@ test('the host sets the stacks, the blinds and two hands, two phones join and th
     await expect(p.page.getByTestId('seat')).toHaveCount(2);
     await expect(p.page.getByTestId('table-ribbon')).toContainText(`Blinds ${SMALL_BLIND}/${SMALL_BLIND * 2}`);
     await expect(p.page.getByTestId('table-ribbon')).toContainText('Hand 1 of 2');
+    // The hand, the blinds and the street are on the table, not in the top bar.
+    await expect(p.page.getByTestId('phase-kicker')).toHaveText('Pre-flop');
+    await expect(p.page.getByTestId('poker-header')).not.toContainText('Hand');
+    await expect(p.page.getByTestId('poker-header')).not.toContainText('Blinds');
     // Every stack reads in words, every bet as its own pill: never two bare numbers side by side.
     for (const chips of await p.page.getByTestId('seat-chips').allTextContents()) expect(chips).toMatch(/^[\d,.k]+ chips?$/);
     for (const bet of await p.page.locator('[data-testid="seat-bet"] .tbl-stake').allTextContents()) expect(bet).toMatch(/^Bet [\d,.k]+$/);
@@ -284,8 +288,8 @@ test('the host sets the stacks, the blinds and two hands, two phones join and th
   // The dealer button sits on exactly one seat on every page.
   for (const p of players) await expect(p.page.locator('[data-testid="seat-dealer"], [data-testid="my-dealer"]')).toHaveCount(1);
   await expect(host.page.getByTestId('pot')).toHaveAttribute('data-chips', String(SMALL_BLIND * 3));
-  await expect(host.page.getByTestId('hotkey-hint')).toBeVisible();
-  for (const p of phones()) await expect(p.page.getByTestId('hotkey-hint')).toHaveCount(0);
+  // No status line or shortcut hint in any panel.
+  for (const p of players) await expect(p.page.locator('[data-testid="hotkey-hint"], [data-testid="turn-status"]')).toHaveCount(0);
   await holeCardsStayPrivate();
   await scoresMatchChips();
   await chipsConserved();
@@ -368,7 +372,7 @@ test('hand one: a raise through the panel, a call and a fold, the board street b
     await expect(screen(p)).toHaveAttribute('data-phase', 'results');
     await expect(p.page.getByTestId('overlay-results')).toHaveCount(0);
     await expect(p.page.locator('[data-testid="community-card"][data-face="up"]')).toHaveCount(5);
-    await expect(p.page.getByTestId('turn-status')).toHaveAttribute('data-state', 'result');
+    await expect(p.page.getByTestId('table-turn')).toHaveAttribute('data-state', 'result');
     await expect(p.page.locator(`[data-testid="seat"][data-name="${folder.name}"] [data-testid="seat-card"]`)).toHaveCount(0);
     for (const q of contenders) {
       if (q === p) continue;
@@ -394,7 +398,7 @@ test('hand one: a raise through the panel, a call and a fold, the board street b
     await expect(byName(name).page.getByTestId('my-area')).toHaveAttribute('data-outcome', 'win');
     await expect(byName(name).page.getByTestId('my-area')).toHaveAttribute('data-payout', String(amount));
   }
-  for (const p of phones()) await expect(p.page.getByTestId('turn-status')).toHaveText(Object.keys(paid).length > 1 ? /^Split pot/ : /(wins|win) \d+/);
+  for (const p of phones()) await expect(p.page.getByTestId('table-turn').locator('.tbl-turn__text')).toHaveText(Object.keys(paid).length > 1 ? /^Split pot/ : /(wins|win) \d+/);
   await chipsConserved();
   await scoresMatchChips();
 
@@ -420,7 +424,7 @@ test('hand two: two folds hand the pot over with no cards shown, and the last ha
     await expect(screen(p)).toHaveAttribute('data-phase', 'results');
     // Nobody's cards are shown: not the winner's, not the folders'.
     await expect(p.page.locator('[data-testid="seat-card"][data-rank]')).toHaveCount(0);
-    await expect(p.page.getByTestId('turn-status')).toHaveText(p === winner ? 'You take the pot' : `${winner.name} takes the pot`);
+    await expect(p.page.getByTestId('table-turn').locator('.tbl-turn__text')).toHaveText(p === winner ? 'You take the pot' : `${winner.name} takes the pot`);
   }
   await expect(winner.page.getByTestId('my-area')).toHaveAttribute('data-outcome', 'win');
   await scoresMatchChips();
@@ -465,7 +469,7 @@ test('a second game: the desktop shortcuts, the panel at 320x568, and the host e
   }
   await expect(host.page.getByTestId('action-fold')).toHaveAttribute('aria-keyshortcuts', 'F');
   const before = await stepOnHost();
-  await host.page.getByTestId('hotkey-hint').click();
+  await host.page.getByTestId('my-chips').click();
   await host.page.keyboard.press('c');
   await expect.poll(stepOnHost).not.toBe(before);
   await expect(host.page.getByTestId('my-area')).not.toHaveAttribute('data-status', 'folded');
@@ -495,6 +499,7 @@ test('a second game: the desktop shortcuts, the panel at 320x568, and the host e
 
 const PHONES = [PORTRAIT, { width: 360, height: 740 }, SMALL];
 const DESKTOPS = [
+  { width: 1024, height: 768 },
   { width: 1280, height: 800 },
   { width: 1440, height: 900 },
 ];

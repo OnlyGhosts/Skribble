@@ -1,7 +1,6 @@
 import type { CSSProperties } from 'react';
 import { WORDMARK_GEAR_POSITION } from '../brand/wordmark';
 import { navigate } from '../router';
-import { ConnectionPill } from './ConnectionPill';
 import { SettingsMenu, type MenuAction } from './Preferences';
 import { Wordmark } from './Wordmark';
 
@@ -16,9 +15,9 @@ interface Props {
 const GEAR_VARS = { '--gear-x': WORDMARK_GEAR_POSITION.left, '--gear-y': WORDMARK_GEAR_POSITION.top } as CSSProperties;
 
 /**
- * The logo (a link back to the front door) whose gear "o" in ".io" is the settings button, and a
- * status pill only while the socket is not connected. Inside a room the logo link leaves it:
- * routeSync leaves whenever the address bar stops naming the room.
+ * The logo (a link back to the front door) whose gear "o" in ".io" is the settings button. Inside
+ * a room the logo link leaves it: routeSync leaves whenever the address bar stops naming the room.
+ * The connection has its own notice (ConnectionNotice), never squeezed in beside the logo.
  */
 export function SiteHeader({ menuActions, hero = false }: Props) {
   return (
@@ -38,9 +37,6 @@ export function SiteHeader({ menuActions, hero = false }: Props) {
           </a>
           <SettingsMenu actions={menuActions} variant="logo" />
         </div>
-      </div>
-      <div className="site-header__actions">
-        <ConnectionPill />
       </div>
     </header>
   );

@@ -6,10 +6,10 @@ import { tileTier } from '../../../platform/table/grid';
 import { TableRibbon } from '../../../platform/table/Ribbon';
 import { TurnLine } from '../../../platform/table/TurnLine';
 import { nameOf, seatRing } from '../hooks';
-import type { PkFocus } from '../lib/focus';
+import { stageOwner, type PkFocus } from '../lib/focus';
 import type { PokerTable } from '../lib/table';
 import { POT_VALUE, flightsAt, valueAt, type Frame, type Timeline } from '../lib/timeline';
-import { focusLine, handLabel, ribbonText } from '../lib/text';
+import { focusLine, handLabel, ribbonText, streetText, type Standing } from '../lib/text';
 import { Board } from './Board';
 import { Pot } from './Pot';
 import { Seats } from './Seats';
@@ -25,6 +25,7 @@ interface Props {
   now: number;
   isPhone: boolean;
   focus: PkFocus;
+  standing: Standing;
   /** The turn clock, in the line under the ribbon. */
   clock: ReactNode;
 }
@@ -41,17 +42,19 @@ function mucked(table: PokerTable | null): number {
 
 /**
  * The table, calm and never scrolling, the same places as Blackjack's, top to bottom: the pot over
- * the board big at the top centre (the deck peeking in at the top right corner, the folds going
- * off past the top left); the banner with the blinds and whose turn it is with the clock; every
+ * the board big at the top centre (the deck in the top right corner, the folds going off past
+ * the top left); the banner with the blinds, the hand and the street, and whose turn it is with
+ * the clock; every
  * other player as a compact seat round the table from my left; the stage with my two cards.
  * Chips fly over it all.
  */
-export function Table({ room, view, meId, frame, live, now, isPhone, focus, clock }: Props) {
+export function Table({ room, view, meId, frame, live, now, isPhone, focus, standing, clock }: Props) {
   const { table, timeline, leaving } = frame;
   const others = seatRing(room, view, meId).filter((id) => id !== meId);
   const truth = view.phase === 'acting' ? view.pot : 0;
   const crowd = others.length === 0 ? 'none' : tileTier(others.length);
-  const line = focusLine(focus, { view, meId, nameOf: (id) => nameOf(room, id), results: table?.results ?? null });
+  const line = focusLine(focus, { view, meId, nameOf: (id) => nameOf(room, id), results: table?.results ?? null, standing });
+  const staged = stageOwner(focus, table, meId);
   return (
     <section
       className={`tbl-felt tbl-felt--calm pk-table tbl-crowd--${crowd}`}
@@ -65,12 +68,28 @@ export function Table({ room, view, meId, frame, live, now, isPhone, focus, cloc
       <DiscardCorner discarded={mucked(table)} />
       <Deck remaining={52 - dealt(table)} name="deck" testId="deck" corner />
       <div className="pk-centre">
-        <Pot shown={valueAt(live, POT_VALUE, truth, now)} truth={truth} pots={view.phase === 'acting' ? view.pots : []} blinds={ribbonText(view)} />
+        <Pot shown={valueAt(live, POT_VALUE, truth, now)} truth={truth} pots={view.phase === 'acting' ? view.pots : []} />
         <Board table={table} timeline={timeline} now={now} leaving={leaving} />
       </div>
-      <TableRibbon main={ribbonText(view)} sub={handLabel(view)} note={<TurnLine text={line.text} tone={line.tone} state={line.state} sub={line.sub} clock={clock} />} />
-      <Seats room={room} view={view} ids={others} meId={meId} table={table} timeline={timeline} live={live} now={now} leaving={leaving} wide={!isPhone} />
-      <Stage room={room} view={view} meId={meId} focus={focus} table={table} timeline={timeline} live={live} now={now} leaving={leaving} isPhone={isPhone} />
+      <TableRibbon
+        main={
+          <span data-testid="blinds" data-small={view.blinds.small} data-big={view.blinds.big}>
+            {ribbonText(view)}
+          </span>
+        }
+        sub={
+          <>
+            <span data-testid="hand-indicator" data-hand={view.hand} data-total={view.totalHands}>
+              {handLabel(view)}
+            </span>
+            {' · '}
+            <span data-testid="phase-kicker">{streetText(view)}</span>
+          </>
+        }
+        note={<TurnLine text={line.text} tone={line.tone} state={line.state} sub={line.sub} clock={clock} />}
+      />
+      <Seats room={room} view={view} ids={others} meId={meId} staged={staged} table={table} timeline={timeline} live={live} now={now} leaving={leaving} wide={!isPhone} />
+      <Stage room={room} view={view} meId={meId} owner={staged} focus={focus} table={table} timeline={timeline} live={live} now={now} leaving={leaving} isPhone={isPhone} />
       <ChipFlights flights={flightsAt(live, now)} />
     </section>
   );

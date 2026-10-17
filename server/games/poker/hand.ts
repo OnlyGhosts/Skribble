@@ -89,7 +89,8 @@ export function endGame(gx: Gx): void {
       seat.committed = 0;
     }
     data.toAct = [];
-    noticeMessage(gx, `${nameOf(ctx, ctx.hostId)} ended the game. The hand is void and every stake goes back.`);
+    // A chat line, not a toast: the results card already says the host ended the game, and a toast would only cover it.
+    systemMessage(gx, `${nameOf(ctx, ctx.hostId)} ended the game. The hand is void and every stake goes back.`);
   } else if (data.phase.held) gx.effects.push(resumeEffect());
   finishGame(gx);
 }

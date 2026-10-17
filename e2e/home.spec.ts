@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
-import { closeResults, createParty, enterNameIfAsked, joinByLink, leaveLobby, readyAll } from './party';
+import { closeResults, createParty, enterNameIfAsked, joinByLink, leaveLobby, readyAll, roomTabTitle } from './party';
 
 /**
  * The front door and the routing around it: Join a room and Create a room and nothing else, the four code
@@ -82,16 +82,16 @@ test.afterAll(async () => {
 test('the front door has exactly two action paths, four visible boxes and no catalogue or menu', async () => {
   await host.page.goto('/');
   await expect(host.page).toHaveTitle('boredgames.io');
-  // Connected: no status badge at all (it only shows while the socket is down).
+  // Connected: no connection notice at all (it only shows once the link has been gone a moment).
   await expect(host.page.getByTestId('home-create')).toBeVisible();
-  await expect(host.page.getByTestId('connection-status')).toHaveCount(0);
+  await expect(host.page.getByTestId('connection-notice')).toHaveCount(0);
   await expect(host.page.locator('html')).toHaveAttribute('data-theme', 'dark');
 
   // The wordmark is outlined vector art with an accessible name, never live text or a controller icon.
   const header = host.page.getByTestId('site-header');
   await expect(header.getByRole('img', { name: 'boredgames.io' })).toBeVisible();
-  // "bored" + ".i", "games" (and the copy under it that outlines it on light), and the gear that stands in for the "o".
-  await expect(header.locator('svg[data-testid="wordmark"] > path')).toHaveCount(4);
+  // "bored" + ".i", "games", and the gear that stands in for the "o".
+  await expect(header.locator('svg[data-testid="wordmark"] > path')).toHaveCount(3);
   await expect(header.locator('svg[data-testid="wordmark"] text')).toHaveCount(0);
   await expect(header.locator('.brand__mark')).toHaveCount(0);
   // The theme lives in the settings menu behind the gear, not as a header button of its own; the gear is the "o" of ".io".
@@ -112,15 +112,18 @@ test('the front door has exactly two action paths, four visible boxes and no cat
   await expect(host.page.getByText('Made for one more round.')).toHaveCount(0);
   await expect(host.page.locator('footer')).toHaveCount(0);
 
-  // One column as on the brand board: Join a room (heading, boxes, Join), then Create a room right
-  // under it. No panel boxes, no second heading, no helper line. Nothing else to click on the page.
+  // One column as on the brand board: the boxes and Join, then Create a room right under it. "Join a
+  // room" names the boxes for screen readers only. No panel boxes, no visible heading, no helper
+  // line. Nothing else to click on the page.
   const start = host.page.locator('.home__start > *');
   await expect(start).toHaveCount(2);
   await expect(start.nth(0)).toHaveAttribute('data-testid', 'join-panel');
   await expect(start.nth(1)).toHaveAttribute('data-testid', 'create-panel');
-  await expect(host.page.getByRole('heading', { name: 'Join a room' })).toBeVisible();
+  await expect(host.page.getByRole('heading', { name: 'Join a room' })).toHaveClass('sr-only');
+  await expect(host.page.getByRole('region', { name: 'Join a room' })).toHaveAttribute('data-testid', 'join-panel');
+  expect((await host.page.getByRole('heading', { name: 'Join a room' }).boundingBox())?.height ?? 0, 'not shown on screen').toBeLessThanOrEqual(1);
   await expect(host.page.getByRole('heading', { name: 'Create a room' })).toHaveCount(0);
-  await expect(host.page.getByText("Pick the game once you're in.")).toHaveCount(0);
+  await expect(host.page.getByText("Pick the game once you’re in.")).toHaveCount(0);
   await expect(host.page.locator('.home .card')).toHaveCount(0);
   await expect(host.page.locator('nav')).toHaveCount(0);
   await expect(host.page.getByTestId('game-card')).toHaveCount(0);
@@ -150,8 +153,7 @@ test('the front door has exactly two action paths, four visible boxes and no cat
   expect(await style('home-join')).toEqual({ bg: 'rgb(199, 233, 118)', color: 'rgb(20, 21, 20)', shadow: 'none' });
   expect(await style('home-create')).toEqual({ bg: 'rgb(32, 34, 31)', color: 'rgb(241, 240, 232)', shadow: 'none' });
   await expect(host.page.getByTestId('home-create')).toHaveCSS('border-top-color', 'rgb(116, 125, 111)');
-  // Space Grotesk headings and code boxes, Inter text, all self-hosted.
-  await expect(host.page.getByRole('heading', { name: 'Join a room' })).toHaveCSS('font-family', /^"Space Grotesk"/);
+  // Space Grotesk code boxes, Inter text, all self-hosted.
   await expect(host.page.locator('body')).toHaveCSS('font-family', /^Inter/);
   await expect(host.page.getByTestId('code-input-0')).toHaveCSS('font-family', /^"Space Grotesk"/);
   expect(await host.page.evaluate(() => document.fonts.check('700 16px "Space Grotesk"'))).toBe(true);
@@ -238,7 +240,7 @@ test('create → "Who’s playing?" → the lobby, where picking a game comes fi
   await host.page.getByTestId('home-create').click();
   // A first visit asks for a name and a face before anything is sent.
   await expect(host.page.getByTestId('name-step')).toBeVisible();
-  await expect(host.page.getByRole('heading', { name: "Who's playing?" })).toBeVisible();
+  await expect(host.page.getByRole('heading', { name: "Who’s playing?" })).toBeVisible();
   await expect(host.page.getByTestId('room-code')).toHaveCount(0);
   await expect(host.page.getByTestId('avatar-picker')).toBeVisible();
   // Every one of the 50 faces and 12 colours is a 44px target (e2e/avatars.spec.ts covers the grid and the pictures).
@@ -255,14 +257,14 @@ test('create → "Who’s playing?" → the lobby, where picking a game comes fi
   scribbleCode = (await host.page.getByTestId('room-code').textContent())?.replace(/\s+/g, '') ?? '';
   expect(scribbleCode).toMatch(/^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{4}$/);
   await expect(host.page).toHaveURL(new RegExp(`/scribble/${scribbleCode}$`));
-  await expect(host.page).toHaveTitle(`boredgames.io · ${scribbleCode}`);
+  await expect(host.page).toHaveTitle(roomTabTitle(scribbleCode));
   await expect(host.page.getByTestId('site-header').getByRole('img', { name: 'boredgames.io' })).toBeVisible();
   const picker = host.page.getByTestId('game-picker');
   await expect(picker).toHaveAttribute('data-game', 'scribble');
   await expect(host.page.getByRole('heading', { name: 'Pick a game' })).toHaveCount(1);
   await expect(picker.locator('button[data-testid="game-tile"]')).toHaveCount(5);
-  // The compact room bar comes first, then the picker.
-  await expect(host.page.locator('.lobby > section').first()).toHaveAttribute('data-testid', 'room-bar');
+  // The logo and the room bar come first, then the picker.
+  await expect(host.page.locator('.lobby__top > section')).toHaveAttribute('data-testid', 'room-bar');
   await expect(host.page.getByTestId('room-bar').getByTestId('room-code')).toHaveText(scribbleCode);
   await expect(picker.locator('[data-testid="game-tile"][data-game="scribble"]')).toContainText('Scribble');
   await expect(picker.locator('[data-testid="game-tile"] svg[data-glyph]')).toHaveCount(5);
@@ -295,7 +297,7 @@ test('a second browser joins the real room by code; an unknown code is refused w
   await page.keyboard.type(unknownCode(), { delay: 20 });
   await page.keyboard.press('Enter');
   await enterNameIfAsked(page, guest.name);
-  await expect(page.getByTestId('join-error')).toContainText(/couldn't find a room/i);
+  await expect(page.getByTestId('join-error')).toContainText(/couldn’t find a room/i);
   expect(await boxes(page)).toEqual(unknownCode().split(''));
   expect(await focusedBox(page)).toBe('code-input-0');
   await expect(page.getByTestId('home-join')).toBeEnabled();
@@ -473,9 +475,9 @@ test('the settings menu switches to the light theme and the choice survives a re
   const outline = page.getByTestId('site-header').locator('.wordmark__accent-outline');
   expect(await pageColor()).toBe('rgb(20, 21, 20)');
   expect(await panelColor()).toBe('rgb(32, 34, 31)');
-  // "games" in the wordmark is lime on both themes: bare on dark, with an ink outline on light.
+  // "games" in the wordmark is the lime on dark and a cut of it on light, never outlined.
   await expect(games).toHaveCSS('color', 'rgb(199, 233, 118)');
-  await expect(outline).toBeHidden();
+  await expect(outline).toHaveCount(0);
 
   await page.getByTestId('settings-menu').click();
   await expect(page.getByTestId('settings-popover')).toBeVisible();
@@ -485,9 +487,7 @@ test('the settings menu switches to the light theme and the choice survives a re
   expect(await pageColor()).toBe('rgb(245, 246, 239)');
   await expect.poll(panelColor).toBe('rgb(255, 255, 255)');
   await expect(page.getByTestId('home-join')).toHaveCSS('background-color', 'rgb(199, 233, 118)');
-  await expect(games).toHaveCSS('color', 'rgb(199, 233, 118)');
-  await expect(outline).toBeVisible();
-  await expect(outline).toHaveCSS('stroke', 'rgb(20, 21, 20)');
+  await expect(games).toHaveCSS('color', 'rgb(111, 154, 28)');
   // Escape closes the menu and gives the focus back to the gear.
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('settings-popover')).toHaveCount(0);
@@ -511,7 +511,7 @@ for (const width of [320, 390, 700, 768, 1024, 1440]) {
     const page = await context.newPage();
     await page.goto('/');
     await expect(page.getByTestId('home-create')).toBeVisible();
-    await expect(page.getByTestId('connection-status')).toHaveCount(0);
+    await expect(page.getByTestId('connection-notice')).toHaveCount(0);
     await noHorizontalOverflow(page, width);
     for (const id of ['home-join', 'home-create']) {
       const box = await page.getByTestId(id).boundingBox();
@@ -536,14 +536,8 @@ for (const width of [320, 390, 700, 768, 1024, 1440]) {
     const createBtn = await page.getByTestId('home-create').boundingBox();
     expect(joinBtn?.width ?? 0).toBeLessThanOrEqual(460.5);
     expect(Math.abs((joinBtn?.x ?? 0) + (joinBtn?.width ?? 0) / 2 - width / 2), 'the column is centred').toBeLessThanOrEqual(1);
-    // "Join a room" is centred over the column too, so nothing in it leans left.
-    const titleCentre = await page.locator('#join-heading').evaluate((el) => {
-      const range = document.createRange();
-      range.selectNodeContents(el);
-      const box = range.getBoundingClientRect();
-      return box.x + box.width / 2;
-    });
-    expect(Math.abs(titleCentre - width / 2), 'Join a room is centred').toBeLessThanOrEqual(1.5);
+    // No visible heading over the boxes: the logo, then the boxes straight away.
+    expect((await page.locator('#join-heading').boundingBox())?.height ?? 0).toBeLessThanOrEqual(1);
     expect(createBtn?.x).toBe(joinBtn?.x);
     expect(createBtn?.width).toBe(joinBtn?.width);
     const gap = (createBtn?.y ?? 0) - ((joinBtn?.y ?? 0) + (joinBtn?.height ?? 0));
@@ -572,6 +566,11 @@ for (const width of [320, 390, 700, 768, 1024, 1440]) {
     expect(Math.abs(centre(icon) - centre(letters)), 'centred on "bored"').toBeLessThanOrEqual((mark?.height ?? 0) * 0.03);
     expect((icon?.y ?? 0) + (icon?.height ?? 0), 'well above the bottom of the "g"').toBeLessThanOrEqual((games?.y ?? 0) + (games?.height ?? 0) - (mark?.height ?? 0) * 0.1);
     expect((mark?.y ?? 0) + (mark?.height ?? 0), 'the logo stays above Join a room').toBeLessThanOrEqual(join?.y ?? 0);
+    // As much air between the logo and the boxes as the column's rhythm allows: clearly apart, never a gap the page falls into.
+    const firstBox = await page.getByTestId('code-input-0').boundingBox();
+    const air = (firstBox?.y ?? 0) - ((mark?.y ?? 0) + (mark?.height ?? 0));
+    expect(air, 'the logo and the boxes stand apart').toBeGreaterThanOrEqual(24);
+    expect(air).toBeLessThanOrEqual(72);
     // The column sits in the middle of the page, top to bottom, on every screen.
     const top = (await page.getByTestId('site-header').boundingBox())?.y ?? 0;
     const below = height - ((createBtn?.y ?? 0) + (createBtn?.height ?? 0));
@@ -602,8 +601,9 @@ test('a create or join the server never answers is reported where the user is: u
   // The socket link is cut before it reaches the server: the client keeps reconnecting, every request times out as OFFLINE.
   await page.routeWebSocket(/\/ws$/, (route) => route.close({ code: 1006, reason: 'cut' }));
   await page.goto('/');
-  // While the socket is down a small status pill says so, in place of the old Connected badge.
-  await expect(page.getByTestId('connection-status')).toHaveAttribute('data-status', /connecting|reconnecting/);
+  // While the socket stays down the one connection notice says so, at the top of the page and never beside the logo.
+  await expect(page.getByTestId('connection-notice')).toHaveAttribute('data-status', /connecting|reconnecting/);
+  await expect(page.getByTestId('site-header').getByTestId('connection-notice')).toHaveCount(0);
 
   // Create: a first visit goes through "Who's playing?"; the failure must show there, not only after Back.
   await page.getByTestId('home-create').click();
@@ -611,7 +611,7 @@ test('a create or join the server never answers is reported where the user is: u
   await page.getByTestId('home-name').fill('Olga');
   await page.getByTestId('home-continue').click();
   await expect(page.getByTestId('home-continue')).toContainText(/Waiting for connection/);
-  await expect(page.getByTestId('create-error')).toContainText(/can't reach the server/i, { timeout: 15_000 });
+  await expect(page.getByTestId('create-error')).toContainText(/can’t reach the server/i, { timeout: 15_000 });
   await expect(page.getByTestId('name-step')).toBeVisible();
   await expect(page.getByTestId('home-continue')).toBeEnabled();
   await expect(page.getByTestId('home-continue')).toHaveText('Continue');
@@ -628,7 +628,7 @@ test('a create or join the server never answers is reported where the user is: u
   await expect(page.getByTestId('name-step')).toBeVisible();
   await page.getByTestId('home-name').fill('Olga');
   await page.getByTestId('home-continue').click();
-  await expect(page.getByTestId('join-error')).toContainText(/can't reach the server/i, { timeout: 15_000 });
+  await expect(page.getByTestId('join-error')).toContainText(/can’t reach the server/i, { timeout: 15_000 });
   await expect(page.getByTestId('room-preview')).toHaveAttribute('aria-live', 'polite');
   expect(await boxes(page)).toEqual(unknownCode().split(''));
   await expect(page.getByTestId('home-join')).toBeEnabled();

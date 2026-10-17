@@ -1,38 +1,20 @@
 import type { CSSProperties, FormEvent, ReactNode } from 'react';
-import type { Avatar as AvatarData } from '@shared/platform/avatar';
-import { Avatar } from '../components/Avatar';
 import { EyeIcon } from '../components/Icons';
 import { WATCHING_TEXT } from '../lib/watching';
 import { StackCount } from './Stakes';
-
-/** How the panel's status line reads: lime when it is on me, lilac while someone else (or the dealer) plays, red when I am out. */
-export type StatusTone = 'go' | 'other' | 'bad' | 'quiet';
-
-export interface PanelStatus {
-  /** The game's own state name, for data-state. */
-  state: string;
-  text: string;
-  tone: StatusTone;
-  /** The avatar of the player whose turn it is, in place of the dot. */
-  who?: AvatarData;
-}
 
 type DataAttrs = Record<`data-${string}`, string | number | boolean | undefined>;
 
 interface ShellProps {
   label: string;
-  status: PanelStatus;
   onSubmit(): void;
   testId: string;
   data?: DataAttrs;
-  /** Desktop: the shortcuts line under the controls. */
-  hint?: string | false;
-  /** A small control at the end of the status line (Blackjack's Sit out, Deal now, Skip). */
-  action?: ReactNode;
-  /** The status line keeps the action's height whether or not one is on offer, so the panel never jumps. */
-  actionSlot?: boolean;
-  /** `bottom`: a quiet line under the controls (the table says whose turn it is); `top`: the panel's first line. */
-  statusAt?: 'top' | 'bottom';
+  /**
+   * The table's own buttons under the main one (Blackjack's Sit out, Deal now, Skip): full width,
+   * in a row that keeps its place whether or not one is on offer, so the panel never jumps.
+   */
+  actions?: ReactNode;
   children: ReactNode;
 }
 
@@ -49,78 +31,60 @@ export function releaseClickedButton(e: { detail: number; target: EventTarget | 
 }
 
 /**
- * The control panel shell, the same place all game long: the status line (whose turn it is) and
- * the game's rows, then the shortcut hint on a desktop. A form, so Enter in the amount sends.
+ * The control panel shell, the same place all game long: the game's rows, then the table's own
+ * buttons. Whose turn it is lives on the table, not here. A form, so Enter in the amount sends.
  */
-export function PanelShell({ label, status, onSubmit, testId, data, hint, action, actionSlot = false, statusAt = 'top', children }: ShellProps) {
+export function PanelShell({ label, onSubmit, testId, data, actions, children }: ShellProps) {
   const submit = (e: FormEvent) => {
     e.preventDefault();
     onSubmit();
   };
-  const line = (
-    <div className={`tbl-panel__status tbl-panel__status--${status.tone}${status.who ? ' tbl-panel__status--who' : ''}${actionSlot ? ' tbl-panel__status--slot' : ''} tbl-panel__status--${statusAt}`}>
-      {status.who && (
-        <span className="tbl-panel__who" aria-hidden="true">
-          <Avatar avatar={status.who} size="sm" />
-        </span>
-      )}
-      <p className="tbl-panel__status-text" data-testid="turn-status" data-state={status.state} role="status" aria-live="polite">
-        {status.text}
-      </p>
-      {action}
-    </div>
-  );
   return (
-    <form className={`tbl-panel tbl-panel--status-${statusAt}`} onSubmit={submit} onClick={releaseClickedButton} noValidate aria-label={label} data-testid={testId} {...data}>
-      {statusAt === 'top' && line}
+    <form className="tbl-panel" onSubmit={submit} onClick={releaseClickedButton} noValidate aria-label={label} data-testid={testId} {...data}>
       {children}
-      {statusAt === 'bottom' && line}
-      {hint && (
-        <p className="tbl-panel__hint" data-testid="hotkey-hint">
-          {hint}
-        </p>
-      )}
+      {actions !== undefined && <div className="tbl-panel__actions">{actions}</div>}
     </form>
   );
 }
 
 /**
  * A spectator's panel in place of the controls: one quiet line saying they watch and can play the
- * next game. A host who watches keeps their table controls in `action` (Deal now, Skip).
+ * next game. A host who watches keeps the table's buttons under it (Deal now, Skip).
  */
-export function WatchingPanel({ testId, action }: { testId: string; action?: ReactNode }) {
+export function WatchingPanel({ testId, actions }: { testId: string; actions?: ReactNode }) {
   return (
     <section className="tbl-panel tbl-panel--watching" aria-label="Watching" data-testid={testId} data-watching="true">
-      <div className="tbl-panel__status tbl-panel__status--quiet tbl-panel__status--watching">
+      <p className="tbl-panel__watching" data-testid="watching-note">
         <span className="tbl-panel__watch-icon" aria-hidden="true">
           <EyeIcon size={18} />
         </span>
-        <p className="tbl-panel__status-text" data-testid="turn-status" data-state="spectating" role="status">
-          {WATCHING_TEXT}
-        </p>
-      </div>
-      {action && <div className="tbl-panel__watch-actions">{action}</div>}
+        <span>{WATCHING_TEXT}</span>
+      </p>
+      {actions && <div className="tbl-panel__actions">{actions}</div>}
     </section>
   );
 }
 
-/** The small control at the end of the status line: a pill whose tap target is a full 44px tall. */
-export function StatusAction({ label, ariaLabel, testId, onClick, enabled = true }: { label: string; ariaLabel?: string; testId: string; onClick(): void; enabled?: boolean }) {
+/** One of the table's own buttons under the main one: a full-width secondary button, dimmed when not on offer. */
+export function TableButton({ label, ariaLabel, testId, onClick, enabled = true }: { label: string; ariaLabel?: string; testId: string; onClick(): void; enabled?: boolean }) {
   return (
-    <button type="button" className="tbl-panel__act" onClick={onClick} disabled={!enabled} aria-label={ariaLabel} data-testid={testId}>
+    <button type="button" className="btn btn--secondary btn--block tbl-panel__act" onClick={onClick} disabled={!enabled} aria-label={ariaLabel} data-testid={testId}>
       {label}
     </button>
   );
 }
 
-/** Row 1: what the amount is for, and my stack (`truth` is the real count behind a balance still catching up). */
-export function PanelLabelRow({ label, htmlFor, balance, truth }: { label: string; htmlFor: string; balance: number; truth: number }) {
+/**
+ * Row 1: what the amount is for, and my stack (`truth` is the real count behind a balance still
+ * catching up). `anchor`: where my chips fly from and back to (Poker's `seat:<id>`).
+ */
+export function PanelLabelRow({ label, htmlFor, balance, truth, anchor }: { label: string; htmlFor: string; balance: number; truth: number; anchor?: string }) {
   return (
     <div className="tbl-panel__label-row">
       <label className="tbl-panel__label" htmlFor={htmlFor}>
         {label}
       </label>
-      <span className="tbl-panel__balance" data-testid="my-chips" data-chips={truth} aria-label={`Balance ${balance} chips`}>
+      <span className="tbl-panel__balance" data-testid="my-chips" data-chips={truth} data-table-anchor={anchor} aria-label={`Balance ${balance} chips`}>
         <StackCount value={balance} />
       </span>
     </div>

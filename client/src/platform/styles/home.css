@@ -38,7 +38,7 @@
   gap: var(--space-4);
 }
 
-/* ---------- Join a room: heading, the four boxes, Join, then Create a room right under it ---------- */
+/* ---------- Join a room: the four boxes, Join, then Create a room right under it ---------- */
 .home__start {
   display: flex;
   flex-direction: column;
@@ -50,15 +50,6 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-}
-
-.home__title {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 2.25rem;
-  letter-spacing: -0.02em;
-  line-height: 1.1;
-  text-align: center;
 }
 
 .home .code-input {
@@ -84,7 +75,7 @@
 /* A typed character lights its box up lime, the same block the lobby shows the code on. */
 .home .code-input__box:not(:placeholder-shown) {
   background: var(--color-primary);
-  border-color: var(--color-primary);
+  border-color: var(--color-primary-edge);
   color: var(--color-primary-contrast);
 }
 
@@ -212,13 +203,9 @@
     padding-top: calc(var(--space-5) + env(safe-area-inset-top));
   }
 
+  /* 20px at the sides: the picker inside keeps its six colours 44px wide. */
   .panel--who {
-    padding: var(--space-5);
+    padding: var(--space-5) 20px;
   }
 }
 
-@media (max-width: 360px) {
-  .home__title {
-    font-size: 1.625rem;
-  }
-}

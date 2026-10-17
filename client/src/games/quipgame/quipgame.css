@@ -277,10 +277,8 @@ button.quip-answer--selected:disabled {
   align-items: center;
   gap: 6px;
   color: var(--color-secondary-text);
-  font-size: 0.8rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  font-size: 0.875rem;
+  font-weight: 700;
 }
 
 .quip-announce__prompt {
@@ -452,11 +450,9 @@ button.quip-answer--selected:disabled {
 .quip-result__tag {
   flex: none;
   white-space: nowrap;
-  font-size: 0.68rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--color-text-faint);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
   background: var(--color-surface-3);
   padding: 1px 6px;
   border-radius: var(--radius-pill);
@@ -468,10 +464,8 @@ button.quip-answer--selected:disabled {
   border-radius: var(--radius-pill);
   /* Dark ink on the amber accent (the background is set inline from the game's meta): 7.9:1 in both themes. */
   color: var(--quip-accent-ink);
-  font-size: 0.75rem;
-  font-weight: 900;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  font-size: 0.8125rem;
+  font-weight: 800;
   animation: quip-pop 0.3s ease;
 }
 
@@ -581,10 +575,8 @@ button.quip-final__answer--own:disabled {
 
 .quip-final__own-tag {
   flex: none;
-  font-size: 0.7rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  font-size: 0.75rem;
+  font-weight: 700;
   color: var(--color-primary-text);
   background: var(--color-primary-soft);
   padding: 2px 8px;

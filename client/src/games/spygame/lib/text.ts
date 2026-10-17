@@ -15,7 +15,7 @@ export function outcomeHeadline(outcome: SpygameOutcome): string {
     case 'wrongAccusation':
       return 'Wrong accusation!';
     case 'timeUp':
-      return "Time's up!";
+      return "Time’s up!";
     case 'spyLeft':
       return 'The spy left the room';
   }

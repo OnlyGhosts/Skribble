@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
-import { gameById } from '@shared/platform/games';
+import { gameById, type ScoreUnit } from '@shared/platform/games';
 import type { GameResults, ResultEntry } from '@shared/platform/protocol';
-import { pointsShort } from '../lib/format';
+import { scoreShort, scoreWords } from '../lib/format';
 import { PHONE_QUERY, useMediaQuery } from '../lib/media';
 import { PLATFORM_SOUNDS } from '../lib/platformSounds';
 import { crowned, endReasonLine, rankedEntries, resultsHeadline, resultsPlace, topEntries } from '../lib/results';
@@ -11,9 +11,9 @@ import { Confetti } from './Confetti';
 import { CloseIcon } from './Icons';
 import { PhoneHappy } from './Mascots';
 
-/** The winner's points under the headline: "1,100 points", or "30 points each" for a tie. */
-function pointsLine(score: number, tie: boolean): string {
-  return `${score.toLocaleString('en-US')} ${score === 1 ? 'point' : 'points'}${tie ? ' each' : ''}`;
+/** The winner's score under the headline: "1,100 points", "1,040 chips", or "30 points each" for a tie. */
+function scoreLine(score: number, tie: boolean, unit: ScoreUnit | undefined): string {
+  return `${scoreWords(score, unit)}${tie ? ' each' : ''}`;
 }
 
 interface Props {
@@ -24,7 +24,7 @@ interface Props {
 
 /**
  * The end of a game, however it ended, as a popup over the lobby: the winner, the places and the
- * points with a small celebration. Closing it (the button, the X, Escape, or a tap outside on a
+ * scores (points, or a card table's chips) with a small celebration. Closing it (the button, the X, Escape, or a tap outside on a
  * desktop) leaves the player in the lobby, ready for the next game. A modal dialog: the card takes
  * the focus and Tab stays inside until it goes.
  */
@@ -42,6 +42,7 @@ export function ResultsPopup({ results, meId, onClose }: Props) {
   const iWon = meId !== null && champions.some((e) => e.playerId === meId);
   const place = resultsPlace(results, meId);
   const reason = endReasonLine(results);
+  const unit = gameById(results.gameId).scoreUnit;
 
   // Once per popup: the cue belongs to the moment it appears.
   const wonAtMount = useRef(iWon);
@@ -64,7 +65,7 @@ export function ResultsPopup({ results, meId, onClose }: Props) {
             </h2>
             {champions.length > 0 && (
               <p className="results-hero__points" data-testid="results-points">
-                {pointsLine(champions[0].score, champions.length > 1)}
+                {scoreLine(champions[0].score, champions.length > 1, unit)}
               </p>
             )}
             <p className={`results-place${iWon ? ' results-place--won' : ''}`} data-testid="results-place">
@@ -105,9 +106,9 @@ export function ResultsPopup({ results, meId, onClose }: Props) {
                 <Avatar avatar={entry.avatar} size="sm" />
                 <span className="results-standings__name">
                   <span className="results-standings__text">{entry.name}</span>
-                  {entry.playerId === meId && <span className="results-standings__you">You</span>}
+                  {entry.playerId === meId && <span className="results-standings__you">you</span>}
                 </span>
-                <span className="results-standings__score">{pointsShort(entry.score)}</span>
+                <span className="results-standings__score">{scoreShort(entry.score, unit)}</span>
               </li>
             ))}
           </ol>

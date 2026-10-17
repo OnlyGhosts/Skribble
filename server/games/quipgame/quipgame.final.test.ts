@@ -79,16 +79,16 @@ describe('Quip Game: the final round', () => {
     reachFinal(s, alice, dave);
     writeAll(s);
     const [a, b, c] = [alice, bob, carol].map((id) => finalAnswerOf(s, id));
-    expect(errors(s.game(alice, { t: 'rank', answerIds: [a] }))).toEqual(["You can't pick your own answer."]);
+    expect(errors(s.game(alice, { t: 'rank', answerIds: [a] }))).toEqual(["You can’t pick your own answer."]);
     expect(errors(s.game(alice, { t: 'rank', answerIds: [b, b] }))).toEqual(['Pick each answer once.']);
-    expect(errors(s.game(alice, { t: 'rank', answerIds: [b, 'ghost'] }))).toEqual(["That's not one of the answers."]);
+    expect(errors(s.game(alice, { t: 'rank', answerIds: [b, 'ghost'] }))).toEqual(["That’s not one of the answers."]);
     // The final's audience has nothing of their own in the list: three picks from three answers.
     expect(view(s, dave).maxPicks).toBe(3);
     expect(errors(s.game(dave, { t: 'rank', answerIds: [a, b, c] }))).toEqual([]);
     expect(view(s, dave).myRanking).toEqual([a, b, c]);
     expect(data(s).phase).toBe('finalVoting');
     // Alice may pick two; a third is refused even though the schema allows three.
-    expect(errors(s.game(alice, { t: 'rank', answerIds: [b, c, a] }))).toEqual(["You can't pick your own answer."]);
+    expect(errors(s.game(alice, { t: 'rank', answerIds: [b, c, a] }))).toEqual(["You can’t pick your own answer."]);
     // A newcomer only watches the final: no answer, no ranking.
     s.apply({ type: 'join', name: 'Erin', avatar: AVATAR, connectionId: 'conn-Erin' });
     const erin = s.playerId('Erin');

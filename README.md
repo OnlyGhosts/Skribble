@@ -37,8 +37,9 @@ called Scribble), the owner's decisions win. The short version:
 - **Dark by default.** Near-black page (`#141514`), flat graphite panels (`#20221F`) separated by
   fine borders, off-white type (`#F1F0E8`), lime (`#C7E976`, always with ink text) for actions and
   the brand, lilac (`#A699D5`) for selection. No glow, gradients or blur. A light theme on the same
-  system sits in the settings menu (the gear in the header); the choice is remembered on the
-  device. Tokens, including a `--game-<id>` accent per game: `client/src/platform/styles/tokens.css`.
+  system (an off-white page, white panels, raised surfaces in a pale lime, the brand cut darker
+  wherever it carries text, a pale green felt on the card tables) sits in the settings menu (the
+  gear in the header); the choice is remembered on the device. Tokens, including a `--game-<id>` accent per game: `client/src/platform/styles/tokens.css`.
 - **Type.** Space Grotesk for headings, Inter for text, IBM Plex Mono for room codes, self-hosted
   latin subsets under the SIL Open Font License (`client/public/fonts/`, with the licences).
 - **Sound.** Short effects for every game (cards, chips, chimes, stings), from Kenney's
@@ -51,7 +52,7 @@ called Scribble), the owner's decisions win. The short version:
   avatar keeps only its index, so new faces go at the end.
 - **The wordmark is outlined Poppins, not text.** "boredgames" is Poppins Black and ".io" Poppins Regular (SIL OFL). The app inlines it
   (`client/src/platform/components/Wordmark.tsx`, accessible name "boredgames.io"): "bored" and
-  ".io" in the text colour, "games" in lime (on light with an ink outline, like the phones').
+  ".io" in the text colour, "games" in lime (cut darker on light, where lime alone has no contrast).
 - **Mascots.** Two small phone characters (lime happy, lilac bored), drawn in Illustrator
   (`branding/mascots/boredgames-mascots.svg`), as the logo's icon and on celebrations only,
   never above or between controls.
@@ -114,7 +115,7 @@ needs does it return everyone to the lobby.
 - **Fair scoring.** Guessers earn 50–400 points by speed. The drawer earns up to 300 points scaled by how many people got it, so drawing clearly for everyone beats racing one fast friend.
 - **Real drawing tools.** Smooth strokes, five brush sizes, 24 colours plus a colour picker, eraser, flood fill, undo and clear, with keyboard shortcuts (`B`, `E`, `F`, `Ctrl+Z`, `[` and `]`).
 - **Host controls and fair play.** Rounds, hints, word choices, custom word lists typed in or uploaded as a .txt file (optionally custom-only), kick, vote-kick, automatic host hand-over. There is no chat to give the word away in: only a guesser who has not got it yet types, and only guesses.
-- **Polish.** Light and dark themes, sound cues, like/dislike the drawing, turn summaries, a podium at the end, and a 1,390-word English list of things you can actually draw (plus 498 adult ones that make up the whole pack of an Unhinged room).
+- **Polish.** Light and dark themes, sound cues, turn summaries, a podium at the end, and a 1,390-word English list of things you can actually draw (plus 498 adult ones that make up the whole pack of an Unhinged room).
 
 Each round, every player draws once. The drawer picks one of three words, everyone else types
 guesses straight into the blanks, and the turn ends when time runs out or everyone has guessed.
@@ -348,7 +349,7 @@ client/src/platform/ React 19 + zustand. game.ts is the client contract (GameCli
                    room's module; screens/ are Home and Lobby; components/ is the design system
                    (SiteHeader, Wordmark, Mascots, GameGlyph/GameMark, Avatar, AvatarPicker, CodeInput,
                    PlayerList, Chat, SettingsPanel + SettingControls, BottomSheet, Toasts, Preferences
-                   (the settings gear: theme and sound), ConnectionPill, Timer, PodiumOverlay, GamePicker, ReadyControls, ContentModeSetting,
+                   (the settings gear: theme and sound), ConnectionNotice, Timer, PodiumOverlay, GamePicker, ReadyControls, ContentModeSetting,
                    Icons); lib/sound.ts and lib/audio/ the sound engine (banks, cooldowns, effects
                    made in code); brand/ the outlined wordmark paths; canvas/ the shared drawing canvas
                    (renderer, flood fill, drawing hook, batching queue, Toolbar and GameCanvas) any

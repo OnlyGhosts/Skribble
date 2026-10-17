@@ -81,8 +81,8 @@ export const scribbleClientMessageSchema = z.discriminatedUnion('t', [
   z.object({ t: z.literal('chooseWord'), index: z.number().int().min(0).max(9) }),
   /** Drawer only, during `drawing`: the shared canvas messages, handled by the canvas side store. */
   ...canvasClientMessageOptions,
-  /** Non-drawers during `drawing`: rate the drawing. Sending the same value again clears it. */
-  z.object({ t: z.literal('rate'), value: z.enum(['like', 'dislike']) }),
+  /** Retired (drawing ratings are gone): a page loaded before the change may still send it, and it is ignored. */
+  z.object({ t: z.literal('rate'), value: z.unknown().optional() }),
 ]);
 
 export type ScribbleClientMessage = z.infer<typeof scribbleClientMessageSchema>;
@@ -102,7 +102,6 @@ export const isScribbleWelcomeExtra: (x: unknown) => x is ScribbleWelcomeExtra =
 // View
 // ---------------------------------------------------------------------------
 
-export type Rating = 'like' | 'dislike';
 export type TurnEndReason = 'allGuessed' | 'timeUp' | 'drawerLeft' | 'noWordChosen';
 
 export type ScribblePhase =
@@ -123,10 +122,6 @@ export type ScribblePhase =
       mask: string;
       /** Only present in the drawer's snapshot (and for players who already guessed). */
       word?: string;
-      likes: number;
-      dislikes: number;
-      /** This recipient's own rating, if any. */
-      myRating?: Rating;
     }
   | {
       kind: 'turnEnd';

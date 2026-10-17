@@ -34,11 +34,37 @@
   min-height: 0;
   min-width: 0;
   display: flex;
+  /* The game sizes its cards to the room the table has (cqh, cqw), never to what is on it. */
+  container: tbl / size;
+}
+
+/*
+ * Sizes a game works out from the room its table has (cq units of tbl): registered as lengths, so
+ * they are worked out once on the table and inherited as pixels, never again against a container
+ * deeper in (a hand's row is a size container too).
+ */
+@property --tbl-pill-h {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 26px;
+}
+
+@property --tbl-mini-w {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 24px;
+}
+
+@property --tbl-deck-w {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 56px;
 }
 
 /* ---------- The felt ---------- */
 .tbl-felt {
   /* A game sets its card widths per place on the table (every card here is 2:3). */
+  --tbl-pad: var(--space-4);
   position: relative;
   flex: 1;
   min-width: 0;
@@ -47,11 +73,23 @@
   flex-direction: column;
   justify-content: space-between;
   gap: var(--space-3);
-  padding: var(--space-4);
+  padding: var(--tbl-pad);
   border-radius: var(--radius-md);
   border: 1px solid var(--color-border);
   background: var(--color-surface);
   overflow: hidden;
+}
+
+/*
+ * On light the felt is a pale green, and what sits on it reads the surface tokens the other way
+ * round: seats and the ribbon go white, wells a shade under, so the cards and seats stand off the
+ * table instead of vanishing white on white.
+ */
+:root[data-theme='light'] .tbl-felt {
+  --color-surface: #e2e9d1;
+  --color-surface-2: #ffffff;
+  --color-surface-3: #f1f4e8;
+  --color-border: #c4cdb0;
 }
 
 .tbl-card {
@@ -111,15 +149,12 @@
   border: 1px solid var(--color-border-strong);
 }
 
-/*
- * The deck tucked into the table's top right corner, peeking down from its top edge (the felt
- * clips the rest): bigger than a deck in a grid cell, so it reads as the shoe the cards come from.
- */
+/* The deck in the table's top right corner, wholly on the felt with the felt's own margin round it. */
 .tbl-deck--corner {
   --deck-w: var(--tbl-deck-w, 56px);
   position: absolute;
-  top: calc(var(--deck-w) * -0.62);
-  right: calc(var(--deck-w) * 0.45);
+  top: var(--tbl-pad);
+  right: calc(var(--tbl-pad) + 4px);
   z-index: 0;
   pointer-events: none;
 }
@@ -140,8 +175,7 @@
 }
 
 .tbl-deck__count {
-  font-family: var(--font-mono);
-  font-size: 0.7rem;
+  font-size: 0.72rem;
   font-weight: 600;
   color: var(--color-text-faint);
   font-variant-numeric: tabular-nums;
@@ -150,7 +184,7 @@
 
 /* ---------- Ribbon: a low-contrast banner with folded ends, the rule under it, whose turn under that ---------- */
 .tbl-ribbon {
-  --ribbon-h: 28px;
+  --ribbon-h: var(--tbl-ribbon-h, 30px);
   isolation: isolate;
   --ribbon-fold: 12px;
   display: flex;
@@ -200,23 +234,28 @@
 .tbl-ribbon__main {
   overflow: hidden;
   font-family: var(--font-display);
-  font-size: 0.86rem;
-  font-weight: 800;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  font-size: var(--tbl-ribbon-font, 0.95rem);
+  font-weight: 700;
   white-space: nowrap;
   text-overflow: ellipsis;
   color: var(--color-text-muted);
 }
 
+/* The round or hand and a rule or the street, small under the banner: "Round 1 · Dealer stands on 17". */
 .tbl-ribbon__sub {
-  margin-top: 3px;
-  font-family: var(--font-mono);
-  font-size: 0.66rem;
+  margin-top: 2px;
+  font-size: 0.8rem;
   font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
   color: var(--color-text-faint);
+}
+
+.tbl-ribbon__note {
+  display: flex;
+  justify-content: center;
+  max-width: 100%;
+  min-width: 0;
 }
 
 /* ---------- Outcomes: a solid outline, a coloured pill, the payout rising ---------- */
@@ -271,9 +310,9 @@
   background: var(--color-surface-3);
   border: 1px solid var(--color-border-strong);
   color: var(--color-text);
-  font-family: var(--font-mono);
+  font-family: var(--font-display);
   font-size: 0.82rem;
-  font-weight: 600;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -284,7 +323,7 @@
 
 .tbl-pill--win {
   background: var(--color-primary);
-  border-color: var(--color-primary);
+  border-color: var(--color-primary-edge);
   color: var(--color-primary-contrast);
 }
 
@@ -455,7 +494,7 @@
 /* The hand in play: its pill lit lime. */
 .tbl-hand--active .tbl-pill--active {
   background: var(--color-primary);
-  border-color: var(--color-primary);
+  border-color: var(--color-primary-edge);
   color: var(--color-primary-contrast);
 }
 
@@ -510,7 +549,36 @@
 }
 
 .tbl-hand__head .tbl-tag {
+  display: inline-flex;
+  align-items: center;
+  height: calc(var(--pill-h) * 0.86);
   font-size: calc(var(--pill-h) * 0.48);
+}
+
+/* My stake by the total ("Bet 10"): the pill's height, so the two read as one line. */
+.tbl-hand__head .tbl-hand__stake {
+  height: var(--pill-h);
+  padding: 0 0.6em;
+  font-size: calc(var(--pill-h) * 0.5);
+}
+
+/* Another player's hand on my stage: their name by its total, in the lilac of whoever plays. */
+.tbl-hand__owner {
+  display: inline-flex;
+  align-items: center;
+  max-width: 9em;
+  height: var(--pill-h);
+  padding: 0 0.65em;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface-2);
+  color: var(--color-secondary-text);
+  font-family: var(--font-display);
+  font-size: calc(var(--pill-h) * 0.52);
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* On a seat: small cards with the pill beside them. */
@@ -531,8 +599,7 @@
   min-width: 24px;
   padding: 0 4px;
   border-width: 1px;
-  font-family: var(--font-mono);
-  font-size: 0.68rem;
+  font-size: 0.7rem;
 }
 
 .tbl-hand--mini .tbl-fan {
@@ -593,10 +660,8 @@
 }
 
 .tbl-stake__word {
-  font-size: 0.76em;
+  font-size: 0.86em;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
 }
 
 .tbl-stake__value {
@@ -629,9 +694,9 @@
   border-radius: var(--radius-pill);
   background: var(--color-surface-3);
   border: 1px solid var(--color-warning);
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
-  font-weight: 600;
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
   color: var(--color-text);
   white-space: nowrap;
   will-change: transform;
@@ -640,20 +705,28 @@
 /* ---------- A calm table: the centre piece, the ribbon, the seats, the stage ---------- */
 /*
  * The first row (the game's centre piece: Blackjack's dealer, Poker's pot and board) and the last
- * (the stage with the hand that matters to me) have a fixed height the game sets for the screen
- * alone (--tbl-head-h, --tbl-stage-h), never for the phase or the number of players. The ribbon
- * and the seats in between take what is left, the seats last, down to nothing. The game also sets
- * the gap between the rows (--tbl-row-gap) and the stage's side columns (--tbl-owner-w).
+ * (the stage with my hand) have a fixed height the game sets for the screen alone (--tbl-head-h,
+ * --tbl-stage-h), never for the phase or the number of players: the first sits at the top edge,
+ * the last at the bottom. The seats take the height they need and no more (down to nothing on a
+ * crowded small screen), and whatever is left is shared evenly between the rows, so the ribbon and
+ * the seats keep one rhythm between the dealer and my hand. --tbl-row-gap is the least gap.
  */
 .tbl-felt--calm {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: var(--tbl-head-h) auto minmax(0, 1fr) var(--tbl-stage-h);
+  grid-template-rows: var(--tbl-head-h) auto minmax(0, max-content) var(--tbl-stage-h);
   grid-template-areas: 'head' 'ribbon' 'seats' 'stage';
+  align-content: space-between;
   row-gap: var(--tbl-row-gap, var(--space-3));
 }
 
-/* Whose turn it is stays on every screen, however short (the banner itself may go). */
+/* Nobody else at the table: the ribbon across the middle, halfway between the dealer and my hand. */
+.tbl-felt--calm.tbl-crowd--none {
+  grid-template-rows: var(--tbl-head-h) auto var(--tbl-stage-h);
+  grid-template-areas: 'head' 'ribbon' 'stage';
+}
+
+/* Whose turn it is, and the round, stay on every screen, however short (the banner itself may go). */
 .tbl-felt--calm > .tbl-ribbon {
   grid-area: ribbon;
   display: flex;
@@ -661,13 +734,16 @@
   overflow: hidden;
 }
 
-/* A crowd of 24 or more: the banner's small rule gives its line to the seats. */
-.tbl-felt--calm.tbl-crowd--dense .tbl-ribbon__sub {
+/* A crowd of 25 or more: the banner gives its height to the seats; the round and whose turn it is stay. */
+.tbl-felt--calm.tbl-crowd--dense .tbl-ribbon__band {
   display: none;
 }
 
 .tbl-felt--calm > .tbl-grid {
   grid-area: seats;
+  /* As tall as the tiles need at their natural size (PlayersGrid), never taller than the table leaves. */
+  height: var(--grid-natural, auto);
+  max-height: 100%;
 }
 
 /* ---------- The line under the ribbon: whose turn it is (TurnLine) ---------- */
@@ -704,9 +780,9 @@
 
 .tbl-turn__sub {
   font-family: var(--font-sans);
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   font-weight: 600;
-  color: var(--color-text-faint);
+  color: var(--color-text-muted);
   white-space: nowrap;
 }
 
@@ -733,80 +809,35 @@
   }
 }
 
-/* ---------- The stage (TableStage): whose hand, the hand big, a small extra at the side ---------- */
+/* ---------- The stage (TableStage): the hand that matters to me, big and centred ---------- */
 .tbl-stage {
   grid-area: stage;
   justify-self: center;
   width: min(100%, 760px);
-  display: grid;
-  grid-template-columns: var(--tbl-owner-w, 120px) minmax(0, 1fr) var(--tbl-owner-w, 120px);
-  column-gap: 6px;
+  display: flex;
+  justify-content: center;
   min-width: 0;
   min-height: 0;
 }
 
-.tbl-stage__owner {
-  align-self: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-  font-size: 0.78rem;
-}
-
-.tbl-stage__face {
-  display: flex;
-}
-
-.tbl-stage__face .avatar {
-  width: 34px;
-  height: 34px;
-  font-size: 20px;
-}
-
-.tbl-stage__name {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-weight: 700;
-  color: var(--color-text-muted);
-}
-
-/* Another player's hand on the stage: their name lit, like their seat. */
-.tbl-stage__owner.is-turn .tbl-stage__name {
-  color: var(--color-secondary-text);
-}
-
-.tbl-stage__centre,
-.tbl-stage__aside {
-  min-width: 0;
-  min-height: 0;
-  height: 100%;
-}
-
-/* ---------- The players: a grid of tiles that never scrolls (grid.ts fits the columns) ---------- */
+/* ---------- The players: a grid of tiles that never scrolls (grid.ts fits the columns and picks the tier) ---------- */
 .tbl-grid {
-  --grid-gap: 6px;
   display: grid;
+  /* Every size in a tile goes by this: a big desktop table sets its seats a size up. */
+  font-size: var(--tbl-tile-font, 1rem);
   /* A tile may grow a little past its natural width to use the row. */
   grid-template-columns: repeat(var(--cols, 4), minmax(0, calc(var(--tile-w, 120px) * 1.3)));
   grid-template-rows: repeat(var(--rows, 1), minmax(0, var(--tile-h, 56px)));
   justify-content: center;
   align-content: center;
-  gap: var(--grid-gap);
+  /* PlayersGrid sets the gap with the tier (grid.ts GRID_GAP). */
+  gap: var(--grid-gap, 6px);
   min-width: 0;
   min-height: 0;
   margin: 0;
   padding: 0;
   list-style: none;
   overflow: hidden;
-}
-
-.tbl-grid--small,
-.tbl-grid--dense {
-  --grid-gap: 4px;
 }
 
 .tbl-grid__cell {
@@ -822,7 +853,7 @@
  */
 .tbl-grid--arc {
   grid-template-columns: repeat(calc(var(--cols, 4) * 2), minmax(0, calc(var(--tile-w, 120px) * 0.65)));
-  row-gap: calc(var(--grid-gap) + var(--arc, 16px));
+  row-gap: calc(var(--grid-gap, 6px) + var(--arc, 16px));
   padding-top: calc(var(--arc, 16px) + 2px);
 }
 
@@ -941,7 +972,7 @@
   gap: 4px;
   min-width: 0;
   font-weight: 700;
-  font-size: 0.8rem;
+  font-size: 0.8em;
   line-height: 1.15;
 }
 
@@ -960,7 +991,7 @@
   min-width: 0;
   white-space: nowrap;
   overflow: hidden;
-  font-size: 0.72rem;
+  font-size: 0.72em;
 }
 
 .tbl-tile__chips {
@@ -1008,7 +1039,7 @@
   height: 20px;
   min-width: 28px;
   padding: 0 6px;
-  font-size: 0.72rem;
+  font-size: 0.72em;
 }
 
 .tbl-tile__cards {
@@ -1029,7 +1060,7 @@
   border-radius: var(--radius-pill);
   background: var(--color-surface-3);
   border: 1px solid var(--color-border);
-  font-size: 0.66rem;
+  font-size: 0.66em;
   font-weight: 800;
   color: var(--color-warning-text);
   white-space: nowrap;
@@ -1037,7 +1068,7 @@
 
 .tbl-tile__tag--turn {
   background: var(--color-primary);
-  border-color: var(--color-primary);
+  border-color: var(--color-primary-edge);
   color: var(--color-primary-contrast);
 }
 
@@ -1055,7 +1086,11 @@
   outline-offset: -2px;
 }
 
-/* Full (1 to 4 others): avatar, name and tag; chips, bet and status; the cards with their totals. */
+/*
+ * Full (a few others, or more where the table has the room for it): avatar, name and tag; chips,
+ * bet and status; the cards with their totals. The grid never gives a full tile less than its
+ * least height (grid.ts), so the cards always have their row.
+ */
 .tbl-tile--full {
   grid-template-columns: auto minmax(0, 1fr) auto;
   grid-template-rows: auto auto minmax(0, auto);
@@ -1069,72 +1104,66 @@
   row-gap: 3px;
 }
 
+/* A desktop's full tile may be shorter than its natural height (a 768px tablet): the cards shrink to the row they are left, never clipped. */
+.tbl-grid--arc .tbl-tile--full .tbl-tile__cards {
+  --tbl-w: min(var(--tbl-mini-w, 24px), calc((100cqh - 56px) / 1.5));
+}
+
 .tbl-tile--full .tbl-tile__line {
   max-width: 100%;
 }
 
-/* A narrow full tile (a phone): the Playing tag goes (the ring says it). */
-@container tile (max-width: 159px) {
-  .tbl-tile--full .tbl-tile__tag {
-    display: none;
-  }
-}
-
-/* Not tall enough for the cards: the total beside the name, the stack and the bet under them. */
-@container tile (max-height: 91px) {
-  .tbl-tile--full {
-    grid-template-rows: auto auto;
-    grid-template-areas: 'face name total' 'face meta meta';
-    align-content: center;
-  }
-
-  .tbl-tile--full .tbl-tile__cards {
-    display: none;
-  }
-
-  .tbl-tile--full .tbl-tile__total {
-    display: flex;
-    justify-self: end;
-  }
-}
-
-/* Narrow and not tall: the stack and the bet take the whole width under the face and name. */
-@container tile (max-height: 91px) and (max-width: 159px) {
+/*
+ * A narrow full tile (three on a phone, six across a desktop): the stack under the name, the bet
+ * and the status on the line after it, each on a row of its own and the words a size down, the
+ * cards along the bottom. The Playing tag goes (the ring says it); the status gives way to the
+ * bet beside it.
+ */
+@container tile (max-width: 199px) {
   .tbl-tile--full {
     --face: 24px;
     column-gap: 4px;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    grid-template-areas: 'face name total' 'meta meta meta';
-  }
-}
-
-/*
- * Narrow and short (four players on a 320px phone): the stack and the bet keep the second line,
- * the status line gives way to the face's icon (the seat's sheet says it in words), and the icon
- * moves to the face's top left, clear of the stack under it.
- */
-@container tile (max-height: 70px) and (max-width: 159px) {
-  .tbl-tile--full .tbl-tile__line {
-    display: none;
+    row-gap: 1px;
+    padding: 3px 4px;
+    grid-template-columns: auto auto minmax(0, 1fr);
+    grid-template-rows: auto auto auto minmax(0, auto);
+    grid-template-areas: 'face name name' 'face chips chips' 'bet bet line' 'cards cards cards';
   }
 
-  .tbl-tile--full .tbl-tile__mark {
-    top: -3px;
-    right: auto;
-    bottom: auto;
-    left: -4px;
-  }
-}
-
-@container tile (max-height: 46px) {
-  .tbl-tile--full {
-    grid-template-rows: auto;
-    grid-template-areas: 'face name total';
+  .tbl-tile--full.tbl-tile--turn {
+    padding: 1.5px 2.5px;
   }
 
-  .tbl-tile--full .tbl-tile__meta,
   .tbl-tile--full .tbl-tile__tag {
     display: none;
+  }
+
+  .tbl-tile--full .tbl-tile__meta {
+    display: contents;
+    font-size: 0.64em;
+    line-height: 1.2;
+  }
+
+  /* A stack too long for its row ends in an ellipsis, never cut mid-letter. */
+  .tbl-tile--full .tbl-tile__chips {
+    grid-area: chips;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .tbl-tile--full .tbl-tile__bet {
+    grid-area: bet;
+    min-width: 0;
+  }
+
+  .tbl-tile--full .tbl-tile__line {
+    grid-area: line;
+    align-self: center;
+  }
+
+  .tbl-tile--full .tbl-tile__cards {
+    padding-top: 1px;
   }
 }
 
@@ -1155,8 +1184,8 @@
   display: none;
 }
 
-/* A narrow compact tile (a phone): the stack and the bet pill take the tile's whole width under the name. */
-@container tile (max-width: 139px) {
+/* A narrow compact tile (a phone, six across a desktop): the stack and the bet pill take the tile's whole width under the name, on one line. */
+@container tile (max-width: 155px) {
   .tbl-tile--compact {
     --face: 22px;
     column-gap: 4px;
@@ -1168,8 +1197,18 @@
     padding: 0 0.35em;
   }
 
+  /* A five-letter name and a two-digit total share the first line of a three-across phone tile. */
+  .tbl-tile--compact .tbl-tile__name {
+    font-size: 0.76em;
+  }
+
+  .tbl-tile--compact .tbl-tile__total .tbl-pill {
+    min-width: 24px;
+    padding: 0 4px;
+  }
+
   .tbl-tile--compact .tbl-tile__meta {
-    font-size: 0.7rem;
+    font-size: 0.7em;
     flex-wrap: wrap;
     row-gap: 3px;
     column-gap: 3px;
@@ -1179,7 +1218,7 @@
 /* Narrower still (a 360px phone): a touch smaller, so the stack and the bet keep to one line. */
 @container tile (max-width: 112px) {
   .tbl-tile--compact .tbl-tile__meta {
-    font-size: 0.65rem;
+    font-size: 0.65em;
   }
 }
 
@@ -1189,57 +1228,55 @@
  * status icon on the face's top left, clear of the stack under it.
  */
 @container tile (max-width: 112px) and (max-height: 70px) {
-  :is(.tbl-tile--compact, .tbl-tile--full) {
+  .tbl-tile--compact {
     row-gap: 1px;
     padding: 3px 4px;
     grid-template-areas: 'face name name' 'chips chips chips' 'bet bet total';
   }
 
   /* A face a touch smaller, so it stays clear of the stack under it (outranks the narrow rule below). */
-  .tbl-tile:is(.tbl-tile--compact, .tbl-tile--full) {
+  .tbl-tile.tbl-tile--compact {
     --face: 20px;
   }
 
-  :is(.tbl-tile--compact, .tbl-tile--full) .tbl-tile__meta {
+  .tbl-tile--compact .tbl-tile__meta {
     display: contents;
   }
 
-  :is(.tbl-tile--compact, .tbl-tile--full) .tbl-tile__chips {
+  .tbl-tile--compact .tbl-tile__chips {
     grid-area: chips;
-    min-width: 0;
-    overflow: hidden;
     white-space: nowrap;
   }
 
-  :is(.tbl-tile--compact, .tbl-tile--full) .tbl-tile__bet {
+  .tbl-tile--compact .tbl-tile__bet {
     grid-area: bet;
     min-width: 0;
   }
 
   /* The bet shares its line with the total: its short form ("Bet 1k") keeps them side by side. */
-  :is(.tbl-tile--compact, .tbl-tile--full) .tbl-tile__bet .tbl-figure__full {
+  .tbl-tile--compact .tbl-tile__bet .tbl-figure__full {
     display: none;
   }
 
-  :is(.tbl-tile--compact, .tbl-tile--full) .tbl-tile__bet .tbl-figure__short {
+  .tbl-tile--compact .tbl-tile__bet .tbl-figure__short {
     display: inline;
   }
 
-  :is(.tbl-tile--compact, .tbl-tile--full) .tbl-tile__total .tbl-pill {
+  .tbl-tile--compact .tbl-tile__total .tbl-pill {
     height: 17px;
   }
 
-  :is(.tbl-tile--compact, .tbl-tile--full) .tbl-tile__meta {
+  .tbl-tile--compact .tbl-tile__meta {
     row-gap: 2px;
-    font-size: 0.62rem;
+    font-size: 0.62em;
     line-height: 1.15;
   }
 
-  :is(.tbl-tile--compact, .tbl-tile--full) .tbl-stake {
+  .tbl-tile--compact .tbl-stake {
     height: 1.65em;
   }
 
-  :is(.tbl-tile--compact, .tbl-tile--full) .tbl-tile__mark {
+  .tbl-tile--compact .tbl-tile__mark {
     top: -3px;
     right: auto;
     bottom: auto;
@@ -1262,14 +1299,14 @@
   }
 
   .tbl-tile--compact .tbl-tile__name {
-    font-size: 0.72rem;
+    font-size: 0.72em;
   }
 
   .tbl-tile--compact .tbl-tile__total .tbl-pill {
     height: 18px;
     min-width: 22px;
     padding: 0 4px;
-    font-size: 0.66rem;
+    font-size: 0.66em;
   }
 
   .tbl-tile--compact .tbl-tile__meta,
@@ -1292,12 +1329,12 @@
   }
 
   .tbl-tile--compact .tbl-tile__meta {
-    font-size: 0.66rem;
+    font-size: 0.66em;
   }
 
   .tbl-tile--compact .tbl-tile__tag {
     padding: 0 4px;
-    font-size: 0.6rem;
+    font-size: 0.6em;
   }
 }
 
@@ -1331,7 +1368,7 @@
 
 .tbl-tile--small .tbl-tile__name {
   justify-content: center;
-  font-size: 0.66rem;
+  font-size: 0.66em;
 }
 
 .tbl-tile--small .tbl-tile__meta,
@@ -1346,7 +1383,7 @@
   grid-area: name;
   justify-self: center;
   padding: 0 5px;
-  font-size: 0.6rem;
+  font-size: 0.6em;
 }
 
 .tbl-tile--small.tbl-tile--turn .tbl-tile__name {
@@ -1380,7 +1417,7 @@
   height: 18px;
   min-width: 24px;
   padding: 0 4px;
-  font-size: 0.68rem;
+  font-size: 0.68em;
 }
 
 /*
@@ -1421,7 +1458,7 @@
     height: 13px;
     min-width: 14px;
     padding: 0 2px;
-    font-size: 0.56rem;
+    font-size: 0.56em;
     letter-spacing: -0.02em;
   }
 }
@@ -1438,7 +1475,7 @@
     flex-direction: column;
     align-items: center;
     gap: 2px;
-    font-size: 0.66rem;
+    font-size: 0.66em;
   }
 
   /* A slimmer bet pill, so it stays inside the tile under the thick ring of the seat on turn. */
@@ -1490,7 +1527,7 @@
   height: 15px;
   min-width: 16px;
   padding: 0 1px;
-  font-size: 0.58rem;
+  font-size: 0.58em;
   letter-spacing: -0.02em;
 }
 
@@ -1543,54 +1580,32 @@
   gap: var(--space-2);
 }
 
-.tbl-panel__status {
-  margin: 0;
-  min-height: 22px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 700;
-  font-size: 0.95rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+/* The table's own buttons under the main one (Sit out, Deal now, Skip): full width, side by side when two are on offer. */
+.tbl-panel__actions {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: var(--space-2);
 }
 
-.tbl-panel__status::before {
-  content: '';
-  flex: none;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--color-border-strong);
+.tbl-panel__act {
+  min-height: 44px;
+  touch-action: manipulation;
 }
 
-.tbl-panel__status-text {
-  min-width: 0;
-  margin: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* A spectator's panel: the one line, wrapping rather than cut, with the eye in place of the dot. */
+/* A spectator's panel: the one line, wrapping rather than cut, with the eye before it. */
 .tbl-panel--watching {
   justify-content: center;
   min-height: 56px;
 }
 
-.tbl-panel__status--watching {
-  white-space: normal;
-  overflow: visible;
-  color: var(--color-text-muted);
+.tbl-panel__watching {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
   font-weight: 600;
-}
-
-.tbl-panel__status--watching::before {
-  display: none;
-}
-
-.tbl-panel__status--watching .tbl-panel__status-text {
-  overflow: visible;
+  color: var(--color-text-muted);
   text-wrap: pretty;
 }
 
@@ -1598,114 +1613,6 @@
   flex: none;
   display: inline-flex;
   color: var(--color-text-faint);
-}
-
-.tbl-panel__watch-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--space-2);
-}
-
-/* A status line with room for a small control at its end (it keeps that height with none on offer). */
-.tbl-panel__status.tbl-panel__status--slot {
-  min-height: 30px;
-  overflow: visible;
-}
-
-/* A desktop's narrow panel: the status keeps its words on one line and its controls move under it when they do not fit beside it. */
-@media (min-width: 761px) {
-  .tbl-panel__status.tbl-panel__status--slot {
-    flex-wrap: wrap;
-    row-gap: 6px;
-  }
-
-  .tbl-panel__status--slot .tbl-panel__status-text {
-    flex: 1 0 auto;
-  }
-
-  /* Two controls (Sit out and Deal now) go under the words together, side by side at the right. */
-  .tbl-panel__status--slot:has(.tbl-panel__act + .tbl-panel__act) .tbl-panel__status-text {
-    flex-basis: calc(100% - 16px);
-  }
-}
-
-.tbl-panel__act {
-  position: relative;
-  flex: none;
-  margin-left: auto;
-  height: 30px;
-  padding: 0 12px;
-  border: 1px solid var(--color-border-strong);
-  border-radius: 999px;
-  background: var(--color-surface-2);
-  color: var(--color-text);
-  font: inherit;
-  font-size: 0.82rem;
-  font-weight: 700;
-  cursor: pointer;
-  touch-action: manipulation;
-}
-
-/* The pill is small to keep the panel short; its tap target is a full 44px tall. */
-.tbl-panel__act + .tbl-panel__act {
-  margin-left: 0;
-}
-
-.tbl-panel__act:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-
-.tbl-panel__act::after {
-  content: '';
-  position: absolute;
-  inset: -7px -4px;
-}
-
-.tbl-panel__act:hover {
-  border-color: var(--color-primary-text);
-}
-
-.tbl-panel__act:focus-visible {
-  outline: 2px solid var(--color-primary-text);
-  outline-offset: 2px;
-}
-
-/* Someone else's turn: their avatar in place of the dot. */
-.tbl-panel__status--who::before {
-  display: none;
-}
-
-.tbl-panel__who {
-  display: flex;
-  flex: none;
-}
-
-.tbl-panel__who .avatar {
-  width: 22px;
-  height: 22px;
-  font-size: 13px;
-}
-
-.tbl-panel__status--go {
-  color: var(--color-primary-text);
-}
-
-.tbl-panel__status--bottom.tbl-panel__status--other,
-.tbl-panel__status--bottom.tbl-panel__status--quiet {
-  color: var(--color-text-muted);
-}
-
-.tbl-panel__status--go::before {
-  background: var(--color-primary);
-}
-
-.tbl-panel__status--other::before {
-  background: var(--color-secondary);
-}
-
-.tbl-panel__status--bad {
-  color: var(--color-danger-text);
 }
 
 .tbl-panel__label-row {
@@ -1725,9 +1632,15 @@
   font-size: 0.9rem;
 }
 
-/* The amount: one field with the coin and a clear button, the quick amounts joined to its right. */
+/*
+ * The amount: one field with the coin and a clear button, the quick amounts in a segmented row
+ * under it (a phone joins them to the field's right to keep the panel short). The figure is never
+ * cut: the field keeps the room for seven digits at every width.
+ */
 .tbl-amount {
   display: flex;
+  flex-direction: column;
+  gap: 6px;
   min-width: 0;
 }
 
@@ -1738,8 +1651,7 @@
   align-items: center;
   padding-left: 12px;
   border: 1.5px solid var(--color-border-strong);
-  border-right: 0;
-  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+  border-radius: var(--radius-sm);
   background: var(--color-surface-3);
 }
 
@@ -1757,15 +1669,15 @@
 
 .tbl-amount__input {
   flex: 1;
-  min-width: 0;
+  min-width: 7.5ch;
   height: 45px;
   padding: 0 4px 0 8px;
   border: 0;
   background: transparent;
   color: var(--color-text);
-  font-family: var(--font-mono);
-  font-size: max(1rem, 16px);
-  font-weight: 600;
+  font-family: var(--font-display);
+  font-size: max(1.1rem, 16px);
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 
@@ -1777,7 +1689,7 @@
   flex: none;
   display: grid;
   place-items: center;
-  width: 44px;
+  width: 40px;
   height: 44px;
   border-radius: var(--radius-sm);
   color: var(--color-text-faint);
@@ -1788,21 +1700,21 @@
 }
 
 .tbl-amount__steps {
-  display: flex;
-  flex: none;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
 }
 
 .tbl-amount__step {
-  min-width: 48px;
-  height: 48px;
+  min-width: 44px;
+  height: 44px;
   padding: 0 8px;
   border: 1.5px solid var(--color-border-strong);
   border-left-width: 1px;
   background: var(--color-surface-2);
   color: var(--color-text);
-  font-family: var(--font-mono);
-  font-size: 0.82rem;
-  font-weight: 600;
+  font-size: 0.9rem;
+  font-weight: 700;
   white-space: nowrap;
   touch-action: manipulation;
 }
@@ -1811,12 +1723,21 @@
   border-left: 0;
 }
 
+.tbl-amount__step:first-child {
+  border-left-width: 1.5px;
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+}
+
 .tbl-amount__step:last-child {
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
 }
 
 .tbl-amount__step:hover:not(:disabled) {
   background: var(--color-surface);
+}
+
+.tbl-amount__step:active:not(:disabled) {
+  background: var(--color-surface-3);
 }
 
 .tbl-amount__step[aria-pressed='true'] {
@@ -1836,6 +1757,14 @@
 /* An odd number of moves (Poker's Fold, Raise and All in) sits in one row. */
 .tbl-panel__moves--3 {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  container: moves / inline-size;
+}
+
+/* Three moves in a narrow panel (a small laptop): the icons give their room to the words. */
+@container moves (max-width: 300px) {
+  .tbl-panel__moves .tbl-move__icon {
+    display: none;
+  }
 }
 
 .tbl-move {
@@ -1860,35 +1789,12 @@
   opacity: 0.8;
 }
 
-/*
- * The status line under the controls: quiet, the table already says whose turn it is. It keeps
- * its tone's colour and the small control at its end (Sit out, Deal now, Skip).
- */
-.tbl-panel__status--bottom {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--color-text-muted);
-}
-
-/* A desktop panel has the height to spare: a long line ("Quinn wins 120 with two pair, aces and nines") wraps rather than being cut. */
-@media (min-width: 761px) {
-  .tbl-panel__status--bottom {
-    white-space: normal;
-  }
-
-  .tbl-panel__status--bottom .tbl-panel__status-text {
-    flex-shrink: 1;
-    overflow: visible;
-    text-wrap: pretty;
-  }
-}
-
 /* Dimmed, not gone: every control keeps its place all game long. A control that is not on offer
    for a moment only (aria-disabled) looks the same but still takes the tap, to say why. */
 .tbl-panel .btn:disabled,
 .tbl-panel .btn[aria-disabled='true'] {
-  background: var(--color-surface-2);
-  border-color: var(--color-surface-2);
+  background: var(--btn-disabled-bg);
+  border-color: var(--btn-disabled-border);
   color: var(--color-text-faint);
 }
 
@@ -1906,26 +1812,18 @@
   touch-action: manipulation;
 }
 
-.tbl-panel__hint {
-  margin: 0;
-  text-align: center;
-  font-size: 0.72rem;
-  color: var(--color-text-faint);
-}
-
 @media (max-width: 1100px) {
   .tbl {
     grid-template-columns: 280px minmax(0, 1fr);
   }
 
-  .tbl-amount__step {
-    min-width: 42px;
-    padding: 0 6px;
-  }
 }
 
-/* ---------- Phones: bar, table, then the panel pinned at the bottom ---------- */
-@media (max-width: 760px), (min-aspect-ratio: 3/2) and (max-height: 520px) {
+/*
+ * ---------- Phones and portrait tablets: bar, table, then the panel pinned at the bottom ----------
+ * A portrait tablet is too narrow for the panel beside the table: it docks under it, as on a phone.
+ */
+@media (max-width: 760px), (min-aspect-ratio: 3/2) and (max-height: 520px), (min-width: 761px) and (max-width: 1100px) and (max-aspect-ratio: 4/5) {
   .tbl {
     display: flex;
     flex-direction: column;
@@ -1945,12 +1843,6 @@
     flex: 1 1 0;
   }
 
-  .tbl-felt {
-    gap: 6px;
-    padding: 8px;
-    border-radius: var(--radius-item);
-  }
-
   .tbl__panel {
     flex: none;
     padding: 10px;
@@ -1962,48 +1854,86 @@
     gap: 6px;
   }
 
-  .tbl-panel__status {
-    font-size: 0.9rem;
-    min-height: 20px;
+  /* The panel kept short: the quick amounts joined to the field's right, the moves in one row. */
+  .tbl-amount {
+    flex-direction: row;
+    gap: 0;
   }
 
-  .tbl-ribbon__main {
-    font-size: 0.68rem;
+  .tbl-amount__field {
+    border-right: 0;
+    border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+  }
+
+  .tbl-amount__steps {
+    flex: none;
+  }
+
+  .tbl-amount__step {
+    height: 48px;
+    padding: 0 6px;
+  }
+
+  .tbl-amount__step:first-child {
+    border-left-width: 1px;
+    border-radius: 0;
+  }
+
+  .tbl-panel__moves {
+    grid-template-columns: repeat(var(--moves, 2), minmax(0, 1fr));
+    gap: 6px;
+  }
+}
+
+/* A portrait tablet: the docked panel with a little more air. */
+@media (min-width: 761px) and (max-width: 1100px) and (max-aspect-ratio: 4/5) {
+  .tbl {
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .tbl__panel {
+    padding: var(--space-3);
+  }
+
+  .tbl-panel {
+    gap: var(--space-2);
+  }
+
+  .tbl-amount__step {
+    min-width: 64px;
+  }
+}
+
+/* ---------- Phones ---------- */
+@media (max-width: 760px), (min-aspect-ratio: 3/2) and (max-height: 520px) {
+  .tbl-felt {
+    --tbl-pad: 8px;
+    gap: 6px;
+    border-radius: var(--radius-item);
+  }
+
+  .tbl-ribbon {
+    --tbl-ribbon-h: 26px;
+    --tbl-ribbon-font: 0.82rem;
   }
 
   .tbl-ribbon__sub {
-    font-size: 0.6rem;
-  }
-
-  .tbl-deck__stack {
-    width: 26px;
-    height: 39px;
+    font-size: 0.72rem;
   }
 
   .tbl-turn {
     font-size: 0.95rem;
   }
 
+  .tbl-turn__sub {
+    font-size: 0.75rem;
+  }
+
   .tbl-turn__clock .timer--md {
     width: 26px;
     height: 26px;
     font-size: 0.66rem;
-  }
-
-  .tbl-stage__face .avatar {
-    width: 26px;
-    height: 26px;
-    font-size: 15px;
-  }
-
-  .tbl-stage__owner {
-    font-size: 0.7rem;
-  }
-
-  /* The moves in one row: the table keeps the height. */
-  .tbl-panel__moves {
-    grid-template-columns: repeat(var(--moves, 2), minmax(0, 1fr));
-    gap: 6px;
   }
 
   .tbl-move {
@@ -2019,15 +1949,8 @@
   }
 }
 
-/* Short phones (an SE, a phone with the browser bars out): the ribbon's second line goes. */
-@media (max-width: 760px) and (max-height: 760px) {
-  .tbl-ribbon__sub {
-    display: none;
-  }
-}
-
-/* Short phones (an SE, a phone on its side): a calm table's banner goes, whose turn it is stays. */
-@media (max-width: 760px) and (max-height: 680px), (min-aspect-ratio: 3/2) and (max-height: 520px) {
+/* Short phones (an SE, a phone with the browser bars out, a phone on its side): the banner goes; the round and whose turn it is stay. */
+@media (max-width: 760px) and (max-height: 760px), (min-aspect-ratio: 3/2) and (max-height: 520px) {
   .tbl-felt--calm .tbl-ribbon__band {
     display: none;
   }
@@ -2046,28 +1969,13 @@
     height: 22px;
     font-size: 0.6rem;
   }
-
-  .tbl-stage__face .avatar {
-    width: 22px;
-    height: 22px;
-    font-size: 13px;
-  }
 }
 
 /* Short phones and phones on their side: compact seats and panel, the ribbon gone. */
 @media (max-width: 760px) and (max-height: 620px), (min-aspect-ratio: 3/2) and (max-height: 520px) {
   .tbl-felt {
+    --tbl-pad: 6px;
     gap: 4px;
-    padding: 4px 6px;
-  }
-
-  .tbl-ribbon {
-    display: none;
-  }
-
-  .tbl-deck__stack {
-    width: 28px;
-    height: 42px;
   }
 
   .tbl__panel {
@@ -2083,6 +1991,29 @@
     min-height: 44px;
   }
 
+  /* The table's own buttons share the main button's row: the seats keep the height. */
+  .tbl-panel:has(> .tbl-panel__actions) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .tbl-panel:has(> .tbl-panel__actions) > * {
+    grid-column: 1 / -1;
+  }
+
+  .tbl-panel:has(> .tbl-panel__actions) > .tbl-panel__primary {
+    grid-column: 1;
+  }
+
+  .tbl-panel:has(> .tbl-panel__actions) > .tbl-panel__actions {
+    grid-column: 2;
+    gap: 5px;
+  }
+
+  .tbl-panel__act {
+    padding: 0 12px;
+  }
+
   .tbl-amount__input {
     height: 44px;
   }
@@ -2095,10 +2026,6 @@
     min-height: 48px;
   }
 
-  .tbl-panel__status {
-    min-height: 18px;
-    font-size: 0.85rem;
-  }
 }
 
 /* A phone on its side: the table on the left, the panel on the right. */
@@ -2125,10 +2052,19 @@
   }
 }
 
+/* The narrowest phones: the steps and the figure a touch tighter, so seven digits still show whole. */
 @media (max-width: 359px) {
   .tbl-amount__step {
-    min-width: 44px;
     padding: 0 4px;
+  }
+
+  .tbl-amount__field {
+    padding-left: 10px;
+  }
+
+  .tbl-amount__input {
+    padding: 0 2px 0 6px;
+    font-size: 16px;
   }
 }
 

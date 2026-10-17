@@ -100,13 +100,12 @@ function checkpointIssuedAt(page: Page, code: string): Promise<number> {
 async function sawGameEnd(p: Player): Promise<void> {
   await expect(p.page.getByTestId('toast').filter({ hasText: ENDED })).toBeVisible({ timeout: 30_000 });
   await expect(p.page.getByTestId('home-create')).toBeVisible();
-  await expect(p.page.getByTestId('reconnecting-banner')).toHaveCount(0);
-  await expect(p.page.getByTestId('connection-status')).toHaveCount(0);
+  await expect(p.page.getByTestId('connection-notice')).toHaveCount(0);
 }
 
 /** Back in the game: the notice gone and no "game ended", "connection lost" or red box. */
 async function carriedOn(p: Player): Promise<void> {
-  await expect(p.page.getByTestId('reconnecting-banner')).toHaveCount(0, { timeout: 20_000 });
+  await expect(p.page.getByTestId('connection-notice')).toHaveCount(0, { timeout: 20_000 });
   await expect(p.page.getByTestId('toast').filter({ hasText: /game ended|Connection lost/ })).toHaveCount(0);
   await expect(p.page.locator('[data-testid="toast"].toast--error')).toHaveCount(0);
   await expect(p.page.getByTestId('home-create')).toHaveCount(0);
@@ -244,15 +243,20 @@ test.describe('a server restart mid-game', () => {
     await host.page.getByTestId('start-game').click();
     for (const p of players) await expect(bj(p)).toHaveAttribute('data-phase', 'betting');
     await dealIntoTurns(players);
-    // Every page shows its two cards landed before the state is read.
-    for (const p of players) await expect(p.page.locator('[data-testid="my-hand"]:not([data-cards="2"])')).toHaveCount(0);
+    // Every page shows its two cards landed before the state is read: a hand's total counts only
+    // the cards that have finished sliding in, and the deal is over once the screen is not busy.
+    for (const p of players) {
+      await expect(p.page.locator('[data-testid="my-hand"]:not([data-cards="2"])')).toHaveCount(0);
+      await expect(bj(p)).toHaveAttribute('data-busy', 'false');
+    }
     const before = await Promise.all(players.map(blackjackState));
 
     await server.stop('SIGTERM');
     // The deploy's close says the server is restarting: the notice says the game carries on.
     for (const p of players.slice(1)) {
-      await expect(p.page.getByTestId('reconnecting-banner')).toHaveAttribute('data-status', 'restarting');
-      await expect(p.page.getByTestId('reconnecting-banner')).toContainText('The server is restarting. Your game will carry');
+      await expect(p.page.getByTestId('connection-notice')).toHaveAttribute('data-status', 'restarting');
+      await expect(p.page.getByTestId('connection-notice')).toContainText('The server is restarting.');
+      await expect(p.page.getByTestId('connection-notice')).toContainText('Your game will carry on.');
     }
     await expect(pia.page.getByTestId('toast').filter({ hasText: 'Connection lost' })).toHaveCount(0);
     await server.start();

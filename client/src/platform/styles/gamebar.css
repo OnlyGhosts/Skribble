@@ -20,7 +20,13 @@
   color: var(--color-text);
 }
 
-/* The name keeps its width: on a phone the status takes its short form first (.gbar__wide), and the name steps down a size. */
+/* The game's name, and on a phone the round under it (the status on the right on a desktop). */
+.gbar__title {
+  flex: 0 1 auto;
+  display: flex;
+  min-width: 0;
+}
+
 .gbar__name {
   flex: 0 1 auto;
   min-width: 0;
@@ -64,6 +70,8 @@
 .gbar__side {
   flex: none;
   display: flex;
+  /* With no status before it (a card table), the buttons still keep to the right. */
+  margin-left: auto;
   align-items: center;
   justify-content: flex-end;
   gap: var(--space-1);
@@ -200,20 +208,66 @@
   font-size: 1.125rem;
 }
 
-/* ---------- Compact: one row (a card table on a phone), the players as a button with the count ---------- */
+/* ---------- Compact: one row (a card table, The Spy Game on a phone), the players as a button with the count ---------- */
+/* A 44px target around a smaller pill: the people icon and the count, side by side. */
 .gbar__count {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  height: 44px;
+  min-width: 44px;
+  padding: 0 2px;
+  border-radius: var(--radius-pill);
+  color: var(--color-text);
+}
+
+.gbar__count-pill {
   display: inline-flex;
   align-items: center;
-  width: auto;
-  min-width: 44px;
-  gap: 4px;
-  padding: 0 8px;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px 0 10px;
   border-radius: var(--radius-pill);
   border: 1px solid var(--color-border);
   background: var(--color-surface-2);
+  transition:
+    background-color 100ms ease-out,
+    border-color 100ms ease-out;
+}
+
+.gbar__count-pill svg {
+  flex: none;
+  color: var(--color-text-muted);
+}
+
+.gbar__count-n {
+  font-family: var(--font-display);
   font-weight: 700;
-  font-size: 0.875rem;
+  font-size: 0.9375rem;
+  line-height: 1;
   font-variant-numeric: tabular-nums;
+}
+
+.gbar__count:hover .gbar__count-pill {
+  border-color: var(--color-border-strong);
+}
+
+.gbar__count:active .gbar__count-pill {
+  transform: translateY(1px);
+}
+
+.gbar__count[aria-expanded='true'] .gbar__count-pill {
+  border-color: var(--color-secondary);
+  background: var(--color-secondary-soft);
+}
+
+.gbar__count:focus-visible {
+  outline: none;
+}
+
+.gbar__count:focus-visible .gbar__count-pill {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
 }
 
 .gbar--compact.gbar--phone {
@@ -222,10 +276,6 @@
 
 .gbar--compact.gbar--phone .gbar__name {
   font-size: 1.25rem;
-}
-
-.gbar--compact.gbar--phone .gbar__status {
-  font-size: 0.8125rem;
 }
 
 /* A clock in the one-row bar: the ring at the buttons' height. */
@@ -239,28 +289,44 @@
   font-size: 1rem;
 }
 
-/* A one-row bar that also carries a clock has no room left for the name on a phone: the round, the clock and the buttons keep the row. */
-@media (max-width: 420px) {
-  .gbar--compact.gbar--phone:has(.gbar__clock--row) .gbar__name {
-    display: none;
+/* A one-row bar with a clock (The Spy Game): the ring, the pill and the name a little smaller on the narrowest phones, so the name stays whole. */
+@media (max-width: 360px) {
+  .gbar .gbar__clock--row .timer--lg {
+    width: 44px;
+    height: 44px;
+    font-size: 0.9375rem;
   }
 
-  .gbar--compact.gbar--phone:has(.gbar__clock--row) .gbar__status {
-    flex: 1 1 auto;
-    margin-left: 0;
-    text-align: left;
+  .gbar--compact.gbar--phone .gbar__count-pill {
+    gap: 4px;
+    padding: 0 10px 0 8px;
+  }
+
+  .gbar--compact.gbar--phone:has(.gbar__clock--row) .gbar__name {
+    font-size: 1.0625rem;
   }
 }
 
-/* The narrowest phones: the round and the buttons keep the row; the game's name gives way. */
-@media (max-width: 360px) {
-  .gbar--compact.gbar--phone .gbar__name {
-    display: none;
+/* The very narrowest (320px): a touch tighter again, so "The Spy Game" still reads whole beside its clock. */
+@media (max-width: 340px) {
+  .gbar .gbar__clock--row .timer--lg {
+    width: 40px;
+    height: 40px;
+    font-size: 0.875rem;
   }
 
-  .gbar--compact.gbar--phone .gbar__status {
-    margin-left: 0;
-    text-align: left;
+  .gbar--compact.gbar--phone .gbar__count-pill {
+    gap: 3px;
+    padding: 0 7px 0 6px;
+  }
+
+  .gbar--compact.gbar--phone .gbar__count-pill svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .gbar--compact.gbar--phone:has(.gbar__clock--row) .gbar__name {
+    font-size: 1rem;
   }
 }
 
@@ -287,20 +353,30 @@
   font-size: 1.5rem;
 }
 
+/* A phone: the round in small type under the name, each on its own line, so neither squeezes the buttons. */
+.gbar--phone .gbar__title {
+  flex: 1 1 auto;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+}
+
+.gbar--phone .gbar__name {
+  line-height: 1.1;
+}
+
 .gbar--phone .gbar__status {
-  font-size: 0.875rem;
-}
-
-/* The less important half of the status ("· Turn 2/3") is left to wider screens. */
-.gbar--phone .gbar__more {
-  display: none;
-}
-
-/* The full bar's status is short ("Round 1/5") and stays on one line beside the whole name. */
-.gbar--phone:not(.gbar--compact) .gbar__status {
-  flex: none;
   display: block;
+  flex: none;
+  margin-left: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--color-text-muted);
+  text-align: left;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .gbar--phone:not(.gbar--compact) .gbar__name {
@@ -317,11 +393,6 @@
   .gbar--phone .gbar__name,
   .gbar--phone:not(.gbar--compact) .gbar__name {
     font-size: 1.25rem;
-  }
-
-  /* "Round 1/5" reads "1/5". */
-  .gbar--phone .gbar__wide {
-    display: none;
   }
 
   .gbar--phone .gbar__row,
@@ -437,8 +508,7 @@
     display: contents;
   }
 
-  .gbar--phone .gbar__name,
-  .gbar--phone .gbar__status,
+  .gbar--phone .gbar__title,
   .gbar--phone .gbar__middle {
     display: none;
   }

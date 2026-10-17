@@ -78,7 +78,7 @@ describe('layoutGuess', () => {
   });
 
   it('places the next letter after a typed hyphen or apostrophe without consuming a slot', () => {
-    const { groups } = layoutGuess("___'_", "don't");
+    const { groups } = layoutGuess("___'_", "don’t");
     expect(letterSlots(groups).map((s) => s.typed)).toEqual(['d', 'o', 'n', 't']);
   });
 

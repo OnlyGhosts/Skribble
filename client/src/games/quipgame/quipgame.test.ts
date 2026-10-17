@@ -98,6 +98,14 @@ function tagsWith(html: string, testId: string): string[] {
 
 const attr = (tag: string, name: string): string | undefined => tag.match(new RegExp(`${name}="([^"]*)"`))?.[1];
 
+/** The text inside the first element with this test id (a button or a span with no nested tag of its kind). */
+function textOf(html: string, testId: string): string {
+  const tag = tagWith(html, testId);
+  const name = tag.match(/^<(\w+)/)?.[1] ?? 'span';
+  const start = html.indexOf(tag) + tag.length;
+  return html.slice(start, html.indexOf(`</${name}>`, start)).replace(/<!-- -->/g, '');
+}
+
 describe('platform hold', () => {
   it('renders the result step with a paused timer while the game waits for players', () => {
     const waiting = { reason: 'players' as const, missing: ['carol'], needed: 3, connected: 2 };
@@ -207,13 +215,13 @@ describe('writing', () => {
     });
     const watching = render(watcher, 'dave');
     expect(attr(tagWith(watching, 'quip-spectating'), 'data-watching')).toBe('true');
-    expect(watching).toContain('You&#x27;re watching. You can play the next game.');
+    expect(watching).toContain('You’re watching. You can play the next game.');
     expect(tagWith(watching, 'quip-spectating')).toBeTruthy();
     expect(watching.slice(watching.indexOf('data-testid="quip-spectating"'))).not.toMatch(/You vote/);
     const vote = render(quipRoom(view({ phase: 'voting', matchup: MATCHUP, canVote: false, isSpectator: true }), { players: watcher.players }), 'dave');
     expect(tagsWith(vote, 'vote-submit')).toHaveLength(0);
     expect(tagWith(vote, 'vote-watching')).toBeTruthy();
-    expect(vote).toContain('You&#x27;re watching. You can play the next game.');
+    expect(vote).toContain('You’re watching. You can play the next game.');
   });
 });
 
@@ -290,13 +298,15 @@ describe('results', () => {
     expect(host).toContain('+1250');
     expect(host).toContain('ran out of time');
     expect(tagWith(host, 'quip-next')).toBeTruthy();
-    expect(host).toContain('>Next<!-- --> (');
+    // The host's Next carries no second countdown: the top bar's ring is the screen's one.
+    expect(textOf(host, 'quip-next')).toBe('Next');
+    expect(tagsWith(host, 'timer')).toHaveLength(1);
     const guest = render(quipRoom(view({ phase: 'result', result: RESULT, canSkip: false })), 'bob');
     expect(guest).not.toContain('data-testid="quip-next"');
     expect(tagWith(guest, 'result-countdown')).toBeTruthy();
     // The last matchup of round two leads into the final.
     const last = render(quipRoom(view({ phase: 'result', round: 2, multiplier: 2, result: { ...RESULT, index: 2 }, canSkip: true })), 'host');
-    expect(last).toContain('>Final round<!-- --> (');
+    expect(textOf(last, 'quip-next')).toBe('Final round');
   });
 });
 
@@ -312,7 +322,7 @@ describe('result countdowns under a hold', () => {
 
     const settlingGuest = render(quipRoom(view({ phase: 'result', result: RESULT, canSkip: false, endsAt: NOW - 2_000 })), 'bob');
     expect(tagWith(settlingGuest, 'result-countdown')).toContain('data-countdown="settling"');
-    expect(settlingGuest).toContain('Next starting…');
+    expect(settlingGuest).toContain('Next is starting');
     expect(settlingGuest).not.toContain('Next in 0');
     const settlingHost = render(quipRoom(view({ phase: 'result', result: RESULT, canSkip: true, endsAt: NOW - 2_000 })), 'host');
     expect(tagWith(settlingHost, 'quip-next')).toContain('data-countdown="settling"');
@@ -320,7 +330,8 @@ describe('result countdowns under a hold', () => {
 
     const running = render(quipRoom(view({ phase: 'result', result: RESULT, canSkip: false, endsAt: NOW + 8_000 })), 'bob');
     expect(tagWith(running, 'result-countdown')).toContain('data-countdown="running"');
-    expect(running).toMatch(/Next in [1-8]/);
+    expect(textOf(running, 'result-countdown')).toBe('Next soon');
+    expect(tagsWith(running, 'timer')).toHaveLength(1);
 
     // The final result's footer behaves the same.
     const finalHeld = render(
@@ -382,7 +393,7 @@ describe('the final', () => {
     ]);
     expect(html).toContain('🥇');
     expect(html).toContain('bob wins the final!');
-    expect(html).toContain('>Show results<!-- --> (');
+    expect(textOf(html, 'quip-next')).toBe('Show results');
   });
 });
 
@@ -454,7 +465,7 @@ describe('settings rows', () => {
 describe('the stylesheet', () => {
   const css = readFileSync(fileURLToPath(new URL('./quipgame.css', import.meta.url)), 'utf8');
 
-  it("folds the announcer's card to its one line on a phone, where the matchup under it shows the same words", () => {
+  it("folds the announcer’s card to its one line on a phone, where the matchup under it shows the same words", () => {
     expect(css).toMatch(/\.quip--phone \.quip-announce__prompt,\s*\.quip--phone \.quip-announce__answers \{\s*display: none;/);
   });
 

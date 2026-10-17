@@ -15,7 +15,7 @@ export function AvatarPicker({ value, onChange, compact }: Props) {
         <Avatar avatar={value} size="xl" label={`Your avatar: ${avatarFace(value).name}`} />
         <button
           type="button"
-          className="btn btn--ghost btn--sm"
+          className="btn btn--secondary btn--sm"
           onClick={() => onChange(randomAvatar())}
           data-testid="avatar-random"
         >

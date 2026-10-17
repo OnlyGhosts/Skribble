@@ -27,7 +27,7 @@ export async function tilesReadable(page: Page, label: string, minHeight = 0): P
       }
       return { cut, short, truncated };
     }, minHeight);
-  await expect.poll(read, { message: `${label}: every tile's total, stack, bet and line inside it and in full, no tile under ${minHeight}px` }).toEqual({ cut: [], short: 0, truncated: [] });
+  await expect.poll(read, { message: `${label}: every tile’s total, stack, bet and line inside it and in full, no tile under ${minHeight}px` }).toEqual({ cut: [], short: 0, truncated: [] });
 }
 
 /** My hand at the bottom of the table is wholly on screen. */
@@ -64,5 +64,5 @@ export async function stakesShown(page: Page, label: string): Promise<void> {
       }
       return missing;
     });
-  await expect.poll(read, { message: `${label}: every seat's stack and bet on show` }).toEqual([]);
+  await expect.poll(read, { message: `${label}: every seat’s stack and bet on show` }).toEqual([]);
 }

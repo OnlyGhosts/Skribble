@@ -1,5 +1,4 @@
 import type { BlackjackRoomState, BlackjackView } from '@shared/games/blackjack/protocol';
-import { tileTier } from '../../../platform/table/grid';
 import type { Tone } from '../../../platform/table/Outcome';
 import { PlayerTile, PlayersGrid, SeatSheet, tileFigures, type SeatLine, type SeatMark } from '../../../platform/table/PlayersGrid';
 import { StackCount, StakePill } from '../../../platform/table/Stakes';
@@ -17,6 +16,8 @@ interface Props {
   ids: string[];
   /** My own hands open in the same sheet from my row's "+N". */
   meId: string;
+  /** Whose hands are on my stage: that seat leaves its cards to the stage. */
+  staged: string | null;
   table: TableModel | null;
   timeline: Timeline;
   now: number;
@@ -86,8 +87,8 @@ export function seatMark(line: SeatLine, hands: readonly TableHand[], settledSho
 }
 
 /**
- * The total a tile shows and its colour: every hand's, split hands joined ("21/15"); a small or
- * dense tile has room for one, the hand in play (or the best one standing).
+ * The total a tile shows and its colour: every hand's, two split hands joined ("21/15"); past two
+ * hands, or on a small or dense tile, one: the hand in play (or the best one standing).
  */
 export function tileTotal(id: string, hands: TableHand[], timeline: Timeline, now: number, turn: boolean, handIndex: number, one = false): { text: string; tone: Tone } | null {
   const all = hands.map((h, i) => ({ hand: h, i, ...handOnScreen(id, i, h, timeline, now) })).filter((s) => s.total !== null);
@@ -135,11 +136,10 @@ function SeatDetail({ room, view, id, table, timeline, now, leaving, chips }: { 
  * The other players as tiles in seat order, never scrolling: the cards in miniature while the
  * table is small, a total and a status mark as it grows. The seat whose turn it is gets the lime
  * ring and the Playing tag; a settled seat its outcome's colour. Tapping a tile opens its hands.
+ * The seat whose hands are on my stage (I am not dealt in) leaves its cards to the stage.
  */
-export function Seats({ room, view, ids, meId, table, timeline, now, leaving, wide, chipsOf }: Props) {
+export function Seats({ room, view, ids, meId, staged, table, timeline, now, leaving, wide, chipsOf }: Props) {
   const turnId = view.phase === 'acting' ? view.turn?.playerId : undefined;
-  const tier = tileTier(ids.length);
-  const oneTotal = tier === 'small' || tier === 'dense';
   const open = useBlackjack((s) => s.seat);
   const openSeat = useBlackjackStore.getState().openSeat;
   const dealerPlaying = Boolean(table?.settled) && !outcomesShown(timeline, now);
@@ -147,43 +147,46 @@ export function Seats({ room, view, ids, meId, table, timeline, now, leaving, wi
   return (
     <>
       {ids.length > 0 && (
-        <PlayersGrid count={ids.length} label="Other players" wide={wide}>
-          {ids.map((id) => {
-            const player = playerOf(room, id);
-            const seat = view.players[id];
-            if (!player || !seat) return null;
-            const hands = table?.hands[id] ?? [];
-            const settledShown = Boolean(table?.settled) && hands.some((h, i) => handOnScreen(id, i, h, timeline, now).outcome !== null);
-            const turn = turnId === id;
-            const line = seatLine(view, id, hands, settledShown, dealerPlaying);
-            const stake = view.phase === 'betting' ? seat.bet : hands.reduce((sum, h) => sum + h.bet, 0);
-            return (
-              <PlayerTile
-                key={id}
-                playerId={id}
-                name={player.name}
-                avatar={player.avatar}
-                connected={player.connected && !(view.away ?? []).includes(id)}
-                count={ids.length}
-                turn={turn}
-                turnNote={turn && line.state === 'away' ? line.text : undefined}
-                line={line}
-                mark={seatMark(line, hands, settledShown)}
-                outcome={settledShown ? seatOutcome(hands) : null}
-                chips={chipsOf(id)}
-                bet={stake > 0 ? <StakePill value={stake} format={tileFigures(tier)} testId="seat-bet" /> : undefined}
-                total={tileTotal(id, hands, timeline, now, turn, view.turn?.handIndex ?? 0, oneTotal)}
-                dimmed={seat.bustedOut}
-                onOpen={() => openSeat(id)}
-                data={{ 'data-chips': seat.chips, 'data-bet': seat.bet }}
-                cards={
-                  hands.length > 0
-                    ? hands.map((hand, i) => <Hand key={i} playerId={id} index={i} hand={hand} timeline={timeline} now={now} leaving={leaving} size="sm" active={turn && view.turn?.handIndex === i} mini testId="seat-hand" />)
-                    : undefined
-                }
-              />
-            );
-          })}
+        <PlayersGrid count={ids.length} label="Other players" wide={wide} bare={ids.every((id) => (table?.hands[id] ?? []).length === 0)}>
+          {(tier) => {
+            const oneTotal = tier === 'small' || tier === 'dense';
+            return ids.map((id) => {
+              const player = playerOf(room, id);
+              const seat = view.players[id];
+              if (!player || !seat) return null;
+              const hands = table?.hands[id] ?? [];
+              const settledShown = Boolean(table?.settled) && hands.some((h, i) => handOnScreen(id, i, h, timeline, now).outcome !== null);
+              const turn = turnId === id;
+              const line = seatLine(view, id, hands, settledShown, dealerPlaying);
+              const stake = view.phase === 'betting' ? seat.bet : hands.reduce((sum, h) => sum + h.bet, 0);
+              return (
+                <PlayerTile
+                  key={id}
+                  playerId={id}
+                  name={player.name}
+                  avatar={player.avatar}
+                  connected={player.connected && !(view.away ?? []).includes(id)}
+                  tier={tier}
+                  turn={turn}
+                  turnNote={turn && line.state === 'away' ? line.text : undefined}
+                  line={line}
+                  mark={seatMark(line, hands, settledShown)}
+                  outcome={settledShown ? seatOutcome(hands) : null}
+                  chips={chipsOf(id)}
+                  bet={stake > 0 ? <StakePill value={stake} format={tileFigures(tier)} testId="seat-bet" /> : undefined}
+                  total={tileTotal(id, hands, timeline, now, turn, view.turn?.handIndex ?? 0, oneTotal || hands.length > 2)}
+                  dimmed={seat.bustedOut}
+                  onOpen={() => openSeat(id)}
+                  data={{ 'data-chips': seat.chips, 'data-bet': seat.bet }}
+                  cards={
+                    hands.length > 0 && id !== staged
+                      ? hands.map((hand, i) => <Hand key={i} playerId={id} index={i} hand={hand} timeline={timeline} now={now} leaving={leaving} size="sm" active={turn && view.turn?.handIndex === i} mini testId="seat-hand" />)
+                      : undefined
+                  }
+                />
+              );
+            });
+          }}
         </PlayersGrid>
       )}
       <SeatSheet title={openPlayer ? (openPlayer.id === meId ? 'Your hands' : openPlayer.name) : null} onClose={() => openSeat(null)}>

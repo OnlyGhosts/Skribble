@@ -57,15 +57,25 @@ export function canGuessNow(view: SpygameView): boolean {
 /** Why this player cannot start a vote right now; null when they can. Target-specific reasons come from `accuseTargetBlock`. */
 export function accuseBlock(view: SpygameView, meId: string): string | null {
   if (view.role === 'spy') return null; // the spy's list is read-only; no reason is printed
-  if (view.role === 'spectator') return "You're watching this round.";
+  if (view.role === 'spectator') return "You’re watching this round.";
   if (view.phase === 'voting') return 'A vote is running.';
   if (view.phase === 'reveal') return 'The round is over.';
-  if (view.players[meId]?.hasAccused) return "You've used your accusation this round.";
+  if (view.players[meId]?.hasAccused) return "You’ve used your accusation this round.";
   return null;
 }
 
 export function accuseTargetBlock(view: SpygameView, meId: string, targetId: string): string | null {
-  if (targetId === meId) return "That's you";
+  if (targetId === meId) return "That’s you";
   if (view.players[targetId]?.isSpectator) return 'Watching';
+  return null;
+}
+
+/**
+ * What the header ring counts while the round clock stands still, so the screen has one countdown:
+ * the vote while one runs, the time to the next round (or the results) once the round is over.
+ */
+export function clockStandIn(view: SpygameView): { endsAt: number; label: string } | null {
+  if (view.phase === 'voting' && view.vote) return { endsAt: view.vote.endsAt, label: 'Vote' };
+  if (view.phase === 'reveal' && view.reveal) return { endsAt: view.reveal.endsAt, label: view.round >= view.totalRounds ? 'Results' : 'Next' };
   return null;
 }

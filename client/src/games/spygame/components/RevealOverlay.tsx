@@ -73,10 +73,10 @@ export function RevealOverlay({ room, view, reveal, isHost, holding = false }: P
         <div className="overlay__footer spy-reveal__footer">
           {isHost ? (
             <button type="button" className="btn btn--primary" onClick={skipReveal} disabled={holding} data-testid="spygame-next-round" data-countdown={countdownState}>
-              {holding ? `${nextLabel} (paused)` : settling ? `${nextLabel}…` : `${nextLabel} (${seconds})`}
+              {holding ? `${nextLabel} (paused)` : settling ? `${nextLabel}…` : nextLabel}
             </button>
           ) : (
-            <ResultNext noun={nextNoun} endsAt={reveal.endsAt} paused={holding} settling={settling} testId="reveal-countdown" />
+            <ResultNext noun={nextNoun} paused={holding} settling={settling} testId="reveal-countdown" />
           )}
         </div>
       </div>

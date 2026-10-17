@@ -20,7 +20,7 @@ export function Announcer({ matchup }: { matchup: QuipgameMatchupView }) {
   return (
     <section className="card quip-announce" aria-label="Read this out" data-testid="quip-announcer">
       <p className="quip-announce__kicker">
-        <MegaphoneIcon size={16} /> You're the announcer: read this out
+        <MegaphoneIcon size={16} /> You’re the announcer: read this out
       </p>
       <p className="quip-announce__prompt">{matchup.prompt}</p>
       <ol className="quip-announce__answers">
@@ -99,7 +99,7 @@ export function Voting({ room, view, matchup, watching = false }: Props) {
         </div>
         {view.isAuthor ? (
           <div className="quip-vote__author" role="status" data-testid="vote-author">
-            <strong>This one's yours, sit tight</strong>
+            <strong>This one’s yours, sit tight</strong>
             <span>The room is deciding…</span>
           </div>
         ) : view.canVote ? (

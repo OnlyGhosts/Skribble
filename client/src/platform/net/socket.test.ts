@@ -68,7 +68,7 @@ class FakeWebSocket {
 
 vi.stubGlobal('WebSocket', FakeWebSocket);
 
-const { GameSocket, PING_INTERVAL_MS, PONG_TIMEOUT_MS, PROBE_TIMEOUT_MS, LONG_LIVED_MS, SLOW_RECONNECT_MS, CLOSE_REPLACED, CONNECT_TIMEOUT_MS, STALE_CONNECTING_MS, SEND_CHECK_MS, SLOW_PILL_MS, QUIET_PLAY_MS, SERVER_RESTARTED_TEXT } = await import('./socket');
+const { GameSocket, PING_INTERVAL_MS, PONG_TIMEOUT_MS, PROBE_TIMEOUT_MS, LONG_LIVED_MS, CLOSE_REPLACED, CONNECT_TIMEOUT_MS, STALE_CONNECTING_MS, SEND_CHECK_MS, SLOW_PILL_MS, QUIET_PLAY_MS, SERVER_RESTARTED_TEXT } = await import('./socket');
 const { PACE_MARGIN_MS } = await import('./pacer');
 const { REJOIN_RETRY_MS } = await import('./recovery');
 const { CHAT_RATE_LIMIT_COUNT, CHAT_RATE_LIMIT_WINDOW_MS, CHECKPOINT_MAX_AGE_MS, RECONNECT_GRACE_MS, RESTORE_RETRY_MS } = await import('@shared/platform/constants');
@@ -264,42 +264,21 @@ describe('reconnect timing', () => {
     expect(FakeWebSocket.instances.length).toBe(before + 1);
   });
 
-  it('toasts once only when a reconnect drags on, and says so when it is through', () => {
-    const toasts = recordToasts();
-    const { ws } = startSocket();
-    ws.receive(welcome('bob', room(), 'tok-1'));
-    ws.drop(1006);
-    vi.advanceTimersByTime(SLOW_RECONNECT_MS - 100);
-    expect(toasts).toEqual([]);
-    vi.advanceTimersByTime(100);
-    expect(toasts).toEqual(['Connection lost. Reconnecting…']);
-    // Further failed attempts add nothing.
-    for (let i = 0; i < 4; i++) {
-      vi.advanceTimersByTime(10_000);
-      for (const sock of FakeWebSocket.instances) if (sock.readyState === FakeWebSocket.CONNECTING) sock.drop(1006);
-    }
-    vi.advanceTimersByTime(10_000);
-    expect(toasts).toEqual(['Connection lost. Reconnecting…']);
-    const next = FakeWebSocket.latest();
-    next.open();
-    // Open is not back yet: only the seat's welcome is.
-    expect(toasts).toEqual(['Connection lost. Reconnecting…']);
-    next.receive(welcome('bob', room(), 'tok-1'));
-    expect(toasts).toEqual(['Connection lost. Reconnecting…', 'Reconnected']);
-  });
-
-  it('shows the pill, not a toast, for a reconnect that goes through quickly', () => {
+  it('raises no toast for a reconnect, quick or slow: the one connection notice says it', () => {
     const toasts = recordToasts();
     const { ws } = startSocket();
     ws.receive(welcome('bob', room(), 'tok-1'));
     ws.drop(1006);
     expect(usePlatformStore.getState().connection).toBe('reconnecting');
-    vi.advanceTimersByTime(1_000); // past the first backoff, well under the toast threshold
+    for (let i = 0; i < 4; i++) {
+      vi.advanceTimersByTime(10_000);
+      for (const sock of FakeWebSocket.instances) if (sock.readyState === FakeWebSocket.CONNECTING) sock.drop(1006);
+    }
+    vi.advanceTimersByTime(10_000);
     const next = FakeWebSocket.latest();
-    expect(next).not.toBe(ws);
     next.open();
+    next.receive(welcome('bob', room(), 'tok-1'));
     expect(usePlatformStore.getState().connection).toBe('connected');
-    vi.advanceTimersByTime(SLOW_RECONNECT_MS);
     expect(toasts).toEqual([]);
   });
 });
@@ -787,7 +766,8 @@ describe('surviving a server restart', () => {
     vi.advanceTimersByTime(10_000);
     FakeWebSocket.latest().drop(1006);
     expect(usePlatformStore.getState().connection).toBe('restarting');
-    vi.advanceTimersByTime(SLOW_RECONNECT_MS);
+    // Nor does a long outage raise any toast: the notice is the one word on it.
+    vi.advanceTimersByTime(10_000);
 
     const next = reconnect();
     expect(usePlatformStore.getState().connection).toBe('restarting');

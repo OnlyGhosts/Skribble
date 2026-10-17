@@ -1,4 +1,3 @@
-import type { Rating } from '@shared/games/scribble/protocol';
 import { socket } from '../../platform/net/socket';
 import { scribbleCanvas } from './canvas';
 
@@ -17,8 +16,4 @@ export function redoStroke(): void {
 
 export function clearCanvas(): void {
   scribbleCanvas.clear();
-}
-
-export function rateDrawing(value: Rating): void {
-  socket.send({ t: 'rate', value });
 }

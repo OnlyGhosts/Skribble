@@ -1,4 +1,4 @@
-/** Scribble's rules through a memory Room: turns, guessing, hints, the canvas, ratings and the drawer's grace periods. */
+/** Scribble's rules through a memory Room: turns, guessing, hints, the canvas and the drawer's grace periods. */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   CHOOSE_TIME_SECONDS,
@@ -52,7 +52,7 @@ describe('Scribble: turn lifecycle', () => {
 
     h.send(alice, { t: 'chooseWord', index: 0 });
     const drawing = expectPhase(h.room, 'drawing', bob);
-    expect(drawing).toMatchObject({ drawerId: alice, startedAt: START, endsAt: START + DRAW_MS, mask: '_____', likes: 0, dislikes: 0 });
+    expect(drawing).toMatchObject({ drawerId: alice, startedAt: START, endsAt: START + DRAW_MS, mask: '_____' });
     expect(drawing.word).toBeUndefined();
     expect(expectPhase(h.room, 'drawing', alice).word).toBe('apple');
 
@@ -319,7 +319,7 @@ describe('Scribble: guessing and chat', () => {
     h.send(bob, { t: 'chat', text: 'aple' });
     expect(h.transport.chats(bob)).toEqual([
       { kind: 'chat', text: 'aple' },
-      { kind: 'close', text: "'aple' is close!" },
+      { kind: 'close', text: '‘aple’ is close!' },
     ]);
     expect(h.transport.chats(alice)).toEqual([{ kind: 'chat', text: 'aple' }]);
     expect(h.transport.chats(carol)).toEqual([{ kind: 'chat', text: 'aple' }]);
@@ -330,7 +330,7 @@ describe('Scribble: guessing and chat', () => {
     for (const p of players) expect(h.transport.chats(p)).toEqual([{ kind: 'chat', text: 'house' }]);
   });
 
-  it("blocks the drawer from leaking the word and routes the drawer's chat to guessers only", () => {
+  it("blocks the drawer from leaking the word and routes the drawer’s chat to guessers only", () => {
     const h = createHarness();
     const players = startGame(h, ['Alice', 'Bob', 'Carol']);
     const [alice, bob, carol] = players;
@@ -338,7 +338,7 @@ describe('Scribble: guessing and chat', () => {
     h.transport.clear();
 
     h.send(alice, { t: 'chat', text: `it is an ${word}!` });
-    expect(h.transport.chats(alice)).toEqual([{ kind: 'system', text: "You can't give away the word!" }]);
+    expect(h.transport.chats(alice)).toEqual([{ kind: 'system', text: "You can’t give away the word!" }]);
     expect(h.transport.chats(bob)).toEqual([]);
     expect(h.transport.chats(carol)).toEqual([]);
 
@@ -427,7 +427,7 @@ describe('Scribble: guessing and chat', () => {
 
     for (const leak of ['I will draw apple', 'BANANA it is', 'c-h-e-r-r-y']) {
       h.send(alice, { t: 'chat', text: leak });
-      expect(h.transport.chats(alice).at(-1)).toEqual({ kind: 'system', text: "You can't give away the word!" });
+      expect(h.transport.chats(alice).at(-1)).toEqual({ kind: 'system', text: "You can’t give away the word!" });
     }
     expect(h.transport.chats(bob)).toEqual([]);
     expect(h.transport.chats(carol)).toEqual([]);
@@ -687,7 +687,7 @@ describe('Scribble: canvas', () => {
     expect(h.transport.ofType(alice, 'canvas')).toHaveLength(0);
   });
 
-  it("does not hand the previous group's drawing to whoever re-uses an emptied room", () => {
+  it("does not hand the previous group’s drawing to whoever re-uses an emptied room", () => {
     const h = createHarness();
     const players = startGame(h, ['Alice', 'Bob']);
     const [alice, bob] = players;
@@ -1036,48 +1036,23 @@ describe('Scribble: drawer and guesser grace periods', () => {
   });
 });
 
-describe('Scribble: ratings and snapshots', () => {
-  it('tracks likes/dislikes per recipient and toggles on repeat', () => {
+describe('Scribble: retired ratings and snapshots', () => {
+  it('ignores a drawing rating from a page loaded before ratings were removed: no error, no snapshot, nothing in the view', () => {
     const h = createHarness();
     const players = startGame(h, ['Alice', 'Bob', 'Carol']);
-    const [alice, bob, carol] = players;
-    h.send(bob, { t: 'rate', value: 'like' });
-    expect(h.transport.errors(bob)).toEqual(['NOT_ALLOWED']);
+    const [alice, bob] = players;
     pick(h, players);
     h.transport.clear();
-
     h.send(bob, { t: 'rate', value: 'like' });
-    h.send(carol, { t: 'rate', value: 'dislike' });
-    expect(expectPhase(h.room, 'drawing', bob)).toMatchObject({ likes: 1, dislikes: 1, myRating: 'like' });
-    expect(expectPhase(h.room, 'drawing', carol)).toMatchObject({ likes: 1, dislikes: 1, myRating: 'dislike' });
-    expect(expectPhase(h.room, 'drawing', alice)).not.toHaveProperty('myRating');
-    expect(h.transport.ofType(alice, 'room')).toHaveLength(2);
-
-    h.send(bob, { t: 'rate', value: 'like' });
-    expect(expectPhase(h.room, 'drawing', bob)).toMatchObject({ likes: 0, dislikes: 1 });
-    expect(expectPhase(h.room, 'drawing', bob)).not.toHaveProperty('myRating');
-    h.send(carol, { t: 'rate', value: 'like' });
-    expect(expectPhase(h.room, 'drawing', bob)).toMatchObject({ likes: 1, dislikes: 0 });
-
-    h.send(alice, { t: 'rate', value: 'like' });
-    expect(h.transport.errors(alice)).toEqual(['NOT_ALLOWED']);
-  });
-
-  it('forgets the rating of a player who leaves or is kicked', () => {
-    const h = createHarness();
-    const players = startGame(h, ['Alice', 'Bob', 'Carol', 'Dave']);
-    const [alice, bob, carol, dave] = players;
-    pick(h, players);
-    h.send(bob, { t: 'rate', value: 'like' });
-    h.send(carol, { t: 'rate', value: 'dislike' });
-    h.send(dave, { t: 'rate', value: 'dislike' });
-    expect(expectPhase(h.room, 'drawing', alice)).toMatchObject({ likes: 1, dislikes: 2 });
-
-    h.room.leave(carol);
-    expect(expectPhase(h.room, 'drawing', alice)).toMatchObject({ likes: 1, dislikes: 1 });
-    h.send(alice, { t: 'kick', playerId: dave });
-    expect(expectPhase(h.room, 'drawing', alice)).toMatchObject({ likes: 1, dislikes: 0 });
-    expect(expectPhase(h.room, 'drawing', bob)).toMatchObject({ likes: 1, dislikes: 0, myRating: 'like' });
+    h.send(bob, { t: 'rate' });
+    h.send(alice, { t: 'rate', value: 'dislike' });
+    expect(h.transport.errors(bob)).toEqual([]);
+    expect(h.transport.errors(alice)).toEqual([]);
+    expect(h.transport.ofType(alice, 'room')).toHaveLength(0);
+    for (const id of [alice, bob]) {
+      const phase = expectPhase(h.room, 'drawing', id);
+      for (const gone of ['likes', 'dislikes', 'myRating']) expect(phase).not.toHaveProperty(gone);
+    }
   });
 
   it('builds per-recipient views with the right visibility', () => {
@@ -1155,13 +1130,13 @@ describe('Scribble: spectators', () => {
     expect(h.score(alice)).toBe(drawerPoints(1, 1));
   });
 
-  it("keeps the word out of a spectator's chat and lets their other lines through", () => {
+  it("keeps the word out of a spectator’s chat and lets their other lines through", () => {
     const { h, bob, carol } = spectated();
     h.transport.clear();
     h.send(carol, { t: 'chat', text: 'hello players' });
     expect(h.transport.chats(bob)).toContainEqual({ kind: 'chat', text: 'hello players' });
     h.send(carol, { t: 'chat', text: 'it is an APPLE' });
-    expect(h.transport.chats(carol)).toContainEqual({ kind: 'system', text: "You can't give away the word!" });
+    expect(h.transport.chats(carol)).toContainEqual({ kind: 'system', text: "You can’t give away the word!" });
     expect(h.transport.chats(bob).some((c) => c.text.includes('APPLE'))).toBe(false);
     expect(h.score(carol)).toBe(0);
   });

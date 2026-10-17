@@ -209,7 +209,7 @@ describe('the blackjack sting', () => {
     expect(stings[0][1]).toBeGreaterThan(Math.max(...at('deal').filter((t) => t <= bothTl.arrivals['me/0/1/KH'])));
   });
 
-  it("plays softer for another seat's natural, and not again when the round settles", () => {
+  it("plays softer for another seat’s natural, and not again when the round settles", () => {
     seed(view());
     const deal = dealt(['9S', '7D'], ['AD', 'QC']);
     deal.players.bob.hands[0].status = 'blackjack';
@@ -260,7 +260,7 @@ describe('a big table', () => {
     expect(played.filter(([name, , volume]) => name === 'deal' && volume === 1).map(([, time]) => time)).toEqual([tl.arrivals['p0/0/0/9S'], tl.arrivals['p0/0/1/7D']]);
   });
 
-  it('a snapshot mid-deal keeps the deal playing and gives the new card its sound after it; a snap drops the old plan\'s sounds', () => {
+  it('a snapshot mid-deal keeps the deal playing and gives the new card its sound after it; a snap drops the old plan’s sounds', () => {
     const betting = view({ order: ids, players: Object.fromEntries(ids.map((id) => [id, seat([])])) });
     seed(betting);
     const deal = fifty(() => [hand(['9S', '7D'])]);

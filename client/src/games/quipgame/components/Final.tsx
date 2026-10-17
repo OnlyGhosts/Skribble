@@ -30,7 +30,7 @@ export function FinalVoting({ room, view, watching = false }: Props) {
       {view.isAnnouncer && (
         <section className="card quip-announce" aria-label="Read these out" data-testid="quip-announcer">
           <p className="quip-announce__kicker">
-            <MegaphoneIcon size={16} /> You're the announcer: read these out
+            <MegaphoneIcon size={16} /> You’re the announcer: read these out
           </p>
           <p className="quip-announce__prompt">{prompt}</p>
           <ol className="quip-announce__answers">

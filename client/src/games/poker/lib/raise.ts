@@ -25,6 +25,16 @@ export function wagerKind(view: Pick<PokerView, 'street' | 'players'>, range: Ra
   return view.street !== null && view.street !== 'preflop' && highestBet(view) === 0 ? 'bet' : 'raise';
 }
 
+/**
+ * The amount the field shows off my turn, when the table offers no window: the least a raise could
+ * be now (the highest bet plus the big blind) or, with no bet down, the big blind, so the field
+ * never stands empty.
+ */
+export function idleAmount(view: Pick<PokerView, 'blinds' | 'players'>): number {
+  const highest = highestBet(view);
+  return highest > 0 ? highest + view.blinds.big : view.blinds.big;
+}
+
 export function clampAmount(amount: number, range: RaiseRange): number {
   if (!Number.isFinite(amount)) return range.min;
   return Math.max(range.min, Math.min(range.max, Math.round(amount)));

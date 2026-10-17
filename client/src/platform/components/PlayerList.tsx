@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { PlayerPublic, RoomState } from '@shared/platform/protocol';
 import type { AnyGameClientModule } from '../game';
-import { pointsShort } from '../lib/format';
+import { scoreShort } from '../lib/format';
 import { isReady } from '../lib/party';
 import { kickPlayer, voteKick } from '../net/actions';
 import { Avatar } from './Avatar';
@@ -35,6 +35,8 @@ export function PlayerList({ room, meId, isHost, mode, game }: Props) {
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const players = sortPlayers(room.players, mode);
   const inGame = mode === 'game' && room.game !== null;
+  // Anyone else in the list has a kick button, so your own row keeps its width free.
+  const buttons = players.some((p) => p.id !== meId);
 
   return (
     <ul className="player-list" data-testid="player-list" aria-label="Players">
@@ -69,10 +71,16 @@ export function PlayerList({ room, meId, isHost, mode, game }: Props) {
               )}
             </span>
             <span className="player__body">
+              {/* One badge a player at most: in a game that is the avatar's (the game's state); the host's crown sits by the name. */}
               <span className="player__name">
+                {p.isHost && mode === 'game' && (
+                  <span className="player__crown" role="img" title="Host" aria-label="Host" data-testid="host-crown">
+                    <CrownIcon size={14} />
+                  </span>
+                )}
                 <span className="player__name-text">{p.name}</span>
-                {isMe && <span className="player__tag player__you">You</span>}
-                {p.isHost && (
+                {isMe && <span className="player__you">you</span>}
+                {p.isHost && mode === 'lobby' && (
                   <span className="player__tag player__host" data-testid="host-crown">
                     <CrownIcon size={12} /> Host
                   </span>
@@ -86,7 +94,7 @@ export function PlayerList({ room, meId, isHost, mode, game }: Props) {
                     </span>
                   ) : (
                     <span className="player__score" data-testid="player-score">
-                      {pointsShort(p.score)}
+                      {scoreShort(p.score, game?.meta.scoreUnit)}
                     </span>
                   )}
                   {meta}
@@ -94,8 +102,18 @@ export function PlayerList({ room, meId, isHost, mode, game }: Props) {
                 </span>
               )}
             </span>
-            {/* In a game your own row keeps the kick button's width empty, so every row's buttons line up. */}
-            {isMe && !status && <span className="player__actions player__actions--spacer" aria-hidden="true" />}
+            {status && (
+              <span className={`player__status player__status--${status.state}`} data-testid="player-status">
+                {status.state === 'ready' && (
+                  <span className="player__check" aria-hidden="true">
+                    <CheckIcon size={15} strokeWidth={2.6} />
+                  </span>
+                )}
+                {status.label}
+              </span>
+            )}
+            {/* Last, at the right end: your own row keeps the kick button's width empty, so every row's status and button line up. */}
+            {isMe && buttons && <span className="player__actions player__actions--spacer" aria-hidden="true" />}
             {!isMe && (
               <span className="player__actions">
                 {confirming ? (
@@ -125,20 +143,9 @@ export function PlayerList({ room, meId, isHost, mode, game }: Props) {
                     onClick={() => setConfirmId(p.id)}
                     data-testid={isHost ? 'kick-player' : 'votekick-player'}
                   >
-                    <KickIcon size={15} />
+                    <KickIcon size={18} />
                   </button>
                 )}
-              </span>
-            )}
-            {/* Last, so the ready tick sits at the right end of the row whatever the row's buttons. */}
-            {status && (
-              <span className={`player__status player__status--${status.state}`} data-testid="player-status">
-                {status.state === 'ready' && (
-                  <span className="player__check" aria-hidden="true">
-                    <CheckIcon size={15} strokeWidth={2.6} />
-                  </span>
-                )}
-                {status.label}
               </span>
             )}
           </li>

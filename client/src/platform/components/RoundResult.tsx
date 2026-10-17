@@ -1,7 +1,6 @@
 import type { PlayerPublic } from '@shared/platform/protocol';
 import { formatPoints } from '../lib/format';
 import { Avatar } from './Avatar';
-import { Timer } from './Timer';
 
 type DataAttrs = Record<`data-${string}`, string | number | boolean | undefined>;
 
@@ -43,18 +42,17 @@ export function earnersOf(players: readonly PlayerPublic[], points: Record<strin
 }
 
 /**
- * The foot of a result: what comes next and its countdown. Paused while the game holds for
- * players; once the time is up and the server's next step is a beat away, it says so instead of
- * sitting on a red "0".
+ * The foot of a result: what comes next. The countdown itself is the top bar's ring (one
+ * countdown per screen); this says whether it is coming, held while the game waits for players,
+ * or starting now that the time is up.
  */
-export function ResultNext({ noun, endsAt, paused, settling, testId }: { noun: string; endsAt: number | null; paused: boolean; settling: boolean; testId: string }) {
+export function ResultNext({ noun, paused, settling, testId }: { noun: string; paused: boolean; settling: boolean; testId: string }) {
   const state = paused ? 'paused' : settling ? 'settling' : 'running';
   return (
     <div className="overlay__footer result-next">
       <span data-testid={testId} data-countdown={state}>
-        {paused ? `${noun} is paused` : settling ? `${noun} is starting` : `${noun} in`}
+        {paused ? `${noun} is paused` : settling ? `${noun} is starting` : `${noun} soon`}
       </span>
-      <Timer endsAt={endsAt} size="md" warnUnder={0} paused={paused} settling={settling} />
     </div>
   );
 }

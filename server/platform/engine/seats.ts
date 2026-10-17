@@ -151,7 +151,7 @@ export function kick(cx: Cx, playerId: string, targetId: string): void {
   if (!requireHost(cx, playerId)) return;
   const target = findPlayer(cx.data, targetId);
   if (!target) return fail(cx, playerId, 'NOT_ALLOWED', 'That player is not in the room.');
-  if (target.id === playerId) return fail(cx, playerId, 'NOT_ALLOWED', "You can't kick yourself.");
+  if (target.id === playerId) return fail(cx, playerId, 'NOT_ALLOWED', "You can’t kick yourself.");
   removePlayer(cx, target.id, 'kicked', 'You were kicked by the host.');
 }
 
@@ -161,7 +161,7 @@ export function voteKick(cx: Cx, playerId: string, targetId: string): void {
   const target = findPlayer(data, targetId);
   if (!voter) return;
   if (!target) return fail(cx, playerId, 'NOT_ALLOWED', 'That player is not in the room.');
-  if (target.id === playerId) return fail(cx, playerId, 'NOT_ALLOWED', "You can't vote to kick yourself.");
+  if (target.id === playerId) return fail(cx, playerId, 'NOT_ALLOWED', "You can’t vote to kick yourself.");
   if (!electorate(data).some((p) => p.id === playerId)) return fail(cx, playerId, 'NOT_ALLOWED', 'Only the players in the game vote.');
   // With one other player a "vote" would be a unilateral kick (of the host, even).
   if (othersConnected(data, target.id) < 2) {

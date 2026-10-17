@@ -13,6 +13,17 @@ interface Size {
   height: number;
   /** The width the full hands take beside the chips (their slots and the gaps after them). */
   full: number;
+  /**
+   * The widest words over a hand's top right corner (its stake or owner and its total, or how it
+   * ended): a full hand keeps room for them. It never shrinks while the row keeps its hands, so
+   * which hands fold into chips never flips back and forth.
+   */
+  head: number;
+}
+
+/** The widest head (the words over a hand's corner) in the row: they keep their width whatever the cards' size. */
+function headWidth(el: HTMLElement): number {
+  return Math.ceil(Math.max(0, ...Array.from(el.querySelectorAll('.tbl-hand__head')).map((h) => h.getBoundingClientRect().width)));
 }
 
 /** The full hands' slots in a row of hands, and the gap after each. */
@@ -21,22 +32,30 @@ function fullWidth(el: HTMLElement): number {
 }
 
 /** A row's size as it lays out (null until measured, and on the server render), and its full hands' width. */
-function useSize<T extends HTMLElement>(): [RefObject<T | null>, Size | null] {
+function useSize<T extends HTMLElement>(count: number): [RefObject<T | null>, Size | null] {
   const ref = useRef<T | null>(null);
   const [size, setSize] = useState<Size | null>(null);
+  // A new number of hands starts the head over.
+  const counted = useRef(count);
   const measure = () => {
     const el = ref.current;
     if (!el) return;
-    const next = { width: el.clientWidth, height: el.clientHeight, full: Math.ceil(fullWidth(el)) };
-    setSize((s) => (s && s.width === next.width && s.height === next.height && s.full === next.full ? s : next));
+    const fresh = counted.current !== count;
+    counted.current = count;
+    const next = { width: el.clientWidth, height: el.clientHeight, full: Math.ceil(fullWidth(el)), head: headWidth(el) };
+    setSize((s) => {
+      const head = s && !fresh ? Math.max(s.head, next.head) : next.head;
+      return s && s.width === next.width && s.height === next.height && s.full === next.full && s.head === head ? s : { ...next, head };
+    });
   };
+  // The observer is made again for a new number of hands, so its callback never measures with a stale count.
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el || typeof ResizeObserver !== 'function') return undefined;
     const observer = new ResizeObserver(measure);
     observer.observe(el);
     return () => observer.disconnect();
-  }, []);
+  }, [count]);
   // A hand's width changes with its cards, not the row's: measured again after every render.
   useLayoutEffect(measure);
   return [ref, size];
@@ -100,12 +119,13 @@ interface Props {
   leaving: boolean;
   /** The hand in play, or -1. */
   activeIndex: number;
-  /**
-   * `mine`: my hands on the stage at the bottom of the table; `stage`: another player's there, on
-   * their turn; `aside`: mine small beside theirs meanwhile.
-   */
+  /** `mine`: my hands on the stage at the bottom of the table; `stage`: another player's there, when I am not dealt in. */
   place: HandPlace;
   size: PlayingCardSize;
+  /** Each full hand's stake by its total (my hands while they play). */
+  stakes?: boolean;
+  /** Another player's hands on my stage: their name by the hand in play's total (the first's, between turns). */
+  ownerName?: string;
   testId: string;
   chipTestId: string;
 }
@@ -115,9 +135,10 @@ interface Props {
  * shrinking as hands are added; past that the hand in play stays full size and the others fold
  * into chips in a grid beside it, and past what the grid holds the furthest fold into a "+N".
  */
-export function HandRow({ playerId, hands, timeline, now, leaving, activeIndex, place, size, testId, chipTestId }: Props) {
-  const [ref, box] = useSize<HTMLDivElement>();
-  const minHand = MIN_FULL_HAND_PX[place];
+export function HandRow({ playerId, hands, timeline, now, leaving, activeIndex, place, size, stakes = false, ownerName, testId, chipTestId }: Props) {
+  const [ref, box] = useSize<HTMLDivElement>(hands.length);
+  // A full hand is never narrower than the words over its corner (its stake and total, its outcome).
+  const minHand = Math.max(MIN_FULL_HAND_PX[place], (box?.head ?? 0) + HAND_GAP_PX);
   const maxFull = box === null ? hands.length : fullHandsFit(box.width, minHand);
   const slots = handSlots(hands.length, activeIndex, maxFull);
   const full = hands.filter((_, i) => slots[i] === 'full');
@@ -131,10 +152,11 @@ export function HandRow({ playerId, hands, timeline, now, leaving, activeIndex, 
   const grid = box === null ? { cols: chips, rows: 1, shown: chips } : chipGrid(chips, box.width - beside, maxRows, place === 'stage' ? MIN_CHIP_PX.stage : MIN_CHIP_PX.width);
   const shown = chipsShown(chipped, grid.shown, activeIndex);
   const folded = chipped.filter((i) => !shown.has(i)).map((i) => hands[i]);
-  const style = { ...fanStyle(full), '--chip-cols': grid.cols, '--chip-rows': grid.rows } as CSSProperties;
+  const style = { ...fanStyle(full), '--chip-cols': grid.cols, '--chip-rows': grid.rows, '--bj-head-w': `${box?.head ?? 0}px` } as CSSProperties;
+  const named = activeIndex >= 0 ? activeIndex : slots.indexOf('full');
   const fullHand = (hand: TableHand, i: number) => (
     <div key={i} className="bj-slot">
-      <Hand playerId={playerId} index={i} hand={hand} timeline={timeline} now={now} leaving={leaving} size={size} active={i === activeIndex} mini={place === 'aside'} narrow={full.length > 1} testId={testId} />
+      <Hand playerId={playerId} index={i} hand={hand} timeline={timeline} now={now} leaving={leaving} size={size} active={i === activeIndex} narrow={full.length > 1} stake={stakes} ownerName={i === named ? ownerName : undefined} testId={testId} />
     </div>
   );
   return (

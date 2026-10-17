@@ -14,7 +14,7 @@ describe('server game registry', () => {
     }
   });
 
-  it('ships defaults that pass each module\'s own settings schema and a patch schema that accepts an empty patch', () => {
+  it('ships defaults that pass each module’s own settings schema and a patch schema that accepts an empty patch', () => {
     for (const id of GAME_IDS) {
       const { settings } = GAMES[id];
       expect(settings.schema.safeParse(settings.defaults).success, id).toBe(true);

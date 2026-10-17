@@ -15,9 +15,9 @@ interface WordmarkProps {
 /**
  * The boredgames.io logo: the two phones as an icon, as tall as the text, then the outlined
  * Poppins wordmark whose "o" in ".io" is a settings gear (the site header lays its settings button
- * over it), inline so the theme recolours it. "bored" and ".io" take the text colour,
- * "games" is lime (on light with an ink outline, like the phones', drawn by a copy of its path
- * underneath); the phones keep their own colours. Height comes from CSS; the viewBox keeps the proportions.
+ * over it), inline so the theme recolours it. "bored" and ".io" take the text colour, "games"
+ * the lime (cut darker on light); the phones keep their own colours. Height comes from CSS; the
+ * viewBox keeps the proportions.
  */
 export function Wordmark({ className }: WordmarkProps) {
   const titleId = useId();
@@ -29,8 +29,6 @@ export function Wordmark({ className }: WordmarkProps) {
         <HappyArt />
       </g>
       <path d={WORDMARK_BASE_PATH} fill="currentColor" />
-      {/* The ink outline under "games", drawn on the light theme only (components.css). */}
-      <path className="wordmark__accent-outline" d={WORDMARK_ACCENT_PATH} fill="none" />
       <path className="wordmark__accent" d={WORDMARK_ACCENT_PATH} fill="currentColor" />
       <path className="wordmark__gear" d={WORDMARK_GEAR_PATH} fill="currentColor" />
     </svg>

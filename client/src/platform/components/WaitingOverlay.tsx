@@ -86,7 +86,7 @@ export function WaitingOverlay({ room, waiting, isHost, meId = null }: { room: R
           </div>
         )}
         <div className="overlay__footer">
-          <button type="button" className="btn btn--ghost btn--sm" onClick={leaveRoom} data-testid="waiting-leave">
+          <button type="button" className="btn btn--secondary btn--sm" onClick={leaveRoom} data-testid="waiting-leave">
             <LogoutIcon size={16} /> Leave room
           </button>
         </div>

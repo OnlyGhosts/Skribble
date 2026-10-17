@@ -6,7 +6,7 @@ import { SendIcon } from './Icons';
 
 /** Overflow letters shown as tiles before collapsing the rest into a "+N" chip. */
 const OVERFLOW_VISIBLE = 8;
-const PLACEHOLDER = 'Type your guess...';
+const PLACEHOLDER = 'Type your guess…';
 
 export interface GuessTilesProps {
   /** The server's mask of the word: "_" per hidden letter, revealed letters as themselves, separators kept. */

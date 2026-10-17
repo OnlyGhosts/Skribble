@@ -25,7 +25,7 @@ function headline(result: QuipgameMatchupResultView): string {
     case 'b':
       return `${result.b.authorName} takes it!`;
     case 'tie':
-      return "It's a tie!";
+      return "It’s a tie!";
     case 'noVotes':
       return 'Nobody voted';
   }
@@ -42,9 +42,9 @@ interface FooterProps {
 }
 
 /**
- * The footer every result shares: the countdown, and the host's Next. The countdown freezes
- * while the game holds for missing players; once it has run out (the server settles for a moment
- * after a hold, or its tick is a beat away) the next step reads as coming rather than a "0".
+ * The footer every result shares: what comes next, and the host's Next. The countdown is the top
+ * bar's ring (one per screen); this says the next step is coming, held while the game waits for
+ * missing players, or starting once the time is up.
  */
 export function ResultFooter({ view, isHost, label, playing, holding = false }: FooterProps) {
   const seconds = useCountdownSeconds(playing && !holding ? view.endsAt : null);
@@ -54,11 +54,11 @@ export function ResultFooter({ view, isHost, label, playing, holding = false }: 
     <div className="quip-result__footer">
       {isHost && view.canSkip && playing && !holding ? (
         <button type="button" className="btn btn--primary btn--lg" onClick={skipResult} data-testid="quip-next" data-countdown={state}>
-          {settling ? `${label}…` : <>{label} ({seconds})</>}
+          {settling ? `${label}…` : label}
         </button>
       ) : (
         <span className="quip-result__countdown" role="status" data-testid="result-countdown" data-seconds={seconds} data-countdown={state}>
-          {!playing ? 'Game over' : holding ? `${label} is paused` : settling ? `${label} starting…` : `${label} in ${seconds}`}
+          {!playing ? 'Game over' : holding ? `${label} is paused` : settling ? `${label} is starting` : `${label} soon`}
         </span>
       )}
     </div>

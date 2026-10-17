@@ -84,8 +84,13 @@ settings and everyone's ready flags carry over, a system line says "Host switche
 and persists until the player changes it; both accepted in the lobby only), and the
 host starts. The lobby screen (only the host sees the settings and the game grid; everyone else
 sees the next game, the players and their own buttons), the room code card at its top (code, Copy,
-Share; Copy invite link and Leave room in the gear menu), the logo centred at the top on a phone,
-the profile editor, the platform setting `contentMode` (`'family' |
+Share; Copy invite link and Leave room in the gear menu) on one row with the logo (the logo centred
+above it on a phone), the footer with Start or I'm ready, Sit this one out and Change my look pinned
+to the bottom of the screen at every size (its line spans the page), each player row's kick button
+last, after the status, in a 44px column that lines up down the list, the profile editor (a centred
+box on a desktop, a drawer on a tablet or phone), the browser tab's title in a room
+("boredgames.io 🚪 𝗔𝗕𝟮𝟯": the door and the code in Mathematical Sans-Serif Bold, `roomTitle` in
+[`lib/tabTitle.ts`](../client/src/platform/lib/tabTitle.ts)), the platform setting `contentMode` (`'family' |
 'unhinged'`, [`shared/platform/settings.ts`](../shared/platform/settings.ts)), validation of
 settings patches (platform schema merged with your game's `patchSchema`), the start rule, scores
 reset to 0 on start, the host's End game (`endGame`) and the way back to the lobby with the
@@ -207,7 +212,8 @@ your module is a pure function of JSON-safe data, it works on the memory driver 
 without knowing which one runs it.
 
 **Routing and the game picker.** `/` is the front door: join a room with the four code boxes or
-create one; there is no game catalogue on it. `/:slug/:CODE` is the join link and the in-room URL,
+create one; there is no game catalogue on it and no visible heading ("Join a room" names the boxes
+for screen readers only). `/:slug/:CODE` is the join link and the in-room URL,
 the legacy `/:CODE` and `/?room=CODE` open the front door with the boxes filled, `/:slug` alone
 redirects to `/`, and `/?game=slug` makes Create start the party on that game (the way to reach a
 hidden game) ([`client/src/platform/router.ts`](../client/src/platform/router.ts)). A new party
@@ -218,6 +224,14 @@ which is rendered from `GameMeta` the moment `status` is `'live'`.
 **Transport.** The one WebSocket with backoff reconnect, ping/pong clock sync (`clockOffset`),
 seat persistence in `sessionStorage`, a 60-messages-per-second cap on game messages per socket
 (excess is dropped silently) ([`client/src/platform/net/socket.ts`](../client/src/platform/net/socket.ts)).
+The site has one connection notice
+([`ConnectionNotice`](../client/src/platform/components/ConnectionNotice.tsx), driven by
+[`lib/connectionNotice.ts`](../client/src/platform/lib/connectionNotice.ts)): a card at the top
+centre of every screen that comes up only once the link has been gone for `NOTICE_DELAY_MS` (2 s),
+says plainly what is happening ("Reconnecting…", with "Your place in the room is kept." in a room)
+and goes the moment the link is back. There is no header pill, banner or connection toast besides
+it, and while it shows the waiting overlay steps aside (its list of who is missing is stale then).
+A game never draws its own.
 
 **Design system and mobile rules.** Tokens, cards, buttons, inputs, pills, sheets, toasts, the
 timer, the player list, the code input, avatars, light/dark themes, the phone layout
@@ -249,46 +263,68 @@ a chip amount setting with presets and a numeric field is
 
 **Card tables.** A Stake-style card table is a kit in
 [`client/src/platform/table/`](../client/src/platform/table) (styles: the platform's `table.css`, `.tbl*`),
-used by Blackjack and Poker: `TableShell` (the top bar, one row on a phone; the table, the control
-panel docked under it on a phone and in a left column on a desktop, the players and options sheets).
-Both lay their felt out as a calm table that never scrolls (`.tbl-felt.tbl-felt--calm`, four grid
-rows): the game's centre piece big at the top centre (Blackjack's dealer, Poker's pot over the
-board), `TableRibbon` across the middle (a low-contrast banner with folded ends, the table's rule
-in capitals, a smaller rule under it and a `note`, the `TurnLine`: whose turn it is, a quieter
-second part and, in Poker, the turn clock), the other players as compact seats, and a `TableStage`
-at the bottom with the hand that matters to the viewer (whose it is and the stake on the left, the
-hand big in the middle, a small extra on the right). The first row and the stage have a fixed
-height (`--tbl-head-h`, `--tbl-stage-h`) and their cards a fixed size that the game sets for the
-screen alone, never the phase or the number of players. Blackjack's stage holds another player's
-hands on their turn, mine small at the side meanwhile;
-[`lib/hands.ts`](../client/src/games/blackjack/lib/hands.ts) decides when split hands fold into
-chips, the hand in play staying full size, and, never narrower than a two-digit total, past what
-fits into one "+N" that opens the seat's sheet with every hand. Poker's stage holds my two cards
-whenever I hold some (the hand in play when I am not dealt in), with what they make in the pill
-and, at a showdown, the winner's hand at the side when it beat mine. The shared pieces: `HandFan` / `OutcomeFlag` (a hand as a stepped fan, each card a
+used by Blackjack and Poker: `TableShell` (the top bar in one row at every size: the game's name,
+the players button with the count, End game and the gear on a desktop, the options button on a
+phone; no round or phase in it, those are on the table; then the table, and the control panel
+docked under the table on a phone and a portrait tablet, in a left column on a desktop, plus the
+players and options sheets). Both lay their felt out as a calm table that never scrolls
+(`.tbl-felt.tbl-felt--calm`, four grid rows): the game's centre piece big at the top centre
+(Blackjack's dealer with the word Dealer centred over its first two cards, Poker's pot over the
+board), `TableRibbon` across the middle (a low-contrast banner with folded ends carrying the
+table's rule in plain words, the round or hand beside a smaller rule or the street under it,
+"Round 1 · Dealer stands on 17", "Hand 1 · Flop", and a `note`, the `TurnLine`: the one line on
+the table that says what is happening, whose turn it is or where I stand, a quieter second part
+and, in Poker, the turn clock; read out as it changes), the other players as compact seats, and a
+`TableStage` at the bottom with the hand that matters to me, big and centred, nothing in columns
+beside it. The first row sits at the top edge and the stage at the bottom; the seats ask for no
+more height than their tiles need at their natural size (`naturalHeight` in `grid.ts`), and what
+is left is shared evenly between the rows, so the ribbon and the seats keep one rhythm. The first
+row and the stage have a fixed height (`--tbl-head-h`, `--tbl-stage-h`) and their cards a fixed
+size that the game works out from the room its table has (`cq` units of the `tbl` container on
+`.tbl__table`, registered with `@property` as lengths so they are worked out once on the table),
+never from the phase or the number of players. My own hand is on the stage whenever I am dealt
+in, in every phase and on every turn, my stake by its total ("Bet 10"); the player on turn plays in
+their own seat (lit, and nowhere else). Not dealt in (watching, sitting out, out of chips), the
+stage shows the hand in play with its owner's name by its total, and that seat leaves its cards to
+the stage (`stageOwner` in each game's `lib/focus.ts`). [`lib/hands.ts`](../client/src/games/blackjack/lib/hands.ts)
+decides when Blackjack's split hands fold into chips, the hand in play staying full size, every
+full hand at least as wide as the words over its corner (measured as the row lays out), and,
+never narrower than a two-digit total, past what fits into one "+N" that opens the seat's sheet
+with every hand. Poker's stage holds my two cards whenever I hold some (the hand in play when I am
+not dealt in), with what they make in the pill and, left of it, the dealer button, my bet and where
+I stand ("All in", "Folded"), or how the hand ended ("Win +300"). The shared pieces: `HandFan` / `OutcomeFlag` (a hand as a stepped fan, each card a
 little right of and below the one before, the total in a pill over its top right corner; one
 height however many cards; an outcome outlines every card and colours the pill, its word beside the
-pill), `StackCount` / `StakePill` in `Stakes.tsx` with `stakes.ts` (a stack always reads "1,000
+pill; `flag` carries whatever sits left of the pill: the outcome, the stake, the owner's name),
+`StackCount` / `StakePill` in `Stakes.tsx` with `stakes.ts` (a stack always reads "1,000
 chips", a stake always its own labelled pill, "Bet 10" or "Pot 120", so the two are never
-confused), `Deck` (with `corner`: tucked into the table's top right corner, peeking down from its
-top edge, the count said rather than shown) and `DiscardCorner` (the anchor cards fly to, just past
+confused), `Deck` (with `corner`: wholly on the felt in its top right corner, inside the felt's
+padding, the count said rather than shown) and `DiscardCorner` (the anchor cards fly to, just past
 the top left corner), `TurnLine`, `TableStage`, `PlayersGrid` / `PlayerTile` / `SeatSheet` (every other player as a tile in seat order
-in a grid that fits its space: [`grid.ts`](../client/src/platform/table/grid.ts) steps the tiles
-down from full to compact, small and dense as the table grows and fits the columns to the room
-left, never narrower than the tier's `minWidth` so names and totals stay whole (a short tile drops
-its second line instead; a narrow small tile wears its total as a badge on its corner), a desktop
-sets them on a gentle arc that flattens as the tiles get smaller; a tile shows the stack and the
+in a grid that fits its space: [`grid.ts`](../client/src/platform/table/grid.ts) picks the tier
+(full, compact, small, dense) from the room the table leaves the seats, the richest whose fewest
+rows keep the tile's least height (`tierFor`: a desktop keeps the cards in miniature in the seats
+for seven others across, a phone steps down to compact for four), fits the columns to the room
+left, never narrower than the tier's `minWidth` so names and totals stay whole (a narrow full tile
+gives its name, stack, bet and cards a row each; a narrow small tile wears its total as a badge on
+its corner), keeps a full tile to its top rows before the deal (`bare`), and a desktop sets them on
+a gentle arc that flattens as the tiles get smaller and a size up on a big screen
+(`--tbl-tile-font`); a tile shows the stack and the
 stake with `StackCount` and `StakePill` wherever it has the room, and with `shortBadge` its total
 stands in for the stack only where the tile is too short for the words (Poker's); the seat on turn gets the lime ring (and the Playing tag where it fits),
 a settled seat its outcome's colour, and tapping a tile opens its hand in a sheet),
-`PanelShell` / `PanelLabelRow` / `AmountField` / `PanelMoves` / `MoveButton` / `StatusAction` (the control panel:
-the status line with an optional small control at its end, `action` and `actionSlot`, where
-Blackjack puts Sit out, Deal now and Skip, at the top or, `statusAt: 'bottom'`, as a quiet line
-under the controls; the amount with the stack beside its label and its quick amounts joined to it,
-the moves always in place (`PanelMoves` with their `count`: two to a row, three in one row, every
+`PanelShell` / `PanelLabelRow` / `AmountField` / `PanelMoves` / `MoveButton` / `TableButton` (the control panel:
+no status line and no shortcut hint, whose turn it is lives on the table; the amount with the
+stack beside its label (`anchor` marks the stack as where Poker's chips fly from and back to) and
+its quick amounts ("½", "2x", "Max"; "½ pot", "Pot", "Max") in a segmented row under the field on
+a desktop, joined to its right on a phone, the figure never cut (seven digits fit at 320px); the
+moves always in place (`PanelMoves` with their `count`: two to a row, three in one row, every
 one in a single row on a phone; then one big primary button, Blackjack's Bet and Poker's Check or
 Call), each with a small `icon` after its label, dimmed when not on offer and
-`primary` on the one the game suggests), `TotalPill` / `PayoutFloat` / `outlineClass` (the outcome colours),
+`primary` on the one the game suggests; then `actions`, the table's own full-width secondary
+buttons (`TableButton`: Blackjack's Sit out, Deal now and Skip) in a row that keeps its place, Sit
+out dimmed when none is on offer; on the shortest phones that row shares the main button's row),
+`TotalPill` / `PayoutFloat` / `outlineClass` (the outcome colours),
 `TableCard` (a card that slides in from the deck, turns over and leaves for the discards),
 `ChipFlights` (chips sliding between `data-table-anchor` places) and `useHotkeys` in
 [`lib/hotkeys.ts`](../client/src/platform/lib/hotkeys.ts) (desktop shortcuts that never fire while
@@ -334,6 +370,8 @@ export interface GameMeta {
   accent: string;
   /** Whether the game reads `settings.contentMode`; the lobby only offers Family / Unhinged for these. */
   contentModes: boolean;
+  /** What a score counts: 'points' (when absent) or 'chips' for a card table, whose score is the stack. The results and the player list say it. */
+  scoreUnit?: 'points' | 'chips';
   /** 'hidden' games are never offered in the lobby picker but a party can start on one through '/?game=slug' (development, tests). */
   status: GameStatus;
 }
@@ -984,8 +1022,8 @@ only), `start-game`, `start-hint`, `waiting-for-host`, `sitout-toggle`, `edit-pr
 `data-score`), `results-headline`, `results-place`, `results-reason`, `results-done`,
 `results-close`, `end-game`, `end-game-confirm`, `end-game-yes`, `end-game-requested`,
 `game-leave-confirm`, `game-leave-yes`, `menu-sheet`,
-`toast`, `connection-status` (with `data-status`; only rendered while the socket is not
-connected), `settings-menu`, `site-header`, `brand-link`, `wordmark`.
+`toast`, `connection-notice` (with `data-status`; only rendered once the link has been gone
+about 2 s), `settings-menu`, `site-header`, `brand-link`, `wordmark`.
 
 ### Step 6: ship it
 
@@ -1858,7 +1896,7 @@ operating system preference is not consulted).
 
 | Group | Tokens |
 | --- | --- |
-| Type | `--font-sans` (Inter, body), `--font-display` (Space Grotesk 700, headings), `--font-mono` (IBM Plex Mono, room codes and values); self-hosted latin subsets in `client/public/fonts/` (`fonts.css`) |
+| Type | `--font-sans` (Inter, body), `--font-display` (Space Grotesk 700, headings), `--font-mono` (IBM Plex Mono, only where a monospace is truly needed: the room code, in the code boxes and the front door's code chip, so 2/Z and 5/S never blur); self-hosted latin subsets in `client/public/fonts/` (`fonts.css`). Labels are normal words in the main fonts (no tracked uppercase, no monospace as decoration); numbers keep tabular figures; copy uses the curly apostrophe (’) |
 | Spacing | `--space-1` 4px, `--space-2` 8px, `--space-3` 12px, `--space-4` 16px, `--space-5` 24px, `--space-6` 32px, `--space-7` 48px, `--space-8` 64px, `--gutter` 16px |
 | Radii | `--radius-sm` 8px (inputs, buttons), `--radius-item` 10px (choice cards, code boxes, toasts), `--radius-md` 14px (panels), `--radius-lg` 20px (sheets, modals), `--radius-pill` |
 | Shadows | `--shadow-sm` and `--shadow-md` are `none` (flat surfaces sit on their border); `--shadow-lg` is a soft drop for floating layers only (sheets, toasts) |
@@ -1868,12 +1906,14 @@ operating system preference is not consulted).
 | Brand | `--color-primary` (lime #C7E976, a FILL that always carries `--color-primary-contrast` ink text), `--color-primary-hover`, `--color-primary-soft`, `--color-primary-text` (lime as text/border/stroke on dark, a dark olive on white); `--color-secondary*` (lilac #A699D5) with the same five |
 | Status | `--color-success`, `-soft`, `-text`; `--color-warning*`; `--color-danger*`; `--color-info-soft`; `--color-focus` (flat, restrained, AA on the panels) |
 | Chat | `--chat-correct-bg/fg`, `--chat-close-bg/fg`, `--chat-guessed-bg/fg` |
-| Misc | `--canvas-bg`, `--overlay-bg`, `--mobile-breakpoint` (760px, informational: media queries need the literal) |
+| Misc | `--canvas-bg`, `--overlay-bg`, `--notice-*` (the connection notice, the page's colours inverted), `--color-primary-edge` (the edge of a lime fill: lime itself on dark, a deeper lime on light, where a lime button has no edge against the off-white page), `--color-primary-mark` (the lime as a mark on the page, the wordmark's "games": lime itself on dark, cut to 3:1 on light), `--btn-disabled-bg/border/fg` (a disabled button: a quiet fill, muted text and, on light, a border), `--avatar-wash` (laid over a player's colour under the face: nothing on dark, a little white on light), `--mobile-breakpoint` (760px, informational: media queries need the literal) |
+| Light | The same tokens under `:root[data-theme='light']`: an off-white page (#F5F6EF), white panels, raised surfaces (`--color-surface-2`) in a pale lime (#EAF0D9, never a grey-green), wells a shade under white, every brand colour that carries text a darker cut (`--color-primary-text` #3D6B0F) at AA on white, on the pale lime and on the felt; the overlay behind a card is ink at three fifths. A card table's felt (`.tbl-felt` in `table.css`) reads the surface tokens the other way round on light: the felt is a pale green and seats, ribbon and wells go white, so cards never sit white on white |
 
 The one rule that keeps both themes legible: `--color-primary` / `--color-secondary` are fills
 (with their `-contrast` text); for coloured text, borders, rings and strokes use
 `--color-primary-text` / `--color-secondary-text`. Lime on a white panel is invisible, so the
-light theme swaps the `-text` variants for darker cuts while the fills stay lime and lilac.
+light theme swaps the `-text` variants for darker cuts while the fills stay lime and lilac. Both
+themes are checked side by side at every size: anything you colour must read in each.
 
 ### 8.2 Classes ([`components.css`](../client/src/platform/styles/components.css))
 
@@ -1887,7 +1927,8 @@ light theme swaps the `-text` variants for darker cuts while the fills stay lime
 | Player list | `.player-list`, `.player`, `.player--me`, `.player--offline`, `.player--guessed`, `.player__avatar`, `.player__badge`, `.player__badge--drawer`, `.player__badge--guessed`, `.player__rank`, `.player__name`, `.player__meta`, `.player__score`, `.player__turn-points` |
 | Timer | `.timer`, `.timer--lg`, `.timer--md`, `.timer--urgent` (the last 5 seconds), `.timer--long` (m:ss), `.timer__track`, `.timer__arc` |
 | Sheets and toasts | `.sheet*`, `.menu-sheet*` (a phone options sheet: `.menu-sheet__row`, `.menu-sheet__label`, `.menu-sheet__leave`), `.toasts`, `.toast` with `.toast--success/warning/error` (an `info` toast uses the base style) |
-| Header | `.site-header`, `.site-header__actions`, `.brand` (the wordmark link), `.wordmark` (24px tall on phones, 30px on desktop, via `--wordmark-height`), `.wordmark__accent`, `.conn-pill` (only while the socket is down), `.settings-menu`, `.pref-row` |
+| Header | `.site-header`, `.brand` (the wordmark link), `.wordmark` (24px tall on phones, 30px on desktop, via `--wordmark-height`), `.wordmark__accent`, `.settings-menu`, `.settings-menu__action` (full-width outlined buttons under the preferences; `--danger` for End game), `.pref-row` |
+| Connection | `.conn-notice`, `.conn-notice__card` (the inverted `--notice-bg` / `--notice-fg` card), `.conn-notice__title`, `.conn-notice__detail` |
 | Misc | `.avatar--sm/md/lg/xl`, `.face-img`, `.swatch`, `.emoji-choice`, `.code-input`, `.range`, `.toggle`, `.setting*`, `.podium*` (the results' top three), `.results*`, `.exit-action*`, `.exit-confirm*`, `.btn--danger-solid`, `.hide-mobile`, `.sr-only` |
 
 The game top bar (`.gbar*`) is the platform's `gamebar.css` and the round results (`.result-*`)
@@ -1895,41 +1936,41 @@ its `results.css`. The type-into-the-blanks guess bar (`.guess-*`, `.gtile*`) is
 by `GuessTiles`; playing cards, chip counts and the chip setting (`.playing-card*`, `.chip-count*`,
 `.chips-setting*`) are `cards.css`; the card-table kit (`.tbl*`) is `table.css`; the canvas and its toolbar (`.canvas-*`, `.toolbar*`) are the platform canvas's
 `canvas.css`. Game-specific classes live in the game's stylesheet; Scribble's `scribble.css` owns
-`.word*`, `.tile*`, `.rating*`, `.overlay` (its in-canvas overlay position), and the whole `.game`
+`.word*`, `.tile*`, `.overlay` (its in-canvas overlay position), and the whole `.game`
 layout, which is a good reference for a non-scrolling phone game.
 
 ### 8.3 Components and their props
 
 | Component | Props | Notes |
 | --- | --- | --- |
-| [`SiteHeader`](../client/src/platform/components/SiteHeader.tsx) | `menuActions?: MenuAction[]`, `hero?` | The logo (centred at the top of the room on a phone, the connection pill out of the flow so it never pushes it aside; the two phones as its icon, then the wordmark, whose "o" in ".io" is the settings gear) links to `/` (inside a room that leaves the room: any navigation away from `/:slug/:CODE` does); the connection pill while the socket is down (nothing while connected); the gear "o" is the settings button, whose popover lists `menuActions` under the preferences (the lobby's Copy invite link and Leave room); `hero` is the front door's logo, filling the column's width (from 1024px it grows past the column to two fifths of the screen, at most 600px, centred over it) |
-| [`Wordmark`](../client/src/platform/components/Wordmark.tsx) | `className?` | The outlined boredgames.io logo (Poppins Black + Regular paths) inline, accessible name "boredgames.io", "games" in `--color-primary-text` |
+| [`SiteHeader`](../client/src/platform/components/SiteHeader.tsx) | `menuActions?: MenuAction[]`, `hero?` | The logo (in the room, on one row with the room code card, wrapped with it in `.lobby__top`; centred above the card on a phone; the two phones as its icon, then the wordmark, whose "o" in ".io" is the settings gear) links to `/` (inside a room that leaves the room: any navigation away from `/:slug/:CODE` does); nothing else sits beside it (the connection has its own notice); the gear "o" is the settings button, whose popover lists `menuActions` under the preferences (the lobby's Copy invite link and Leave room); `hero` is the front door's logo, filling the column's width (from 1024px it grows past the column to two fifths of the screen, at most 600px, centred over it) |
+| [`Wordmark`](../client/src/platform/components/Wordmark.tsx) | `className?` | The outlined boredgames.io logo (Poppins Black + Regular paths) inline, accessible name "boredgames.io", "games" in `--color-primary-mark` |
 | [`PhoneBored`](../client/src/platform/components/Mascots.tsx) / `PhoneHappy` | `className?` | The two phone characters from `branding/mascots/boredgames-mascots.svg`, each cropped to itself, decorative (`aria-hidden`); the logo draws `BoredArt` and `HappyArt` together; celebrations only |
 | [`GameGlyph`](../client/src/platform/components/GameGlyph.tsx) | `game: GameMeta`, icon props | The game's 24px line glyph (the lobby tiles draw it at 32px) |
-| [`GameTopBar`](../client/src/platform/components/GameTopBar.tsx) | `meta`, `room`, `isPhone`, `testId`, `className?`, `status`, `statusTestId?` ('round-indicator'), `statusData?`, `clock?`, `players: { label?, open, onOpen }`, `menu: { open, onOpen }`, `middle?`, `below?`, `compact?` | Every game's top bar as on the brand board (`gamebar.css`, `.gbar*`): a back arrow (`game-back`, it asks before leaving: `leave-sheet`, `game-leave-confirm`, `game-leave-yes`), the game's name large and the status on the right ("Round 2/3"), then the options button (a phone) or the connection pill, the host's End game (`end-game`, outlined in the danger colour; it asks first in `end-sheet`, with your `endGameNote`; "Ending soon" once asked for a later end) and the gear, whose menu also holds End game and Leave room (a desktop). Below, the player chips (`PlayerChips`: avatar, name, a status badge from your `playerStatus`; the row is the `players-toggle` button and never scrolls, a "+K" chip takes what does not fit) and the timer ring at the end. Wrap the less important half of the status in `<span className="gbar__more">` and it shows on wider screens only; on a phone the status stays on one line beside the whole name, and the part wrapped in `Wide` (`RoundStatus` renders "Round 1/5" that way) gives way on the narrowest ("1/5"). `TableShell` renders it for the card tables. `compact` packs it into one row (a phone's card table, The Spy Game on a phone): the chips give way to a players button with the count, and a `clock` sits small in the row, the game's name giving way to it on a phone |
+| [`GameTopBar`](../client/src/platform/components/GameTopBar.tsx) | `meta`, `room`, `isPhone`, `testId`, `className?`, `status?` (none for a card table, whose round is on its ribbon), `statusTestId?` ('round-indicator'), `statusData?`, `clock?`, `players: { label?, open, onOpen }`, `menu: { open, onOpen }`, `middle?`, `below?`, `compact?` | Every game's top bar as on the brand board (`gamebar.css`, `.gbar*`): a back arrow (`game-back`, it asks before leaving: `leave-sheet`, `game-leave-confirm`, `game-leave-yes`), the game's name large and the status ("Round 2/3": on the right on a desktop, in small type under the name on a phone, so the name, the round and the buttons each keep their own space), then the options button (a phone) or the host's End game (`end-game`, a tinted button with a danger border and the power icon that fills solid under the pointer; it asks first in `end-sheet`, with your `endGameNote`; "Ending soon" once asked for a later end) and the gear, whose menu also holds End game and Leave room as full-width buttons (a desktop). Below, the player chips (`PlayerChips`: avatar, name, a status badge from your `playerStatus`; the row is the `players-toggle` button and never scrolls, a "+K" chip takes what does not fit) and the timer ring at the end. Keep the status short (`RoundStatus` renders "Round 1/5"); it stays on one line. `TableShell` renders it for the card tables, `compact` at every size. `compact` packs it into one row (a card table, The Spy Game on a phone): the chips give way to a players button (`players-toggle`: the people icon and the count in a pill, a 44px target), and a `clock` sits small in the row; the name stays whole at every phone width |
 | `GameMenuSheet` | `open`, `onClose()`, `children?` | The phone options sheet behind the bar's menu button (`menu-sheet`): theme and sound, your rows, then the ways out as tall rows (`ExitActions` in `GameExit.tsx`): End game for the host in the danger colour ("Ends it for everyone"), Leave room ("Only you leave"); each opens its confirm step in the sheet ("End the game for everyone?" with what it does; "Leave the room?" with whether the game goes on) |
-| [`ResultPoints`](../client/src/platform/components/RoundResult.tsx) / `ResultNext` / `earnersOf` | `rows`, `label`, `rowTestId?`, `empty` / `noun`, `endsAt`, `paused`, `settling`, `testId` / `players`, `points` | A round or turn result (`results.css`): put them in an `.overlay__card.result-card` after a `.result-kicker` (how it ended, on the game's accent) and a `.result-reveal` (the word, the spy); the points list shows avatar, name, role tag and `+points`; the footer counts down to the next turn, paused or "starting" when the time is up |
+| [`ResultPoints`](../client/src/platform/components/RoundResult.tsx) / `ResultNext` / `earnersOf` | `rows`, `label`, `rowTestId?`, `empty` / `noun`, `paused`, `settling`, `testId` / `players`, `points` | A round or turn result (`results.css`): put them in an `.overlay__card.result-card` after a `.result-kicker` (how it ended, on the game's accent) and a `.result-reveal` (the word, the spy); the points list shows avatar, name, role tag and `+points`; the footer says what comes next ("Next turn soon", paused, or "starting" when the time is up) with no timer of its own: **one countdown per screen**, the top bar's ring (The Spy Game's ring counts the vote and the time to the next round while its round clock waits) |
 | [`SettingsMenu`](../client/src/platform/components/Preferences.tsx) / `PreferenceRows` | `actions?: MenuAction[]` / none | The gear and its popover (theme, sound effects, then the actions: `{ label, icon, onSelect, testId }`); the rows alone go in a phone options sheet |
 | [`ReadyControls`](../client/src/platform/components/ReadyControls.tsx) | `me`, `extra?` | Not ready: a big "I'm ready" over a row of equal secondary buttons, "Sit this one out" first and `extra` after it (the room's "Change my look", which opens the profile editor in a sheet); ready: "You're ready" (tap to undo) over the same row; sitting out: "Count me in" (back in and ready in one tap) and the hint, `extra` still in the row; the host: only the row (Start says they are in) |
 | [`Avatar`](../client/src/platform/components/Avatar.tsx) | `avatar`, `size?: 'sm' \| 'md' \| 'lg' \| 'xl'`, `dimmed?`, `className?`, `label?` | The player's colour with their face, a bundled Fluent Emoji picture (lazy-loaded; the emoji itself if it fails to load) sized by the circle's font size, so a rule like `.my-seat .avatar { width: 30px; height: 30px; font-size: 17px; }` resizes both. Silent (`aria-hidden`) by default, since the name sits beside it; pass `label` where nothing else names it. Dim disconnected players. `FaceImage` draws a face alone |
-| [`AvatarPicker`](../client/src/platform/components/AvatarPicker.tsx) | `value`, `onChange(next)`, `compact?` | Used by the front door's "Who's playing?" step and the lobby: the 50 faces in 5 or 10 equal columns and the 12 colours in 4, 6 or 12, by the width it has (container queries) |
+| [`AvatarPicker`](../client/src/platform/components/AvatarPicker.tsx) | `value`, `onChange(next)`, `compact?` | Used by the front door's "Who's playing?" step and the lobby: the 50 faces in 5 or 10 equal columns and the 12 colours 6 by 2 (4 by 3 under 284px), by the width it has (container queries); every choice fills its column, 44px tall, 4px apart, so the grids span the full width in even rows |
 | [`CodeInput`](../client/src/platform/components/CodeInput.tsx) | `value`, `onChange(code)`, `onSubmit()`, `onInvalidChar()`, `disabled?`, `invalid?`, `autoFocus?`, `labelledBy?`, `describedBy?`, `ref?: Ref<CodeInputHandle>` | The 4-box code field (A/B/C/D placeholders, uppercase, auto-advance, Backspace, arrows, paste of a code or an invite link, Enter submits, never auto-submits); `ref.focus(i)` moves to a box |
-| [`PlayerList`](../client/src/platform/components/PlayerList.tsx) | `room`, `meId: string \| null`, `isHost`, `mode: 'lobby' \| 'game'`, `game: AnyGameClientModule \| null` | Game mode ranks by score and shows kick / vote-kick; pass `useActiveGame()` as `game` to get your badges |
+| [`PlayerList`](../client/src/platform/components/PlayerList.tsx) | `room`, `meId: string \| null`, `isHost`, `mode: 'lobby' \| 'game'`, `game: AnyGameClientModule \| null` | Game mode ranks by score and shows kick / vote-kick; pass `useActiveGame()` as `game` to get your badges. The kick button is each row's last item, after the status (the lobby's Ready, Not ready, Reconnecting...), in a column that lines up down the list: your own row keeps it empty while anyone else is listed. In the lobby it always shows as a 44px target; in a game's narrow list it is 32px (44px on touch screens) and shows on hover. The score and this turn's points are never cut: the points take a second line when the column is narrow. One badge a player at most: in a game that is your `playerBadge` on the avatar (the host gets a small crown by the name, `host-crown`), in the lobby the Host tag; your own row says "you" as a plain word |
 | [`SettingsPanel`](../client/src/platform/components/SettingsPanel.tsx) | `room`, `game` | Platform rows then your `SettingsFields`; the lobby renders it for the host only |
-| [`SettingRow`](../client/src/platform/components/SettingControls.tsx) | `label`, `testId`, `hint?`, `control?` | A setting's title, its control, then the hint; no value beside the title (the chosen option is the readout). `.settings` spaces settings 24px apart, `.setting` puts 12px between a title and its options. Test id `settings-row-<id>` |
+| [`SettingRow`](../client/src/platform/components/SettingControls.tsx) | `label`, `testId`, `hint?`, `control?` | A setting's title, its control, then the hint; no value beside the title (the chosen option is the readout). `.setting` puts 10px between a title and its control and the hint 4px under the control, so it reads as part of that setting; `.settings` spaces settings 32px apart. Test id `settings-row-<id>` |
 | `RangeControl` | `id`, `value`, `min`, `max`, `step?`, `onCommit(v)`, `label`, `revision`, `format?(v)` | Debounced 150 ms; its value reads beside it and follows the thumb (`format`, the number by default). Keep `format` short: the value box is as wide as the longest value any slider in the panel can show (`ReadoutWidthScope` in the settings panel), so the tracks line up and never change length; test ids `settings-<id>`, `settings-value-<id>` |
 | `RangeSetting` | `RangeControl` props + `hint?`, `rowLabel?` | A setting with the slider and its value |
 | `ToggleSetting` | `id`, `checked`, `onChange(checked)`, `label`, `disabled?`, `hint?` | Test ids `settings-row-<id>`, `settings-<id>` |
-| `WordListSetting` | `id`, `label`, `words`, `parse(text)`, `split(text)`, `onCommit(words)`, `placeholder?`, `maxLength?`, `noun?`, `autoCapitalize?` | A custom list (Scribble's words, Quip Game's prompts): a debounced textarea, the count under it and an "Upload a .txt file" button. The file is read in the browser (plain text up to 100 KB, [`lib/wordFile.ts`](../client/src/platform/lib/wordFile.ts)), split by the same `parse` and added after what is typed without duplicates; a short line says how many were added and what was left out (repeats, too long, over the limit). `split` is how `parse` cuts text into entries before its rules (`splitWordList` in `shared/platform/words.ts`, or the game's own), so the line can count every entry. Test ids `settings-row-<id>`, `settings-<id>`, `settings-<id>-count`, `settings-<id>-upload`, `settings-<id>-file`, `settings-<id>-upload-status` |
+| `WordListSetting` | `id`, `label`, `words`, `parse(text)`, `split(text)`, `onCommit(words)`, `placeholder?`, `maxLength?`, `noun?`, `autoCapitalize?` | A custom list (Scribble's words, Quip Game's prompts): a debounced textarea, the count and an "Upload a .txt file" button right under it. The file is read in the browser (plain text up to 100 KB, [`lib/wordFile.ts`](../client/src/platform/lib/wordFile.ts)), split by the same `parse` and added after what is typed without duplicates; a short line says how many were added and what was left out (repeats, too long, over the limit). `split` is how `parse` cuts text into entries before its rules (`splitWordList` in `shared/platform/words.ts`, or the game's own), so the line can count every entry. Test ids `settings-row-<id>`, `settings-<id>`, `settings-<id>-count`, `settings-<id>-upload`, `settings-<id>-file`, `settings-<id>-upload-status` |
 | [`PlayingCard`](../client/src/platform/components/PlayingCard.tsx) | `card: Card \| null`, `size?: 'sm' \| 'md' \| 'lg' \| 'xl'`, `testId?` ('card'), `slot?`, `highlight?`, `className?` | A white CSS card in both themes; a face-down card's markup carries no rank or suit (`data-face`, `data-rank`, `data-suit` on face-up cards); `cardName(card)` is its accessible name. Blackjack and Poker |
 | [`Chips`](../client/src/platform/components/Chips.tsx) | `value`, `size?`, `className?`, `testId?` | A chip count with the coin (`data-chips`); `ChipIcon` alone for inputs |
 | [`ChipsSetting`](../client/src/platform/components/ChipsSetting.tsx) | `id`, `label`, `value`, `min`, `max`, `presets`, `onCommit(v)`, `hint?` | A chip amount setting: one row of preset buttons and a numeric field (which holds the value) committed on blur or Enter, clamped; test ids `settings-<id>`, `settings-<id>-<preset>` |
 | [`GuessTiles`](../client/src/platform/components/GuessTiles.tsx) | `mask`, `draft`, `onDraftChange(draft)`, `onSubmit(text): boolean`, `canSend` | Type into the blanks of a masked word (layout in [`lib/wordMask.ts`](../client/src/platform/lib/wordMask.ts)); Scribble's guess bar; test ids `guess-input`, `guess-send` |
-| [`Timer`](../client/src/platform/components/Timer.tsx) | `endsAt: number \| null \| undefined`, `warnUnder?` (10), `tickUnder?`, `size?: 'md' \| 'lg'`, `paused?`, `settling?` | Server-clock countdown in a ring whose lime arc empties toward the deadline (the length is the time left when this client first saw the deadline; reduced motion steps it once a second); plain seconds up to 99, m:ss beyond; the danger colour in the last 5 seconds (never with `warnUnder` 0); `tickUnder` plays a tick cue for the final seconds |
-| [`BottomSheet`](../client/src/platform/components/BottomSheet.tsx) | `open`, `title`, `onClose()`, `children`, `testId`, `className?` | Phone sheet with focus trap and Escape; `${testId}-close`, `${testId}-backdrop` |
-| [`ResultsPopup`](../client/src/platform/components/ResultsPopup.tsx) | `results`, `meId`, `onClose()` | Rendered by the shell over the lobby once a game ended (the store's `results`); you never render it. The small happy phone (96px at most), "Scribble · Game over", "Alice wins!" and the points, where you came, why it ended early (`results-reason`), the top three on small lime / lilac / graphite blocks (`results-step`), every player in order (`results-entry` with `data-rank`) and a brief confetti; a game cut short by too few players crowns nobody. Back to the room, the X, Escape or (a desktop) a tap beside it closes it for good |
-| [`Toasts`](../client/src/platform/components/Toasts.tsx), [`ConnectionPill`](../client/src/platform/components/ConnectionPill.tsx) | none | Toasts is rendered once by the shell; add toasts with `usePlatformStore.getState().addToast(kind, text)` (errors stay until dismissed); the pill renders nothing while connected |
-| [`Icons`](../client/src/platform/components/Icons.tsx) | `Icon({ paths, size?, ...svg })` (1.8px round stroke) plus `DiceIcon`, `CrownIcon`, `CheckIcon`, `CopyIcon`, `ShareIcon`, `ChatIcon`, `GearIcon`, `AlertIcon`, `LinkIcon`, `CloseIcon`, `UsersIcon`, `ChevronIcon`, `LogoutIcon`, `PlayIcon`, `KickIcon`, `SparkIcon`, `EditIcon`, `SendIcon`, `UploadIcon`, `MoreIcon`, `MoonIcon`, `BackIcon` | Build game icons from the `Icon` primitive (24×24 stroke paths), as Scribble's [`Icons.tsx`](../client/src/games/scribble/components/Icons.tsx) does |
+| [`Timer`](../client/src/platform/components/Timer.tsx) | `endsAt: number \| null \| undefined`, `warnUnder?` (10), `tickUnder?`, `size?: 'md' \| 'lg'`, `paused?`, `settling?`, `label?` (a small word under the ring: what it counts when that is not the usual clock), `data?` (extra data attributes) | Server-clock countdown in a ring whose lime arc empties toward the deadline (the length is the time left when this client first saw the deadline; reduced motion steps it once a second); plain seconds up to 99, m:ss beyond; the danger colour in the last 5 seconds (never with `warnUnder` 0); `tickUnder` plays a tick cue for the final seconds |
+| [`BottomSheet`](../client/src/platform/components/BottomSheet.tsx) | `open`, `title`, `onClose()`, `children`, `testId`, `className?` | Phone sheet with focus trap and Escape; `${testId}-close`, `${testId}-backdrop`. `className="sheet--dialog"` makes it a centred box over the dimmed page from 1024px (the lobby's Change my look); Escape and a click on the page around it still close it |
+| [`ResultsPopup`](../client/src/platform/components/ResultsPopup.tsx) | `results`, `meId`, `onClose()` | Rendered by the shell over the lobby once a game ended (the store's `results`); you never render it. The small happy phone (96px at most), "Scribble · Game over", "Alice wins!" and the score in the game's `scoreUnit` (points, or a card table's chips), where you came, why it ended early (`results-reason`), the top three on small lime / lilac / graphite blocks (`results-step`), every player in order (`results-entry` with `data-rank`) and a brief confetti; a game cut short by too few players crowns nobody. Back to the room, the X, Escape or (a desktop) a tap beside it closes it for good |
+| [`Toasts`](../client/src/platform/components/Toasts.tsx), [`ConnectionNotice`](../client/src/platform/components/ConnectionNotice.tsx) | none | Both are rendered once by the shell; add toasts with `usePlatformStore.getState().addToast(kind, text)` (errors stay until dismissed), never for the connection: the notice says that (`noticeFor` in `lib/connectionNotice.ts` words it, with room for a second line) |
+| [`Icons`](../client/src/platform/components/Icons.tsx) | `Icon({ paths, size?, ...svg })` (1.8px round stroke) plus `DiceIcon`, `CrownIcon`, `CheckIcon`, `CopyIcon`, `ShareIcon`, `ChatIcon`, `GearIcon`, `AlertIcon`, `LinkIcon`, `CloseIcon`, `UsersIcon`, `ChevronIcon`, `LogoutIcon`, `PlayIcon`, `KickIcon`, `SparkIcon`, `EditIcon`, `SendIcon`, `UploadIcon`, `MoreIcon`, `MoonIcon`, `BackIcon` | Build game icons from the `Icon` primitive (24×24 stroke paths), as The Spy Game's [`Icons.tsx`](../client/src/games/spygame/components/Icons.tsx) does |
 
 ### 8.4 Mobile layout rules
 

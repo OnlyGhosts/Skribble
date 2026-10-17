@@ -27,6 +27,12 @@ export async function expectReadyCount(hostPage: Page, count: number): Promise<v
 
 export const ROOM_CODE_RE = /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{4}$/;
 
+/** The browser tab inside a room: the site, a door and the code in Mathematical Sans-Serif Bold ("boredgames.io 🚪 𝗔𝗕𝟮𝟯"). */
+export function roomTabTitle(code: string): string {
+  const bold = [...code].map((ch) => String.fromCodePoint(/\d/.test(ch) ? 0x1d7ec + Number(ch) : 0x1d5d4 + ch.charCodeAt(0) - 65)).join('');
+  return `boredgames.io \u{1F6AA} ${bold}`;
+}
+
 /** The code shown in the lobby. */
 export async function readRoomCode(page: Page): Promise<string> {
   const code = ((await page.getByTestId('room-code').textContent()) ?? '').replace(/\s+/g, '');
@@ -120,8 +126,9 @@ export async function closeResults(page: Page): Promise<void> {
 }
 
 /**
- * The game's name in the top bar is never cut short on a phone (390, 360 and 320 wide): the
- * status takes its short form instead ("1/5", "Placing"). Back to the page's own size after.
+ * The game's name in the top bar is shown and never cut short on a phone (390, 360 and 320
+ * wide), the round sits on one line under it, and neither runs into the buttons (the players
+ * button, the clock, the menu). Back to the page's own size after.
  */
 export async function gameNameWhole(page: Page): Promise<void> {
   const own = page.viewportSize();
@@ -131,13 +138,17 @@ export async function gameNameWhole(page: Page): Promise<void> {
       page.evaluate(() => {
         const name = document.querySelector('.gbar__name');
         const status = document.querySelector('.gbar__status');
+        const title = document.querySelector('.gbar__title')?.getBoundingClientRect();
+        const side = document.querySelector('.gbar__side')?.getBoundingClientRect();
         return {
-          name: name ? name.scrollWidth > name.clientWidth : true,
-          // One line: no taller than the status's own line height allows.
-          status: status ? status.getBoundingClientRect().height > parseFloat(getComputedStyle(status).lineHeight) * 1.5 : true,
+          // The text's own laid-out width (an ellipsis can hide a fraction of a pixel that scrollWidth rounds away).
+          name: name ? name.clientWidth === 0 || (() => { const r = document.createRange(); r.selectNodeContents(name); return r.getBoundingClientRect().width > name.getBoundingClientRect().width + 0.25; })() : true,
+          overlap: title && side ? title.right > side.left + 0.5 : true,
+          // One line: no taller than the status's own line height allows, and nothing of it hidden ("Round 1/5 · Turn 2/3" whole).
+          status: status ? status.getBoundingClientRect().height > parseFloat(getComputedStyle(status).lineHeight) * 1.5 || status.scrollWidth > status.clientWidth : true,
         };
       });
-    await expect.poll(cut, { message: `the game's name and status fit at ${size.width}px` }).toEqual({ name: false, status: false });
+    await expect.poll(cut, { message: `the game’s name and status fit at ${size.width}px` }).toEqual({ name: false, overlap: false, status: false });
   }
   if (own) await page.setViewportSize(own);
 }

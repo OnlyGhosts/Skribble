@@ -8,56 +8,97 @@ import { CardsIcon, OutIcon, StarIcon } from './Icons';
 import { TotalPill, type Tone } from './Outcome';
 import { StackCount } from './Stakes';
 import type { StakeFormat } from './stakes';
-import { TIER_SHAPES, WIDE_TIER_SHAPES, arcLift, fitGrid, tileTier, type TileTier } from './grid';
+import { ARC_LIFT, GRID_GAP, arcLift, fitGrid, fitsRoom, naturalHeight, shapeOf, tierFor, tileHeight, type Room, type TileTier } from './grid';
 
 interface GridProps {
-  /** How many tiles there are (the tier and the columns go by it). */
+  /** How many tiles there are (the columns go by it, and the tier by the room they have). */
   count: number;
   label: string;
   /** Desktop: wider tiles, set along a gentle arc. */
   wide?: boolean;
-  children: ReactNode;
+  /** No seat has cards yet (before the deal): a full tile keeps to its top rows. */
+  bare?: boolean;
+  /** The tiles, drawn for the tier the grid settled on. */
+  children: (tier: TileTier) => ReactNode;
 }
 
-/** The grid's size, read as it lays out: the columns are fitted to it. */
-function useBox(): [RefObject<HTMLUListElement | null>, { width: number; height: number; gap: number } | null] {
+interface Measured {
+  /** The grid's own box, inside its padding. */
+  box: { width: number; height: number };
+  room: Room;
+}
+
+/**
+ * The grid's own size, and the room the table leaves it: its parent's height less the rows beside
+ * it (the head, the ribbon, the stage) and the gaps between them. The corners floating over the
+ * table (absolutely placed) take no row. The grid itself is capped to what the tiles need, so the
+ * room, not the box, says which tier fits.
+ */
+function measure(el: HTMLElement): Measured {
+  const style = getComputedStyle(el);
+  const padY = (parseFloat(style.paddingTop) || 0) + (parseFloat(style.paddingBottom) || 0);
+  const box = { width: el.clientWidth, height: el.clientHeight - padY };
+  const parent = el.parentElement;
+  if (!parent) return { box, room: { width: box.width, height: box.height } };
+  const parentStyle = getComputedStyle(parent);
+  let taken = 0;
+  let rows = 0;
+  for (const child of Array.from(parent.children)) {
+    const position = getComputedStyle(child).position;
+    if (position === 'absolute' || position === 'fixed') continue;
+    rows += 1;
+    if (child !== el) taken += (child as HTMLElement).offsetHeight;
+  }
+  const inner = parent.clientHeight - (parseFloat(parentStyle.paddingTop) || 0) - (parseFloat(parentStyle.paddingBottom) || 0);
+  const height = Math.max(0, inner - taken - Math.max(0, rows - 1) * (parseFloat(parentStyle.rowGap) || 0));
+  return { box, room: { width: box.width, height } };
+}
+
+const sameSize = (a: { width: number; height: number }, b: { width: number; height: number }): boolean => a.width === b.width && a.height === b.height;
+
+/** The grid's size and room, read as it lays out and again whenever it or a row beside it changes. */
+function useMeasured(): [RefObject<HTMLUListElement | null>, Measured | null] {
   const ref = useRef<HTMLUListElement | null>(null);
-  const [box, setBox] = useState<{ width: number; height: number; gap: number } | null>(null);
+  const [measured, setMeasured] = useState<Measured | null>(null);
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const measure = () => {
-      const style = getComputedStyle(el);
-      const padY = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
-      const padX = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
-      const next = { width: el.clientWidth - (padX || 0), height: el.clientHeight - (padY || 0), gap: parseFloat(style.rowGap) || 0 };
-      setBox((b) => (b && b.width === next.width && b.height === next.height && b.gap === next.gap ? b : next));
+    const read = () => {
+      const next = measure(el);
+      setMeasured((m) => (m && sameSize(m.box, next.box) && sameSize(m.room, next.room) ? m : next));
     };
-    measure();
-    const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null;
+    read();
+    const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(read) : null;
     observer?.observe(el);
+    for (const sibling of Array.from(el.parentElement?.children ?? [])) if (sibling !== el) observer?.observe(sibling);
     return () => observer?.disconnect();
   }, []);
-  return [ref, box];
+  return [ref, measured];
 }
-
-/** How far the ends of a desktop row lift: a gentle arc for a few big tiles, barely a curve for many small ones (it costs height). */
-const ARC_LIFT: Record<TileTier, number> = { full: 16, compact: 16, small: 8, dense: 4 };
 
 /**
  * Every other seated player as a tile, in seat order (left to right, top to bottom, the order of
  * play). The grid never scrolls: it takes the space it is given, and the tiles step down in size
- * and detail as the table grows (grid.ts). On a desktop the rows bow into a gentle arc.
+ * and detail as the table grows and the room shrinks (grid.ts). On a desktop the rows bow into a
+ * gentle arc.
  */
-export function PlayersGrid({ count, label, wide = false, children }: GridProps) {
-  const [ref, box] = useBox();
-  const tier = tileTier(count);
-  const shape = (wide ? WIDE_TIER_SHAPES : TIER_SHAPES)[tier];
-  const { cols, rows } = fitGrid(count, box, { wide, gap: box?.gap });
-  const style = { '--cols': cols, '--rows': rows, '--tile-w': `${shape.width}px`, '--tile-h': `${shape.height}px`, '--arc': `${ARC_LIFT[tier]}px` } as CSSProperties;
+export function PlayersGrid({ count, label, wide = false, bare = false, children }: GridProps) {
+  const [ref, measured] = useMeasured();
+  // The tier on show stays while it fits (tierFor): remembered across renders, never flipped by a pixel.
+  const shown = useRef<TileTier | null>(null);
+  const tier = tierFor(count, measured?.room ?? null, { wide, current: shown.current });
+  useLayoutEffect(() => {
+    shown.current = tier;
+  });
+  const shape = shapeOf(tier, wide);
+  const { cols, rows } = fitGrid(count, measured?.box ?? null, { wide, tier });
+  // The height the grid asks for: what its tiles need at their natural size in this width, within the room where the tier fits it.
+  const wanted = measured ? naturalHeight(count, measured.box.width, { wide, tier, bare }) : 0;
+  const natural = measured ? `${fitsRoom(count, measured.room, { wide, tier }) ? Math.min(wanted, measured.room.height) : wanted}px` : undefined;
+  const style = { '--cols': cols, '--rows': rows, '--tile-w': `${shape.width}px`, '--tile-h': `${tileHeight(tier, wide, bare)}px`, '--grid-gap': `${GRID_GAP[tier]}px`, '--arc': `${ARC_LIFT[tier]}px`, '--grid-natural': natural } as CSSProperties;
   return (
     <ul ref={ref} className={`tbl-grid tbl-grid--${tier}${wide ? ' tbl-grid--arc' : ''}`} style={style} aria-label={label} data-testid="seats" data-tier={tier} data-cols={cols} data-count={count}>
-      {Children.toArray(children).map((child, i) => (
+      {Children.toArray(children(tier)).map((child, i) => (
         <li key={isValidElement(child) && child.key !== null ? child.key : i} className="tbl-grid__cell" style={wide ? arcCell(i, cols, count) : undefined}>
           {child}
         </li>
@@ -129,8 +170,8 @@ interface TileProps {
   name: string;
   avatar: AvatarData;
   connected: boolean;
-  /** How many tiles the grid holds: the tier goes by it. */
-  count: number;
+  /** The tier the grid settled on (PlayersGrid hands it to its children). */
+  tier: TileTier;
   /** Whose turn it is: a thick lime ring and the Playing tag. */
   turn: boolean;
   /** On turn but not playing it (the phone went quiet): this word in a plain tag instead of Playing. */
@@ -172,8 +213,7 @@ export function tileFigures(tier: TileTier): StakeFormat {
 }
 
 /** One player in the grid; how much it shows depends on the tier (table.css lays each tier out). */
-export function PlayerTile({ playerId, name, avatar, connected, count, turn, turnNote, line, mark, outcome = null, chips, bet, total, dimmed = false, badge, tag, cards, extra, onOpen, shortBadge = false, data }: TileProps) {
-  const tier: TileTier = tileTier(count);
+export function PlayerTile({ playerId, name, avatar, connected, tier, turn, turnNote, line, mark, outcome = null, chips, bet, total, dimmed = false, badge, tag, cards, extra, onOpen, shortBadge = false, data }: TileProps) {
   return (
     <div
       className={`tbl-tile tbl-tile--${tier}${turn ? ' tbl-tile--turn' : ''}${dimmed ? ' tbl-tile--dim' : ''}${outcome ? ` tbl-tile--${outcome}` : ''}${shortBadge ? ' tbl-tile--short-badge' : ''}`}

@@ -50,35 +50,13 @@
   flex: none;
 }
 
-/* "games": lime on dark, the deep olive cut on light (pale lime text on white is unreadable). */
-.wordmark__accent {
-  color: var(--color-primary-text);
-}
-
-.wordmark__accent-outline {
-  display: none;
-}
-
 /*
- * On light, "games" keeps the real lime with an ink outline 2.6 units wide, as thick as the
- * phones' outlines beside it. A 5-unit lime stroke first closes the hairline openings of the "e"
- * and the "s", which line up and would otherwise fill with ink like a strikethrough; the copy
- * underneath, filled and stroked in ink 10.2 units wide, shows 2.6 units beyond that.
+ * "games": the lime on dark, the lime cut darker on the off-white page (the mark token), with no
+ * outline: an ink outline round lime letters swells them into one blob at phone sizes, and the
+ * hairline openings of the "e" and the "s" fill with it.
  */
-:root[data-theme='light'] .wordmark__accent {
-  color: var(--color-primary);
-  stroke: var(--color-primary);
-  stroke-width: 5px;
-  stroke-linejoin: round;
-  paint-order: stroke;
-}
-
-:root[data-theme='light'] .wordmark__accent-outline {
-  display: inline;
-  fill: var(--color-primary-contrast);
-  stroke: var(--color-primary-contrast);
-  stroke-width: 10.2px;
-  stroke-linejoin: round;
+.wordmark__accent {
+  color: var(--color-primary-mark);
 }
 
 .brand {
@@ -119,15 +97,16 @@
   transform: translateY(1px);
 }
 
-/* Disabled: a quiet fill and muted text, never just faded. */
+/* Disabled: a quiet fill and muted text, never just faded (the tokens give it an edge on light). */
 .btn:disabled {
-  background: var(--color-surface-2);
-  border-color: var(--color-surface-2);
-  color: var(--color-text-muted);
+  background: var(--btn-disabled-bg);
+  border-color: var(--btn-disabled-border);
+  color: var(--btn-disabled-fg);
 }
 
 .btn--primary {
   background: var(--color-primary);
+  border-color: var(--color-primary-edge);
   color: var(--color-primary-contrast);
 }
 
@@ -151,6 +130,11 @@
   background: var(--color-surface-2);
 }
 
+.btn--secondary:active:not(:disabled) {
+  background: var(--color-surface-2);
+  border-color: var(--color-text-muted);
+}
+
 .btn--secondary:disabled {
   background: transparent;
   border-color: var(--color-border);
@@ -163,7 +147,8 @@
   color: var(--color-text);
 }
 
-.btn--ghost:hover:not(:disabled) {
+.btn--ghost:hover:not(:disabled),
+.btn--ghost:active:not(:disabled) {
   background: var(--color-surface-2);
 }
 
@@ -179,8 +164,12 @@
 }
 
 .btn--danger:hover:not(:disabled) {
-  background: var(--color-danger-soft);
+  background: color-mix(in srgb, var(--color-danger) 18%, var(--color-danger-soft));
   border-color: var(--color-danger-text);
+}
+
+.btn--danger:active:not(:disabled) {
+  background: color-mix(in srgb, var(--color-danger) 28%, var(--color-danger-soft));
 }
 
 .btn--lg {
@@ -443,7 +432,7 @@
 .toggle input:checked + .toggle__track,
 .switch[aria-checked='true'] .switch__track {
   background: var(--color-primary);
-  border-color: var(--color-primary);
+  border-color: var(--color-primary-edge);
 }
 
 .toggle input:checked + .toggle__track::after,
@@ -550,14 +539,16 @@
   animation: pop-in 160ms ease-out;
 }
 
+/*
+ * A fade alone, never a scale or a slide: the buttons inside are full-size targets from the first
+ * frame, and their boxes measure whole pixels throughout (a transform mid-flight rounds them short).
+ */
 @keyframes pop-in {
   from {
     opacity: 0;
-    transform: scale(0.98);
   }
   to {
     opacity: 1;
-    transform: none;
   }
 }
 
@@ -569,6 +560,8 @@
   border-radius: 50%;
   line-height: 1;
   user-select: none;
+  /* The wash sits over the colour and under the face. */
+  box-shadow: inset 0 0 0 100px var(--avatar-wash);
 }
 
 .avatar--sm {
@@ -625,8 +618,9 @@
 
 /*
  * Every face and colour at once (no inner scrolling), in full-width grids of equal columns that
- * divide the lists exactly, each choice at least 44px wide: 50 faces in 5 or 10 columns, 12
- * colours in 4, 6 or 12 (the dots carry their own margin, so no gap between them).
+ * divide the lists exactly, each choice 44px tall and at least 38px wide, 4px apart: 50 faces in
+ * 5 or 10 columns, 12 colours in 6 (the name step's card on a 320px phone leaves the picker 254px:
+ * six of 39px, the same rows as Change my look; 4 only where six would be narrower still).
  */
 .avatar-picker {
   display: flex;
@@ -650,10 +644,10 @@
 
 .avatar-picker__colors {
   grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 0;
 }
 
-@container (max-width: 263.98px) {
+/* 6 x 38px and 5 gaps of 4px. */
+@container (max-width: 247.98px) {
   .avatar-picker__colors {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
@@ -663,12 +657,6 @@
 @container (min-width: 476px) {
   .avatar-picker__emojis {
     grid-template-columns: repeat(10, minmax(0, 1fr));
-  }
-}
-
-@container (min-width: 528px) {
-  .avatar-picker__colors {
-    grid-template-columns: repeat(12, minmax(0, 1fr));
   }
 }
 
@@ -711,24 +699,34 @@
   height: 100%;
 }
 
-/* In the picker the colour swatch is a dot centred in a full-size tap target. */
+/* In the picker a colour fills its column, as tall as a face is: the colours line up with the faces under them. */
 .avatar-picker__group .swatch {
-  width: min(100%, 48px);
-  justify-self: center;
-  height: auto;
-  aspect-ratio: 1;
-  border-radius: 50%;
-  border: 4px solid var(--color-surface);
+  width: 100%;
+  height: 44px;
+  border-radius: var(--radius-sm);
+  border: 0;
+  box-shadow: inset 0 0 0 100px var(--avatar-wash);
 }
 
+.avatar-picker__group .swatch:hover {
+  transform: none;
+  box-shadow:
+    inset 0 0 0 2px rgb(255 255 255 / 0.35),
+    inset 0 0 0 100px var(--avatar-wash);
+}
+
+/* Chosen: a lilac ring inside the tile, set off from the colour by a thin band of the panel. */
 .avatar-picker__group .swatch.is-selected {
-  outline: 2px solid var(--color-secondary);
-  outline-offset: 0;
+  outline: 0;
+  box-shadow:
+    inset 0 0 0 2px var(--color-secondary),
+    inset 0 0 0 4px var(--color-surface),
+    inset 0 0 0 100px var(--avatar-wash);
 }
 
 .emoji-choice {
   width: 100%;
-  height: 48px;
+  height: 44px;
   border-radius: var(--radius-sm);
   font-size: 28px;
   background: var(--color-surface-2);
@@ -800,28 +798,7 @@
   min-height: 0;
 }
 
-/* ---------- Connection pill (only while the socket is not connected), banners, spinners, toasts ---------- */
-.conn-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border-radius: var(--radius-pill);
-  font-size: 0.75rem;
-  font-weight: 600;
-  white-space: nowrap;
-  color: var(--color-warning-text);
-  background: var(--color-warning-soft);
-  border: 1px solid var(--color-warning);
-}
-
-.conn-pill__dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--color-warning);
-}
-
+/* ---------- Banners, spinners, toasts ---------- */
 .banner {
   display: inline-flex;
   align-items: center;
@@ -878,7 +855,11 @@
   }
 }
 
-/* Under the top bar's first row (back, title, menu: 44px tall plus its padding), so a toast never covers those buttons. */
+/*
+ * Under the top bar's first row (back, title, menu: 44px tall plus its padding), so a toast never
+ * covers those buttons. Above the results popup and the waiting overlay (105): what happens while
+ * a card is up ("Pia left the room") still shows, and at this height it misses a card's headline.
+ */
 .toasts {
   position: fixed;
   top: calc(64px + env(safe-area-inset-top));
@@ -887,7 +868,7 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  z-index: 100;
+  z-index: 108;
   width: min(360px, calc(100vw - 2 * var(--gutter)));
   pointer-events: none;
 }
@@ -963,6 +944,74 @@
   }
 }
 
+/*
+ * The site's one connection notice (ConnectionNotice): a card at the top centre of every screen,
+ * above the overlays and the toasts, in the inverted notice colours so it stands apart from the
+ * page in either theme. A tap on it reaches the screen under it. On a phone it sits under the top
+ * bar's first row, like the toasts, so it never hides the back arrow or the game's name.
+ */
+.conn-notice {
+  position: fixed;
+  top: calc(var(--space-3) + env(safe-area-inset-top));
+  left: 50%;
+  z-index: 110;
+  width: max-content;
+  max-width: min(400px, calc(100vw - 2 * var(--gutter)));
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+@media (max-width: 760px) {
+  .conn-notice {
+    top: calc(64px + env(safe-area-inset-top));
+  }
+}
+
+.conn-notice__card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px 12px 14px;
+  border-radius: var(--radius-md);
+  background: var(--notice-bg);
+  color: var(--notice-fg);
+  box-shadow: var(--shadow-lg);
+  animation: toast-in 200ms var(--ease-out);
+}
+
+.conn-notice__spinner {
+  width: 20px;
+  height: 20px;
+  border-width: 2.5px;
+  color: var(--notice-accent);
+}
+
+.conn-notice__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.conn-notice__title {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.conn-notice__detail {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--notice-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .conn-notice__card {
+    animation: none;
+  }
+}
+
 /* ---------- Timer: a dark track with a lime arc that empties toward the deadline; the last seconds turn danger ---------- */
 .timer {
   position: relative;
@@ -972,6 +1021,24 @@
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   color: var(--color-text);
+}
+
+/* A ring counting something other than the usual clock (The Spy Game's vote) turns lilac, with a small word under it where there is room. */
+.timer[data-counting]:not(.timer--urgent) .timer__arc {
+  stroke: var(--color-secondary-text);
+}
+
+/* What a ring counts when it is not the usual clock: a small word under it. */
+.timer__label {
+  position: absolute;
+  left: 50%;
+  bottom: -14px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--color-secondary-text);
 }
 
 .timer--lg {
@@ -1150,20 +1217,30 @@
 }
 
 .player__crown {
-  color: var(--color-warning);
+  color: var(--color-warning-text);
   display: inline-flex;
   flex: none;
 }
 
-/* A long meta line (score, this turn's points) is cut at its column: it never runs under the row's buttons. */
+/* "you" after your own name: a plain word, not another badge. */
+.player__you {
+  flex: none;
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
+/*
+ * The score and this turn's points always show in full: when the column is too narrow for both
+ * on one line, the points move to a second line rather than being cut at the row's buttons.
+ */
 .player__meta {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 0 8px;
   font-size: 0.8rem;
   color: var(--color-text-muted);
   white-space: nowrap;
-  overflow: hidden;
 }
 
 .player__score {
@@ -1178,9 +1255,15 @@
 }
 
 
-/* Above the rest of the row, so a tap on Kick always lands on it (the points' pop-in is a transform, painted on top otherwise). */
+/*
+ * The row's last item, at its right end (an empty column on your own row), so every row's button
+ * lines up: 32px in a game's narrow list, 44px on touch screens and in the room. Above the rest of
+ * the row, so a tap on Kick always lands on it (the points' pop-in is a transform, painted on top otherwise).
+ */
 .player__actions {
   flex: none;
+  display: flex;
+  justify-content: flex-end;
   position: relative;
   z-index: 1;
 }
@@ -1197,6 +1280,10 @@
 
 .player__kick {
   opacity: 0;
+}
+
+.player__kick:hover {
+  color: var(--color-danger-text);
 }
 
 .player:hover .player__kick,
@@ -1465,22 +1552,69 @@ button.exit-action--end:hover {
   }
 }
 
-/* The desktop top bar's End game, for the host: outlined in the danger colour beside the gear. */
+/*
+ * A sheet that becomes a centred box over the dimmed page on a desktop (Change my look); tablets
+ * and phones keep the drawer. Escape and a click on the page around it close it, as on a phone.
+ */
+@media (min-width: 1024px) {
+  .sheet--dialog {
+    justify-content: center;
+    align-items: center;
+    padding: var(--space-5);
+  }
+
+  .sheet--dialog .sheet__panel {
+    width: min(600px, 100%);
+    max-height: calc(var(--app-height, 100dvh) - 2 * var(--space-5));
+    border-bottom: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+    animation: pop-in 160ms ease-out;
+  }
+
+  .sheet--dialog .sheet__handle {
+    display: none;
+  }
+
+  .sheet--dialog .sheet__head {
+    margin: -6px -10px var(--space-3) 0;
+  }
+
+  .sheet--dialog .sheet__title {
+    font-size: 1.375rem;
+  }
+}
+
+/*
+ * The desktop top bar's End game, for the host: a serious action beside the gear, a tinted button
+ * with a danger border that fills solid under the pointer.
+ */
 .gbar-end {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 14px 0 12px;
   border: 1.5px solid var(--color-danger);
-  background: transparent;
+  background: var(--color-danger-soft);
   color: var(--color-danger-text);
+  font-weight: 700;
 }
 
 .gbar-end.btn:hover:not(:disabled) {
-  background: var(--color-danger-soft);
+  background: var(--color-danger);
+  border-color: var(--color-danger);
+  color: var(--color-bg);
+}
+
+.gbar-end.btn:active:not(:disabled) {
+  background: var(--color-danger-text);
+  border-color: var(--color-danger-text);
+  color: var(--color-bg);
 }
 
 .gbar-end--pending {
-  min-height: 36px;
+  min-height: 40px;
   padding: 0 12px;
   border-style: dashed;
   border-radius: var(--radius-sm);
@@ -1500,17 +1634,21 @@ button.exit-action--end:hover {
   }
 }
 
-/* ---------- Settings: one rhythm for every game, 12px from a title to its options, 24px between settings ---------- */
+/*
+ * ---------- Settings: one rhythm for every game ----------
+ * 10px from a title to its control, the hint 4px under the control so it reads as part of that
+ * setting, and 32px from one setting to the next.
+ */
 .settings {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
+  gap: var(--space-6);
 }
 
 .setting {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: 10px;
 }
 
 .setting__label {
@@ -1521,7 +1659,8 @@ button.exit-action--end:hover {
 .setting__hint {
   color: var(--color-text-faint);
   font-size: 0.8125rem;
-  margin-top: calc(-1 * var(--space-1));
+  line-height: 1.4;
+  margin-top: -6px;
 }
 
 /* A slider and its value, which follows the thumb: the number reads in a quiet well, not in the brand colour.
@@ -1541,7 +1680,6 @@ button.exit-action--end:hover {
   border: 1px solid var(--color-border);
   background: var(--color-surface-3);
   color: var(--color-text);
-  font-family: var(--font-mono);
   font-weight: 600;
   font-size: 0.9375rem;
   font-variant-numeric: tabular-nums;
@@ -1549,20 +1687,21 @@ button.exit-action--end:hover {
   white-space: nowrap;
 }
 
-/* Under a word list: the count on the left, the upload button on the right. */
+/* Right under a word list's box: the count on the left, the upload button on the right. */
 .word-list__foot {
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: var(--space-2);
-  margin-top: calc(-1 * var(--space-1));
+  margin-top: -4px;
 }
 
 .word-list__foot .setting__hint {
   margin-top: 0;
 }
 
+/* A small button by its label, but still a full 44px target on a phone. */
 .word-list__upload {
   min-height: 44px;
 }
@@ -1596,12 +1735,9 @@ button.exit-action--end:hover {
 }
 
 .overlay__kicker {
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: 0.875rem;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--color-primary-text);
+  color: var(--color-text-muted);
 }
 
 .overlay__title {
@@ -1665,7 +1801,7 @@ button.exit-action--end:hover {
 .podium__step--1 .podium__block {
   height: 44px;
   background: var(--color-primary);
-  border-color: var(--color-primary);
+  border-color: var(--color-primary-edge);
   color: var(--color-primary-contrast);
 }
 
@@ -1721,7 +1857,7 @@ button.exit-action--end:hover {
   }
 }
 
-/* ---------- Site header: logo (24px tall on phones, 30px on desktop), status pill, gear ---------- */
+/* ---------- Site header: the logo (24px tall on phones, 30px on desktop) with its gear ---------- */
 .site-header {
   display: flex;
   align-items: center;
@@ -1744,31 +1880,18 @@ button.exit-action--end:hover {
   border-radius: var(--radius-sm);
 }
 
-.site-header__actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex: none;
-}
-
 @media (min-width: 768px) {
   .site-header {
     --wordmark-height: 30px;
   }
 }
 
-/* The front door: the status pill and gear on a small row at the top right, then the logo filling the header's width (home.css sizes it). */
+/* The front door: the logo fills the header's width (home.css sizes it). */
 .site-header--hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-areas:
-    'actions'
-    'brand';
-  row-gap: 0;
+  display: block;
 }
 
 .site-header--hero .site-header__brand {
-  grid-area: brand;
   display: block;
 }
 
@@ -1862,27 +1985,16 @@ button.exit-action--end:hover {
   width: 100%;
 }
 
-.site-header--hero .site-header__actions {
-  grid-area: actions;
-  justify-self: end;
-}
-
-/* The narrowest phones: the status pill keeps its dot only, so the gear stays on screen. */
-@media (max-width: 360px) {
-  .site-header .conn-pill__label {
-    display: none;
-  }
-}
-
 /* ---------- Waiting overlay (platform: the game holds for players whose phones went dark) ---------- */
 /*
  * Above the phone bottom sheets (z-index 80): a hold can start while the players or menu
- * sheet is up, and the dialog that took the focus must be the one on top. Below the toasts.
+ * sheet is up, and the dialog that took the focus must be the one on top. Above the toasts
+ * (100) too: the hold's own line is on the card, so a toast never covers its title on a phone.
  */
 .waiting-overlay {
   position: fixed;
   inset: 0;
-  z-index: 90;
+  z-index: 105;
   display: grid;
   place-items: center;
   padding: calc(var(--space-4) + env(safe-area-inset-top)) var(--gutter) calc(var(--space-4) + env(safe-area-inset-bottom));
@@ -1940,55 +2052,6 @@ button.exit-action--end:hover {
   min-height: 44px;
 }
 
-/* ---------- Reconnecting banner (over a game screen while the socket is down) ---------- */
-.reconnect-banner {
-  position: fixed;
-  top: calc(var(--space-3) + env(safe-area-inset-top));
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 101;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  max-width: calc(100vw - 2 * var(--gutter));
-  padding: 8px 14px;
-  border-radius: var(--radius-pill);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  color: var(--color-warning-text);
-  font-size: 0.85rem;
-  font-weight: 700;
-  box-shadow: var(--shadow-lg);
-  white-space: nowrap;
-  pointer-events: none;
-  animation: banner-in 0.2s ease;
-}
-
-/* The toasts' entry, keeping the banner's centring (toast-in's transform would replace it). */
-@keyframes banner-in {
-  from {
-    opacity: 0;
-    transform: translate(-50%, -8px);
-  }
-  to {
-    opacity: 1;
-    transform: translate(-50%, 0);
-  }
-}
-
-/* The restart line is a sentence: it wraps on a narrow phone instead of running off the screen. */
-.reconnect-banner[data-status='restarting'] {
-  /* Centred with left: 50%, it would otherwise shrink to half the screen and wrap into three lines. */
-  width: max-content;
-  white-space: normal;
-  text-align: center;
-}
-
-/* The toasts queue below the banner instead of under it. */
-:root:has(.reconnect-banner) .toasts {
-  top: calc(64px + env(safe-area-inset-top) + 44px);
-}
-
 .timer--paused .timer__value,
 .timer--settling .timer__value {
   display: inline-flex;
@@ -2003,10 +2066,11 @@ button.exit-action--end:hover {
 }
 
 /* ---------- Results popup (platform, over the lobby once a game ends; above the sheets like the waiting overlay) ---------- */
+/* Above the toasts (100): the line that ended the game is on the card, so a toast never covers its headline on a phone. */
 .results-popup {
   position: fixed;
   inset: 0;
-  z-index: 90;
+  z-index: 105;
   display: grid;
   place-items: center;
   padding: calc(var(--space-4) + env(safe-area-inset-top)) var(--gutter) calc(var(--space-4) + env(safe-area-inset-bottom));
@@ -2155,9 +2219,9 @@ button.exit-action--end:hover {
 }
 
 .results-hero__points {
-  font-family: var(--font-mono);
   font-weight: 600;
   font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
   color: var(--color-text);
 }
 
@@ -2214,8 +2278,8 @@ button.exit-action--end:hover {
 .results-standings__rank {
   flex: none;
   width: 18px;
-  font-family: var(--font-mono);
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
   color: var(--color-text-muted);
 }
 
@@ -2238,9 +2302,8 @@ button.exit-action--end:hover {
 
 .results-standings__you {
   flex: none;
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: var(--color-secondary-text);
+  font-weight: 500;
+  color: var(--color-text-muted);
 }
 
 .results-standings__score {
@@ -2305,36 +2368,61 @@ button.exit-action--end:hover {
   }
 }
 
-/* ---------- The gear popover's own actions (the lobby's Copy invite link and Leave room) ---------- */
+/*
+ * The gear popover's own actions (Copy invite link, End game, Leave room): full-width outlined
+ * buttons under the preferences, End game in the danger colours.
+ */
 .settings-menu__actions {
   display: flex;
   flex-direction: column;
-  margin: 0 calc(-1 * var(--space-2));
-  padding: 6px 0 8px;
+  gap: var(--space-2);
+  padding: var(--space-3) 0 var(--space-4);
   border-top: 1px solid var(--color-border);
 }
 
 .settings-menu__action {
   display: flex;
   align-items: center;
-  gap: 10px;
-  min-height: 48px;
-  padding: 0 var(--space-2);
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  border: 1.5px solid var(--color-border-strong);
   border-radius: var(--radius-sm);
+  background: transparent;
   color: var(--color-text);
   font-weight: 600;
   font-size: 0.9375rem;
-  text-align: left;
+  transition:
+    background-color 100ms ease-out,
+    border-color 100ms ease-out,
+    color 100ms ease-out,
+    transform 70ms ease-out;
 }
 
 .settings-menu__action:hover {
   background: var(--color-surface-2);
 }
 
+.settings-menu__action:active {
+  transform: translateY(1px);
+  border-color: var(--color-text-muted);
+}
+
 .settings-menu__action--danger {
+  border-color: var(--color-danger);
+  background: var(--color-danger-soft);
   color: var(--color-danger-text);
+  font-weight: 700;
 }
 
 .settings-menu__action--danger:hover {
-  background: var(--color-danger-soft);
+  background: var(--color-danger);
+  color: var(--color-bg);
+}
+
+.settings-menu__action--danger:active {
+  background: var(--color-danger-text);
+  border-color: var(--color-danger-text);
+  color: var(--color-bg);
 }

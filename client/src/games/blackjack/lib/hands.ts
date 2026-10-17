@@ -8,11 +8,15 @@
 
 export type HandSlot = 'full' | 'chip';
 
-/** Where a row of hands sits: my hands on the stage, another player's there on their turn, or mine small beside theirs. */
-export type HandPlace = 'mine' | 'stage' | 'aside';
+/** Where a row of hands sits: my hands on the stage, or another player's there when I am not dealt in. */
+export type HandPlace = 'mine' | 'stage';
 
-/** The narrowest a full hand still reads: three cards fanned at the smallest card size, its pill over them, its outline. */
-export const MIN_FULL_HAND_PX: Record<HandPlace, number> = { mine: 72, stage: 64, aside: 72 };
+/**
+ * The narrowest a full hand still reads: three cards fanned at the smallest card size, its pill
+ * over them, its outline. A row also keeps each full hand as wide as the words over its corner
+ * (its stake and total), measured as it lays out (HandRow).
+ */
+export const MIN_FULL_HAND_PX: Record<HandPlace, number> = { mine: 72, stage: 64 };
 /**
  * A chip's smallest readable size: its two-digit total (the big totals' font on the stage, a
  * tile's beside it) inside its pill.

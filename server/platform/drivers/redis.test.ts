@@ -481,7 +481,7 @@ describe.skipIf(!hasRedisServer)('RedisDriver across two instances', () => {
     expect(guest.ws.last('room').room.game?.phase.kind).toBe('drawing');
   });
 
-  it("skips canvas changes a joiner's welcome snapshot already included, and ops of another turn", async () => {
+  it("skips canvas changes a joiner’s welcome snapshot already included, and ops of another turn", async () => {
     const a = instance();
     const b = instance();
     const { host, guest, code } = await pair(a, b);

@@ -1,7 +1,7 @@
 import { expect, test, type Browser, type BrowserContext, type Locator, type Page } from '@playwright/test';
 import { PROMPTS } from '../shared/games/quipgame/prompts';
 import { QUIPGAME_RESULTS_SECONDS } from '../shared/games/quipgame/protocol';
-import { closeResults, createParty, enterNameIfAsked, readyAll } from './party';
+import { closeResults, createParty, enterNameIfAsked, gameNameWhole, readyAll } from './party';
 
 /**
  * A whole Quip Game between a desktop host and two phones (390x844, touch): the lobby settings,
@@ -214,6 +214,8 @@ test('the host creates a Quip Game room and two phones join by code; there are n
     await expect(p.page.getByTestId('round-indicator')).toHaveAttribute('data-total', '3');
     await expect(p.page.getByTestId('quipgame-header').getByTestId('timer')).toBeVisible();
   }
+  // The name, the round under it and the buttons each keep their own space on every phone width.
+  await gameNameWhole(pia.page);
 });
 
 test('round one: the phone layout fits, everyone writes two answers and the room moves on to voting', async () => {

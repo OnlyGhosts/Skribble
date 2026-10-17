@@ -27,8 +27,9 @@ export function dealerOnScreen(table: TableModel | null, timeline: Timeline, now
 
 /**
  * The house, always in the same place: the top centre of the table, the same size through every
- * phase. The cards fan from a fixed spot (a draw never moves the cards already down) with the
- * total over the top right corner; before the deal, two empty places and the word Dealer.
+ * phase, the word Dealer centred over its first two cards. The cards fan from a fixed spot (a
+ * draw never moves the cards already down) with the total over the top right corner; before the
+ * deal, two empty places.
  */
 export function Dealer({ table, timeline, now, leaving, size }: Props) {
   const cards = dealerOnScreen(table, timeline, now);
@@ -39,12 +40,14 @@ export function Dealer({ table, timeline, now, leaving, size }: Props) {
   const tone = total && total.total > 21 ? 'bust' : blackjack ? 'blackjack' : 'neutral';
   return (
     <section className="bj-dealer" aria-label="Dealer" data-testid="dealer-area">
+      <span className="bj-dealer__label" aria-hidden="true">
+        Dealer
+      </span>
       <HandFan
         className="bj-dealer__hand"
         tone={tone}
         total={total ? totalText(total, holeHidden) : null}
         totalTestId="dealer-total"
-        flag={total ? undefined : <span className="bj-dealer__label">Dealer</span>}
         label={total ? `Dealer: ${totalText(total, holeHidden)}` : 'Dealer'}
         testId="dealer-hand"
         data={{ 'data-hole-hidden': holeHidden, 'data-total': total?.total ?? 0, 'data-cards': cards.length, 'data-settled': table?.settled ?? false }}

@@ -70,7 +70,7 @@ describe('messages after leaving', () => {
 });
 
 describe('notices', () => {
-  it('pops a notice line up as a toast, since there is no chat to read it in; other lines and a welcome\'s history never do', () => {
+  it('pops a notice line up as a toast, since there is no chat to read it in; other lines and a welcome’s history never do', () => {
     state().handleServerMessage({ ...welcome('bob', room()), chat: [chatLine(1, 'notice', 'Old news')] });
     expect(state().toasts).toEqual([]);
     state().handleServerMessage({ t: 'chat', message: chatLine(2, 'system', 'Ann joined') });
@@ -122,21 +122,21 @@ describe('leaving a room', () => {
     state().handleServerMessage(welcome('bob', room()));
     state().handleServerMessage({ t: 'error', code: 'REJOIN_FAILED', message: 'You were removed from this room.' });
     expect(state().room).toBeNull();
-    expect(state().toasts.map((t) => t.text)).toEqual(["Couldn't rejoin your previous seat. You were removed from this room."]);
+    expect(state().toasts.map((t) => t.text)).toEqual(["Couldn’t rejoin your previous seat. You were removed from this room."]);
     expect(state().toasts[0]?.text).not.toMatch(/closed/);
 
     state().handleServerMessage(welcome('bob', room()));
     state().handleServerMessage({ t: 'error', code: 'REJOIN_FAILED', message: 'Your seat in this room has expired.' });
-    expect(state().toasts.at(-1)?.text).toBe("Couldn't rejoin your previous seat. Your seat in this room has expired.");
+    expect(state().toasts.at(-1)?.text).toBe("Couldn’t rejoin your previous seat. Your seat in this room has expired.");
 
     state().handleServerMessage(welcome('bob', room()));
     state().handleServerMessage({ t: 'error', code: 'REJOIN_FAILED', message: 'This room no longer exists.' });
-    expect(state().toasts.at(-1)?.text).toBe("Couldn't rejoin your previous seat. This room no longer exists.");
+    expect(state().toasts.at(-1)?.text).toBe("Couldn’t rejoin your previous seat. This room no longer exists.");
 
     // No reason given: the generic line.
     state().handleServerMessage(welcome('bob', room()));
     state().handleServerMessage({ t: 'error', code: 'REJOIN_FAILED', message: '' });
-    expect(state().toasts.at(-1)?.text).toBe("Couldn't rejoin your previous seat. The room may have closed.");
+    expect(state().toasts.at(-1)?.text).toBe("Couldn’t rejoin your previous seat. The room may have closed.");
   });
 
   it('a kick clears the room with a toast', () => {

@@ -40,6 +40,8 @@ export interface Scenario {
   doubled: boolean;
   /** My hand in play is a bust (10, 6, K): the settled table shows a bust. */
   bust: boolean;
+  /** I watch the game (a spectator, not seated at the table): the stage shows the hand in play. */
+  watch: boolean;
 }
 
 const NAMES = ['Pia', 'Quinn', 'Ada', 'Ben', 'Cleo', 'Dev', 'Eli', 'Fay', 'Gus', 'Ivy', 'Jas', 'Kit', 'Lou', 'Max', 'Nia', 'Oli', 'Pip', 'Rae', 'Sam', 'Tia', 'Uma', 'Vic', 'Wes', 'Xan'];
@@ -66,6 +68,7 @@ export function parseScenario(params: URLSearchParams): Scenario {
     stake: Math.max(1, int(params, 'stake', 10)),
     doubled: params.get('doubled') === '1',
     bust: params.get('bust') === '1',
+    watch: params.get('watch') === '1',
   };
 }
 
@@ -105,7 +108,7 @@ function people(s: Scenario): PlayerPublic[] {
     joinOrder: i,
     ready: true,
     sittingOut: false,
-    participating: true,
+    participating: id !== ME || !s.watch,
   }));
 }
 
@@ -128,8 +131,20 @@ const NO_ACTIONS = { canHit: false, canStand: false, canDouble: false, canSplit:
 const NO_CONTROLS = { canSitOut: false, canDealNow: false, canSkip: false };
 const HIDDEN = (up: Card) => ({ cards: [up], holeHidden: true, total: handTotal([up]).total, soft: false, blackjack: false });
 
-/** The snapshots of one scenario, in order. */
+/** The snapshots of one scenario, in order: a watcher's have no seat of mine in them. */
 export function scenarioRooms(s: Scenario): BlackjackRoomState[] {
+  const rooms = seatedRooms(s);
+  if (!s.watch) return rooms;
+  return rooms.map((room) => {
+    const game = room.game as BlackjackView;
+    const players = Object.fromEntries(Object.entries(game.players).filter(([id]) => id !== ME));
+    const order = game.order.filter((id) => id !== ME);
+    const lastRound = game.lastRound ? { ...game.lastRound, order: game.lastRound.order.filter((id) => id !== ME), hands: Object.fromEntries(Object.entries(game.lastRound.hands).filter(([id]) => id !== ME)) } : null;
+    return { ...room, game: { ...game, players, order, lastRound, waitingFor: game.waitingFor.filter((id) => id !== ME), actions: NO_ACTIONS } };
+  });
+}
+
+function seatedRooms(s: Scenario): BlackjackRoomState[] {
   const players = people(s);
   const ids = players.map((p) => p.id);
   const others = ids.filter((id) => id !== ME);

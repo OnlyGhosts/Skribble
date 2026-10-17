@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { formatSeconds } from '../lib/format';
 import { useMediaQuery } from '../lib/media';
 import { playCue } from '../lib/sound';
@@ -19,12 +19,16 @@ interface Props {
    * hold, or its tick is a beat away): a waiting glyph instead of a red "0" that sits there.
    */
   settling?: boolean;
+  /** A small word under the ring saying what it counts (The Spy Game's "Vote" while a vote runs). */
+  label?: ReactNode;
+  /** Extra data attributes on the timer (what a game's tests read about it). */
+  data?: Record<`data-${string}`, string>;
 }
 
 /** The last seconds turn the ring and the number to the danger colour. */
 const URGENT_SECONDS = 5;
 
-export function Timer({ endsAt: deadline, warnUnder = 10, tickUnder, size = 'lg', paused = false, settling = false }: Props) {
+export function Timer({ endsAt: deadline, warnUnder = 10, tickUnder, size = 'lg', paused = false, settling = false, label, data }: Props) {
   const endsAt = paused || settling ? null : deadline;
   const remaining = useCountdown(endsAt);
   const seconds = Math.ceil(remaining / 1000);
@@ -51,11 +55,12 @@ export function Timer({ endsAt: deadline, warnUnder = 10, tickUnder, size = 'lg'
     <div
       className={`timer timer--${size}${long ? ' timer--long' : ''}${urgent ? ' timer--urgent' : ''}${paused ? ' timer--paused' : ''}${settling && !paused ? ' timer--settling' : ''}`}
       role="timer"
-      aria-label={paused ? 'Paused' : settling ? 'Starting soon' : `${seconds} seconds left`}
+      aria-label={`${typeof label === 'string' ? `${label}: ` : ''}${paused ? 'Paused' : settling ? 'Starting soon' : `${seconds} seconds left`}`}
       data-testid="timer"
       data-seconds={seconds}
       data-paused={paused ? 'players' : undefined}
       data-face={face}
+      {...data}
     >
       <svg className="timer__ring" viewBox="0 0 36 36" aria-hidden="true">
         <circle className="timer__track" cx="18" cy="18" r="15.5" />
@@ -64,6 +69,11 @@ export function Timer({ endsAt: deadline, warnUnder = 10, tickUnder, size = 'lg'
       <span className="timer__value">
         {paused ? <PauseIcon size={size === 'lg' ? 18 : 14} /> : settling ? <span className="spinner" aria-hidden="true" /> : endsAt == null ? '–' : long ? formatSeconds(seconds) : String(seconds)}
       </span>
+      {label && (
+        <span className="timer__label" aria-hidden="true">
+          {label}
+        </span>
+      )}
     </div>
   );
 }

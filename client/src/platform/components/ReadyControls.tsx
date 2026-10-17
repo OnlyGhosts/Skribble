@@ -52,7 +52,7 @@ export function ReadyControls({ me, extra }: Props) {
             Count me in
           </button>
           <p className="field__hint ready-controls__hint" data-testid="sitout-hint">
-            You'll watch the next game.
+            You’ll watch the next game.
           </p>
         </>
       ) : (
@@ -70,10 +70,10 @@ export function ReadyControls({ me, extra }: Props) {
           >
             {ready ? (
               <>
-                <CheckIcon size={18} /> You're ready
+                <CheckIcon size={18} /> You’re ready
               </>
             ) : (
-              "I'm ready"
+              "I’m ready"
             )}
           </button>
         )

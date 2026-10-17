@@ -1,9 +1,7 @@
 import { evaluateBest, handName, rankValue, type HandCategory, type HandRank } from '@shared/games/poker/hands';
 import type { Card, PokerLastAction, PokerPhase, PokerResults, PokerStreet, PokerView } from '@shared/games/poker/protocol';
-import { RESTARTING_PILL_LABEL } from '../../../platform/components/ConnectionPill';
 import { formatChips } from '../../../platform/lib/format';
-import { WATCHING_TEXT } from '../../../platform/lib/watching';
-import type { PanelStatus, StatusTone } from '../../../platform/table/ControlPanel';
+import type { TurnTone } from '../../../platform/table/TurnLine';
 import type { PkFocus } from './focus';
 
 export { formatChips };
@@ -24,24 +22,20 @@ export function blindsLabel(view: Pick<PokerView, 'blinds'>): string {
   return `${formatChips(view.blinds.small)}/${formatChips(view.blinds.big)}`;
 }
 
-/**
- * The small line under the hand in the top bar: the blinds first (a narrow phone cuts the end of
- * the line, and the board already shows the street), then the street or how the hand ended.
- */
-export function phaseKicker(view: PokerView): string {
-  const blinds = `Blinds ${blindsLabel(view)}`;
+/** Beside the hand under the banner: the street, or how the hand ended. */
+export function streetText(view: Pick<PokerView, 'phase' | 'street' | 'paused' | 'results'>): string {
   switch (view.phase) {
     case 'acting':
-      return `${blinds} · ${streetLabel(view.street)}`;
+      return streetLabel(view.street);
     case 'results':
       if (view.paused) return 'Paused';
-      return `${blinds} · ${view.results?.uncontested ? 'Hand over' : 'Showdown'}`;
+      return view.results?.uncontested ? 'Hand over' : 'Showdown';
     case 'gameOver':
       return 'Game over';
   }
 }
 
-/** The ribbon across the table: the blinds in capitals ("Blinds 5/10"). */
+/** The ribbon across the table: the blinds ("Blinds 5/10"). */
 export function ribbonText(view: Pick<PokerView, 'blinds'>): string {
   return `Blinds ${blindsLabel(view)}`;
 }
@@ -73,26 +67,6 @@ export function lastActionLabel(action: PokerLastAction | null): string {
 /** The chips a winner took back ("+300"). */
 export function payoutText(amount: number): string {
   return `+${formatChips(amount)}`;
-}
-
-const lower = (name: string): string => `${name.charAt(0).toLowerCase()}${name.slice(1)}`;
-
-/** "a straight", "a pair of kings", but "two pair", "three of a kind", "ace high" as they are. */
-const withArticle = (name: string): string => (/^(straight|flush|full house|pair|royal flush)/.test(name) ? `a ${name}` : name);
-
-/**
- * How the hand ended, for the panel: "Pia wins 300 with a flush", "You take the pot", "Split pot
- * with two pair". `nameOf` names a player ("You" for the viewer).
- */
-export function resultText(results: PokerResults, nameOf: (id: string) => string): string {
-  const main = results.pots[0];
-  if (!main || main.winners.length === 0) return 'The hand is over';
-  const names = main.winners.map((w) => nameOf(w.playerId));
-  const you = names[0] === 'You';
-  if (results.uncontested) return `${names[0]} ${you ? 'take' : 'takes'} the pot`;
-  const hand = main.handName ? ` with ${withArticle(lower(main.handName))}` : '';
-  if (names.length > 1) return `Split pot${hand}`;
-  return `${names[0]} ${you ? 'win' : 'wins'} ${formatChips(main.amount)}${hand}`;
 }
 
 /** The best hand my cards make right now: the best five of everything once five are out, a pocket pair or the high card before the flop. */
@@ -130,68 +104,35 @@ export function shortHandName(hand: HandRank): string {
   }
 }
 
-export const HOTKEY_HINT = 'F fold · C check or call · R raise · A all in';
+/**
+ * Where I stand at the table when I am not simply playing: watching the game, out of chips,
+ * waiting for a free seat, or dealt in from the next hand. The line under the ribbon says it.
+ */
+export type Standing = 'playing' | 'watching' | 'out' | 'no-seat' | 'next-hand';
 
-export type PanelState = 'spectating' | 'over' | 'no-seat' | 'out' | 'offline' | 'held' | 'next-hand' | 'showdown' | 'result' | 'my-turn' | 'their-turn' | 'dealing';
-
-const TONES: Record<PanelState, StatusTone> = {
-  spectating: 'quiet',
-  over: 'quiet',
-  'no-seat': 'quiet',
-  out: 'bad',
-  offline: 'quiet',
-  held: 'quiet',
-  'next-hand': 'quiet',
-  showdown: 'other',
-  result: 'go',
-  'my-turn': 'go',
-  'their-turn': 'other',
-  dealing: 'quiet',
-};
-
-export interface PanelStatusInput {
-  phase: PokerPhase;
+export interface StandingInput {
   seated: boolean;
   /** Every seat at the table is taken: watching until one frees up. */
   waitingForSeat: boolean;
   busted: boolean;
-  connected: boolean;
-  /** Not connected because the server is restarting: the line says so rather than "Reconnecting…". */
-  restarting?: boolean;
-  /** The next hand waits for players. */
-  held: boolean;
   /** Dealt into the hand on the table. */
   inHand: boolean;
-  myTurn: boolean;
-  /** Whose turn it is, when it is somebody's. */
-  turnName: string | null;
-  /** How the hand ended, once the table shows it; null before. */
-  result: string | null;
-  /** I took chips from the pot. */
-  won: boolean;
+  phase: PokerPhase;
 }
 
-function line(state: PanelState, text: string): PanelStatus {
-  return { state, text, tone: TONES[state] };
+export function standingOf(s: StandingInput): Standing {
+  if (!s.seated) return 'watching';
+  if (s.waitingForSeat) return 'no-seat';
+  if (s.busted) return 'out';
+  if (!s.inHand && s.phase === 'acting') return 'next-hand';
+  return 'playing';
 }
 
-/** The one line in the panel that says what is happening and whose turn it is. */
-export function panelStatus(s: PanelStatusInput): PanelStatus {
-  if (!s.seated) return line('spectating', WATCHING_TEXT);
-  if (s.phase === 'gameOver') return line('over', 'Game over');
-  if (s.waitingForSeat) return line('no-seat', 'Table full. You get the next free seat');
-  if (s.busted) return line('out', "You're out of chips");
-  if (!s.connected) return line('offline', s.restarting ? RESTARTING_PILL_LABEL : 'Reconnecting…');
-  if (s.phase === 'results') {
-    if (s.result) return { ...line('result', s.result), tone: s.won ? 'go' : 'other' };
-    if (s.held) return line('held', 'Waiting for players');
-    return line('showdown', 'Showdown');
-  }
-  if (s.myTurn) return line('my-turn', 'Your turn');
-  if (s.turnName) return line('their-turn', `${s.turnName}'s turn`);
-  if (!s.inHand) return line('next-hand', "You're in from the next hand");
-  return line('dealing', 'Dealing');
-}
+const STANDING_LINES: Record<Exclude<Standing, 'playing' | 'watching'>, string> = {
+  out: "You’re out of chips",
+  'no-seat': 'Table full. You get the next free seat',
+  'next-hand': "You’re in from the next hand",
+};
 
 const CATEGORY_LABELS: Record<HandCategory, string> = {
   highCard: 'High card',
@@ -229,7 +170,7 @@ export function moveText(name: string, action: PokerLastAction, you = false): st
     case 'raise':
       return verb(`raises to ${n}`, `raise to ${n}`);
     case 'allIn':
-      return you ? `You're all in for ${n}` : `${name} is all in for ${n}`;
+      return you ? `You’re all in for ${n}` : `${name} is all in for ${n}`;
     case 'smallBlind':
       return verb(`posts the small blind`, 'post the small blind');
     case 'bigBlind':
@@ -241,7 +182,7 @@ export interface FocusLine {
   /** The state, for data-state: the focus's kind. */
   state: string;
   text: string;
-  tone: StatusTone;
+  tone: TurnTone;
   /** A quieter second part: the last move this street. */
   sub?: string;
 }
@@ -269,6 +210,8 @@ export interface FocusLineInput {
   nameOf(id: string): string;
   /** The hand on the table's results, once the table shows them. */
   results: PokerResults | null;
+  /** Where I stand when I am not simply playing (playing by default). */
+  standing?: Standing;
 }
 
 /**
@@ -277,11 +220,13 @@ export interface FocusLineInput {
  * moves used to show only in the chat.
  */
 export function focusLine(focus: PkFocus, s: FocusLineInput): FocusLine {
+  const standing = s.standing ?? 'playing';
+  const note = standing === 'playing' || standing === 'watching' ? undefined : STANDING_LINES[standing];
   switch (focus.kind) {
     case 'turn': {
       const move = s.view.lastMove;
-      const sub = move && move.street === s.view.street ? moveText(s.nameOf(move.playerId), move, move.playerId === s.meId) : undefined;
-      return focus.mine ? { state: 'mine', text: 'Your turn', tone: 'go', sub } : { state: 'turn', text: `${s.nameOf(focus.playerId)}'s turn`, tone: 'other', sub };
+      const sub = note ?? (move && move.street === s.view.street ? moveText(s.nameOf(move.playerId), move, move.playerId === s.meId) : undefined);
+      return focus.mine ? { state: 'mine', text: 'Your turn', tone: 'go', sub } : { state: 'turn', text: `${s.nameOf(focus.playerId)}’s turn`, tone: 'other', sub };
     }
     case 'result': {
       const name = (id: string) => (id === s.meId ? 'You' : s.nameOf(id));
@@ -289,6 +234,7 @@ export function focusLine(focus: PkFocus, s: FocusLineInput): FocusLine {
       return { state: 'result', tone: focus.mine ? 'go' : 'other', ...line };
     }
     case 'idle':
+      if (note && focus.reason !== 'over') return { state: standing, text: note, tone: standing === 'out' ? 'bad' : 'quiet' };
       return { state: 'idle', text: IDLE_LINES[focus.reason], tone: 'quiet' };
   }
 }

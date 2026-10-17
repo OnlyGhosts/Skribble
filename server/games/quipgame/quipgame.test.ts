@@ -155,8 +155,8 @@ describe('Quip Game: writing', () => {
     expect(errorCodes(s.game(alice, { t: 'answer', promptId: 'r1-p0', text: '   ' }))).toEqual(['INVALID_MESSAGE']);
     expect(errorCodes(s.game(alice, { t: 'answer', promptId: 'r1-p0', text: 'x'.repeat(QUIPGAME_ANSWER_MAX_LENGTH + 1) }))).toEqual(['INVALID_MESSAGE']);
     expect(errorCodes(s.game(alice, { t: 'answer', promptId: 'r1-p0', text: 'x'.repeat(QUIPGAME_ANSWER_MAX_LENGTH) }))).toEqual([]);
-    expect(errors(s.game(alice, { t: 'answer', promptId: 'r1-p1', text: 'not mine' }))).toEqual(["That's not one of your prompts."]);
-    expect(errors(s.game(carol, { t: 'answer', promptId: 'nope', text: 'what' }))).toEqual(["That's not one of your prompts."]);
+    expect(errors(s.game(alice, { t: 'answer', promptId: 'r1-p1', text: 'not mine' }))).toEqual(["That’s not one of your prompts."]);
+    expect(errors(s.game(carol, { t: 'answer', promptId: 'nope', text: 'what' }))).toEqual(["That’s not one of your prompts."]);
     // A newcomer watches the game; the round's audience (in the game, away at the deal) watches the writing.
     s.apply({ type: 'join', name: 'Dave', avatar: AVATAR, connectionId: 'conn-Dave' });
     const dave = s.playerId('Dave');
@@ -176,7 +176,7 @@ describe('Quip Game: writing', () => {
     s.game(carol, { t: 'answer', promptId: 'r1-p1', text: 'one' });
     expect(data(s).phase).toBe('writing');
     const effects = s.game(carol, { t: 'answer', promptId: 'r1-p2', text: 'two' });
-    expect(chatTexts(effects)).toEqual(["Everyone's in. Time to vote!"]);
+    expect(chatTexts(effects)).toEqual(["Everyone’s in. Time to vote!"]);
     expect(data(s)).toMatchObject({ phase: 'voting', matchupIndex: 0, endsAt: START + VOTE_MS });
     expect(data(s).matchups).toHaveLength(3);
     expect(data(s).answers).toHaveLength(6);
@@ -194,7 +194,7 @@ describe('Quip Game: writing', () => {
     expect(s.tick()).toEqual([]);
     s.now += 1;
     const effects = s.tick();
-    expect(chatTexts(effects)).toEqual(["Time's up. Time to vote!"]);
+    expect(chatTexts(effects)).toEqual(["Time’s up. Time to vote!"]);
     const mine = data(s).answers.filter((a) => a.authorId === alice);
     expect(mine).toHaveLength(2);
     for (const a of mine) {
@@ -252,7 +252,7 @@ describe('Quip Game: matchups and votes', () => {
     expect(errors(s.game(fay, { t: 'vote', choice: 'a' }))).toEqual(['You are watching this game.']);
     expect(authors(s)).toEqual([alice, bob]);
     expect(voters(s)).toEqual([carol, dave, erin]);
-    expect(errors(s.game(alice, { t: 'vote', choice: 'a' }))).toEqual(["This one's yours. Sit tight."]);
+    expect(errors(s.game(alice, { t: 'vote', choice: 'a' }))).toEqual(["This one’s yours. Sit tight."]);
     expect(view(s, erin)).toMatchObject({ isSpectator: true, canVote: true });
     s.game(erin, { t: 'vote', choice: 'b' });
     s.game(carol, { t: 'vote', choice: 'a' });

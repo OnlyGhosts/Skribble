@@ -1,5 +1,5 @@
 /** Scribble's JSON-safe game state (the module's `D`) and the queries over it. */
-import type { Rating, ScribbleSettings, TurnEndReason } from '../../../shared/games/scribble/protocol.js';
+import type { ScribbleSettings, TurnEndReason } from '../../../shared/games/scribble/protocol.js';
 import type { GameCtx, PlatformPlayer } from '../../platform/game.js';
 
 export interface TurnData {
@@ -22,7 +22,6 @@ export interface TurnData {
   guessed: string[];
   /** Points earned this turn by player id. */
   points: Record<string, number>;
-  ratings: Record<string, Rating>;
 }
 
 export type PhaseData =

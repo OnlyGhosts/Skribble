@@ -2,13 +2,12 @@ import { useEffect, useState, type ReactNode } from 'react';
 import type { BlackjackActions, BlackjackRoomState, BlackjackView } from '@shared/games/blackjack/protocol';
 import { useHotkeys } from '../../../platform/lib/hotkeys';
 import { AmountField } from '../../../platform/table/AmountField';
-import { MoveButton, PanelLabelRow, PanelMoves, PanelShell, StatusAction, WatchingPanel, type PanelStatus } from '../../../platform/table/ControlPanel';
+import { MoveButton, PanelLabelRow, PanelMoves, PanelShell, TableButton, WatchingPanel } from '../../../platform/table/ControlPanel';
 import { DoubleIcon, HitIcon, SplitIcon, StandIcon } from '../../../platform/table/Icons';
 import { dealNow, placeBet, playMove, queueBet, sitOut, skipTurn, type MoveKind } from '../actions';
 import { suggestedMove, type MoveId } from '../lib/advice';
 import type { Pending } from '../lib/pending';
 import { betAmount, betWindow, defaultBet, doubleBet, halfBet, suggestedBet } from '../lib/bet';
-import { HOTKEY_HINT } from '../lib/text';
 import { useBlackjack, useBlackjackStore } from '../store';
 
 interface Props {
@@ -17,7 +16,8 @@ interface Props {
   meId: string;
   /** The balance on show (a payout still animating is not on it yet). */
   balance: number;
-  status: PanelStatus;
+  /** I watch the whole game: no moves, one line. */
+  watching: boolean;
   /** Sends can go out: the game is running, the socket is up and the seat is back (no rejoin in flight). */
   canSend: boolean;
   /** My hand in play and the dealer's up card have landed: my moves may go (the rest of the deal can still be sliding in). */
@@ -30,7 +30,7 @@ interface Props {
   queued: boolean;
   /** The player in play, for the host's Skip. */
   turnName: string;
-  /** Desktop: the keyboard shortcuts and their hint line. */
+  /** Desktop: the keyboard shortcuts. */
   hotkeys: boolean;
 }
 
@@ -56,6 +56,10 @@ interface TableActionProps {
   view: BlackjackView;
   meId: string;
   turnName: string;
+  /** The buttons may go: the socket is up, no tap is waiting, the reveal is over. */
+  live: boolean;
+  /** A spectator's panel: nothing at all when nothing is on offer. */
+  watching?: boolean;
   /** The hand I just skipped (its turnKey): Skip stays dimmed until a little after the play has moved on. */
   skipped: string | null;
   onSkip(key: string): void;
@@ -80,34 +84,39 @@ export function turnKey(view: BlackjackView): string | null {
 }
 
 /**
- * The table controls on offer beside the status line: Sit out while my bet is still to place, Deal
- * now once a bet is down (both, for a host who has not bet), Skip on another player's turn.
+ * The table's own buttons under Bet: Sit out while my bet is still to place, Deal now once a bet
+ * is down (both, for a host who has not bet, side by side), Skip on another player's turn. The row
+ * keeps its place all game long: with none on offer, Sit out stays there dimmed (a spectator's
+ * panel shows none).
  */
-export function TableAction({ view, meId, turnName, skipped, onSkip }: TableActionProps) {
+export function TableAction({ view, meId, turnName, live, watching = false, skipped, onSkip }: TableActionProps) {
   const { canSitOut, canDealNow, canSkip } = view.controls;
   const key = turnKey(view);
-  if (canSkip && view.turn && key !== null) {
+  if (live && canSkip && view.turn && key !== null) {
     const target = view.turn;
     const skip = () => {
       if (skipped === null && skipTurn(target, view, meId)) onSkip(key);
     };
-    return <StatusAction label="Skip" ariaLabel={`Stand ${turnName}'s hand`} testId="skip-turn" enabled={skipped === null} onClick={skip} />;
+    return <TableButton label="Skip" ariaLabel={`Stand ${turnName}’s hand`} testId="skip-turn" enabled={skipped === null} onClick={skip} />;
   }
+  const sitOutOn = live && canSitOut;
+  const dealNowOn = live && canDealNow;
+  if (!sitOutOn && !dealNowOn) return watching ? null : <TableButton label="Sit out" ariaLabel="Sit this hand out" testId="sit-out-off" enabled={false} onClick={() => undefined} />;
   return (
     <>
-      {canSitOut && <StatusAction label="Sit out" ariaLabel="Sit this hand out" testId="sit-out" onClick={() => void sitOut(view, meId)} />}
-      {canDealNow && <StatusAction label="Deal now" ariaLabel="Deal now to everyone who has bet" testId="deal-now" onClick={() => void dealNow(view, meId)} />}
+      {sitOutOn && <TableButton label="Sit out" ariaLabel="Sit this hand out" testId="sit-out" onClick={() => void sitOut(view, meId)} />}
+      {dealNowOn && <TableButton label="Deal now" ariaLabel="Deal now to everyone who has bet" testId="deal-now" onClick={() => void dealNow(view, meId)} />}
     </>
   );
 }
 
 /**
  * The control panel, the same place all game long: the bet amount (my stack beside its label) with
- * 1/2, 2x and MAX, then Hit and Stand, Split and Double, then one big Bet, and a quiet status line
- * with Sit out, Deal now or Skip. Every control is always there; what is not on offer right now is
+ * half, 2x and Max, then Hit and Stand, Split and Double, then one big Bet, and under it Sit out,
+ * Deal now or Skip. Every control is always there; what is not on offer right now is
  * dimmed. On my turn the basic strategy move takes the lime. The amount is remembered between rounds.
  */
-export function ControlPanel({ room, view, meId, balance, status, canSend, movesReady, dealerPlaying, pending, queued, turnName, hotkeys }: Props) {
+export function ControlPanel({ room, view, meId, balance, watching, canSend, movesReady, dealerPlaying, pending, queued, turnName, hotkeys }: Props) {
   const settings = room.settings;
   const seat = view.players[meId];
   const betText = useBlackjack((s) => s.betText);
@@ -163,22 +172,18 @@ export function ControlPanel({ room, view, meId, balance, status, canSend, moves
     />
   );
 
-  const tableAction = canSend && !held && !dealerPlaying && <TableAction view={view} meId={meId} turnName={turnName} skipped={skipped} onSkip={setSkipped} />;
+  const live = canSend && !held && !dealerPlaying;
   const placed = (view.phase === 'betting' && seat !== undefined && seat.bet > 0) || queued || pending?.kind === 'bet';
   // A spectator of the whole game has no moves: one line, and a watching host keeps Deal now and Skip.
-  if (status.state === 'spectating') return <WatchingPanel testId="bj-panel" action={tableAction} />;
+  if (watching) return <WatchingPanel testId="bj-panel" actions={<TableAction view={view} meId={meId} turnName={turnName} live={live} watching skipped={skipped} onSkip={setSkipped} />} />;
 
   return (
     <PanelShell
       label="Bet and play"
-      status={status}
       onSubmit={bet}
       testId="bj-panel"
       data={{ 'data-min': range?.min, 'data-max': range?.max, 'data-amount': amount ?? undefined }}
-      hint={hotkeys && HOTKEY_HINT}
-      action={tableAction}
-      actionSlot
-      statusAt="bottom"
+      actions={<TableAction view={view} meId={meId} turnName={turnName} live={live} skipped={skipped} onSkip={setSkipped} />}
     >
       <PanelLabelRow label="Bet amount" htmlFor="bj-bet-amount" balance={balance} truth={seat?.chips ?? 0} />
       <AmountField
@@ -193,9 +198,9 @@ export function ControlPanel({ room, view, meId, balance, status, canSend, moves
         }}
         onClear={() => useBlackjackStore.getState().setBetText('')}
         steps={[
-          { label: '1/2', ariaLabel: 'Half the amount', testId: 'bet-half', onClick: () => range && setAmount(halfBet(amount ?? range.min, range)) },
+          { label: '\u00bd', ariaLabel: 'Half the amount', testId: 'bet-half', onClick: () => range && setAmount(halfBet(amount ?? range.min, range)) },
           { label: '2x', ariaLabel: 'Double the amount', testId: 'bet-double', onClick: () => range && setAmount(doubleBet(amount ?? range.min, range)) },
-          { label: 'MAX', ariaLabel: 'All in', testId: 'bet-max', onClick: () => range && setAmount(range.max) },
+          { label: 'Max', ariaLabel: 'All in', testId: 'bet-max', onClick: () => range && setAmount(range.max) },
         ]}
         describedBy="bj-bet-range"
         inputTestId="bet-input"

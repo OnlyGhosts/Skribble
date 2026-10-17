@@ -1,13 +1,14 @@
 import { useEffect } from 'react';
 import type { RoomState } from '@shared/platform/protocol';
-import { SITE_NAME } from '@shared/platform/site';
-import { ReconnectingBanner } from './platform/components/ReconnectingBanner';
+import { ConnectionNotice } from './platform/components/ConnectionNotice';
 import { ResultsPopup } from './platform/components/ResultsPopup';
 import { Toasts } from './platform/components/Toasts';
 import { WaitingOverlay } from './platform/components/WaitingOverlay';
 import { loadPlatformSoundsAfterGesture } from './platform/lib/platformSounds';
 import { setSoundEnabled, unlockAudio, type AnySoundBank } from './platform/lib/sound';
+import { startConnectionNotice, useConnectionNotice } from './platform/lib/connectionNotice';
 import { DEFAULT_THEME } from './platform/lib/storage';
+import { roomTitle } from './platform/lib/tabTitle';
 import { useLive } from './platform/lib/useLive';
 import { useViewport } from './platform/lib/useViewport';
 import { wakeLock } from './platform/lib/wakeLock';
@@ -43,7 +44,7 @@ function useUrlSync(): void {
   useEffect(() => {
     if (!code || !gameId) return;
     navigate(roomPath(gameId, code), { replace: codeFromLocation() === code });
-    document.title = `${SITE_NAME} · ${code}`;
+    document.title = roomTitle(code);
   }, [code, gameId]);
 }
 
@@ -101,6 +102,8 @@ export function RoomScreen({ room }: { room: RoomState }) {
   const isHost = useLive(usePlatformStore, selectIsHost);
   const results = useLive(usePlatformStore, (s) => s.results);
   const closeResults = usePlatformStore((s) => s.closeResults);
+  // While our own link is down the hold's list of who is missing is stale: the connection notice speaks instead.
+  const offline = useConnectionNotice((s) => s.notice !== null);
   const game = registeredGame(room.gameId);
   useGameSounds(game?.sounds, room.phase !== 'lobby');
   if (!game) return null;
@@ -116,8 +119,7 @@ export function RoomScreen({ room }: { room: RoomState }) {
   return (
     <>
       <Screen key={room.code} room={room} meId={meId ?? ''} isHost={isHost} />
-      {room.waiting && <WaitingOverlay room={room} waiting={room.waiting} isHost={isHost} meId={meId} />}
-      <ReconnectingBanner />
+      {room.waiting && !offline && <WaitingOverlay room={room} waiting={room.waiting} isHost={isHost} meId={meId} />}
     </>
   );
 }
@@ -125,11 +127,13 @@ export function RoomScreen({ room }: { room: RoomState }) {
 export function App() {
   useEffect(() => {
     socket.start();
+    const stopNotice = startConnectionNotice();
     const stopRouter = startRouter();
     const stopSync = startRouteSync();
     return () => {
       stopRouter();
       stopSync();
+      stopNotice();
     };
   }, []);
   useTheme();
@@ -150,6 +154,7 @@ export function App() {
   return (
     <>
       {screen}
+      <ConnectionNotice />
       <Toasts />
     </>
   );

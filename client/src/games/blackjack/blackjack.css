@@ -3,36 +3,43 @@
 /*
  * ---------- The table: fixed places for the dealer and the stage ----------
  * The dealer's row (the first) and the stage (the last) have a fixed height, and the cards in them
- * a fixed size, that depend on the screen alone: never on the phase or the number of players.
- * The banner and the seats in between take what is left. Every card here is 2:3; a hand is a
- * stepped fan 1.77 card widths tall with its pill over the top right corner (HandFan).
+ * a fixed size, that depend on the room the table has alone (the cq units of tbl in table.css):
+ * never on the phase or the number of players. The banner and the seats in between take what is
+ * left. Every card here is 2:3; a hand is a stepped fan 1.77 card widths tall with its pill over
+ * the top right corner (HandFan).
  *
- * --bj-dealer-w, --bj-stage-w, --bj-aside-w: a card's width in each place.
- * --tbl-pill-h: the totals' pill; --tbl-owner-w: the stage's side columns.
+ * --bj-card-w: a card's width on the dealer's row and the stage; --bj-label-h: the word Dealer's line.
+ * --tbl-pill-h: the totals' pill.
  */
-.bj-table {
-  --bj-dealer-w: 84px;
-  --bj-stage-w: 84px;
-  --bj-aside-w: 30px;
-  --tbl-mini-w: 30px;
-  --tbl-pill-h: 30px;
-  --tbl-deck-w: 64px;
-  --tbl-owner-w: 120px;
-  --tbl-row-gap: var(--space-3);
-  /* A fan's height with its pill (overlapping by 30%) and its outline's room. */
-  --bj-dealer-h: calc(var(--tbl-pill-h) * 0.7 + var(--bj-dealer-w) * 1.77 + 4px);
-  --bj-stage-h: calc(var(--tbl-pill-h) * 0.7 + var(--bj-stage-w) * 1.77 + 4px);
-  --tbl-head-h: var(--bj-dealer-h);
-  --tbl-stage-h: var(--bj-stage-h);
+/* Worked out on the table, inherited as pixels (see table.css). */
+@property --bj-card-w {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 64px;
 }
 
-/* ---------- Dealer: top centre, the cards fanning right from a fixed spot ---------- */
+.bj-table {
+  --bj-card-w: clamp(64px, 13cqh, 132px);
+  --bj-label-h: 22px;
+  --tbl-mini-w: clamp(30px, 4.6cqh, 40px);
+  --tbl-pill-h: clamp(28px, 3.9cqh, 36px);
+  --tbl-deck-w: clamp(48px, 7cqh, 72px);
+  --tbl-row-gap: var(--space-4);
+  /* A fan's height with its pill (overlapping by 30%) and its outline's room. */
+  --bj-fan-h: calc(var(--tbl-pill-h) * 0.7 + var(--bj-card-w) * 1.77 + 4px);
+  --tbl-head-h: calc(var(--bj-label-h) + var(--bj-fan-h));
+  --tbl-stage-h: var(--bj-fan-h);
+}
+
+/* ---------- Dealer: top centre, the word Dealer over its first two cards, the cards fanning right from a fixed spot ---------- */
 .bj-dealer {
   /* Where the fan starts: two cards centred, any more going on to the right. */
-  --bj-anchor: calc((var(--bj-dealer-w) * (1 + var(--fan-step)) + 6px) / 2);
+  --bj-anchor: calc((var(--bj-card-w) * (1 + var(--fan-step)) + 6px) / 2);
   grid-area: head;
   display: flex;
-  align-items: flex-end;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-end;
   min-width: 0;
   padding-left: max(0px, calc(50% - var(--bj-anchor)));
   container-type: inline-size;
@@ -41,57 +48,30 @@
 /* A long draw shrinks the dealer's cards to the room on the right, clear of the shoe. */
 .bj-dealer .tbl-hand {
   --bj-room: calc(50cqw + var(--bj-anchor) - var(--tbl-deck-w) * 1.5 - 12px);
-  --tbl-w: min(var(--bj-dealer-w), max(14px, calc(var(--bj-room) / (1 + var(--fan-step) * (var(--fan, 2) - 1)))));
+  --tbl-w: min(var(--bj-card-w), max(14px, calc(var(--bj-room) / (1 + var(--fan-step) * (var(--fan, 2) - 1)))));
 }
 
 .bj-dealer__label {
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--color-text-faint);
+  width: calc(var(--bj-anchor) * 2);
+  height: var(--bj-label-h);
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--color-text-muted);
 }
 
-/* ---------- The stage (TableStage): my hands, or the player's in play with mine small at the side ---------- */
-.bj-mine {
+/* ---------- The stage (TableStage): my hands, or the hand in play when I am not dealt in ---------- */
+.bj-mine,
+.bj-mine__hands {
+  width: 100%;
   height: 100%;
   min-width: 0;
 }
 
 .bj-mine__hands {
-  height: 100%;
-  min-width: 0;
   container-type: size;
-}
-
-/* Mine at the side: "You" over my hands, small (split hands as chips down the column). */
-.bj-mine--aside {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-}
-
-.bj-mine--aside .bj-mine__hands {
-  flex: 1 1 0;
-  min-height: 0;
-  width: 100%;
-}
-
-/* One hand of mine at the side sits right under "You", at the foot of the column, as one group. */
-.bj-mine--aside[data-count='1'] {
-  justify-content: flex-end;
-}
-
-.bj-mine--aside[data-count='1'] .bj-mine__hands {
-  flex: 0 1 calc(var(--bj-aside-w) * 1.77 + 26px);
-}
-
-.bj-mine__label {
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: var(--color-text-muted);
 }
 
 .bj-hands {
@@ -113,7 +93,7 @@
   --bj-slot: calc((100cqw - (var(--hands, 1) - 1) * 8px) / var(--hands, 1));
   --fit-w: max(14px, calc((var(--bj-slot) - 8px) / (1 + var(--fan-step) * (var(--fan, 2) - 1))));
   --fit-h: calc((100cqh - var(--tbl-pill-h) * 0.7 - 4px) / 1.77);
-  --tbl-w: min(var(--bj-stage-w), var(--fit-w), var(--fit-h));
+  --tbl-w: min(var(--bj-card-w), var(--fit-w), var(--fit-h));
   --bj-anchor: calc((var(--tbl-w) * (1 + var(--fan-step)) + 6px) / 2);
   justify-content: flex-start;
 }
@@ -131,30 +111,16 @@
   min-width: 0;
   height: 100%;
   /* Centred on two cards, but never so far right that the widest fan in the row runs out of its slot. */
-  padding-left: max(0px, min(calc(var(--bj-slot) / 2 - var(--bj-anchor)), calc(var(--bj-slot) - max(6px + var(--tbl-w) * (1 + var(--fan-step) * (var(--fan, 2) - 1)), var(--tbl-pill-h) * 2.2 + 6px))));
+  padding-left: max(var(--bj-head-room), min(calc(var(--bj-slot) / 2 - var(--bj-anchor)), calc(var(--bj-slot) - max(6px + var(--tbl-w) * (1 + var(--fan-step) * (var(--fan, 2) - 1)), var(--tbl-pill-h) * 2.2 + 6px))));
 }
 
-/* Mine at the side: small cards under their pill, smaller still if a long hit would push the fan past the column. */
-.bj-hands--aside {
-  --tbl-w: min(var(--bj-aside-w), max(8px, calc((100cqw - 4px) / (1 + var(--fan-step) * (var(--fan, 2) - 1)))));
-  --tbl-pill-h: 18px;
-  container-type: size;
-  height: 100%;
-}
-
-.bj-hands--aside {
-  align-items: center;
-}
-
-.bj-hands--aside > .bj-slot {
-  display: flex;
-  align-items: center;
-}
-
-/* The pill over the cards rather than beside them: a soft total ("10/20") never pushes the cards out of the column. */
-.bj-hands--aside .tbl-hand--mini {
-  flex-direction: column;
-  gap: 2px;
+/*
+ * The words over a hand's corner (its stake and total) reach left of a narrow fan: the slot keeps
+ * that room before the cards, so they never run into the hand beside it or off the table.
+ */
+.bj-hands--mine,
+.bj-hands--stage {
+  --bj-head-room: max(0px, calc(var(--bj-head-w, 0px) - 6px - var(--tbl-w) * (1 + var(--fan-step) * (var(--fan, 2) - 1))));
 }
 
 /* Split hands not in play step back a little: the one in play reads first. */
@@ -166,6 +132,26 @@
 .bj-hands--mine:not(.bj-hands--chips) > .bj-slot:only-child .bj-hand,
 .bj-hands--stage:not(.bj-hands--chips) > .bj-slot:only-child .bj-hand {
   opacity: 1;
+}
+
+/* My stake once it is down, left of the two empty places, level with them: never over a card or a place. */
+.bj-empty {
+  position: relative;
+  display: flex;
+}
+
+.bj-empty__stake {
+  position: absolute;
+  top: 50%;
+  right: calc(100% + 8px);
+  display: flex;
+  transform: translateY(-50%);
+}
+
+.bj-empty__stake .tbl-stake {
+  height: var(--tbl-pill-h);
+  padding: 0 0.6em;
+  font-size: calc(var(--tbl-pill-h) * 0.5);
 }
 
 /* An empty hand (before my first deal): just the two places my cards will land. */
@@ -181,12 +167,12 @@
 
 .bj-hands--mine.bj-hands--chips,
 .bj-hands--stage.bj-hands--chips {
-  --tbl-w: min(var(--bj-stage-w), var(--fit-h));
+  --tbl-w: min(var(--bj-card-w), var(--fit-h));
 }
 
 .bj-hands--chips > .bj-slot {
   flex: none;
-  padding-left: 0;
+  padding-left: var(--bj-head-room);
 }
 
 .bj-chips {
@@ -202,8 +188,7 @@
   list-style: none;
 }
 
-.bj-hands--mine .bj-chips,
-.bj-hands--aside .bj-chips {
+.bj-hands--mine .bj-chips {
   height: 100%;
   max-height: calc(var(--chip-rows, 1) * 46px);
   align-self: center;
@@ -251,8 +236,7 @@
 }
 
 /* My folded hands keep the big totals' weight: a chip's total is as easy to follow as the hand in play's. */
-.bj-hands--mine .bj-chip__total.tbl-pill,
-.bj-hands--aside .bj-chip__total.tbl-pill {
+.bj-hands--mine .bj-chip__total.tbl-pill {
   padding: 0 3px;
   font-size: 1rem;
   letter-spacing: -0.02em;
@@ -348,89 +332,57 @@
 }
 
 
-/* ---------- Screen sizes: the fixed places' sizes go by the screen alone ---------- */
-@media (max-width: 1100px) {
+/* A short desktop window (1024x768, 1280x800): the cards a step smaller, so a big table's seats keep their height. */
+@media (min-width: 761px) and (max-height: 820px) {
   .bj-table {
-    --bj-dealer-w: 64px;
-    --bj-stage-w: 68px;
-    --tbl-pill-h: 28px;
-    --tbl-deck-w: 54px;
-    --tbl-owner-w: 96px;
+    --bj-card-w: clamp(56px, 11.5cqh, 132px);
   }
 }
 
-/*
- * A desktop: the stage hugs the hand in play, so its owner on the left and my hand on the right
- * (bigger, at the side) read as one row with it rather than three pieces far apart.
- */
-@media (min-width: 1024px) {
-  .bj-table {
-    --bj-aside-w: 48px;
-  }
-
-  .bj-table .tbl-stage {
-    width: min(100%, 560px);
-  }
-}
-
-/* A shorter desktop window (a 1280x800 laptop): the cards give the seats some height. */
-@media (min-width: 761px) and (max-height: 860px) {
-  .bj-table {
-    --bj-dealer-w: 64px;
-    --bj-stage-w: 68px;
-    --tbl-pill-h: 28px;
-  }
-}
-
-/* ---------- Phones ---------- */
+/* ---------- Phones: the sizes go by the room the table has, a step smaller ---------- */
 @media (max-width: 760px), (min-aspect-ratio: 3/2) and (max-height: 520px) {
   .bj-table {
-    --bj-dealer-w: 52px;
-    --bj-stage-w: 56px;
-    --bj-aside-w: 22px;
+    --bj-card-w: clamp(30px, 11cqh, 60px);
+    --bj-label-h: 18px;
     --tbl-mini-w: 22px;
     --tbl-pill-h: 24px;
-    --tbl-deck-w: 40px;
-    --tbl-owner-w: 64px;
+    --tbl-deck-w: 34px;
     --tbl-row-gap: 6px;
   }
-}
 
-/* Shorter phones (360x740 and the like): smaller cards all round (the banner's second line goes, table.css). */
-@media (max-width: 760px) and (max-height: 760px) {
-  .bj-table {
-    --bj-dealer-w: 44px;
-    --bj-stage-w: 46px;
-  }
-}
-
-/* Short phones (an SE, a phone on its side): the smallest cards (the banner itself goes, table.css). */
-@media (max-width: 760px) and (max-height: 680px), (min-aspect-ratio: 3/2) and (max-height: 520px) {
-  .bj-table {
-    --bj-dealer-w: 34px;
-    --bj-stage-w: 36px;
-    --tbl-pill-h: 22px;
-    --tbl-deck-w: 32px;
-    --tbl-owner-w: 60px;
-    --tbl-row-gap: 4px;
+  .bj-dealer__label {
+    font-size: 0.8rem;
   }
 }
 
 /*
- * The shortest phones (320x568): five other players need two rows of tiles tall enough for the
- * stack and the bet (56px and up). The cards step down once more, and whose turn it is moves up
- * into the room left of the dealer's hand (its cards fan right from the centre) rather than take
- * a row of its own.
+ * The shortest phones (320x568, a phone on its side): five other players need two rows of tiles
+ * tall enough for the stack and the bet. The word Dealer goes, and the round and whose turn it is
+ * move up into the room left of the dealer's hand (its cards fan right from the centre) rather
+ * than take a row of their own. A table with nobody else at it has the room: it keeps the line in
+ * the middle, halfway between the dealer and my hand (the cards keep their size either way).
  */
-@media (max-width: 760px) and (max-height: 620px) {
+@media (max-width: 760px) and (max-height: 620px), (min-aspect-ratio: 3/2) and (max-height: 520px) {
   .bj-table {
-    --bj-dealer-w: 28px;
-    --bj-stage-w: 30px;
-    --bj-aside-w: 20px;
+    --bj-card-w: 30px;
+    --bj-label-h: 0px;
+    --tbl-pill-h: 22px;
+    --tbl-deck-w: 28px;
+    --tbl-row-gap: 4px;
+  }
+
+  .bj-dealer__label {
+    display: none;
+  }
+
+  /* The round alone beside the dealer: the house rule is on a bigger screen's banner. */
+  .bj-table [data-testid='table-rule'],
+  .bj-table .tbl-ribbon__dot {
+    display: none;
   }
 
   .bj-table.tbl-felt--calm {
-    grid-template-rows: var(--tbl-head-h) minmax(0, 1fr) var(--tbl-stage-h);
+    grid-template-rows: var(--tbl-head-h) minmax(0, max-content) var(--tbl-stage-h);
     grid-template-areas: 'head' 'seats' 'stage';
   }
 
@@ -440,8 +392,17 @@
     align-self: center;
     justify-self: start;
     align-items: flex-start;
-    width: calc(50% - (var(--bj-dealer-w) * (1 + var(--fan-step)) + 6px) / 2 - 6px);
+    width: calc(50% - (var(--bj-card-w) * (1 + var(--fan-step)) + 6px) / 2 - 6px);
     text-align: left;
+  }
+
+  .bj-table .tbl-ribbon__sub {
+    margin: 0 0 2px;
+    white-space: normal;
+  }
+
+  .bj-table .tbl-ribbon__note {
+    justify-content: flex-start;
   }
 
   .bj-table .tbl-turn {
@@ -452,20 +413,27 @@
     font-size: 0.8rem;
   }
 
-  /* The panel's quiet lines give a few pixels to the seats; Skip and the others keep a 44px tap target. */
-  .bj .tbl-panel__label-row {
-    line-height: 1.1;
+  /* Nobody else at the table: the line goes back to the middle, between the dealer and my hand. */
+  .bj-table.tbl-felt--calm.tbl-crowd--none {
+    grid-template-rows: var(--tbl-head-h) auto var(--tbl-stage-h);
+    grid-template-areas: 'head' 'ribbon' 'stage';
   }
 
-  .bj .tbl-panel__status.tbl-panel__status--slot {
-    min-height: 26px;
+  .bj-table.tbl-felt--calm.tbl-crowd--none > .tbl-ribbon {
+    grid-area: ribbon;
+    justify-self: center;
+    align-items: center;
+    width: auto;
+    text-align: center;
   }
 
-  .bj .tbl-panel__act {
-    height: 26px;
+  .bj-table.tbl-crowd--none .tbl-ribbon__note {
+    justify-content: center;
   }
 
-  .bj .tbl-panel__act::after {
-    inset: -9px -4px;
+  .bj-table.tbl-crowd--none .tbl-turn {
+    flex-direction: row;
+    align-items: center;
+    gap: 2px 10px;
   }
 }

@@ -2,11 +2,12 @@ import { useState } from 'react';
 import type { PokerView } from '@shared/games/poker/protocol';
 import { useHotkeys } from '../../../platform/lib/hotkeys';
 import { AmountField } from '../../../platform/table/AmountField';
-import { MoveButton, PanelLabelRow, PanelMoves, PanelShell, WatchingPanel, type PanelStatus } from '../../../platform/table/ControlPanel';
+import { MoveButton, PanelLabelRow, PanelMoves, PanelShell, WatchingPanel } from '../../../platform/table/ControlPanel';
 import { AllInIcon, FoldIcon, RaiseIcon } from '../../../platform/table/Icons';
 import { allIn, call, check, fold, wager } from '../actions';
-import { amountFrom, potSized, raiseRange, wagerKind } from '../lib/raise';
-import { HOTKEY_HINT, formatChips } from '../lib/text';
+import { amountFrom, idleAmount, potSized, raiseRange, wagerKind } from '../lib/raise';
+import { formatChips } from '../lib/text';
+import { seatAnchor } from '../lib/timeline';
 import { usePoker, usePokerStore } from '../store';
 
 interface Props {
@@ -14,23 +15,24 @@ interface Props {
   meId: string;
   /** My stack on show (a pot still sliding over is not on it yet). */
   balance: number;
-  status: PanelStatus;
+  /** I watch the whole game: no moves, one line. */
+  watching: boolean;
   /** Sends can go out: the game is running, the socket is up and the seat is back (no rejoin in flight). */
   canSend: boolean;
   /** Cards or chips are still moving: the moves wait for them. */
   busy: boolean;
-  /** Desktop: the keyboard shortcuts and their hint line. */
+  /** Desktop: the keyboard shortcuts. */
   hotkeys: boolean;
 }
 
 /**
  * The control panel, the same place all game long and the same shell as Blackjack's: the raise
- * amount (my stack beside its label) with 1/2 pot, Pot and MAX joined to it, then Fold, Bet or
- * Raise (sending the amount) and All in in one row, then the main move, Check or Call, as the one
- * big button, and a quiet status line. Every control is always there, lit only on my turn when it
+ * amount (my stack beside its label) with half pot, Pot and Max by it, then Fold, Bet or Raise
+ * (sending the amount) and All in in one row, then the main move, Check or Call, as the one big
+ * button. Every control is always there, lit only on my turn when it
  * is on offer. The amount starts at the minimum raise each turn.
  */
-export function ControlPanel({ view, meId, balance, status, canSend, busy, hotkeys }: Props) {
+export function ControlPanel({ view, meId, balance, watching, canSend, busy, hotkeys }: Props) {
   const seat = view.players[meId];
   const raiseText = usePoker((s) => s.raiseText);
   const pending = usePoker((s) => s.pending);
@@ -39,7 +41,8 @@ export function ControlPanel({ view, meId, balance, status, canSend, busy, hotke
   // A move of mine still waiting for the table's answer holds them all: a second tap never plays twice.
   const myTurn = canSend && !busy && pending === null && view.phase === 'acting' && view.turn === meId;
   const range = myTurn ? raiseRange(actions) : null;
-  const text = raiseText ?? (range ? String(range.min) : '');
+  // Off my turn the field keeps what I last typed, or the least raise the table would take, dimmed: never an empty box.
+  const text = raiseText ?? String(range ? range.min : idleAmount(view));
   const amount = range ? amountFrom(text, range) : null;
   const shown = editing || amount === null ? text : String(amount);
   const myBet = seat?.bet ?? 0;
@@ -65,25 +68,22 @@ export function ControlPanel({ view, meId, balance, status, canSend, busy, hotke
   const wagerAria = amount !== null ? (kind === 'bet' ? `Bet ${amount}` : `Raise to ${amount}`) : wagerWord;
   const callLabel = actions.canCall ? `Call ${formatChips(actions.callAmount)}` : 'Check';
   const steps = [
-    { label: '1/2 pot', ariaLabel: 'Half the pot', testId: 'raise-half', value: range ? potSized(view, myBet, range, 0.5) : null },
+    { label: '\u00bd pot', ariaLabel: 'Half the pot', testId: 'raise-half', value: range ? potSized(view, myBet, range, 0.5) : null },
     { label: 'Pot', ariaLabel: 'The pot', testId: 'raise-pot', value: range ? potSized(view, myBet, range, 1) : null },
-    { label: 'MAX', ariaLabel: 'All your chips', testId: 'raise-max', value: range ? range.max : null },
+    { label: 'Max', ariaLabel: 'All your chips', testId: 'raise-max', value: range ? range.max : null },
   ];
 
   // A spectator of the whole game has no moves at all: one line in place of the controls.
-  if (status.state === 'spectating') return <WatchingPanel testId="pk-panel" />;
+  if (watching) return <WatchingPanel testId="pk-panel" />;
 
   return (
     <PanelShell
       label="Your moves"
-      status={status}
       onSubmit={send}
       testId="pk-panel"
       data={{ 'data-kind': range?.kind, 'data-min': range?.min, 'data-max': range?.max, 'data-amount': amount ?? undefined, 'data-my-turn': myTurn }}
-      hint={hotkeys && HOTKEY_HINT}
-      statusAt="bottom"
     >
-      <PanelLabelRow label={kind === 'bet' ? 'Bet amount' : 'Raise to'} htmlFor="pk-raise-amount" balance={balance} truth={seat?.chips ?? 0} />
+      <PanelLabelRow label={kind === 'bet' ? 'Bet amount' : 'Raise to'} htmlFor="pk-raise-amount" balance={balance} truth={seat?.chips ?? 0} anchor={seatAnchor(meId)} />
       <AmountField
         id="pk-raise-amount"
         value={shown}

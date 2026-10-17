@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
-import { closeResults, createParty, expectReadyCount, expectResults, joinByCode, leaveLobby, readyAll } from './party';
+import { closeResults, createParty, expectReadyCount, expectResults, joinByCode, leaveLobby, readyAll, roomTabTitle } from './party';
 
 /**
  * The party stays together across games. Four players (one on a phone) create a Click Race
@@ -100,8 +100,11 @@ test('the host creates a Click Race party, three friends join, and the lobby sho
   await expect(host.page.getByTestId('settings-panel')).toBeVisible();
   for (const g of guests()) await expect(g.page.getByTestId('settings-panel')).toHaveCount(0);
 
-  // The phone lobby: the room bar first, then the picker; ready controls fit the screen with 44px targets.
-  await expect(pia.page.locator('.lobby > section').first()).toHaveAttribute('data-testid', 'room-bar');
+  // The phone lobby: the logo, then the room bar under it, then the picker; ready controls fit the screen with 44px targets.
+  await expect(pia.page.locator('.lobby__top > section')).toHaveAttribute('data-testid', 'room-bar');
+  const phoneLogo = await pia.page.getByTestId('site-header').boundingBox();
+  const phoneBar = await pia.page.getByTestId('room-bar').boundingBox();
+  expect((phoneLogo?.y ?? 0) + (phoneLogo?.height ?? 0), 'the logo stacks over the room code').toBeLessThanOrEqual((phoneBar?.y ?? 0) + 0.5);
   await noHorizontalOverflow(pia.page, PORTRAIT.width);
   for (const id of ['game-tile', 'ready-toggle', 'sitout-toggle', 'edit-profile', 'copy-code', 'share-invite', 'settings-menu']) {
     const box = await pia.page.getByTestId(id).first().boundingBox();
@@ -133,9 +136,100 @@ test('the host creates a Click Race party, three friends join, and the lobby sho
   await header.getByTestId('settings-menu').click();
   await expectInsideViewport(pia.page, 'settings-popover', PORTRAIT);
   await pia.page.keyboard.press('Escape');
-  // The desktop keeps the logo at the left.
+  // The desktop keeps the logo at the left, on one row with the room code card.
   const desk = await host.page.getByTestId('site-header').getByTestId('wordmark').boundingBox();
   expect(desk?.x ?? 999).toBeLessThan(100);
+  const deskBar = await host.page.getByTestId('room-bar').boundingBox();
+  const centre = (box: typeof desk) => (box?.y ?? 0) + (box?.height ?? 0) / 2;
+  expect(Math.abs(centre(desk) - centre(deskBar)), 'the logo sits beside the code, centred on it').toBeLessThanOrEqual(2);
+  expect(deskBar?.x ?? 0, 'the code card starts after the logo').toBeGreaterThan((desk?.x ?? 0) + (desk?.width ?? 0));
+});
+
+const ROOM_SIZES = [
+  { width: 320, height: 568 },
+  { width: 360, height: 740 },
+  { width: 390, height: 844 },
+  { width: 768, height: 1024 },
+  { width: 1024, height: 768 },
+  { width: 1440, height: 900 },
+];
+
+test('the room footer sits on the bottom of the screen at every size, its line across the page; kick buttons line up at the right', async () => {
+  for (const size of ROOM_SIZES) {
+    for (const p of [host, quinn]) {
+      await p.page.setViewportSize(size);
+      await p.page.evaluate(() => window.scrollTo(0, 0));
+      // The guest's page is short and the host's (with the settings) long: either way Start or Ready sits on the bottom edge.
+      const footer = await p.page.getByTestId('lobby-footer').boundingBox();
+      expect(Math.abs((footer?.y ?? 0) + (footer?.height ?? 0) - size.height), `${p.name} ${size.width}: the footer is on the bottom`).toBeLessThanOrEqual(1);
+      expect(footer?.x ?? -1, 'its line starts at the left edge').toBeLessThanOrEqual(0.5);
+      expect(footer?.width ?? 0, 'and spans the page').toBeGreaterThanOrEqual(size.width - 0.5);
+      await noHorizontalOverflow(p.page, size.width);
+    }
+    // Each row's kick button is its last item: a 44px target after the status, every one in the same column.
+    const rows = await host.page.getByTestId('player-item').evaluateAll((items) =>
+      items.map((item) => {
+        const kick = item.querySelector('[data-testid="kick-player"]')?.getBoundingClientRect() ?? null;
+        const status = item.querySelector('[data-testid="player-status"]')?.getBoundingClientRect() ?? null;
+        const row = item.getBoundingClientRect();
+        return { kick: kick && { left: kick.left, right: kick.right, width: kick.width, height: kick.height }, statusRight: status?.right ?? 0, rowRight: row.right };
+      }),
+    );
+    const kicks = rows.flatMap((r) => (r.kick ? [{ ...r.kick, statusRight: r.statusRight, rowRight: r.rowRight }] : []));
+    expect(kicks).toHaveLength(3);
+    for (const k of kicks) {
+      expect(k.width).toBeGreaterThanOrEqual(MIN_TARGET);
+      expect(k.height).toBeGreaterThanOrEqual(MIN_TARGET);
+      expect(k.left, 'after the status').toBeGreaterThanOrEqual(k.statusRight - 0.5);
+      expect(k.rowRight - k.right, 'at the far right').toBeLessThanOrEqual(8);
+      expect(Math.abs(k.right - kicks[0].right), 'lined up').toBeLessThanOrEqual(0.5);
+    }
+  }
+  for (const p of [host, quinn]) await p.page.setViewportSize(DESKTOP);
+});
+
+test('Change my look is a centred box on a desktop and a drawer on a tablet or phone, its grids in full rows', async () => {
+  const page = quinn.page;
+  const grids = () =>
+    page.evaluate(() => {
+      const perRow = (selector: string) => {
+        const tops = [...document.querySelectorAll(selector)].map((el) => Math.round(el.getBoundingClientRect().top));
+        return tops.filter((t) => t === tops[0]).length;
+      };
+      return { faces: perRow('.avatar-picker__emojis > *'), colours: perRow('.avatar-picker__colors > *') };
+    });
+  for (const size of [{ width: 1440, height: 900 }, { width: 1024, height: 768 }]) {
+    await page.setViewportSize(size);
+    await page.getByTestId('edit-profile').click();
+    // Once it has popped in.
+    await expect.poll(() => page.getByTestId('profile-sheet').locator('.sheet__panel').evaluate((el) => el.getAnimations().length)).toBe(0);
+    const panel = await page.getByTestId('profile-sheet').locator('.sheet__panel').boundingBox();
+    expect(Math.abs((panel?.x ?? 0) + (panel?.width ?? 0) / 2 - size.width / 2), 'centred across').toBeLessThanOrEqual(1);
+    expect(Math.abs((panel?.y ?? 0) + (panel?.height ?? 0) / 2 - size.height / 2), 'and down').toBeLessThanOrEqual(1);
+    expect(panel?.y ?? 0, 'off the top edge').toBeGreaterThan(0);
+    expect(await grids()).toEqual({ faces: 10, colours: 6 });
+    // Escape closes it, and so does a click on the dimmed page around it.
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('profile-sheet')).toHaveCount(0);
+    await page.getByTestId('edit-profile').click();
+    await page.getByTestId('profile-sheet-backdrop').click({ position: { x: 10, y: 10 } });
+    await expect(page.getByTestId('profile-sheet')).toHaveCount(0);
+  }
+  for (const size of [{ width: 768, height: 1024 }, PORTRAIT, SMALL]) {
+    await page.setViewportSize(size);
+    await page.getByTestId('edit-profile').click();
+    // Once it has slid up.
+    const bottom = async () => {
+      const panel = await page.getByTestId('profile-sheet').locator('.sheet__panel').boundingBox();
+      return Math.abs((panel?.y ?? 0) + (panel?.height ?? 0) - size.height);
+    };
+    await expect.poll(bottom, { message: `${size.width}: a drawer from the bottom` }).toBeLessThanOrEqual(1);
+    expect((await grids()).colours).toBe(6);
+    expect([5, 10]).toContain((await grids()).faces);
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('profile-sheet')).toHaveCount(0);
+  }
+  await page.setViewportSize(DESKTOP);
 });
 
 test('players ready up: the count follows, Start waits for enough ready players and names who is not', async () => {
@@ -250,7 +344,7 @@ test('the lobby keeps the party, and the host switches it to The Spy Game: the U
   await host.page.getByTestId('game-picker').locator('[data-testid="game-tile"][data-game="spygame"]').click();
   for (const p of players) {
     await expect(p.page).toHaveURL(new RegExp(`/spygame/${code}$`));
-    await expect(p.page).toHaveTitle(`boredgames.io · ${code}`);
+    await expect(p.page).toHaveTitle(roomTabTitle(code));
     await expect(p.page.getByTestId('room-code')).toHaveText(code);
     await expect(p.page.getByTestId('player-item')).toHaveCount(4);
     await expect(p.page.getByTestId('game-picker')).toHaveAttribute('data-game', 'spygame');
@@ -278,7 +372,7 @@ test('one player sits out, the host sets Unhinged, three play a one-round Spy Ga
   // Sitting out: only Count me in, with the hint; no disabled ready button next to it.
   await expect(rae.page.getByTestId('ready-toggle')).toHaveCount(0);
   await expect(rae.page.getByTestId('sitout-toggle')).toHaveText('Count me in');
-  await expect(rae.page.getByTestId('sitout-hint')).toHaveText("You'll watch the next game.");
+  await expect(rae.page.getByTestId('sitout-hint')).toHaveText("You’ll watch the next game.");
   await expect(rae.page.getByTestId('ready-controls').getByRole('button')).toHaveText(['Count me in', 'Change my look']);
   for (const p of players) await expect(p.page.locator(`[data-testid="player-item"][data-name="${rae.name}"]`)).toHaveAttribute('data-status', 'sittingOut');
   await expect(host.page.getByTestId('player-count')).toHaveText('3 of 3 ready');
@@ -338,7 +432,7 @@ test('one player sits out, the host sets Unhinged, three play a one-round Spy Ga
   await rae.page.getByTestId('sitout-toggle').click();
   await expect(rae.page.locator(`[data-testid="player-item"][data-name="${rae.name}"]`)).toHaveAttribute('data-status', 'ready');
   await expect(rae.page.getByTestId('ready-toggle')).toHaveAttribute('aria-pressed', 'true');
-  await expect(rae.page.getByTestId('ready-toggle')).toContainText("You're ready");
+  await expect(rae.page.getByTestId('ready-toggle')).toContainText("You’re ready");
   await expect(rae.page.getByTestId('sitout-toggle')).toHaveText('Sit this one out');
 
   // The content mode is hidden for a game that never reads it, and comes back unchanged with one that does.

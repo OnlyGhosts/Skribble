@@ -49,7 +49,7 @@ export function Lobby({ room, game }: Props) {
 
   const copy = async (text: string, label: string) => {
     const ok = await copyText(text);
-    addToast(ok ? 'success' : 'error', ok ? `${label} copied` : `Couldn't copy the ${label.toLowerCase()}. Select it and copy it yourself.`);
+    addToast(ok ? 'success' : 'error', ok ? `${label} copied` : `Couldn’t copy the ${label.toLowerCase()}. Select it and copy it yourself.`);
   };
 
   /** The native share sheet where it exists (phones); otherwise the link lands on the clipboard. */
@@ -68,69 +68,69 @@ export function Lobby({ room, game }: Props) {
 
   return (
     <div className={`lobby${isHost ? '' : ' lobby--guest'}`} data-testid="lobby">
-      <SiteHeader
-        menuActions={[
-          { label: 'Copy invite link', icon: <LinkIcon size={18} />, onSelect: () => void copy(link, 'Invite link'), testId: 'copy-link' },
-          { label: 'Leave room', icon: <LogoutIcon size={18} />, onSelect: leaveRoom, testId: 'leave-room' },
-        ]}
-      />
+      <div className="lobby__body">
+        {/* The logo and the code: stacked on a phone, one row on a wider screen. */}
+        <div className="lobby__top">
+          <SiteHeader
+            menuActions={[
+              { label: 'Copy invite link', icon: <LinkIcon size={18} />, onSelect: () => void copy(link, 'Invite link'), testId: 'copy-link' },
+              { label: 'Leave room', icon: <LogoutIcon size={18} />, onSelect: leaveRoom, testId: 'leave-room' },
+            ]}
+          />
 
-      <section className="card room-card" aria-label="Room code" data-testid="room-bar">
-        <div className="room-card__code">
-          <span className="room-card__label" aria-hidden="true">
-            Room code
-          </span>
-          <span className="room-card__value" data-testid="room-code" aria-label={`Room code ${room.code.split('').join(' ')}`}>
-            {room.code.split('').map((ch, i) => (
-              <span key={i} className="room-card__char">
-                {ch}
+          <section className="card room-card" aria-label="Room code" data-testid="room-bar">
+            <div className="room-card__code">
+              <span className="room-card__label" aria-hidden="true">
+                Room code
               </span>
-            ))}
-          </span>
-        </div>
-        <button type="button" className="room-card__btn" onClick={() => void copy(room.code, 'Code')} aria-label="Copy code" data-testid="copy-code">
-          <CopyIcon size={22} />
-          <span>Copy</span>
-        </button>
-        <button type="button" className="room-card__btn" onClick={() => void share()} aria-label="Share invite" data-testid="share-invite">
-          <ShareIcon size={22} />
-          <span>Share</span>
-        </button>
-      </section>
-
-      {/* Only the host sees the settings: everyone else sees what is next, who is here and their own buttons. */}
-      <div className={`lobby__grid${isHost ? '' : ' lobby__grid--guest'}`}>
-        <div className="lobby__col">
-          <GamePicker room={room} isHost={isHost} />
-
-          <section className="lobby__players" aria-labelledby="players-heading">
-            <h2 className="sr-only" id="players-heading">
-              Players
-            </h2>
-            <span className="sr-only" data-testid="player-count" data-ready={readyPlayers(room).length} data-players={room.players.length}>
-              {readyLine(room)}
-            </span>
-            <PlayerList room={room} meId={playerId} isHost={isHost} mode="lobby" game={game} />
-            {room.players.length === 1 && (
-              <p className="lobby__alone" data-testid="lobby-alone">
-                No one else is here yet. Share the code.
-              </p>
-            )}
+              <span className="room-card__value" data-testid="room-code" aria-label={`Room code ${room.code.split('').join(' ')}`}>
+                {room.code.split('').map((ch, i) => (
+                  <span key={i} className="room-card__char">
+                    {ch}
+                  </span>
+                ))}
+              </span>
+            </div>
+            <button type="button" className="room-card__btn" onClick={() => void copy(room.code, 'Code')} aria-label="Copy code" data-testid="copy-code">
+              <CopyIcon size={22} />
+              <span>Copy</span>
+            </button>
+            <button type="button" className="room-card__btn" onClick={() => void share()} aria-label="Share invite" data-testid="share-invite">
+              <ShareIcon size={22} />
+              <span>Share</span>
+            </button>
           </section>
         </div>
 
-        {isHost && (
+        {/* Only the host sees the settings: everyone else sees what is next, who is here and their own buttons. */}
+        <div className={`lobby__grid${isHost ? '' : ' lobby__grid--guest'}`}>
           <div className="lobby__col">
-            <section className="card lobby__settings" aria-labelledby="settings-heading">
-              <div className="card__head">
-                <h2 className="card__title" id="settings-heading">
-                  Settings
-                </h2>
-              </div>
-              <SettingsPanel room={room} game={game} />
+            <GamePicker room={room} isHost={isHost} />
+
+            <section className="lobby__players" aria-labelledby="players-heading">
+              <h2 className="sr-only" id="players-heading">
+                Players
+              </h2>
+              <span className="sr-only" data-testid="player-count" data-ready={readyPlayers(room).length} data-players={room.players.length}>
+                {readyLine(room)}
+              </span>
+              <PlayerList room={room} meId={playerId} isHost={isHost} mode="lobby" game={game} />
             </section>
           </div>
-        )}
+
+          {isHost && (
+            <div className="lobby__col">
+              <section className="card lobby__settings" aria-labelledby="settings-heading">
+                <div className="card__head">
+                  <h2 className="card__title" id="settings-heading">
+                    Settings
+                  </h2>
+                </div>
+                <SettingsPanel room={room} game={game} />
+              </section>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="lobby__footer" data-testid="lobby-footer">
@@ -147,7 +147,7 @@ export function Lobby({ room, game }: Props) {
       </div>
 
       {me && (
-        <BottomSheet open={editing} title="Change my look" onClose={() => setEditing(false)} testId="profile-sheet" className="sheet--narrow">
+        <BottomSheet open={editing} title="Change my look" onClose={() => setEditing(false)} testId="profile-sheet" className="sheet--narrow sheet--dialog">
           <ProfileEditor me={{ name: me.name, avatar: me.avatar }} onClose={() => setEditing(false)} />
         </BottomSheet>
       )}
@@ -183,7 +183,7 @@ function StartControls({ room }: { room: RoomState }) {
       {confirming ? (
         <div className="start-confirm" role="group" aria-label="Start with players not ready" data-testid="start-confirm">
           <p className="start-confirm__text">
-            {listNames(notReady.map((p) => p.name))} {notReady.length === 1 ? "isn't" : "aren't"} ready yet and would sit this one out.
+            {listNames(notReady.map((p) => p.name))} {notReady.length === 1 ? "isn’t" : "aren’t"} ready yet and would sit this one out.
           </p>
           <div className="start-confirm__actions">
             <button type="button" className="btn btn--primary" onClick={onStart} data-testid="start-anyway">

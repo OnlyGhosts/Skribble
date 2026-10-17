@@ -1,19 +1,20 @@
 import { roomCodeHint } from '@shared/platform/roomCode';
 import type { ErrorCode } from '@shared/platform/protocol';
+import type { ScoreUnit } from '@shared/platform/games';
 
 export type JoinErrorCode = ErrorCode | 'TIMEOUT' | 'OFFLINE';
 
 const FRIENDLY_ERRORS: Record<JoinErrorCode, string> = {
-  INVALID_CODE: `That doesn't look like a room code. ${roomCodeHint()}`,
-  ROOM_NOT_FOUND: "We couldn't find a room with that code. Double-check it or ask your friend for a fresh link.",
+  INVALID_CODE: `That doesn’t look like a room code. ${roomCodeHint()}`,
+  ROOM_NOT_FOUND: "We couldn’t find a room with that code. Double-check it or ask your friend for a fresh link.",
   ROOM_FULL: 'That room is full right now. Ask the host to raise the player limit.',
-  REJOIN_FAILED: "Couldn't rejoin your previous seat. The room may have closed.",
+  REJOIN_FAILED: "Couldn’t rejoin your previous seat. The room may have closed.",
   INVALID_MESSAGE: 'Something went wrong with that request.',
-  NOT_ALLOWED: "You can't do that right now.",
+  NOT_ALLOWED: "You can’t do that right now.",
   RATE_LIMITED: 'Slow down a little. Too many messages at once.',
   INTERNAL: 'The server hit a snag. Please try again.',
   TIMEOUT: 'The server did not answer in time. Please try again.',
-  OFFLINE: "Can't reach the server. Check your connection and try again.",
+  OFFLINE: "Can’t reach the server. Check your connection and try again.",
 };
 
 export function friendlyError(code: JoinErrorCode, fallback?: string): string {
@@ -28,7 +29,7 @@ export function friendlyError(code: JoinErrorCode, fallback?: string): string {
 export function rejoinFailureText(reason: string): string {
   const why = reason.trim();
   if (!why) return friendlyError('REJOIN_FAILED');
-  return `Couldn't rejoin your previous seat. ${/[.!?]$/.test(why) ? why : `${why}.`}`;
+  return `Couldn’t rejoin your previous seat. ${/[.!?]$/.test(why) ? why : `${why}.`}`;
 }
 
 /** "45" below a minute, "1:20" above. */
@@ -84,9 +85,16 @@ export function parseChipAmount(text: string, min: number, max: number): number 
   return Math.max(min, Math.min(max, Math.round(n)));
 }
 
-/** A score in a list: "1,100 pts", and "1 pt" for a single point. */
-export function pointsShort(score: number): string {
-  return `${score.toLocaleString('en-US')} ${score === 1 ? 'pt' : 'pts'}`;
+/** A score in a list: "1,100 pts" ("1 pt"), or a card table's stack: "1,100 chips" ("1 chip"). */
+export function scoreShort(score: number, unit: ScoreUnit = 'points'): string {
+  const word = unit === 'chips' ? 'chip' : 'pt';
+  return `${score.toLocaleString('en-US')} ${score === 1 ? word : `${word}s`}`;
+}
+
+/** A score in words: "1,100 points" ("1 point"), or "1,100 chips" for a card table. */
+export function scoreWords(score: number, unit: ScoreUnit = 'points'): string {
+  const word = unit === 'chips' ? 'chip' : 'point';
+  return `${score.toLocaleString('en-US')} ${score === 1 ? word : `${word}s`}`;
 }
 
 /**

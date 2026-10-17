@@ -6,11 +6,11 @@ export function turnEndReasonText(reason: TurnEndReason, drawerName: string): st
     case 'allGuessed':
       return 'Everyone guessed it!';
     case 'timeUp':
-      return "Time's up!";
+      return "Time’s up!";
     case 'drawerLeft':
       return `${drawerName} left or lost connection, so the turn was skipped.`;
     case 'noWordChosen':
-      return `${drawerName} didn't pick a word in time.`;
+      return `${drawerName} didn’t pick a word in time.`;
   }
 }
 

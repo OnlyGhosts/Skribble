@@ -27,7 +27,7 @@ export function vote(gx: Gx, playerId: string, choice: QuipgameChoice): void {
   const { data } = gx;
   const m = currentMatchup(data);
   if (data.phase !== 'voting' || !m) return fail(gx, playerId, 'There is no matchup to vote on.');
-  if (matchupAuthors(data, m).includes(playerId)) return fail(gx, playerId, "This one's yours. Sit tight.");
+  if (matchupAuthors(data, m).includes(playerId)) return fail(gx, playerId, "This one’s yours. Sit tight.");
   m.votes[playerId] = choice;
   if (!resolveIfComplete(gx)) snapshot(gx);
 }

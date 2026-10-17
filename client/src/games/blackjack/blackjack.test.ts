@@ -35,7 +35,7 @@ const { dealOrder, discardedCount, tableOf, totalText, shownTotal } = await impo
 const T = await import('./lib/timeline');
 const H = await import('./lib/hands');
 const { betAmount, betWindow, defaultBet, doubleBet, halfBet, parseBet, suggestedBet } = await import('./lib/bet');
-const { panelStatus, roundLabel, RIBBON_TEXT, DEALER_RULE_TEXT, payoutText, joinNames, phaseKicker, HOTKEY_HINT } = await import('./lib/text');
+const { roundLabel, RIBBON_TEXT, DEALER_RULE_TEXT, payoutText, joinNames, ruleText, standingOf, focusLine } = await import('./lib/text');
 const { player, registryOf, resetStore, room, welcome } = await import('../../test/fixtures');
 const { tileFigures } = await import('../../platform/table/PlayersGrid');
 const P = await import('./lib/pending');
@@ -398,7 +398,7 @@ describe('sounds under reduced motion', () => {
 });
 
 describe('the bet amount', () => {
-  it('takes anything from 1 chip to the whole stack, remembers the last bet and walks with 1/2, 2x and MAX', () => {
+  it('takes anything from 1 chip to the whole stack, remembers the last bet and walks with half, 2x and Max', () => {
     const w = betWindow(300, 0);
     expect(w).toEqual({ min: 1, max: 300 });
     // A stake already down counts as available; no chips at all means no bet.
@@ -425,45 +425,51 @@ describe('the bet amount', () => {
 });
 
 describe('copy', () => {
-  it('says whose turn it is in the panel', () => {
-    const base = { phase: 'acting' as const, seated: true, bustedOut: false, connected: true, inRound: true, hasChips: true, betPlaced: true, sittingOut: false, pending: [], myTurn: false, turnName: 'Pia', handIndex: 0, handCount: 1, dealerPlaying: false };
-    expect(panelStatus(base).text).toBe("Pia's turn");
-    expect(panelStatus({ ...base, myTurn: true }).text).toBe('Your turn');
-    expect(panelStatus({ ...base, myTurn: true, handIndex: 1, handCount: 3 }).text).toBe('Your turn, hand 2 of 3');
-    expect(panelStatus({ ...base, phase: 'betting', betPlaced: false }).text).toBe('Place your bet');
-    expect(panelStatus({ ...base, phase: 'betting', betPlaced: false, sittingOut: true })).toMatchObject({ state: 'sat-out', text: 'You sit this hand out' });
-    expect(panelStatus({ ...base, phase: 'betting', pending: ['Pia', 'Quinn'] }).text).toBe('Waiting for Pia and Quinn');
-    // A big table counts the stragglers rather than naming them all.
-    expect(panelStatus({ ...base, phase: 'betting', pending: ['A', 'B', 'C', 'D'] }).text).toBe('Waiting for 4 players');
+  it('works out where I stand, and says it on the line under the ribbon when it is the news (the panel has no line of its own)', () => {
+    const base = { phase: 'acting' as const, seated: true, bustedOut: false, inRound: true, hasChips: true, sittingOut: false };
+    expect(standingOf(base)).toBe('playing');
+    expect(standingOf({ ...base, seated: false })).toBe('watching');
+    expect(standingOf({ ...base, bustedOut: true })).toBe('out');
     // Not dealt in: a seat with chips sat the hand out, a newcomer waits for the next round.
-    expect(panelStatus({ ...base, inRound: false })).toMatchObject({ state: 'next-round', text: 'You sit this hand out' });
-    expect(panelStatus({ ...base, inRound: false, hasChips: false }).text).toBe("You're in from the next round");
-    expect(panelStatus({ ...base, phase: 'betting', dealerPlaying: true }).text).toBe("Dealer's turn");
-    expect(panelStatus({ ...base, bustedOut: true }).state).toBe('out');
-    expect(panelStatus({ ...base, seated: false }).state).toBe('spectating');
-    // Offline: the line says what the notice above says, a restart included.
-    expect(panelStatus({ ...base, connected: false })).toMatchObject({ state: 'offline', text: 'Reconnecting…' });
-    expect(panelStatus({ ...base, connected: false, restarting: true })).toMatchObject({ state: 'offline', text: 'Server restarting…' });
+    expect(standingOf({ ...base, inRound: false })).toBe('sat-out');
+    expect(standingOf({ ...base, inRound: false, hasChips: false })).toBe('next-round');
+    expect(standingOf({ ...base, phase: 'betting', sittingOut: true })).toBe('sat-out');
+    expect(standingOf({ ...base, phase: 'betting', inRound: false })).toBe('next-round');
+    expect(standingOf({ ...base, phase: 'results', inRound: false })).toBe('playing');
+    const names: Record<string, string> = { host: 'Hana', bob: 'Pia' };
+    const s = { nameOf: (id: string) => names[id] ?? 'Someone', meId: 'host', handCount: 1 };
+    const bets = { kind: 'bets' as const, placed: ['bob'], waiting: ['host'] };
+    expect(focusLine(bets, { ...s, standing: 'sat-out' })).toEqual({ state: 'sat-out', text: 'You sit this hand out', tone: 'quiet', sub: '1 of 2 bets in' });
+    expect(focusLine(bets, { ...s, standing: 'next-round' }).text).toBe("You’re in from the next round");
+    expect(focusLine(bets, { ...s, standing: 'out' })).toMatchObject({ state: 'out', text: "You’re out of chips", tone: 'bad' });
+    // While somebody plays, who plays comes first and where I stand is the quieter second part.
+    const theirs = { kind: 'turn' as const, playerId: 'bob', handIndex: 0, mine: false, next: null };
+    expect(focusLine(theirs, { ...s, standing: 'sat-out' })).toMatchObject({ text: "Pia’s turn", sub: 'You sit this hand out' });
+    expect(focusLine(theirs, { ...s, turnAway: true }).text).toBe('Pia is away');
+    // A watcher's panel already says they watch: the line keeps to the table.
+    expect(focusLine(theirs, { ...s, standing: 'watching' }).sub).toBe('Next: Dealer');
+    expect(focusLine({ kind: 'idle', reason: 'next' }, { ...s, betQueued: true })).toMatchObject({ text: 'Next round soon', sub: 'Bet placed' });
+    expect(focusLine({ kind: 'idle', reason: 'next' }, { ...s, standing: 'out' })).toMatchObject({ state: 'out', text: "You’re out of chips" });
     expect(joinNames(['A', 'B', 'C'])).toBe('A, B and C');
   });
 
   it('labels the rounds, the ribbon and the payouts', () => {
     expect(roundLabel(4)).toBe('Round 4');
     expect(roundLabel(0)).toBe('Round 1');
-    // Written in sentence case (the banner shows it in capitals), so a screen reader reads words.
+    // Written and shown in sentence case, so it reads as words.
     expect(RIBBON_TEXT).toBe('Blackjack pays 3 to 2');
     expect(DEALER_RULE_TEXT).toBe('Dealer stands on 17');
     expect(payoutText(220)).toBe('+220');
     expect(payoutText(0)).toBe('');
-    expect(phaseKicker(acting({ endRequested: true }), 'Pia', false)).toBe('Last hand');
+    // Beside the round under the banner: the dealer's rule, or the last hand once the host has ended the game.
+    expect(ruleText(acting())).toBe('Dealer stands on 17');
+    expect(ruleText(acting({ endRequested: true }))).toBe('Last hand');
+    expect(ruleText(acting({ phase: 'betting', endRequested: true }))).toBe('Dealer stands on 17');
   });
 
-  it("says it is the dealer's turn in the top bar and holds every seat line while the reveal still plays", async () => {
+  it('holds every seat line while the reveal still plays', async () => {
     const { seatLine } = await import('./components/Seats');
     const next = nextBetting();
-    expect(phaseKicker(next, 'Pia', false)).toBe('Place your bets');
-    expect(phaseKicker(next, 'Pia', false, true)).toBe("Dealer's turn");
-    expect(phaseKicker(view({ phase: 'held' }), 'Pia', false, true)).toBe('Waiting for players');
     const bobHands = tableOf(next)?.hands.bob ?? [];
     expect(seatLine(next, 'bob', bobHands, false, true)).toMatchObject({ state: 'waiting', text: 'Waiting' });
     expect(seatLine(next, 'bob', bobHands, false, false)).toMatchObject({ state: 'betting', text: 'Betting' });
@@ -505,17 +511,11 @@ describe('copy', () => {
     expect(waitingText(['Bartholomew', 'Christabel'])).toBe('Waiting for 2 players');
     expect(waitingText(['A', 'B', 'C', 'D'])).toBe('Waiting for 4 players');
     expect(betsLabel(false, ['Bartholomew', 'Christabel'], true)).toBe('Waiting for 2 players');
-    const base = { phase: 'betting' as const, seated: true, bustedOut: false, connected: true, inRound: true, hasChips: true, betPlaced: true, sittingOut: false, myTurn: false, turnName: 'Pia', handIndex: 0, handCount: 1, dealerPlaying: false };
-    expect(panelStatus({ ...base, pending: ['Bartholomew', 'Christabel'] }).text).toBe('Waiting for 2 players');
   });
 
   it('says the next round is coming through the results pause', () => {
     const results = nextBetting({ phase: 'results', round: 2, order: [], waitingFor: [] });
-    expect(phaseKicker(results, 'Pia', false)).toBe('Next round soon');
-    expect(phaseKicker(results, 'Pia', false, true)).toBe("Dealer's turn");
-    const base = { phase: 'results' as const, seated: true, bustedOut: false, connected: true, inRound: false, hasChips: true, betPlaced: false, sittingOut: false, pending: [], myTurn: false, turnName: '', handIndex: 0, handCount: 0, dealerPlaying: false };
-    expect(panelStatus(base)).toMatchObject({ state: 'results', text: 'Next round soon' });
-    expect(panelStatus({ ...base, dealerPlaying: true }).text).toBe("Dealer's turn");
+    expect(focusLine({ kind: 'idle', reason: 'next' }, { nameOf: () => 'Pia', meId: 'carol', handCount: 0 }).text).toBe('Next round soon');
     // Once the outcomes are up, Bet is on offer through the pause: the tap waits and goes out as the bets open.
     // No sit-out or move is on offer while the settled table is on show.
     const html = render(bjRoom(results), 'host');
@@ -540,7 +540,6 @@ describe('copy', () => {
       expect(text.includes('\u2014'), file).toBe(false);
       expect(/insurance/i.test(text), file).toBe(false);
     }
-    expect(HOTKEY_HINT.includes('\u2014')).toBe(false);
   });
 });
 
@@ -555,10 +554,15 @@ describe('the screen', () => {
     expect(attr(tagWith(html, 'bet-input'), 'inputMode')).toBe('numeric');
     expect(attr(tagWith(html, 'bj-panel'), 'data-max')).toBe('300');
     expect(tagsWith(html, 'dealer-slot')).toHaveLength(2);
-    expect(attr(tagWith(html, 'turn-status'), 'data-state')).toBe('bet');
+    expect(attr(tagWith(html, 'table-turn'), 'data-state')).toBe('bets');
     expect(html).toContain('Blackjack pays 3 to 2');
-    expect(html).toContain('Dealer stands on 17');
+    // The round is on the table, beside the dealer's rule under the banner, not in the top bar.
     expect(attr(tagWith(html, 'round-indicator'), 'data-round')).toBe('2');
+    expect(html).toMatch(/<span class="tbl-ribbon__sub"><span data-testid="round-indicator" data-round="2">Round 2<\/span><span class="tbl-ribbon__dot"> · <\/span><span data-testid="table-rule">Dealer stands on 17<\/span><\/span>/);
+    expect(html.slice(html.indexOf('data-testid="blackjack-header"'), html.indexOf('</header>'))).not.toContain('Round');
+    // No status line or shortcut hint in the panel; Sit out is a full-width button under Bet.
+    expect(tagsWith(html, 'turn-status')).toHaveLength(0);
+    expect(tagsWith(html, 'hotkey-hint')).toHaveLength(0);
     expect(html).toContain('Any bet from 1 to 300 chips');
   });
 
@@ -568,10 +572,10 @@ describe('the screen', () => {
     expect(disabled(html, 'place-bet')).toBe(true);
     expect(attr(tagWith(html, 'place-bet'), 'data-placed')).toBe('true');
     expect(attr(tagWith(html, 'my-bet'), 'data-bet')).toBe('20');
-    expect(attr(tagWith(html, 'turn-status'), 'data-state')).toBe('waiting');
+    expect(attr(tagWith(html, 'table-turn'), 'data-state')).toBe('bets');
   });
 
-  it("puts my next stake beside my empty slots, never over the last round's hands still on the table", () => {
+  it("puts my next stake beside my empty slots, never over the last round’s hands still on the table", () => {
     const before = render(bjRoom(nextBetting()), 'host');
     const mine = (html: string) => html.slice(html.indexOf('data-testid="my-area"'), html.indexOf('data-testid="bj-panel"'));
     // Before my bet: my settled hand stays up.
@@ -582,12 +586,11 @@ describe('the screen', () => {
     // My bet down: my row moves on to two empty slots with the stake where a hand's stake goes.
     expect(tagsWith(mine(html), 'card')).toHaveLength(0);
     expect(tagsWith(mine(html), 'my-slot')).toHaveLength(2);
-    // The stake is its own labelled pill in the stage's left column, beside my name: never on a card.
+    // The stake is its own labelled pill right by my empty places: never on a card, never in a column of its own.
     const stake = tagWith(html, 'my-bet');
     expect(attr(stake, 'data-bet')).toBe('50');
-    expect(attr(stake, 'class')).toBe('tbl-stake tbl-stake--bet');
-    const stage = html.slice(html.indexOf('data-testid="hand-stage"'));
-    expect(stage.indexOf('data-testid="my-bet"')).toBeLessThan(stage.indexOf('data-testid="my-area"'));
+    expect(attr(stake, 'class')).toBe('tbl-stake tbl-stake--bet tbl-hand__stake');
+    expect(mine(html)).toMatch(/<div class="bj-empty"><span class="bj-empty__stake"><span class="tbl-stake tbl-stake--bet tbl-hand__stake" data-testid="my-bet"/);
     expect(html).toMatch(/data-testid="my-bet"[^>]*><span class="tbl-stake__word">Bet<\/span> <span class="tbl-stake__value">50<\/span>/);
     // Bob's settled hand is still on his tile.
     expect(tagsWith(html, 'seat-hand').length).toBeGreaterThan(0);
@@ -606,8 +609,11 @@ describe('the screen', () => {
     expect(attr(cards[1], 'data-rank')).toBeUndefined();
     expect(attr(tagWith(html, 'dealer-total'), 'data-testid')).toBe('dealer-total');
     expect(attr(tagWith(html, 'my-hand'), 'data-active')).toBe('true');
-    expect(attr(tagWith(html, 'turn-status'), 'data-state')).toBe('my-turn');
-    expect(tagWith(html, 'hotkey-hint')).toBeTruthy();
+    expect(attr(tagWith(html, 'table-turn'), 'data-state')).toBe('mine');
+    // The keys still work (and say so to a screen reader); no hint line spells them out.
+    expect(tagsWith(html, 'hotkey-hint')).toHaveLength(0);
+    // My stake rides by my hand's total.
+    expect(attr(tagWith(html, 'hand-bet'), 'data-bet')).toBe('50');
     // A pair of eights against a ten: Split takes the lime, the rest stay secondary; Bet is quiet.
     expect(attr(tagWith(html, 'action-split'), 'data-primary')).toBe('true');
     for (const id of ['action-hit', 'action-stand', 'action-double']) expect(attr(tagWith(html, id), 'data-primary'), id).toBe('false');
@@ -616,14 +622,14 @@ describe('the screen', () => {
     expect(html).toMatch(/data-testid="action-hit"[^>]*><span class="tbl-move__label">Hit<\/span><span class="tbl-move__icon" aria-hidden="true"><svg/);
   });
 
-  it("acting, someone else's turn: my moves are dimmed and their seat is lit", () => {
+  it("acting, someone else’s turn: my moves are dimmed and their seat is lit", () => {
     const v = acting({ actions: NO_ACTIONS });
     const html = render(bjRoom(v), 'bob');
     for (const id of ['action-hit', 'action-stand', 'action-split', 'action-double', 'place-bet']) expect(disabled(html, id)).toBe(true);
     const seat = tagWith(html, 'seat');
     expect(attr(seat, 'data-name')).toBe('Hana');
     expect(attr(seat, 'data-turn')).toBe('true');
-    expect(html).toContain('Hana&#x27;s turn');
+    expect(html).toContain('Hana’s turn');
   });
 
   it('re-split hands: four hands side by side, the one in play lit, each with its stake and a big total', () => {
@@ -644,12 +650,12 @@ describe('the screen', () => {
     expect(attr(mine[2], 'class')).toContain('tbl-hand--active');
     expect(attr(mine[0], 'class')).toContain('tbl-hand--neutral');
     expect(disabled(html, 'action-split')).toBe(true);
-    // The line under the banner and the panel both say which hand is in play.
+    // The line under the banner says which hand is in play.
     expect(attr(tagWith(html, 'table-turn'), 'data-state')).toBe('mine');
     expect(html).toMatch(/data-testid="table-turn"[^>]*><span class="tbl-turn__text">Your turn, hand 3 of 4<\/span>/);
     expect(html).toContain('Your turn, hand 3 of 4');
-    // The stage's stake is the whole stake on the table, four hands of 50.
-    expect(attr(tagWith(html, 'my-bet'), 'data-bet')).toBe('200');
+    // Each hand's stake by its own total, four hands of 50.
+    expect(tagsWith(html, 'hand-bet').map((t) => attr(t, 'data-bet'))).toEqual(['50', '50', '50', '50']);
   });
 
   it('the next betting keeps the settled table up: the dealer turned over, each hand with its outcome and payout', () => {
@@ -674,15 +680,21 @@ describe('the screen', () => {
   it('the rounds never run out and read "Round N"; a spectator watches with no controls at all', () => {
     const html = render(bjRoom(acting()), 'carol');
     expect(html).toContain('Round 2<');
-    expect(attr(tagWith(html, 'turn-status'), 'data-state')).toBe('spectating');
-    expect(textOf(html, 'turn-status')).toBe('You&#x27;re watching. You can play the next game.');
+    expect(html).toContain('You’re watching. You can play the next game.');
+    expect(tagsWith(html, 'watching-note')).toHaveLength(1);
+    // Not dealt in, I watch the hand in play on the stage, its owner named by its total; their seat leaves its cards to the stage.
+    expect(attr(tagWith(html, 'hand-stage'), 'data-player-id')).toBe('host');
+    expect(textOf(html, 'stage-owner')).toBe('Hana');
+    expect(tagsWith(html, 'stage-hand')).toHaveLength(1);
+    const hana = html.slice(html.indexOf('data-name="Hana"'));
+    expect(hana.slice(0, hana.indexOf('data-testid="seat-open"'))).not.toContain('data-testid="seat-hand"');
     expect(attr(tagWith(html, 'bj-panel'), 'data-watching')).toBe('true');
     for (const id of ['place-bet', 'bet-input', 'action-hit', 'action-stand', 'action-split', 'action-double', 'sit-out', 'deal-now', 'skip-turn']) expect(tagsWith(html, id), id).toHaveLength(0);
     // A seated player keeps the whole panel.
     expect(tagWith(render(bjRoom(acting()), 'bob'), 'bj-panel')).not.toContain('data-watching');
   });
 
-  it('gives the host the platform\'s End game, says it ends after the hand in play, and once asked says so instead', () => {
+  it('gives the host the platform’s End game, says it ends after the hand in play, and once asked says so instead', () => {
     expect(tagWith(render(bjRoom(acting()), 'host'), 'end-game')).toBeTruthy();
     expect(tagsWith(render(bjRoom(acting()), 'bob', false), 'end-game')).toHaveLength(0);
     expect(blackjackClient.endGameNote?.(bjRoom(acting()))).toBe('It ends after the hand in play.');
@@ -697,7 +709,7 @@ describe('the screen', () => {
 describe('the move the panel lights on my turn', () => {
   const all = { canHit: true, canStand: true, canDouble: true, canSplit: true };
   const up = (rank: Card['rank']) => c(rank, 'H');
-  it('plays the basic strategy move from my hand and the dealer\'s up card', async () => {
+  it('plays the basic strategy move from my hand and the dealer’s up card', async () => {
     const { suggestedMove } = await import('./lib/advice');
     expect(suggestedMove([c('8'), c('8', 'D')], up('10'), all)).toBe('split');
     expect(suggestedMove([c('A'), c('A', 'D')], up('6'), all)).toBe('split');
@@ -781,7 +793,7 @@ describe('the move the panel lights on my turn', () => {
 });
 
 describe('the table controls (no clocks)', () => {
-  it('offers Sit out beside the status while my bet is still to place, and says so once I sit out', () => {
+  it('offers Sit out under Bet while my bet is still to place, and says so on the table once I sit out', () => {
     const html = render(bjRoom(view({ controls: { ...NO_CONTROLS, canSitOut: true } })), 'bob');
     const sit = tagWith(html, 'sit-out');
     expect(attr(sit, 'aria-label')).toBe('Sit this hand out');
@@ -791,7 +803,9 @@ describe('the table controls (no clocks)', () => {
     const out = view({ waitingFor: ['host'], players: { ...view().players, bob: { chips: 300, bet: 0, hands: [], inRound: true, sittingOut: true, bustedOut: false } } });
     const sat = render(bjRoom(out), 'bob');
     expect(tagsWith(sat, 'sit-out')).toHaveLength(0);
-    expect(attr(tagWith(sat, 'turn-status'), 'data-state')).toBe('sat-out');
+    // The row keeps its place: Sit out stays there, dimmed.
+    expect(disabled(sat, 'sit-out-off')).toBe(true);
+    expect(attr(tagWith(sat, 'table-turn'), 'data-state')).toBe('sat-out');
     expect(sat).toContain('>You sit this hand out<');
     expect(disabled(sat, 'place-bet')).toBe(false);
     // Everyone else waits on Hana only; the line under the banner counts the bets among those taking part.
@@ -800,7 +814,7 @@ describe('the table controls (no clocks)', () => {
     expect(attr(tagWith(host, 'table-turn'), 'data-state')).toBe('bets');
   });
 
-  it("gives the host Deal now once a bet is down, and Skip on another player's turn, never on their own", () => {
+  it("gives the host Deal now once a bet is down, and Skip on another player’s turn, never on their own", () => {
     const bet = view({ waitingFor: ['bob'], controls: { ...NO_CONTROLS, canDealNow: true }, players: { ...view().players, host: { chips: 950, bet: 50, hands: [], inRound: true, sittingOut: false, bustedOut: false } } });
     const html = render(bjRoom(bet), 'host');
     expect(attr(tagWith(html, 'deal-now'), 'aria-label')).toBe('Deal now to everyone who has bet');
@@ -810,21 +824,19 @@ describe('the table controls (no clocks)', () => {
 
     const theirs = acting({ turn: { playerId: 'bob', handIndex: 0 }, actions: NO_ACTIONS, controls: { ...NO_CONTROLS, canSkip: true } });
     const skip = tagWith(render(bjRoom(theirs), 'host'), 'skip-turn');
-    expect(attr(skip, 'aria-label')).toBe('Stand Pia&#x27;s hand');
+    expect(attr(skip, 'aria-label')).toBe('Stand Pia’s hand');
     expect(tagsWith(render(bjRoom(acting()), 'host'), 'skip-turn')).toHaveLength(0);
     expect(tagsWith(render(bjRoom(acting({ actions: NO_ACTIONS })), 'bob'), 'skip-turn')).toHaveLength(0);
   });
 
-  it('keeps the status line the same height with or without a control, and never shows a clock', () => {
+  it('keeps the row of table buttons in place with or without one on offer, full width, and never shows a clock', () => {
     for (const html of [render(bjRoom(view()), 'bob'), render(bjRoom(view({ controls: { ...NO_CONTROLS, canSitOut: true } })), 'bob'), render(bjRoom(acting()), 'host')]) {
-      expect(html).toContain('tbl-panel__status--slot');
+      expect(html).toMatch(/<div class="tbl-panel__actions"><button type="button" class="btn btn--secondary btn--block tbl-panel__act"/);
       expect(tagsWith(html, 'timer')).toHaveLength(0);
     }
     const css = readFileSync(fileURLToPath(new URL('../../platform/styles/table.css', import.meta.url)), 'utf8');
-    expect(css).toMatch(/\.tbl-panel__status\.tbl-panel__status--slot \{[^}]*min-height: 30px;/);
-    // The pill is short; its tap target reaches 44px.
-    expect(css).toMatch(/\.tbl-panel__act \{[^}]*height: 30px;/);
-    expect(css).toMatch(/\.tbl-panel__act::after \{[^}]*inset: -7px -4px;/);
+    expect(css).toMatch(/\.tbl-panel__act \{[^}]*min-height: 44px;/);
+    expect(css).not.toContain('tbl-panel__status');
   });
 
   it('sends the new moves to the server', async () => {
@@ -849,8 +861,10 @@ describe('the table controls (no clocks)', () => {
     expect(tagsWith(html, 'sit-out')).toHaveLength(1);
     expect(tagsWith(html, 'deal-now')).toHaveLength(1);
     expect(html.indexOf('data-testid="sit-out"')).toBeLessThan(html.indexOf('data-testid="deal-now"'));
+    // Side by side under Bet, sharing the row.
+    expect(html.indexOf('data-testid="place-bet"')).toBeLessThan(html.indexOf('data-testid="sit-out"'));
     const css = readFileSync(fileURLToPath(new URL('../../platform/styles/table.css', import.meta.url)), 'utf8');
-    expect(css).toMatch(/\.tbl-panel__act \+ \.tbl-panel__act \{[^}]*margin-left: 0;/);
+    expect(css).toMatch(/\.tbl-panel__actions \{[^}]*grid-auto-columns: minmax\(0, 1fr\);/);
   });
 
   it('aims Skip at the hand in play and dims it once tapped, so a second tap never stands the next hand', async () => {
@@ -865,7 +879,11 @@ describe('the table controls (no clocks)', () => {
     expect(turnKey(theirs)).toBe('2:bob:1');
     expect(turnKey(view())).toBeNull();
     const skipped: string[] = [];
-    const element = (skippedKey: string | null) => TableAction({ view: theirs, meId: 'host', turnName: 'Pia', skipped: skippedKey, onSkip: (k) => skipped.push(k) });
+    const element = (skippedKey: string | null) => {
+      const el = TableAction({ view: theirs, meId: 'host', turnName: 'Pia', live: true, skipped: skippedKey, onSkip: (k) => skipped.push(k) });
+      if (!el) throw new Error('no Skip');
+      return el;
+    };
     const live = element(null);
     expect(renderToString(live)).not.toContain('disabled');
     (live.props as { onClick(): void }).onClick();
@@ -881,7 +899,7 @@ describe('the table controls (no clocks)', () => {
   });
 });
 
-describe("the table's focus and the stage", () => {
+describe("the table’s focus and the stage", () => {
   const at = async (v: BlackjackView, meId: string | null, opts: { dealerPlaying?: boolean; shown?: boolean } = {}) => {
     const { focusOf } = await import('./lib/focus');
     return focusOf({ view: v, table: tableOf(v), dealerPlaying: opts.dealerPlaying ?? false, outcomesShown: opts.shown ?? true, meId });
@@ -918,9 +936,9 @@ describe("the table's focus and the stage", () => {
     const s = { nameOf: (id: string) => names[id] ?? 'Someone', meId: 'host', handCount: 1 };
     expect(focusLine({ kind: 'turn', playerId: 'host', handIndex: 0, mine: true, next: 'bob' }, s)).toEqual({ state: 'mine', text: 'Your turn', tone: 'go' });
     expect(focusLine({ kind: 'turn', playerId: 'host', handIndex: 1, mine: true, next: null }, { ...s, handCount: 3 }).text).toBe('Your turn, hand 2 of 3');
-    expect(focusLine({ kind: 'turn', playerId: 'bob', handIndex: 0, mine: false, next: 'host' }, s)).toEqual({ state: 'turn', text: "Pia's turn", tone: 'other', sub: 'Next: You' });
+    expect(focusLine({ kind: 'turn', playerId: 'bob', handIndex: 0, mine: false, next: 'host' }, s)).toEqual({ state: 'turn', text: "Pia’s turn", tone: 'other', sub: 'Next: You' });
     expect(focusLine({ kind: 'turn', playerId: 'bob', handIndex: 0, mine: false, next: null }, s).sub).toBe('Next: Dealer');
-    expect(focusLine({ kind: 'dealer' }, s)).toEqual({ state: 'dealer', text: "Dealer's turn", tone: 'other', sub: 'Draws to 17' });
+    expect(focusLine({ kind: 'dealer' }, s)).toEqual({ state: 'dealer', text: "Dealer’s turn", tone: 'other', sub: 'Draws to 17' });
     expect(focusLine({ kind: 'bets', placed: ['bob'], waiting: ['host'] }, s)).toEqual({ state: 'bets', text: 'Place your bet', tone: 'go', sub: '1 of 2 bets in' });
     expect(focusLine({ kind: 'bets', placed: ['host'], waiting: ['bob'] }, s).text).toBe('Waiting for Pia');
     expect(focusLine({ kind: 'result', playerId: 'host' }, { ...s, result: { outcome: 'win', back: 100 } })).toEqual({ state: 'result', text: 'You win +100', tone: 'go' });
@@ -928,37 +946,64 @@ describe("the table's focus and the stage", () => {
     expect(focusLine({ kind: 'idle', reason: 'next' }, s).text).toBe('Next round soon');
   });
 
-  it("puts another player's hands on the stage on their turn, mine otherwise; a watcher sees the hand in play", async () => {
+  it('keeps my hands on the stage whenever I am dealt in; not dealt in, the stage shows the hand in play', async () => {
     const { stageOwner, stageKind } = await import('./lib/focus');
     const theirs = { kind: 'turn' as const, playerId: 'bob', handIndex: 0, mine: false, next: null };
-    expect(stageOwner(theirs, true, 'host')).toBe('bob');
-    expect(stageOwner({ ...theirs, playerId: 'host', mine: true }, true, 'host')).toBe('host');
-    expect(stageOwner({ kind: 'bets', placed: [], waiting: [] }, true, 'host')).toBe('host');
-    expect(stageOwner({ kind: 'dealer' }, false, 'carol')).toBeNull();
-    expect(stageOwner(theirs, false, 'carol')).toBe('bob');
+    const dealt = { seated: true, dealtIn: true };
+    // Dealt in: mine, on my turn, on another player's turn and in every other phase.
+    expect(stageOwner(theirs, dealt, 'host')).toBe('host');
+    expect(stageOwner({ ...theirs, playerId: 'host', mine: true }, dealt, 'host')).toBe('host');
+    expect(stageOwner({ kind: 'dealer' }, dealt, 'host')).toBe('host');
+    expect(stageOwner({ kind: 'result', playerId: 'host' }, dealt, 'host')).toBe('host');
+    // Seated but not dealt in (sitting out, out of chips, just joined): the hand in play while someone plays, my empty places otherwise.
+    const out = { seated: true, dealtIn: false };
+    expect(stageOwner(theirs, out, 'host')).toBe('bob');
+    expect(stageOwner({ kind: 'bets', placed: [], waiting: [] }, out, 'host')).toBe('host');
+    expect(stageOwner({ kind: 'dealer' }, out, 'host')).toBe('host');
+    // A watcher: the hand in play, or nobody's.
+    const watching = { seated: false, dealtIn: false };
+    expect(stageOwner(theirs, watching, 'carol')).toBe('bob');
+    expect(stageOwner({ kind: 'dealer' }, watching, 'carol')).toBeNull();
+    expect(stageOwner({ kind: 'idle', reason: 'held' }, watching, 'carol')).toBeNull();
+    // The stage's kind says what the table follows, whoever's hand it shows.
     expect(stageKind(theirs)).toBe('turn');
     expect(stageKind({ ...theirs, mine: true })).toBe('mine');
     expect(stageKind({ kind: 'dealer' })).toBe('dealer');
+    expect(stageKind({ kind: 'bets', placed: [], waiting: [] })).toBe('bets');
+    expect(stageKind({ kind: 'result', playerId: 'host' })).toBe('result');
+    expect(stageKind({ kind: 'idle', reason: 'over' })).toBe('idle');
   });
 
-  it("someone else's turn: their hand big on the stage, their name and stake beside it, mine small at the side; no turn banner", () => {
+  it("counts my bet in as soon as it is on its way, so the line never says less than I did", async () => {
+    const { focusOf } = await import('./lib/focus');
+    const open = view({ waitingFor: ['host', 'bob'] });
+    expect(focusOf({ view: open, table: tableOf(open), dealerPlaying: false, outcomesShown: true, meId: 'host' })).toEqual({ kind: 'bets', placed: [], waiting: ['host', 'bob'] });
+    expect(focusOf({ view: open, table: tableOf(open), dealerPlaying: false, outcomesShown: true, meId: 'host', betSent: true })).toEqual({ kind: 'bets', placed: ['host'], waiting: ['bob'] });
+    // My last outcome gives way to the bets as soon as my next bet is on its way.
+    const settled = nextBetting();
+    expect(focusOf({ view: settled, table: tableOf(settled), dealerPlaying: false, outcomesShown: true, meId: 'host', betSent: true })).toMatchObject({ kind: 'bets' });
+  });
+
+  it("someone else’s turn: my hand stays big at the bottom with my stake; theirs plays in their seat alone, lit, never on the stage", () => {
     const html = render(bjRoom(acting({ actions: NO_ACTIONS })), 'bob');
     const stage = tagWith(html, 'hand-stage');
     expect(attr(stage, 'data-kind')).toBe('turn');
-    expect(attr(stage, 'data-player-id')).toBe('host');
-    expect(tagsWith(html, 'stage-hand')).toHaveLength(1);
-    expect(attr(tagWith(html, 'stage-hand'), 'class')).toContain('tbl-hand--active');
-    expect(attr(tagWith(html, 'stage-bet'), 'data-bet')).toBe('50');
-    expect(html).toContain('<span class="tbl-stage__name">Hana</span>');
-    // Mine waits small beside theirs, still a full hand with its total.
-    expect(attr(tagWith(html, 'my-area'), 'class')).toBe('bj-mine bj-mine--aside');
-    expect(attr(tagWith(html, 'my-hand'), 'class')).toContain('tbl-hand--mini');
-    // Whose turn it is: the line under the banner, the seat's ring and the panel; no band across the table.
-    expect(html).toMatch(/data-testid="table-turn"[^>]*><span class="tbl-turn__text">Hana&#x27;s turn<\/span><span class="tbl-turn__sub" data-testid="turn-sub">Next: You</);
+    expect(attr(stage, 'data-player-id')).toBe('bob');
+    expect(attr(tagWith(html, 'my-area'), 'class')).toBe('bj-mine');
+    expect(attr(tagWith(html, 'my-hand'), 'class')).toContain('tbl-hand--big');
+    expect(attr(tagWith(html, 'hand-bet'), 'data-bet')).toBe('20');
+    expect(tagsWith(html, 'stage-hand')).toHaveLength(0);
+    // Their cards are on the page once: in their seat, which is ringed.
+    const seat = tagWith(html, 'seat');
+    expect(attr(seat, 'data-turn')).toBe('true');
+    expect(tagsWith(html, 'seat-hand')).toHaveLength(1);
+    // No floating columns of faces, names or stakes beside the stage.
+    expect(html).not.toContain('tbl-stage__');
+    expect(html).not.toContain('bj-mine--aside');
+    // Whose turn it is: the line under the banner and the seat's ring; no band across the table.
+    expect(html).toMatch(/data-testid="table-turn"[^>]*><span class="tbl-turn__text">Hana’s turn<\/span><span class="tbl-turn__sub" data-testid="turn-sub">Next: You</);
     expect(tagsWith(html, 'spotlight')).toHaveLength(0);
-    expect(html).not.toContain('tbl-spot');
     expect(tagsWith(html, 'timer')).toHaveLength(0);
-    expect(html).toContain('tbl-panel__status--who');
   });
 
   it('my turn: my hand big on the stage and lit; top to bottom the dealer, the banner, the seats, the stage', () => {
@@ -977,7 +1022,7 @@ describe("the table's focus and the stage", () => {
     expect(attr(tagWith(html, 'discard-tray'), 'class')).toBe('tbl-discard-corner');
   });
 
-  it("the dealer's play: the dealer's cards stay at the top of the table, the line under the banner says so", () => {
+  it("the dealer’s play: the dealer’s cards stay at the top of the table, the line under the banner says so", () => {
     const me = 'host';
     usePlatformStore.getState().handleServerMessage(welcome(me, bjRoom(acting())));
     // The server is already on the next bets.
@@ -986,7 +1031,7 @@ describe("the table's focus and the stage", () => {
     blackjackClient.onRoom?.(bjRoom(betting), bjRoom(acting()));
     const html = render(bjRoom(betting), me);
     expect(attr(tagWith(html, 'hand-stage'), 'data-kind')).toBe('dealer');
-    expect(html).toContain('>Dealer&#x27;s turn<');
+    expect(html).toContain('>Dealer’s turn<');
     expect(html).toContain('>Draws to 17<');
     // No countdown anywhere: the next bets wait for the players.
     expect(tagsWith(html, 'timer')).toHaveLength(0);
@@ -999,7 +1044,7 @@ describe("the table's focus and the stage", () => {
     const phases: [string, BlackjackView][] = [
       ['betting', view()],
       ['my turn', acting()],
-      ["another player's turn", acting({ turn: { playerId: 'bob', handIndex: 0 }, actions: NO_ACTIONS })],
+      ["another player’s turn", acting({ turn: { playerId: 'bob', handIndex: 0 }, actions: NO_ACTIONS })],
       ['the settled table', nextBetting()],
     ];
     for (const [label, v] of phases) {
@@ -1015,11 +1060,14 @@ describe("the table's focus and the stage", () => {
   it('sizes the dealer and the stage from the screen alone: fixed rows, and no card size that goes by the players or the phase', () => {
     const css = readFileSync(fileURLToPath(new URL('./blackjack.css', import.meta.url)), 'utf8');
     // The calm table's fixed first and last rows (table.css) are the dealer's and the stage's.
-    expect(css).toMatch(/\.bj-table \{[^}]*--tbl-head-h: var\(--bj-dealer-h\);\s*--tbl-stage-h: var\(--bj-stage-h\);/);
+    expect(css).toMatch(/\.bj-table \{[^}]*--tbl-head-h: calc\(var\(--bj-label-h\) \+ var\(--bj-fan-h\)\);\s*--tbl-stage-h: var\(--bj-fan-h\);/);
+    // The cards go by the room the table has (cq units), worked out once on the table.
+    expect(css).toMatch(/@property --bj-card-w \{\s*syntax: '<length>';\s*inherits: true;/);
+    expect(css).toMatch(/\.bj-table \{\s*--bj-card-w: clamp\(64px, 13cqh, 132px\);/);
     expect(render(bjRoom(view()), 'host')).toContain('tbl-felt tbl-felt--calm bj-table');
     // A crowd never resizes the dealer's cards or the stage's.
     for (const rule of css.match(/[^{}]*tbl-crowd--[^{}]*\{[^}]*\}/g) ?? []) {
-      expect(rule).not.toMatch(/--bj-(dealer|stage)-(w|h)/);
+      expect(rule).not.toMatch(/--bj-(card-w|fan-h|label-h)/);
     }
     // The fan keeps one height however many cards (the step down shrinks past four).
     const table = readFileSync(fileURLToPath(new URL('../../platform/styles/table.css', import.meta.url)), 'utf8');
@@ -1027,16 +1075,23 @@ describe("the table's focus and the stage", () => {
     expect(table).toMatch(/--fan-dy: min\(calc\(var\(--tbl-w\) \* 0\.09\), calc\(var\(--tbl-w\) \* 0\.27 \/ max\(1, var\(--fan, 2\) - 1\)\)\);/);
   });
 
-  it("another player's split hands share the stage, the line under the banner says which is in play", () => {
+  it("another player’s split hands share the stage when I watch, the line under the banner says which is in play", () => {
     const split = acting({
       turn: { playerId: 'bob', handIndex: 1 },
       actions: NO_ACTIONS,
       players: { ...acting().players, bob: { chips: 260, bet: 20, hands: [hand([c('8'), c('3'), c('10')], { total: 21, status: 'stood', fromSplit: true }), hand([c('8'), c('2'), c('5')], { total: 15, status: 'acting', fromSplit: true })], inRound: true, sittingOut: false, bustedOut: false } },
     });
-    const html = render(bjRoom(split), 'host');
+    const html = render(bjRoom(split), 'carol');
     expect(tagsWith(html, 'stage-hand')).toHaveLength(2);
     expect(tagWith(html, 'stage-hands-row')).toContain('style="--hands:2;--fan:3');
-    expect(html).toContain('>Pia&#x27;s turn, hand 2 of 2<');
+    // Their name rides on the hand in play, by its total.
+    expect(html).toMatch(/data-testid="stage-hand"[^>]*data-index="1"[\s\S]*?<span class="tbl-hand__owner" data-testid="stage-owner">Pia<\/span>/);
+    expect(tagsWith(html, 'stage-owner')).toHaveLength(1);
+    expect(html).toContain('>Pia’s turn, hand 2 of 2<');
+    // Dealt in, I keep my own hand on the stage and theirs stays in their seat.
+    const mine = render(bjRoom(split), 'host');
+    expect(tagsWith(mine, 'stage-hand')).toHaveLength(0);
+    expect(tagsWith(mine, 'my-hand')).toHaveLength(1);
   });
 
   it('after the settle: my outcome on my hand and in the line under the banner, in its colour', () => {
@@ -1051,14 +1106,13 @@ describe("the table's focus and the stage", () => {
 describe('many hands', () => {
 
   it('keeps every hand full size while they fit side by side, and how many fit goes by the width', () => {
-    // The stage's middle at 320, 390 and 1440 wide (less its side columns): two, two and six full hands.
-    expect(H.fullHandsFit(160, H.MIN_FULL_HAND_PX.mine)).toBe(2);
-    expect(H.fullHandsFit(218, H.MIN_FULL_HAND_PX.mine)).toBe(2);
-    expect(H.fullHandsFit(320, H.MIN_FULL_HAND_PX.mine)).toBe(4);
-    expect(H.fullHandsFit(508, H.MIN_FULL_HAND_PX.mine)).toBe(6);
-    // Mine small at the side of another player's turn: one full hand, the rest as chips.
-    expect(H.fullHandsFit(58, H.MIN_FULL_HAND_PX.aside)).toBe(1);
-    expect(H.fullHandsFit(120, H.MIN_FULL_HAND_PX.aside)).toBe(1);
+    // The stage (no side columns) at 320, 390 and 1440 wide: three, four and nine full hands at the least width.
+    expect(H.fullHandsFit(296, H.MIN_FULL_HAND_PX.mine)).toBe(3);
+    expect(H.fullHandsFit(358, H.MIN_FULL_HAND_PX.mine)).toBe(4);
+    expect(H.fullHandsFit(760, H.MIN_FULL_HAND_PX.mine)).toBe(9);
+    // A row keeps each full hand as wide as the words over its corner ("Bet 1,000" and the total): fewer fit.
+    expect(H.fullHandsFit(358, Math.max(H.MIN_FULL_HAND_PX.mine, 110 + H.HAND_GAP_PX))).toBe(2);
+    expect(H.MIN_FULL_HAND_PX.mine).toBeGreaterThan(H.MIN_FULL_HAND_PX.stage);
     // Never less than one, however narrow.
     expect(H.fullHandsFit(40, H.MIN_FULL_HAND_PX.mine)).toBe(1);
     expect(H.handSlots(2, 1, 2)).toEqual(['full', 'full']);
@@ -1100,7 +1154,7 @@ describe('many hands', () => {
     // My chips' totals are the big totals' size; a chip is wide enough for two digits in it.
     expect(H.MIN_CHIP_PX.width).toBeGreaterThanOrEqual(34);
     const css = readFileSync(fileURLToPath(new URL('./blackjack.css', import.meta.url)), 'utf8');
-    expect(css).toMatch(/\.bj-hands--mine \.bj-chip__total\.tbl-pill,\s*\.bj-hands--aside \.bj-chip__total\.tbl-pill \{[^}]*font-size: 1rem;/);
+    expect(css).toMatch(/\.bj-hands--mine \.bj-chip__total\.tbl-pill \{[^}]*font-size: 1rem;/);
   });
 
   it('keeps the chips nearest the hand in play when not all fit, a hand still to play first', () => {
@@ -1163,11 +1217,11 @@ describe('the players grid', () => {
       expect(attr(turn[0], 'aria-current')).toBe('true');
       expect(turn[0]).toContain('tbl-tile--turn');
       expect(tagsWith(html, 'seat-hand').length > 0, `${n} seats: cards on the tiles`).toBe(cards);
-      // Every tile shows the total, the stack in words and the bet as its own pill; the seat on turn is on the stage too.
+      // Every tile shows the total, the stack in words and the bet as its own pill; my own hands keep the stage.
       expect(tagsWith(html, 'seat-total')).toHaveLength(n - 1);
       expect(tagsWith(html, 'seat-chips')).toHaveLength(n - 1);
       expect(tagsWith(html, 'seat-bet')).toHaveLength(n - 1);
-      expect(attr(tagWith(html, 'hand-stage'), 'data-player-id')).toBe(`p${n - 1}`);
+      expect(attr(tagWith(html, 'hand-stage'), 'data-player-id')).toBe('p0');
     }
   });
 
@@ -1345,6 +1399,9 @@ describe('a tap waiting for its answer', () => {
     expect(textOf(html, 'place-bet')).toBe('Bet placed');
     expect(disabled(html, 'place-bet')).toBe(true);
     expect(attr(tagWith(html, 'place-bet'), 'data-sent')).toBe('true');
+    // The table counts my bet in at once: the line and Bet never disagree.
+    expect(textOf(html, 'bets-count')).toBe('1 of 2 bets in');
+    expect(html).not.toContain('>Place your bet<');
     vi.restoreAllMocks();
   });
 
@@ -1381,7 +1438,7 @@ describe('a tap waiting for its answer', () => {
     useBlackjackStore.getState().applyView(acting(), Date.now(), true, true);
     useBlackjackStore.getState().applyView(settled, Date.now(), false, true);
     const html = render(bjRoom(settled), 'bob');
-    expect(textOf(html, 'turn-status')).toBe('Dealer&#x27;s turn');
+    expect(html).toContain('>Dealer’s turn<');
     expect(disabled(html, 'place-bet')).toBe(false);
     expect(attr(tagWith(html, 'place-bet'), 'aria-disabled')).toBeUndefined();
     // The server already takes bets: the tap places one now.
@@ -1403,7 +1460,7 @@ describe('a tap waiting for its answer', () => {
     vi.restoreAllMocks();
   });
 
-  it('waits for my own cards only before my moves go, saying Dealing meanwhile', () => {
+  it('waits for my own cards only before my moves go', () => {
     const at = Date.now();
     useBlackjackStore.getState().applyView(view(), at, true, true);
     useBlackjackStore.getState().applyView(acting(), at, false, true);
@@ -1414,9 +1471,6 @@ describe('a tap waiting for its answer', () => {
     const ready = Math.max(...mine);
     expect(T.myHandLanded(timeline, table, 'host', 0, ready)).toBe(true);
     expect(ready).toBeLessThan(timeline.endsAt);
-    const base = { phase: 'acting' as const, seated: true, bustedOut: false, connected: true, inRound: true, hasChips: true, betPlaced: true, sittingOut: false, pending: [], myTurn: true, turnName: 'Hana', handIndex: 0, handCount: 1, dealerPlaying: false };
-    expect(panelStatus({ ...base, dealing: true })).toMatchObject({ state: 'dealing', text: 'Dealing' });
-    expect(panelStatus(base)).toMatchObject({ state: 'my-turn', text: 'Your turn' });
   });
 
   it('does not hold the next deal for the last outcomes when my own bet dealt it', () => {
@@ -1436,7 +1490,7 @@ describe('a tap waiting for its answer', () => {
   it('shows a seat the table waits on whose phone went quiet as away, and says so on their turn', () => {
     const quiet = acting({ turn: { playerId: 'bob', handIndex: 0 }, away: ['bob'], controls: { ...NO_CONTROLS, canSkip: true } });
     const html = render(bjRoom(quiet), 'host');
-    expect(textOf(html, 'turn-status')).toBe('Pia is away');
+    expect(html).toContain('>Pia is away<');
     expect(tagsWith(html, 'skip-turn')).toHaveLength(1);
     expect(seatLine(quiet, 'bob', [], false)).toMatchObject({ state: 'away', text: 'Away' });
     expect(seatLine(quiet, 'host', [], false).state).not.toBe('away');

@@ -53,8 +53,8 @@ export function rank(gx: Gx, playerId: string, answerIds: string[]): void {
   const final = data.final;
   if (data.phase !== 'finalVoting' || !final) return fail(gx, playerId, 'There is no ranking open.');
   if (new Set(answerIds).size !== answerIds.length) return fail(gx, playerId, 'Pick each answer once.');
-  if (answerIds.some((id) => !final.order.includes(id))) return fail(gx, playerId, "That's not one of the answers.");
-  if (answerIds.some((id) => answerById(data, id)?.authorId === playerId)) return fail(gx, playerId, "You can't pick your own answer.");
+  if (answerIds.some((id) => !final.order.includes(id))) return fail(gx, playerId, "That’s not one of the answers.");
+  if (answerIds.some((id) => answerById(data, id)?.authorId === playerId)) return fail(gx, playerId, "You can’t pick your own answer.");
   const limit = maxPicks(data, final, playerId);
   if (answerIds.length > limit) return fail(gx, playerId, `Pick at most ${limit} answer${limit === 1 ? '' : 's'}.`);
   final.rankings[playerId] = [...answerIds];

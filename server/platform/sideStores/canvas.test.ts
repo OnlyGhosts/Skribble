@@ -15,7 +15,7 @@ const move = (id: number, n = 2): DrawOp => ({ k: 'move', id, pts: new Array<num
 function room(canvasId = 'canvas-1', drawerId = 'alice', endsAt = 10_000): SideRoom<ScribbleData> {
   const game: ScribbleData = {
     phase: { kind: 'drawing' },
-    turn: { drawerId, choices: [], word: 'apple', startedAt: 0, endsAt, revealOrder: [], revealAt: [], revealed: [], correct: 0, guesserIds: [], guessed: [drawerId], points: {}, ratings: {} },
+    turn: { drawerId, choices: [], word: 'apple', startedAt: 0, endsAt, revealOrder: [], revealAt: [], revealed: [], correct: 0, guesserIds: [], guessed: [drawerId], points: {} },
     canvasId,
     round: 1,
     turnQueue: [drawerId],

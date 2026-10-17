@@ -49,8 +49,6 @@ export const PROBE_TIMEOUT_MS = 3_000;
  * background. Such a close is retried at once instead of after the backoff.
  */
 export const LONG_LIVED_MS = 30_000;
-/** A reconnect still not through after this long is worth the one "connection lost" toast. */
-export const SLOW_RECONNECT_MS = 5_000;
 /** A pong this late answers a ping sent before a suspension; its round trip says nothing about latency. */
 const MAX_SANE_RTT_MS = 2_000;
 /**
@@ -62,7 +60,7 @@ export const CONNECT_TIMEOUT_MS = 8_000;
 export const STALE_CONNECTING_MS = 3_000;
 /** After sending, no word at all from the server for this long: the link is probed. */
 export const SEND_CHECK_MS = 1_500;
-/** A probe still unanswered after this long shows the slow-connection pill (the probe itself gives up at PROBE_TIMEOUT_MS). */
+/** A probe still unanswered after this long shows the slow-connection notice (the probe itself gives up at PROBE_TIMEOUT_MS). */
 export const SLOW_PILL_MS = 1_000;
 /**
  * During a game, no frame at all for this long gets the link probed. The table may be waiting on
@@ -116,7 +114,6 @@ export class GameSocket {
   private openedAt = 0;
   private backoff = BACKOFF_MIN_MS;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-  private slowReconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private pingTimer: ReturnType<typeof setInterval> | null = null;
   private pongTimer: ReturnType<typeof setTimeout> | null = null;
   /** When the running pong timer gives the socket up. */
@@ -125,7 +122,6 @@ export class GameSocket {
   /** When the last frame came in on the current socket. */
   private lastHeardAt = 0;
   private pongPending = false;
-  private lostToastShown = false;
   /** Frames received on this page: every frame is a sign of life. */
   private framesHeard = 0;
   /** A frame came in since the last ping went out (the server answers in order, so its pong is on the way). */
@@ -390,7 +386,6 @@ export class GameSocket {
     this.lastHeardAt = this.openedAt;
     this.pacer = new SendPacer();
     this.clearConnectTimer();
-    this.clearSlowReconnectTimer();
     store.setConnection(this.restarting ? 'restarting' : 'connected');
     this.startPing();
 
@@ -417,7 +412,6 @@ export class GameSocket {
       store.resetRoom();
       store.addToast('error', 'The connection to the room was lost.');
     }
-    this.lostToastShown = false;
     const pending = store.pendingJoin;
     if (pending) {
       store.setPendingJoin(null);
@@ -461,11 +455,6 @@ export class GameSocket {
         this.joinFallback = null;
         this.serverGoneAt = null;
         this.endRecovery();
-        if (this.lostToastShown) {
-          // Only now is the player really back: the seat answered.
-          store.addToast('success', 'Reconnected');
-          this.lostToastShown = false;
-        }
         this.rememberSession({ code: msg.room.code, gameId: msg.room.gameId, token: msg.token, playerId: msg.playerId });
         // A welcome for another seat (or the first one) is a fresh entry, not a continuation.
         const prev = store.playerId === msg.playerId ? store.room : null;
@@ -583,7 +572,6 @@ export class GameSocket {
     }
     const store = usePlatformStore.getState();
     store.setConnection(this.restarting ? 'restarting' : this.everConnected ? 'reconnecting' : 'connecting');
-    if (store.room) this.armSlowReconnectToast();
     if (lived >= LONG_LIVED_MS) {
       this.backoff = BACKOFF_MIN_MS;
       this.connect();
@@ -617,27 +605,7 @@ export class GameSocket {
     }
   }
 
-  /** The pill shows every reconnect; a toast only when one drags on (the routine hosting cuts never do). */
-  private armSlowReconnectToast(): void {
-    if (this.slowReconnectTimer !== null || this.lostToastShown) return;
-    this.slowReconnectTimer = setTimeout(() => {
-      this.slowReconnectTimer = null;
-      const store = usePlatformStore.getState();
-      // A restart has its own notice, which says the game carries on.
-      if (this.isOpen() || !store.room || this.lostToastShown || this.restarting) return;
-      store.addToast('warning', 'Connection lost. Reconnecting…');
-      this.lostToastShown = true;
-    }, SLOW_RECONNECT_MS);
-  }
-
-  private clearSlowReconnectTimer(): void {
-    if (this.slowReconnectTimer !== null) {
-      clearTimeout(this.slowReconnectTimer);
-      this.slowReconnectTimer = null;
-    }
-  }
-
-  /** Any frame from the server proves the link: the slow pill and the checks on what was sent clear. */
+  /** Any frame from the server proves the link: the slow notice and the checks on what was sent clear. */
   private heard(): void {
     this.framesHeard++;
     this.lastHeardAt = Date.now();
@@ -648,7 +616,7 @@ export class GameSocket {
 
   /**
    * After a send, the server should say something soon (the room's answer, a snapshot). Silence
-   * gets the link probed, the pill comes up while the probe is out, and a probe that goes
+   * gets the link probed, the notice comes up while the probe is out, and a probe that goes
    * unanswered drops the socket so the reconnect, and the resend of what was lost, run.
    */
   private checkAnswer(ws: WebSocket): void {

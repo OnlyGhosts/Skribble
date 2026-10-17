@@ -56,7 +56,7 @@ describe('a full room of 50', () => {
     expect(ruleOf(css, '.results-card__scroll')).toContain('overflow-y: auto');
   });
 
-  it("reads out each game's seat range: no cap for Blackjack and Quip Game, 2 to 23 for Poker", () => {
+  it("reads out each game’s seat range: no cap for Blackjack and Quip Game, 2 to 23 for Poker", () => {
     const metaOf = (gameId: GameId) => renderToString(createElement(GamePicker, { room: room({ gameId }), isHost: true })).replace(/<!-- -->/g, '').match(/data-testid="game-picker-meta">([^<]*)</)?.[1];
     expect(metaOf('poker')).toBe('Poker · 2 to 23 players');
     expect(metaOf('blackjack')).toBe('Blackjack · 1+ players');

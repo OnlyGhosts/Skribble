@@ -132,8 +132,8 @@ test('the front door renders and the host creates a room with a readable 4-chara
   await host.page.goto('/');
   await expect(host.page.getByTestId('home-create')).toBeVisible();
   await expect(host.page.getByTestId('home-join')).toBeVisible();
-  // Connected: no status badge (it only shows while the socket is down).
-  await expect(host.page.getByTestId('connection-status')).toHaveCount(0);
+  // Connected: no connection notice (it only shows while the link is gone).
+  await expect(host.page.getByTestId('connection-notice')).toHaveCount(0);
 
   roomCode = await createParty(host.page, host.name);
   expect(roomCode).toMatch(ROOM_CODE_RE);
@@ -154,7 +154,7 @@ test('an invalid code shows the alphabet hint and an unknown code is reported as
   await typeCode(bob.page, unknown);
   await bob.page.getByTestId('home-join').click();
   await enterNameIfAsked(bob.page, bob.name);
-  await expect(bob.page.getByTestId('join-error')).toContainText(/couldn't find a room/i);
+  await expect(bob.page.getByTestId('join-error')).toContainText(/couldn’t find a room/i);
   await expect(bob.page.getByTestId('room-code')).toHaveCount(0);
 
   // Typing a new code over it: a box retyped with the letter it already holds still moves on
@@ -212,6 +212,8 @@ test('the host adds custom words from a .txt file: split like typed words, no du
   const box = host.page.getByTestId('settings-customWords');
   const file = host.page.getByTestId('settings-customWords-file');
   const status = host.page.getByTestId('settings-customWords-upload-status');
+  // A small button, but a full 44px target.
+  expect((await host.page.getByTestId('settings-customWords-upload').boundingBox())?.height).toBeGreaterThanOrEqual(44);
   await box.fill('cat, dog');
   await box.blur();
   await file.setInputFiles({ name: 'words.txt', mimeType: 'text/plain', buffer: Buffer.from('Dog\nhot   dog, fish\n\nbird\n') });

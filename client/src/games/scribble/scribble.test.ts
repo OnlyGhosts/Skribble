@@ -254,13 +254,13 @@ describe('the guess box and the guess feed', () => {
     expect(guessBoxLine('drawing', true, true)).toBe('Guesses show up here');
     expect(guessBoxLine('drawing', false, true)).toBe('You got it! Others are still guessing');
     // A spectator of the whole game reads the same line in every phase.
-    for (const phase of ['choosing', 'drawing', 'turnEnd']) expect(guessBoxLine(phase, false, false, false)).toBe("You're watching. You can play the next game.");
+    for (const phase of ['choosing', 'drawing', 'turnEnd']) expect(guessBoxLine(phase, false, false, false)).toBe("You’re watching. You can play the next game.");
     expect(guessBoxLine('choosing', true, false)).toBe('Pick a word to draw');
     expect(guessBoxLine('choosing', false, false)).toBe('Get ready to guess');
     expect(guessBoxLine('turnEnd', false, false)).toBe('Next turn soon');
   });
 
-  it("lists this game's guesses and lines, never the lines from before it started or the notices", () => {
+  it("lists this game’s guesses and lines, never the lines from before it started or the notices", () => {
     enter(room({ players }) as ScribbleRoomState, 'bob');
     for (const id of [1, 2]) platform().handleServerMessage({ t: 'chat', message: chatLine(id, 'system') });
     // The game starts on screen (its start lines share its start time): what was said before it stays out of the feed.
@@ -279,7 +279,7 @@ describe('the guess box and the guess feed', () => {
     expect(platform().toasts.map((t) => t.text)).toContain('Ann is now the host');
   });
 
-  it("shows a welcome into a running game only this game's lines, never the lobby's or an earlier game's", () => {
+  it("shows a welcome into a running game only this game’s lines, never the lobby’s or an earlier game’s", () => {
     const game = inTurn(drawingPhase('host'), { startedAt: 5, players: { bob: { guessedThisTurn: true, turnPoints: 0 } } }, { players });
     const history = [chatLine(2, 'system', 'Hana joined'), chatLine(4, 'chat', 'old guess'), chatLine(5, 'system', 'The game has started!'), chatLine(8, 'chat', 'banana'), chatLine(9, 'notice', 'Old news')];
     platform().handleServerMessage({ ...welcome('rae', game), chat: history });
@@ -324,17 +324,15 @@ describe('guess tiles for assistive tech and narrow bars', () => {
   });
 });
 
-describe('spectators', () => {
-  it('shows a player sitting the game out the rating tally without live buttons', () => {
-    const state = inTurn(drawingPhase('host', { likes: 2 }), {}, { players: [player('host'), player('bob', { joinOrder: 1 }), player('rae', { joinOrder: 2, participating: false, sittingOut: true })] });
-    enter(state, 'rae');
-    const spectator = renderToString(createElement(ScribbleScreen, { room: state, meId: 'rae', isHost: false }));
-    expect(tagWith(spectator, 'rate-like')).toContain('disabled');
-    expect(tagWith(spectator, 'rate-dislike')).toContain('disabled');
-    expect(tagWith(spectator, 'rate-like')).toContain('(2)');
-    enter(state, 'bob');
-    const guesser = renderToString(createElement(ScribbleScreen, { room: state, meId: 'bob', isHost: false }));
-    expect(tagWith(guesser, 'rate-like')).not.toContain('disabled');
+describe('drawing ratings', () => {
+  it('are gone: no thumbs for a guesser, the drawer or a player sitting the game out', () => {
+    const state = inTurn(drawingPhase('host'), {}, { players: [player('host'), player('bob', { joinOrder: 1 }), player('rae', { joinOrder: 2, participating: false, sittingOut: true })] });
+    for (const id of ['host', 'bob', 'rae']) {
+      enter(state, id);
+      const html = renderToString(createElement(ScribbleScreen, { room: state, meId: id, isHost: id === 'host' }));
+      expect(html, id).toContain('data-testid="canvas"');
+      for (const gone of ['data-testid="rating"', 'rate-like', 'rate-dislike', 'class="rating']) expect(html, `${id} ${gone}`).not.toContain(gone);
+    }
   });
 });
 
@@ -385,9 +383,9 @@ describe('platform hold', () => {
     const settlingHtml = renderToString(createElement(ScribbleScreen, { room: settling, meId: 'host', isHost: true }));
     expect(tagWith(settlingHtml, 'turn-end-countdown')).toContain('data-countdown="settling"');
     expect(settlingHtml).toContain('Next turn is starting');
-    // Both the header clock and the summary's own timer wait rather than sit on "0".
+    // One countdown on the screen: the header clock, which waits rather than sit on "0".
     const timers = settlingHtml.match(/<div class="timer[^"]*"[^>]*>/g) ?? [];
-    expect(timers.length).toBeGreaterThanOrEqual(2);
+    expect(timers).toHaveLength(1);
     for (const t of timers) {
       expect(t).toContain('data-face="settling"');
       expect(t).not.toContain('timer--urgent');
@@ -397,7 +395,7 @@ describe('platform hold', () => {
     enter(running, 'host');
     const runningHtml = renderToString(createElement(ScribbleScreen, { room: running, meId: 'host', isHost: true }));
     expect(tagWith(runningHtml, 'turn-end-countdown')).toContain('data-countdown="running"');
-    expect(runningHtml).toContain('Next turn in');
+    expect(runningHtml).toMatch(/data-testid="turn-end-countdown" data-countdown="running">Next turn soon</);
   });
 });
 
