@@ -16,15 +16,34 @@
   gap: var(--space-3);
 }
 
-/* The logo and the room code share one row on a wider screen (phones stack them, below). */
+/*
+ * ---------- The room's header: one bar with the logo, the room code and its buttons ----------
+ * On a tablet or a desktop it is one surface, as the game top bar is: the logo (with its gear) at
+ * the left, "Room code" and the lime tiles together in the middle, Copy and Share at the right end,
+ * everything 44px tall on one line. A phone splits it (below): the logo bare and centred, then the
+ * code card, which keeps the same surface, label, tiles and buttons.
+ */
 .lobby__top {
   display: flex;
   align-items: center;
-  gap: var(--space-5);
+  gap: var(--space-4);
+  padding: 10px 12px 10px 16px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
 }
 
 .lobby__top .site-header {
   flex: none;
+  min-height: 44px;
+}
+
+/*
+ * The gear's popover drops out from under the bar, like a menu from a toolbar: past the logo's
+ * own offset inside the bar's 44px line, its 10px padding and its 1px border, then 8px clear.
+ */
+.lobby .settings-menu--logo .settings-menu__panel {
+  top: calc(100% + (44px - var(--wordmark-height)) / 2 + 19px);
 }
 
 .lobby__top .room-card {
@@ -32,34 +51,37 @@
   min-width: 0;
 }
 
-/* ---------- Room code card: the label over the big code, Copy and Share as square buttons on the right ---------- */
 .room-card {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px 12px 12px 20px;
+  gap: var(--space-2);
 }
 
+/* The label and the tiles together, centred in the room between the logo and the buttons. */
 .room-card__code {
   flex: 1 1 auto;
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
   min-width: 0;
 }
 
 .room-card__label {
-  font-size: 0.9375rem;
+  flex: none;
+  font-size: 0.875rem;
   font-weight: 500;
   color: var(--color-text-muted);
+  white-space: nowrap;
 }
 
 /* The code itself, each character on its own lime block, so it is the first thing anyone sees and easy to read out. */
 .room-card__value {
+  flex: none;
   display: flex;
-  gap: clamp(4px, 1.2vw, 8px);
+  gap: 4px;
   font-family: var(--font-display);
-  font-size: clamp(1.5rem, 7.6vw, 2.5rem);
+  font-size: 1.9375rem;
   font-weight: 700;
   line-height: 1;
   user-select: all;
@@ -76,26 +98,30 @@
   box-shadow: inset 0 0 0 1.5px var(--color-primary-edge);
 }
 
-/* Icon over a short label, a square of at least 64px. */
+/* Copy and Share: the icon and a short label on a quiet well, 44px tall like everything else on the bar. */
 .room-card__btn {
   flex: none;
   display: inline-flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  width: 72px;
-  height: 72px;
-  border-radius: 12px;
+  min-height: 44px;
+  padding: 0 14px 0 12px;
+  border-radius: var(--radius-item);
   border: 1.5px solid var(--color-border);
   background: var(--color-surface-3);
   color: var(--color-text);
   font-size: 0.875rem;
   font-weight: 600;
+  white-space: nowrap;
   transition:
     background-color 100ms ease-out,
     border-color 100ms ease-out,
     transform 70ms ease-out;
+}
+
+.room-card__btn svg {
+  flex: none;
 }
 
 .room-card__btn:hover {
@@ -517,10 +543,6 @@ button.content-mode:not(:disabled):hover {
     padding-bottom: var(--space-5);
   }
 
-  .room-card {
-    padding: 14px 14px 14px 24px;
-  }
-
   .lobby__grid {
     grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
     gap: var(--space-4);
@@ -540,23 +562,10 @@ button.content-mode:not(:disabled):hover {
   }
 }
 
-/* The logo and the code side by side need a little more than the guest's phone-sized column. */
+/* The header bar (logo, label, tiles and both buttons on one line) needs a little more than the guest's phone-sized column. */
 @media (min-width: 761px) {
   .lobby--guest {
-    --guest-column: 680px;
-  }
-}
-
-/* The narrowest phones: smaller squares so the code keeps its size. */
-@media (max-width: 359px) {
-  .room-card {
-    padding-left: 14px;
-    gap: 6px;
-  }
-
-  .room-card__btn {
-    width: 60px;
-    height: 64px;
+    --guest-column: 720px;
   }
 }
 
@@ -564,15 +573,20 @@ button.content-mode:not(:disabled):hover {
   --wordmark-height: 30px;
 }
 
-/* Beside the code card a slightly bigger logo balances the row. */
-@media (min-width: 761px) {
+/* A tablet's bar is full: a slightly smaller logo and tighter gaps keep the whole line a clear few pixels inside it. */
+@media (min-width: 761px) and (max-width: 1023px) {
+  .lobby__top {
+    gap: var(--space-3);
+  }
+
   .lobby .site-header {
-    --wordmark-height: 34px;
+    --wordmark-height: 28px;
   }
 }
 
 /*
- * Phones: the logo centred at the top of the room, the code card under it, and the gear's popover
+ * Phones: the bar splits. The logo bare and centred at the top of the room, the code card under it
+ * (the label over the tiles, Copy and Share as squares at its right end), and the gear's popover
  * centred under the logo, inside the screen.
  */
 @media (max-width: 760px), (min-aspect-ratio: 3/2) and (max-height: 520px) {
@@ -580,6 +594,37 @@ button.content-mode:not(:disabled):hover {
     flex-direction: column;
     align-items: stretch;
     gap: var(--space-3);
+    padding: 0;
+    background: none;
+    border: 0;
+  }
+
+  .room-card {
+    gap: 10px;
+    padding: 12px 12px 12px 16px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+  }
+
+  .room-card__code {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .room-card__value {
+    gap: clamp(4px, 1.2vw, 8px);
+    font-size: clamp(1.5rem, 7.6vw, 2.25rem);
+  }
+
+  /* The icon over its label, a square of at least 64px. */
+  .room-card__btn {
+    flex-direction: column;
+    gap: 5px;
+    width: 64px;
+    height: 64px;
+    padding: 0;
   }
 
   .lobby .site-header {
@@ -588,14 +633,24 @@ button.content-mode:not(:disabled):hover {
   }
 
   .lobby .settings-menu--logo .settings-menu__panel {
+    top: calc(100% + 12px);
     left: calc(50% - min(150px, (100vw - 2 * var(--gutter)) / 2));
   }
 }
 
-/* The narrowest phones: a slightly smaller logo. */
+/* The narrowest phones: a slightly smaller logo, and narrower squares so the code keeps its size. */
 @media (max-width: 360px) {
   .lobby .site-header {
     --wordmark-height: 26px;
+  }
+
+  .room-card {
+    padding-left: 14px;
+    gap: 6px;
+  }
+
+  .room-card__btn {
+    width: 58px;
   }
 }
 

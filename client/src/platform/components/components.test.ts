@@ -836,8 +836,8 @@ describe('avatar', () => {
 });
 
 describe('lobby', () => {
-  it('opens with the room code card (label, code, Copy and Share squares) above the game picker; the old invite card is gone', () => {
-    // The card is outside every host-only branch, so host and guests get the same one.
+  it('opens with the room code (label, code, Copy and Share) above the game picker; the old invite card is gone', () => {
+    // The code section is outside every host-only branch, so host and guests get the same one.
     const markup = renderToString(createElement(Lobby, { room: room(), game: null }));
     const bar = markup.indexOf('data-testid="room-bar"');
     expect(bar).toBeGreaterThan(-1);
@@ -855,16 +855,38 @@ describe('lobby', () => {
     expect(tagWith(markup, 'settings-menu')).toBeTruthy();
   });
 
-  it('puts the logo and the room code card on one row on a wider screen, stacked on a phone', () => {
+  it('is one header bar on a wider screen (a surface with the logo, the code and its buttons on one 44px line), split on a phone into the centred logo and the code card', () => {
     const markup = renderToString(createElement(Lobby, { room: room(), game: null }));
     const top = markup.slice(markup.indexOf('class="lobby__top"'));
     expect(top.indexOf('data-testid="site-header"')).toBeLessThan(top.indexOf('data-testid="room-bar"'));
     expect(top.indexOf('data-testid="room-bar"')).toBeLessThan(top.indexOf('data-testid="game-picker"'));
+    // The code section is a part of the bar, never a card of its own beside the logo.
+    expect(tagWith(markup, 'room-bar')).toContain('class="room-card"');
     const css = stylesheet('lobby.css');
-    expect(ruleOf(css, '.lobby__top')).toMatch(/display: flex;[^}]*align-items: center/);
+    const bar = ruleOf(css, '.lobby__top');
+    expect(bar).toMatch(/display: flex;[^}]*align-items: center/);
+    expect(bar).toContain('background: var(--color-surface)');
+    expect(bar).toContain('border: 1px solid var(--color-border)');
+    expect(bar).toContain('border-radius: var(--radius-md)');
+    expect(ruleOf(css, '.lobby__top .site-header')).toContain('min-height: 44px');
     expect(ruleOf(css, '.lobby__top .room-card')).toContain('flex: 1 1 auto');
+    // The label and the tiles together, centred between the logo and the buttons; Copy and Share compact, 44px tall, with their hover and pressed states.
+    expect(ruleOf(css, '.room-card__code')).toMatch(/align-items: center;[^}]*justify-content: center/);
+    expect(ruleOf(css, '.room-card__btn')).toContain('min-height: 44px');
+    expect(ruleOf(css, '.room-card__btn')).not.toContain('flex-direction: column');
+    expect(ruleOf(css, '.room-card__btn:hover')).toContain('border-color: var(--color-border-strong)');
+    expect(ruleOf(css, '.room-card__btn:active')).toContain('transform: translateY(1px)');
+    // The gear's popover clears the bar's bottom edge (the logo's offset in the 44px line, 10px padding, 1px border) by 8px.
+    expect(ruleOf(css, '.lobby .settings-menu--logo .settings-menu__panel')).toContain('top: calc(100% + (44px - var(--wordmark-height)) / 2 + 19px)');
+    // A phone: the bar's surface moves to the card, the label over the tiles, the buttons squares; the popover hangs from the bare logo again.
     const phone = mediaBlock(css, '(max-width: 760px), (min-aspect-ratio: 3/2) and (max-height: 520px)');
     expect(phone).toMatch(/\.lobby__top \{[^}]*flex-direction: column/);
+    expect(phone).toMatch(/\.lobby__top \{[^}]*background: none/);
+    expect(phone).toMatch(/\.room-card \{[^}]*background: var\(--color-surface\)/);
+    expect(phone).toMatch(/\.room-card \{[^}]*border-radius: var\(--radius-md\)/);
+    expect(phone).toMatch(/\.room-card__code \{[^}]*flex-direction: column/);
+    expect(phone).toMatch(/\.room-card__btn \{[^}]*flex-direction: column/);
+    expect(phone).toMatch(/\.lobby \.settings-menu--logo \.settings-menu__panel \{[^}]*top: calc\(100% \+ 12px\)/);
   });
 
   it('pins Start, Ready and the row under them to the bottom of the screen, short page or long, its line across the whole page', () => {

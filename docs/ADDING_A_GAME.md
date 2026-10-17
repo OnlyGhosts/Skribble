@@ -83,9 +83,9 @@ settings and everyone's ready flags carry over, a system line says "Host switche
 <game>"), everyone readies up (`ready`) or sits the next game out (`sitOut`, which clears ready
 and persists until the player changes it; both accepted in the lobby only), and the
 host starts. The lobby screen (only the host sees the settings and the game grid; everyone else
-sees the next game, the players and their own buttons), the room code card at its top (code, Copy,
-Share; Copy invite link and Leave room in the gear menu) on one row with the logo (the logo centred
-above it on a phone), the footer with Start or I'm ready, Sit this one out and Change my look pinned
+sees the next game, the players and their own buttons), the room header at its top (one bar: the logo, the code, Copy
+and Share; Copy invite link and Leave room in the gear menu; a phone centres the logo over the
+code card), the footer with Start or I'm ready, Sit this one out and Change my look pinned
 to the bottom of the screen at every size (its line spans the page), each player row's kick button
 last, after the status, in a 44px column that lines up down the list, the profile editor (a centred
 box on a desktop, a drawer on a tablet or phone), the browser tab's title in a room
@@ -1943,7 +1943,7 @@ layout, which is a good reference for a non-scrolling phone game.
 
 | Component | Props | Notes |
 | --- | --- | --- |
-| [`SiteHeader`](../client/src/platform/components/SiteHeader.tsx) | `menuActions?: MenuAction[]`, `hero?` | The logo (in the room, on one row with the room code card, wrapped with it in `.lobby__top`; centred above the card on a phone; the two phones as its icon, then the wordmark, whose "o" in ".io" is the settings gear) links to `/` (inside a room that leaves the room: any navigation away from `/:slug/:CODE` does); nothing else sits beside it (the connection has its own notice); the gear "o" is the settings button, whose popover lists `menuActions` under the preferences (the lobby's Copy invite link and Leave room); `hero` is the front door's logo, filling the column's width (from 1024px it grows past the column to two fifths of the screen, at most 600px, centred over it) |
+| [`SiteHeader`](../client/src/platform/components/SiteHeader.tsx) | `menuActions?: MenuAction[]`, `hero?` | The logo (in the room, part of one header bar, `.lobby__top` in `lobby.css`: one surface like the game top bar, with the logo at the left, "Room code" and the lime tiles together in the middle and Copy and Share as compact buttons at the right end, everything 44px tall on one line; a phone splits the bar into the centred logo and the code card under it; the two phones as its icon, then the wordmark, whose "o" in ".io" is the settings gear) links to `/` (inside a room that leaves the room: any navigation away from `/:slug/:CODE` does); nothing else sits beside it (the connection has its own notice); the gear "o" is the settings button, whose popover lists `menuActions` under the preferences (the lobby's Copy invite link and Leave room); `hero` is the front door's logo, filling the column's width (from 1024px it grows past the column to two fifths of the screen, at most 600px, centred over it) |
 | [`Wordmark`](../client/src/platform/components/Wordmark.tsx) | `className?` | The outlined boredgames.io logo (Poppins Black + Regular paths) inline, accessible name "boredgames.io", "games" in `--color-primary-mark` |
 | [`PhoneBored`](../client/src/platform/components/Mascots.tsx) / `PhoneHappy` | `className?` | The two phone characters from `branding/mascots/boredgames-mascots.svg`, each cropped to itself, decorative (`aria-hidden`); the logo draws `BoredArt` and `HappyArt` together; celebrations only |
 | [`GameGlyph`](../client/src/platform/components/GameGlyph.tsx) | `game: GameMeta`, icon props | The game's 24px line glyph (the lobby tiles draw it at 32px) |

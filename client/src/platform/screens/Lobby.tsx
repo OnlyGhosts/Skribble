@@ -69,7 +69,7 @@ export function Lobby({ room, game }: Props) {
   return (
     <div className={`lobby${isHost ? '' : ' lobby--guest'}`} data-testid="lobby">
       <div className="lobby__body">
-        {/* The logo and the code: stacked on a phone, one row on a wider screen. */}
+        {/* The room's header: one bar holding the logo, the code and its buttons on a wider screen; a phone stacks the logo over the code card. */}
         <div className="lobby__top">
           <SiteHeader
             menuActions={[
@@ -78,7 +78,7 @@ export function Lobby({ room, game }: Props) {
             ]}
           />
 
-          <section className="card room-card" aria-label="Room code" data-testid="room-bar">
+          <section className="room-card" aria-label="Room code" data-testid="room-bar">
             <div className="room-card__code">
               <span className="room-card__label" aria-hidden="true">
                 Room code
@@ -92,11 +92,11 @@ export function Lobby({ room, game }: Props) {
               </span>
             </div>
             <button type="button" className="room-card__btn" onClick={() => void copy(room.code, 'Code')} aria-label="Copy code" data-testid="copy-code">
-              <CopyIcon size={22} />
+              <CopyIcon size={20} />
               <span>Copy</span>
             </button>
             <button type="button" className="room-card__btn" onClick={() => void share()} aria-label="Share invite" data-testid="share-invite">
-              <ShareIcon size={22} />
+              <ShareIcon size={20} />
               <span>Share</span>
             </button>
           </section>

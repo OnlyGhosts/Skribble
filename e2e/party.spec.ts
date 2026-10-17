@@ -100,11 +100,17 @@ test('the host creates a Click Race party, three friends join, and the lobby sho
   await expect(host.page.getByTestId('settings-panel')).toBeVisible();
   for (const g of guests()) await expect(g.page.getByTestId('settings-panel')).toHaveCount(0);
 
-  // The phone lobby: the logo, then the room bar under it, then the picker; ready controls fit the screen with 44px targets.
+  // The phone lobby: the logo bare, then the room code card under it, then the picker; ready controls fit the screen with 44px targets.
   await expect(pia.page.locator('.lobby__top > section')).toHaveAttribute('data-testid', 'room-bar');
   const phoneLogo = await pia.page.getByTestId('site-header').boundingBox();
   const phoneBar = await pia.page.getByTestId('room-bar').boundingBox();
   expect((phoneLogo?.y ?? 0) + (phoneLogo?.height ?? 0), 'the logo stacks over the room code').toBeLessThanOrEqual((phoneBar?.y ?? 0) + 0.5);
+  const phoneSurfaces = await pia.page.evaluate(() => {
+    const bg = (sel: string) => getComputedStyle(document.querySelector(sel) as Element).backgroundColor;
+    return { top: bg('.lobby__top'), card: bg('[data-testid="room-bar"]') };
+  });
+  expect(phoneSurfaces.top, 'nothing drawn round the logo').toBe('rgba(0, 0, 0, 0)');
+  expect(phoneSurfaces.card, 'the code on its card').not.toBe('rgba(0, 0, 0, 0)');
   await noHorizontalOverflow(pia.page, PORTRAIT.width);
   for (const id of ['game-tile', 'ready-toggle', 'sitout-toggle', 'edit-profile', 'copy-code', 'share-invite', 'settings-menu']) {
     const box = await pia.page.getByTestId(id).first().boundingBox();
@@ -136,13 +142,45 @@ test('the host creates a Click Race party, three friends join, and the lobby sho
   await header.getByTestId('settings-menu').click();
   await expectInsideViewport(pia.page, 'settings-popover', PORTRAIT);
   await pia.page.keyboard.press('Escape');
-  // The desktop keeps the logo at the left, on one row with the room code card.
+  // The desktop: one header bar. The logo at the left of its surface, the code and its buttons on the same line inside it.
+  const bar = await host.page.locator('.lobby__top').boundingBox();
   const desk = await host.page.getByTestId('site-header').getByTestId('wordmark').boundingBox();
   expect(desk?.x ?? 999).toBeLessThan(100);
+  expect(desk?.x ?? 0, 'the logo sits inside the bar, at its left').toBeGreaterThan(bar?.x ?? 0);
+  expect(desk?.x ?? 0).toBeLessThan((bar?.x ?? 0) + 40);
   const deskBar = await host.page.getByTestId('room-bar').boundingBox();
   const centre = (box: typeof desk) => (box?.y ?? 0) + (box?.height ?? 0) / 2;
   expect(Math.abs(centre(desk) - centre(deskBar)), 'the logo sits beside the code, centred on it').toBeLessThanOrEqual(2);
-  expect(deskBar?.x ?? 0, 'the code card starts after the logo').toBeGreaterThan((desk?.x ?? 0) + (desk?.width ?? 0));
+  expect(deskBar?.x ?? 0, 'the code starts after the logo').toBeGreaterThan((desk?.x ?? 0) + (desk?.width ?? 0));
+  expect((deskBar?.x ?? 0) + (deskBar?.width ?? 0), 'and ends inside the bar').toBeLessThanOrEqual((bar?.x ?? 0) + (bar?.width ?? 0));
+  expect(bar?.height ?? 0, 'one slim bar').toBeLessThanOrEqual(72);
+  // The bar is the one surface; the code section is a bare part of it, not a card beside the logo.
+  const surfaces = await host.page.evaluate(() => {
+    const style = (sel: string) => getComputedStyle(document.querySelector(sel) as Element);
+    return {
+      bar: style('.lobby__top').backgroundColor,
+      barBorder: style('.lobby__top').borderTopWidth,
+      section: style('[data-testid="room-bar"]').backgroundColor,
+      sectionBorder: style('[data-testid="room-bar"]').borderTopWidth,
+    };
+  });
+  expect(surfaces.bar).not.toBe('rgba(0, 0, 0, 0)');
+  expect(surfaces.barBorder).toBe('1px');
+  expect(surfaces.section).toBe('rgba(0, 0, 0, 0)');
+  expect(surfaces.sectionBorder).toBe('0px');
+  // The tiles, Copy, Share and the gear all centre on the bar's line; Copy, Share and the gear stay 44px targets.
+  for (const id of ['room-code', 'copy-code', 'share-invite', 'settings-menu']) {
+    const box = await host.page.getByTestId(id).boundingBox();
+    expect(Math.abs(centre(box) - centre(bar)), `${id} centred on the bar`).toBeLessThanOrEqual(1.5);
+    if (id !== 'room-code') expect(box?.height ?? 0, `${id} is a 44px target`).toBeGreaterThanOrEqual(MIN_TARGET);
+  }
+  // The gear's menu drops out from under the bar, clear of its bottom edge, never pasted over it.
+  await host.page.getByTestId('settings-menu').click();
+  const deskPopover = await host.page.getByTestId('settings-popover').boundingBox();
+  expect(deskPopover?.y ?? 0, 'the popover starts below the bar').toBeGreaterThanOrEqual((bar?.y ?? 0) + (bar?.height ?? 0) + 4);
+  await expectInsideViewport(host.page, 'settings-popover', host.page.viewportSize() ?? PORTRAIT);
+  await host.page.keyboard.press('Escape');
+  await expect(host.page.getByTestId('settings-popover')).toHaveCount(0);
 });
 
 const ROOM_SIZES = [
