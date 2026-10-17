@@ -267,7 +267,17 @@ test('create → "Who’s playing?" → the lobby, where picking a game comes fi
   await expect(host.page.locator('.lobby__top > section')).toHaveAttribute('data-testid', 'room-bar');
   await expect(host.page.getByTestId('room-bar').getByTestId('room-code')).toHaveText(scribbleCode);
   await expect(picker.locator('[data-testid="game-tile"][data-game="scribble"]')).toContainText('Scribble');
-  await expect(picker.locator('[data-testid="game-tile"] svg[data-glyph]')).toHaveCount(5);
+  await expect(picker.locator('[data-testid="game-tile"] svg[data-art]')).toHaveCount(5);
+  // The picked tile keeps its lilac fill under the pointer (the common case right after a tap); only an unpicked tile lifts.
+  const picked = picker.locator('[data-testid="game-tile"][data-game="scribble"]');
+  const lilac = await picked.evaluate((el) => getComputedStyle(el).backgroundColor);
+  const spyIdle = await picker.locator('[data-testid="game-tile"][data-game="spygame"]').evaluate((el) => getComputedStyle(el).backgroundColor);
+  await picked.hover();
+  await expect(picked).toHaveCSS('background-color', lilac);
+  await expect(picked).toHaveCSS('border-color', lilac);
+  await picker.locator('[data-testid="game-tile"][data-game="spygame"]').hover();
+  await expect(picker.locator('[data-testid="game-tile"][data-game="spygame"]')).not.toHaveCSS('background-color', spyIdle);
+  await host.page.mouse.move(0, 0);
   expect(await (await host.page.request.get(`/api/rooms/${scribbleCode}`)).json()).toMatchObject({ exists: true, players: 1, gameId: 'scribble' });
   await expect(host.page.locator(`[data-testid="player-item"][data-name="${host.name}"]`)).toBeVisible();
   await expect(host.page.getByTestId('start-game')).toBeDisabled();

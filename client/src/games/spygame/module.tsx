@@ -14,6 +14,7 @@ import { usePlatformStore } from '../../platform/store/usePlatformStore';
 import { AlertIcon, EyeIcon, SpyIcon } from './components/Icons';
 import { canGuessNow, isNewRound, nameOf, roundEnded, spyWentAway, voteEnded, voteStarted, wrongGuessAdded } from './hooks';
 import { voteNotice, waitingNotice, wrongGuessNotice } from './lib/text';
+import { SpygameArt } from './art';
 import { spygameRules } from './rules';
 import { SpyGameScreen } from './Screen';
 import { SpygameSettingsFields } from './SettingsFields';
@@ -25,6 +26,7 @@ export const spygameClient = defineGameClient<SpygameView, SpygameSettings>({
   meta: gameById('spygame'),
   Screen: SpyGameScreen,
   rules: spygameRules,
+  Art: SpygameArt,
   SettingsFields: SpygameSettingsFields,
   sounds: sfx,
 

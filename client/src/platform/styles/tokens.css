@@ -110,6 +110,13 @@
   --game-poker: #e7a1cb;
   --game-template: #c7e976;
   --game-ink: #141514;
+  /* The off-white in a game's picture (the mascots' palette: lime, lilac, this paper and ink), the same in both themes. */
+  --game-paper: #f7f5ec;
+
+  /* A game tile's footer strip, the name on it and the line over it: the panel's own graphite on dark, solid ink on light. */
+  --tile-foot-bg: #20221f;
+  --tile-foot-fg: #f1f0e8;
+  --tile-foot-border: #454a43;
 }
 
 /*
@@ -172,4 +179,7 @@
   --chat-close-fg: #7c5510;
   --chat-guessed-bg: #ece7f7;
   --chat-guessed-fg: #5e468c;
+
+  --tile-foot-bg: #141514;
+  --tile-foot-border: #141514;
 }

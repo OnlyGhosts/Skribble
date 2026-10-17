@@ -12,6 +12,7 @@ import { vibrate } from '../../platform/lib/haptics';
 import { playCue } from '../../platform/lib/sound';
 import { EyeIcon, PenIcon } from './components/Icons';
 import { RESULT_PHASES, WRITING_PHASES, phaseEntered, stepChanged } from './hooks';
+import { QuipgameArt } from './art';
 import { quipgameRules } from './rules';
 import { QuipGameScreen } from './Screen';
 import { QuipgameSettingsFields } from './SettingsFields';
@@ -24,6 +25,7 @@ export const quipgameClient = defineGameClient<QuipgameView, QuipgameSettings>({
   meta: gameById('quipgame'),
   Screen: QuipGameScreen,
   rules: quipgameRules,
+  Art: QuipgameArt,
   SettingsFields: QuipgameSettingsFields,
   sounds: quipgameSounds,
 

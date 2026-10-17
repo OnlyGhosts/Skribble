@@ -16,6 +16,7 @@ import { scribbleCanvas } from './canvas';
 import { PencilIcon } from './components/Icons';
 import { ScribbleSettingsFields } from './components/SettingsFields';
 import { drawerIdOf, hasGuessed, isNewTurn } from './hooks';
+import { ScribbleArt } from './art';
 import { scribbleRules } from './rules';
 import { ScribbleScreen } from './Screen';
 import { scribbleSounds as sfx } from './sounds';
@@ -44,6 +45,7 @@ export const scribbleClient = defineGameClient<ScribbleView, ScribbleSettings>({
   meta: gameById('scribble'),
   Screen: ScribbleScreen,
   rules: scribbleRules,
+  Art: ScribbleArt,
   sounds: sfx,
   SettingsFields: ScribbleSettingsFields,
 

@@ -71,6 +71,20 @@
   display: block;
 }
 
+/* A game's picture (GameArt): the drawing once more in solid ink, offset underneath, is its hard shadow. */
+.game-art {
+  display: block;
+}
+
+.game-art__shadow [fill]:not([fill='none']),
+.game-art__shadow text {
+  fill: var(--game-ink);
+}
+
+.game-art__shadow [stroke] {
+  stroke: var(--game-ink);
+}
+
 /* ---------- Buttons ---------- */
 .btn {
   display: inline-flex;

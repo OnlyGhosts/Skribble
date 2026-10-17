@@ -16,6 +16,7 @@ import { isActing, prefersReducedMotion, seatOf } from './hooks';
 import { sendQueuedBet } from './actions';
 import { answered } from './lib/pending';
 import { formatChips } from './lib/text';
+import { BlackjackArt } from './art';
 import { blackjackRules } from './rules';
 import { BlackjackScreen } from './Screen';
 import { BlackjackSettingsFields } from './SettingsFields';
@@ -33,6 +34,7 @@ export const blackjackClient = defineGameClient<BlackjackView, BlackjackSettings
   meta,
   Screen: BlackjackScreen,
   rules: blackjackRules,
+  Art: BlackjackArt,
   SettingsFields: BlackjackSettingsFields,
   sounds: blackjackSounds,
 

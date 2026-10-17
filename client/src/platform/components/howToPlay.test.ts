@@ -47,7 +47,7 @@ describe('the How to play button', () => {
   });
 
   it('is beside the game’s line for the host and under who picks for a guest, only once the module is known', () => {
-    const module = { meta: template, Screen: () => null, rules: templateRules };
+    const module = { meta: template, Screen: () => null, Art: () => null, rules: templateRules };
     const host = renderToString(createElement(GamePicker, { room: room({ gameId: 'template' }), isHost: true, game: module }));
     expect(host).toContain('data-testid="game-picker-meta"');
     expect(host.replace(/<!-- -->/g, '').replace(/<span class="game-picker__count">/g, '').replace(/<\/span>/g, '')).toContain('Click Race · 1+ players');

@@ -28,6 +28,7 @@ const { noticeFor } = await import('../lib/connectionNotice');
 const { ReadyControls, readyState } = await import('./ReadyControls');
 const { AvatarPicker } = await import('./AvatarPicker');
 const { GamePicker } = await import('./GamePicker');
+const { RulesCard } = await import('./HowToPlay');
 const { noOrphan } = await import('../lib/format');
 const { Lobby } = await import('../screens/Lobby');
 const { GAME_LIST } = await import('@shared/platform/games');
@@ -561,25 +562,53 @@ describe('wordmark and mascots', () => {
     for (const f of svgs) expect(readFileSync(`${pub}/${f}`, 'utf8').toLowerCase(), f).not.toContain('#6c5ce7');
   });
 
-  it('draws every game with its own line glyph on its accent token, never an emoji', () => {
+  it('draws every game on an illustrated tile: its picture over its name on the footer strip, the picked one lilac with an ink check', () => {
     const tokens = stylesheet('tokens.css');
     for (const g of GAME_LIST) {
       expect(tokens).toContain(`--game-${g.id}: ${g.accent};`);
     }
+    // The pictures are drawn in the mascots' palette through tokens the same in both themes; the strip flips from graphite to ink on light.
+    expect(tokens).toContain('--game-paper: #f7f5ec;');
+    expect(tokens.match(/--tile-foot-bg: #[0-9a-f]{6};/g)).toHaveLength(2);
     const html = renderToString(createElement(GamePicker, { room: room(), isHost: true, game: null }));
-    for (const g of GAME_LIST.filter((x) => x.status === 'live')) expect(html).toContain(`data-glyph="${g.id}"`);
-    expect(html).toContain('Scribble');
-    // A name of more words keeps its last two together, so a narrow tile never leaves "Game" alone.
-    expect(html).toContain('The Spy\u00a0Game');
+    // The picture slot comes before the name on every tile (the module's Art fills it once the games are registered: client/src/games/art.test.ts).
+    expect(html.match(/<span class="game-tile__art">/g)).toHaveLength(GAME_LIST.filter((x) => x.status === 'live').length);
+    expect(html).toContain('<span class="game-tile__art"></span><span class="game-tile__name">Scribble</span>');
+    // The strip gets the plain name, so a two-line name splits evenly ("The Spy" over "Game" at 320px); the rules card still keeps the last two words together.
+    expect(html).toContain('<span class="game-tile__name">The Spy Game</span>');
+    expect(html).not.toContain('\u00a0');
     expect(noOrphan('Adults only. Crude and filthy.')).toBe('Adults only. Crude and\u00a0filthy.');
     expect(noOrphan('Scribble')).toBe('Scribble');
     expect(html).not.toContain('✏️');
     expect(tagWith(html, 'game-tile')).toContain('aria-checked="true"');
-    // Three to a row, a short last row stretching to fill; the picked tile is the lilac fill with ink.
+    // Only the picked tile wears the check badge.
+    expect(html.match(/class="game-tile__check"/g)).toHaveLength(1);
+    expect(html.indexOf('game-tile__check')).toBeLessThan(html.indexOf('data-game="spygame"'));
+    // The line glyph still names the game at the top of How to play.
+    expect(renderToString(createElement(RulesCard, { meta: gameById('poker'), rules: { summary: '', round: '', scoring: '', end: '', settings: '', watchers: '' }, mode: 'popover' }))).toContain('data-glyph="poker"');
+    // Three to a row, a short last row stretching to fill; one neutral panel with the name on its strip; the picked tile is the lilac fill with ink.
     const lobby = stylesheet('lobby.css');
     expect(ruleOf(lobby, '.game-picker__list .game-tile')).toContain('flex: 1 1 calc(33.33% - 6px)');
+    expect(ruleOf(lobby, '.game-tile')).toContain('background: var(--color-surface)');
+    expect(ruleOf(lobby, '.game-tile')).toContain('overflow: hidden');
+    expect(ruleOf(lobby, '.game-tile__art')).toContain('height: 84px');
+    expect(ruleOf(lobby, '.game-tile__art .game-art')).toContain('max-width: 96px');
+    expect(ruleOf(lobby, '.game-tile__name')).toContain('background: var(--tile-foot-bg)');
+    expect(ruleOf(lobby, '.game-tile__name')).toContain('color: var(--tile-foot-fg)');
+    expect(ruleOf(lobby, '.game-tile__name')).toContain('font-family: var(--font-display)');
     expect(ruleOf(lobby, '.game-tile.is-selected')).toContain('background: var(--color-secondary)');
     expect(ruleOf(lobby, '.game-tile.is-selected')).toContain('color: var(--color-secondary-contrast)');
+    expect(ruleOf(lobby, '.game-tile.is-selected .game-tile__name')).toContain('background: var(--color-secondary)');
+    expect(ruleOf(lobby, '.game-tile.is-selected .game-tile__name')).toContain('border-top-color: color-mix(in srgb, var(--game-ink) 35%, transparent)');
+    // Only an unpicked tile lifts under the pointer: an unscoped button hover would outrank .is-selected and swap the picked tile's lilac for the hover surface.
+    expect(lobby).not.toMatch(/button\.game-tile:hover/);
+    expect(ruleOf(lobby, 'button.game-tile:not(.is-selected):hover')).toContain('background: var(--color-surface-2)');
+    expect(lobby).not.toMatch(/rgba?\(/);
+    expect(ruleOf(lobby, '.game-tile__check')).toContain('background: var(--game-ink)');
+    expect(ruleOf(lobby, '.game-tile__check')).toContain('color: var(--color-secondary)');
+    // A phone gives the picture a little less room; the narrowest phones shrink the name so "The Spy Game" fits its tile.
+    expect(mediaBlock(lobby, '(max-width: 760px)')).toMatch(/\.game-tile__art \{[^}]*height: 72px/);
+    expect(lobby).toMatch(/@media \(max-width: 359px\) \{[^@]*\.game-tile__name \{[^}]*font-size: 0.75rem/);
   });
 });
 
@@ -1408,7 +1437,7 @@ describe('player chips', () => {
 
   it("use the game’s own status when it has one", () => {
     const r = room({ phase: 'playing' });
-    const game = { meta: gameById('scribble'), Screen: () => null, rules: { summary: '', round: '', scoring: '', end: '', settings: '', watchers: '' }, playerStatus: () => ({ label: 'Drawing', icon: null, tone: 'active' as const }) };
+    const game = { meta: gameById('scribble'), Screen: () => null, Art: () => null, rules: { summary: '', round: '', scoring: '', end: '', settings: '', watchers: '' }, playerStatus: () => ({ label: 'Drawing', icon: null, tone: 'active' as const }) };
     expect(chipStatus(r, player('host'), game).label).toBe('Drawing');
     expect(chipStatus(r, player('host', { connected: false }), game).label).toBe('Away');
     expect(chipStatus(r, player('host'), null).label).toBe('Ready');

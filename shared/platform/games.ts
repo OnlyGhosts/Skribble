@@ -82,7 +82,8 @@ export const GAME_LIST: readonly GameMeta[] = [
     name: 'Blackjack',
     minPlayers: 1,
     maxPlayers: null,
-    glyph: 'M5 3h14v18H5z M9 8l3-3 3 3-3 3z M9 16h6',
+    // A fanned pair, the front card an ace: it reads at 24px where a single card with a diamond did not.
+    glyph: 'M8.07 5.56L5.11 6.08A1.5 1.5 0 0 0 3.9 7.82L5.72 18.16A1.5 1.5 0 0 0 7.46 19.38L10.41 18.86 M11.58 4.02L19.5 5.13A1.5 1.5 0 0 1 20.78 6.82L19.11 18.71A1.5 1.5 0 0 1 17.42 19.98L9.5 18.87A1.5 1.5 0 0 1 8.22 17.18L9.89 5.29A1.5 1.5 0 0 1 11.58 4.02Z M11.76 15.65L14.86 9.43L16.12 16.27M12.98 13.5L15.55 13.86',
     accent: '#86d9a3',
     contentModes: false,
     scoreUnit: 'chips',
@@ -94,7 +95,8 @@ export const GAME_LIST: readonly GameMeta[] = [
     name: 'Poker',
     minPlayers: 2,
     maxPlayers: 23,
-    glyph: 'M12 2a10 10 0 1 0 0 20a10 10 0 1 0 0-20 M12 6a6 6 0 1 0 0 12a6 6 0 1 0 0-12 M12 2v4m10 6h-4m-6 10v-4M2 12h4',
+    // A notched chip (rim, six thick notches on the inner ring, centre): the rings-and-ticks chip blurred at 24px.
+    glyph: 'M12 2a10 10 0 1 0 0 20a10 10 0 1 0 0-20 M20.6 9.7A8.9 8.9 0 0 1 20.6 14.3 M18.86 10.16A7.1 7.1 0 0 1 18.86 13.84 M18.29 18.29A8.9 8.9 0 0 1 14.3 20.6 M17.02 17.02A7.1 7.1 0 0 1 13.84 18.86 M9.7 20.6A8.9 8.9 0 0 1 5.71 18.29 M10.16 18.86A7.1 7.1 0 0 1 6.98 17.02 M3.4 14.3A8.9 8.9 0 0 1 3.4 9.7 M5.14 13.84A7.1 7.1 0 0 1 5.14 10.16 M5.71 5.71A8.9 8.9 0 0 1 9.7 3.4 M6.98 6.98A7.1 7.1 0 0 1 10.16 5.14 M14.3 3.4A8.9 8.9 0 0 1 18.29 5.71 M13.84 5.14A7.1 7.1 0 0 1 17.02 6.98 M12 8.4a3.6 3.6 0 1 0 0 7.2a3.6 3.6 0 1 0 0-7.2',
     accent: '#e7a1cb',
     contentModes: false,
     scoreUnit: 'chips',

@@ -39,7 +39,7 @@ they need about each game from the registries and that record.
 | Test fixture | [`server/games/testFixtures.ts`](../server/games/testFixtures.ts) | Deterministic test settings, "long game" settings and one valid in-game message, read by the harnesses and the cross-game suites |
 | Shared protocol | `shared/games/<id>/protocol.ts` | Settings schema + defaults + limits, client message schema, server message type, the per-recipient view type |
 | Server module | `server/games/<id>/module.ts` (+ tests), registered in [`server/games/index.ts`](../server/games/index.ts) | `start` / `handle` / `nextDeadline` / `view` |
-| Client module | `client/src/games/<id>/` (`module.tsx`, `Screen.tsx`, `SettingsFields.tsx`, `rules.ts`, `<id>.css`), registered in [`client/src/games/index.ts`](../client/src/games/index.ts) | The screen, the settings rows, the lobby's How to play rules, optional hooks |
+| Client module | `client/src/games/<id>/` (`module.tsx`, `Screen.tsx`, `SettingsFields.tsx`, `rules.ts`, `art.tsx`, `<id>.css`), registered in [`client/src/games/index.ts`](../client/src/games/index.ts) | The screen, the settings rows, the lobby's How to play rules, the picture on the lobby tile, optional hooks |
 | E2E | a `test(...)` in `e2e/` | One whole game through the real server |
 
 The two existing games are the reference: [`template`](../server/games/template/module.ts) (Click
@@ -714,6 +714,8 @@ export interface GameClientModule<V = unknown, S = Record<string, unknown>> {
   Screen: ComponentType<GameScreenProps<V, S>>;
   /** The rules the lobby's How to play shows (client/src/games/<id>/rules.ts). */
   rules: GameRules;
+  /** The game's picture on its lobby tile: an inline SVG in the mascots' style (client/src/games/<id>/art.tsx). */
+  Art: ComponentType;
   /** The game's sound effects; the platform starts loading them when the game screen mounts. */
   sounds?: AnySoundBank;
   /** Extra rows inside the lobby settings panel, under the platform fields. */
@@ -751,7 +753,9 @@ export type AnyGameClientModule = GameClientModule<unknown, Record<string, unkno
 export function defineGameClient<V, S extends Record<string, unknown>>(module: GameClientModule<V, S>): AnyGameClientModule;
 ```
 
-Only `meta`, `Screen` and `rules` are required. The lobby's How to play button (every player sees
+Only `meta`, `Screen`, `rules` and `Art` are required. `Art` is the picture on the game's tile in
+the lobby picker (section 5, step 4, says how to draw one); the picker renders it from the registry,
+so a game cannot typecheck, let alone ship, without its picture. The lobby's How to play button (every player sees
 it, beside the picked game) opens `rules` in a popover on a desktop and the bottom sheet on a
 phone; the card follows whichever game the host picks (the host's own tiles switch it without
 closing it), so a game cannot ship without its rules. `rules.ts` is the one place a game's rules
@@ -971,7 +975,7 @@ choices. Also test the module directly as a function (`module.handle(ctx, data, 
 
 ```bash
 mkdir -p client/src/games/wordle
-cp client/src/games/template/{module.tsx,Screen.tsx,SettingsFields.tsx,rules.ts} client/src/games/wordle/
+cp client/src/games/template/{module.tsx,Screen.tsx,SettingsFields.tsx,rules.ts,art.tsx} client/src/games/wordle/
 cp client/src/games/template/template.css client/src/games/wordle/wordle.css
 ```
 
@@ -989,8 +993,31 @@ export const GAMES: Readonly<Record<GameId, AnyGameClientModule>> = {
 
 `main.tsx` already calls `registerGames(GAMES)`; nothing else to wire. In `module.tsx` import your
 stylesheet (`import './wordle.css'`) and build the module with
-`defineGameClient<WordleView, WordleSettings>({ meta: gameById('wordle'), Screen, rules, SettingsFields })`,
-where `rules` is your `rules.ts` (section 6.4): the How to play card in the lobby.
+`defineGameClient<WordleView, WordleSettings>({ meta: gameById('wordle'), Screen, rules, Art, SettingsFields })`,
+where `rules` is your `rules.ts` (section 6.4): the How to play card in the lobby, and `Art` is
+your `art.tsx` (section 6.5): the picture on the game's lobby tile.
+
+**Drawing the picture.** Every tile is one neutral panel with the game's picture on top and its
+name on the footer strip, so the pictures carry all the colour and must share one style: the
+mascots' (flat fills, an ink outline, a hard ink shadow). The frame does most of it:
+
+- Draw inside [`GameArt`](../client/src/platform/components/GameArt.tsx) with `game` set to your
+  id; the component takes no props (the picker renders it bare and sizes it through `.game-tile__art .game-art`). It is a 64 x 46 canvas; keep your shapes within about 2 to 60 across and 2 to 42 down, because
+  the frame draws the whole picture once more in solid ink, 2.2 units right and down, underneath
+  (the shadow), and that copy must fit too.
+- Colours come only from `ART` (`ink`, `lime`, `lilac`, `paper`): theme tokens that are the same
+  in both themes, so the picture never changes between dark and light. Never a raw hex and never
+  the game's accent. Use lime or lilac for the main shape and paper where a thing is white (a card
+  face, a speech bubble); ink for small solid details (eyes, pips, dots).
+- Every shape gets `{...OUTLINE}` (2.5 units of ink, round joins) on top of its fill; fine lines
+  inside a shape (a card's inner frame, a chip's ring) get `{...DETAIL}` (1.8 units). A stroke-only
+  path must say `fill="none"`, or SVG fills it black.
+- Two to four shapes that read as one object at 90px wide, the size of a phone tile: a marker over
+  a scribble, a hat over glasses, two bubbles, two cards, a stack of chips. Tilt one piece a little
+  (`transform="rotate(...)"`) so it feels drawn, not diagrammed.
+- The SVG is `aria-hidden` (the name sits under it) and carries `data-art="<id>"`;
+  [`client/src/games/art.test.ts`](../client/src/games/art.test.ts) checks every game's picture
+  renders that way in tokens only and shows on the tile.
 
 Style rules that keep the look consistent (details in section 8):
 
@@ -1007,7 +1034,7 @@ Style rules that keep the look consistent (details in section 8):
   [`actions.ts`](../client/src/games/scribble/actions.ts)).
 
 Unit tests for client modules live next to them (`client/src/games/wordle/wordle.test.ts`) and
-run in node; copy [`template.test.ts`](../client/src/games/template/template.test.ts) (section 6.8).
+run in node; copy [`template.test.ts`](../client/src/games/template/template.test.ts) (section 6.9).
 The shape: call `installBrowserGlobals()` from [`client/src/test/env.ts`](../client/src/test/env.ts)
 before dynamically importing the modules (it stubs the address bar, `matchMedia`, timers and the
 absent web storage, so a whole `Screen` including `SiteHeader` renders), register the module with
@@ -1057,8 +1084,8 @@ about 2 s), `settings-menu`, `site-header`, `brand-link`, `wordmark`.
 
 ### Step 6: ship it
 
-Set `status: 'live'` in `GameMeta`. The game tile (the glyph on its accent, the name, a check when
-selected) appears in the lobby picker from `GAME_LIST`; `/wordle/CODE` already routes;
+Set `status: 'live'` in `GameMeta`. The game tile (your picture on a neutral panel, the name on
+its footer strip, lilac with an ink check when picked) appears in the lobby picker from `GAME_LIST`; `/wordle/CODE` already routes;
 the PWA, Vercel function and Redis driver need no change.
 
 ---
@@ -1349,7 +1376,7 @@ describe('Click Race', () => {
 
 ### 6.4 `client/src/games/template/module.tsx` and `rules.ts`
 
-The smallest possible client module: `meta`, `Screen`, `rules`, `SettingsFields`, its stylesheet.
+The smallest possible client module: `meta`, `Screen`, `rules`, `Art`, `SettingsFields`, its stylesheet.
 
 ```tsx
 /**
@@ -1360,6 +1387,7 @@ The smallest possible client module: `meta`, `Screen`, `rules`, `SettingsFields`
 import type { TemplateSettings, TemplateView } from '@shared/games/template/protocol';
 import { gameById } from '@shared/platform/games';
 import { defineGameClient } from '../../platform/game';
+import { ClickRaceArt } from './art';
 import { templateRules } from './rules';
 import { ClickRaceScreen } from './Screen';
 import { ClickRaceSettingsFields } from './SettingsFields';
@@ -1369,6 +1397,7 @@ export const templateClient = defineGameClient<TemplateView, TemplateSettings>({
   meta: gameById('template'),
   Screen: ClickRaceScreen,
   rules: templateRules,
+  Art: ClickRaceArt,
   SettingsFields: ClickRaceSettingsFields,
 });
 ```
@@ -1392,7 +1421,33 @@ export const templateRules: GameRules = {
 };
 ```
 
-### 6.5 `client/src/games/template/Screen.tsx`
+### 6.5 `client/src/games/template/art.tsx`
+
+The picture on the lobby tile, in the mascots' style (how to draw one: step 4 in section 5). The
+frame draws the shadow; the game draws a few flat shapes from the `ART` palette, each with the
+`OUTLINE`.
+
+```tsx
+/**
+ * Click Race's lobby picture: a big lime button on a paper base, mid-tap. The template of a game's
+ * picture: a few flat shapes from the ART palette, each with the OUTLINE, inside the GameArt frame,
+ * which draws the hard shadow.
+ */
+import { ART, GameArt, OUTLINE } from '../../platform/components/GameArt';
+
+export function ClickRaceArt() {
+  return (
+    <GameArt game="template">
+      <path d="M32 2v6M19 6l4 5M45 6l-4 5" fill="none" {...OUTLINE} />
+      <rect x="12" y="27" width="40" height="12" rx="6" fill={ART.paper} {...OUTLINE} />
+      <ellipse cx="32" cy="23" rx="15" ry="10" fill={ART.lime} {...OUTLINE} />
+      <path d="M23 20c1.5-3 4.5-5 8.5-5" fill="none" stroke={ART.paper} strokeWidth={2.5} strokeLinecap="round" />
+    </GameArt>
+  );
+}
+```
+
+### 6.6 `client/src/games/template/Screen.tsx`
 
 The screen gets `{ room, meId, isHost }`. It reads the view from `room.game` and the game's
 settings from `room.settings` (typed through `GameScreenProps<TemplateView, TemplateSettings>`),
@@ -1506,7 +1561,7 @@ export function ClickRaceScreen({ room, meId, isHost }: GameScreenProps<Template
 }
 ```
 
-### 6.6 `client/src/games/template/SettingsFields.tsx`
+### 6.7 `client/src/games/template/SettingsFields.tsx`
 
 Two `RangeSetting` rows; `patch` sends one flat object the server validates with the game's
 `patchSchema`. `revision={settings}` makes the slider follow a server echo that rejected or
@@ -1549,7 +1604,7 @@ export function ClickRaceSettingsFields({ settings, patch }: SettingsFieldsProps
 }
 ```
 
-### 6.7 `client/src/games/template/template.css`
+### 6.8 `client/src/games/template/template.css`
 
 Tokens only, a two-column grid that collapses at the shared 760px breakpoint, safe-area padding,
 a 44px+ tap target. The accent colour comes from `meta.accent` inline, not from here.
@@ -1671,7 +1726,7 @@ a 44px+ tap target. The accent colour comes from `meta.accent` inline, not from 
 
 ---
 
-### 6.8 `client/src/games/template/template.test.ts`
+### 6.9 `client/src/games/template/template.test.ts`
 
 ```ts
 /**
@@ -1953,7 +2008,7 @@ operating system preference is not consulted).
 | Shadows | `--shadow-sm` and `--shadow-md` are `none` (flat surfaces sit on their border); `--shadow-lg` is a soft drop for floating layers only (sheets, toasts) |
 | Surfaces | `--color-bg` #141514, `--color-surface` #20221F, `--color-surface-2` #2B2E29 (raised), `--color-surface-3` #191C19 (inset wells: inputs, lists), `--color-border` #454A43, `--color-border-strong` #747D6F (control borders) |
 | Text | `--color-text` #F1F0E8, `--color-text-muted` #B9C0B3, `--color-text-faint` (small text, AA on the panels) |
-| Games | `--game-<id>` per game (the same hex as `GameMeta.accent`) and `--game-ink` for the glyph on top |
+| Games | `--game-<id>` per game (the same hex as `GameMeta.accent`), `--game-ink` for the glyph on top and `--game-paper`, the off-white in a game's picture; `--tile-foot-bg/fg/border` are the lobby tile's footer strip (the panel's graphite on dark, solid ink on light) |
 | Brand | `--color-primary` (lime #C7E976, a FILL that always carries `--color-primary-contrast` ink text), `--color-primary-hover`, `--color-primary-soft`, `--color-primary-text` (lime as text/border/stroke on dark, a dark olive on white); `--color-secondary*` (lilac #A699D5) with the same five |
 | Status | `--color-success`, `-soft`, `-text`; `--color-warning*`; `--color-danger*`; `--color-info-soft`; `--color-focus` (flat, restrained, AA on the panels) |
 | Chat | `--chat-correct-bg/fg`, `--chat-close-bg/fg`, `--chat-guessed-bg/fg` |
@@ -1997,7 +2052,8 @@ layout, which is a good reference for a non-scrolling phone game.
 | [`SiteHeader`](../client/src/platform/components/SiteHeader.tsx) | `menuActions?: MenuAction[]`, `hero?` | The logo (in the room, part of one header bar, `.lobby__top` in `lobby.css`: one surface like the game top bar, with the logo at the left, "Room code" and the lime tiles together in the middle and Copy and Share as compact buttons at the right end, everything 44px tall on one line; a phone splits the bar into the centred logo and the code card under it; the two phones as its icon, then the wordmark, whose "o" in ".io" is the settings gear) links to `/` (inside a room that leaves the room: any navigation away from `/:slug/:CODE` does); nothing else sits beside it (the connection has its own notice); the gear "o" is the settings button, whose popover lists `menuActions` under the preferences (the lobby's Copy invite link and Leave room); `hero` is the front door's logo, filling the column's width (from 1024px it grows past the column to two fifths of the screen, at most 600px, centred over it) |
 | [`Wordmark`](../client/src/platform/components/Wordmark.tsx) | `className?` | The outlined boredgames.io logo (Poppins Black + Regular paths) inline, accessible name "boredgames.io", "games" in `--color-primary-mark` |
 | [`PhoneBored`](../client/src/platform/components/Mascots.tsx) / `PhoneHappy` | `className?` | The two phone characters from `branding/mascots/boredgames-mascots.svg`, each cropped to itself, decorative (`aria-hidden`); the logo draws `BoredArt` and `HappyArt` together; celebrations only |
-| [`GameGlyph`](../client/src/platform/components/GameGlyph.tsx) | `game: GameMeta`, icon props | The game's 24px line glyph (the lobby tiles draw it at 32px) |
+| [`GameGlyph`](../client/src/platform/components/GameGlyph.tsx) | `game: GameMeta`, icon props | The game's 24px line glyph (How to play draws it at 22px on the game's accent) |
+| [`GameArt`](../client/src/platform/components/GameArt.tsx) | `game: GameId`, children | The frame a game's lobby picture (`GameClientModule.Art`) is drawn in: a 64 x 46 canvas, `aria-hidden`, with the hard ink shadow drawn under whatever the game draws; `ART` (ink, lime, lilac, paper, as tokens), `OUTLINE` and `DETAIL` are the palette and strokes (section 5, step 4) |
 | [`GameTopBar`](../client/src/platform/components/GameTopBar.tsx) | `meta`, `room`, `isPhone`, `testId`, `className?`, `status?` (none for a card table, whose round is on its ribbon), `statusTestId?` ('round-indicator'), `statusData?`, `clock?`, `players: { label?, open, onOpen }`, `menu: { open, onOpen }`, `middle?`, `below?`, `compact?` | Every game's top bar as on the brand board (`gamebar.css`, `.gbar*`): a back arrow (`game-back`, it asks before leaving: `leave-sheet`, `game-leave-confirm`, `game-leave-yes`), the game's name large and the status ("Round 2/3": on the right on a desktop, in small type under the name on a phone, so the name, the round and the buttons each keep their own space), then the options button (a phone) or the host's End game (`end-game`, a tinted button with a danger border and the power icon that fills solid under the pointer; it asks first in `end-sheet`, with your `endGameNote`; "Ending soon" once asked for a later end) and the gear, whose menu also holds End game and Leave room as full-width buttons (a desktop). Below, the player chips (`PlayerChips`: avatar, name, a status badge from your `playerStatus`; the row is the `players-toggle` button and never scrolls, a "+K" chip takes what does not fit) and the timer ring at the end. Keep the status short (`RoundStatus` renders "Round 1/5"); it stays on one line. `TableShell` renders it for the card tables, `compact` at every size. `compact` packs it into one row (a card table, The Spy Game on a phone): the chips give way to a players button (`players-toggle`: the people icon and the count in a pill, a 44px target), and a `clock` sits small in the row; the name stays whole at every phone width |
 | `GameMenuSheet` | `open`, `onClose()`, `children?` | The phone options sheet behind the bar's menu button (`menu-sheet`): theme and sound, your rows, then the ways out as tall rows (`ExitActions` in `GameExit.tsx`): End game for the host in the danger colour ("Ends it for everyone"), Leave room ("Only you leave"); each opens its confirm step in the sheet ("End the game for everyone?" with what it does; "Leave the room?" with whether the game goes on) |
 | [`ResultPoints`](../client/src/platform/components/RoundResult.tsx) / `ResultNext` / `earnersOf` | `rows`, `label`, `rowTestId?`, `empty` / `noun`, `paused`, `settling`, `testId` / `players`, `points` | A round or turn result (`results.css`): put them in an `.overlay__card.result-card` after a `.result-kicker` (how it ended, on the game's accent) and a `.result-reveal` (the word, the spy); the points list shows avatar, name, role tag and `+points`; the footer says what comes next ("Next turn soon", paused, or "starting" when the time is up) with no timer of its own: **one countdown per screen**, the top bar's ring (The Spy Game's ring counts the vote and the time to the next round while its round clock waits) |

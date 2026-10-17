@@ -283,7 +283,7 @@
   font-weight: 500;
 }
 
-/* ---------- Game picker: square-ish tiles, three to a row; a short last row stretches to fill it ---------- */
+/* ---------- Game picker: illustrated tiles, three to a row; a short last row stretches to fill it ---------- */
 .game-picker {
   display: flex;
   flex-direction: column;
@@ -313,7 +313,7 @@
 }
 
 .game-picker__current .game-tile {
-  width: 96px;
+  width: 112px;
   flex: none;
 }
 
@@ -323,54 +323,95 @@
   font-size: 0.9375rem;
 }
 
+/* One neutral panel for every game; the pictures carry the colour. */
 .game-tile {
   position: relative;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
+  align-items: stretch;
   width: 100%;
   min-width: 0;
-  min-height: 88px;
-  padding: 10px 4px;
+  padding: 0;
   border-radius: 12px;
   border: 1.5px solid var(--color-border);
   background: var(--color-surface);
   color: var(--color-text);
   text-align: center;
+  overflow: hidden;
   transition:
     border-color 100ms ease-out,
     background-color 100ms ease-out,
     transform 70ms ease-out;
 }
 
-button.game-tile:hover {
+/* Only an unpicked tile lifts under the pointer; the picked one stays lilac (this rule would otherwise outrank .is-selected). */
+button.game-tile:not(.is-selected):hover {
   border-color: var(--color-border-strong);
+  background: var(--color-surface-2);
 }
 
 button.game-tile:active {
   transform: translateY(1px);
 }
 
-/* Selected: the lilac fill with ink icon and name. */
+/* Selected: the whole panel fills lilac with the picture on top, the strip turns lilac with ink text, and an ink check badge sits in the corner. */
 .game-tile.is-selected {
   border-color: var(--color-secondary);
   background: var(--color-secondary);
   color: var(--color-secondary-contrast);
 }
 
-.game-tile__icon {
+.game-tile__art {
   display: grid;
   place-items: center;
-  height: 32px;
+  height: 84px;
+  padding: 8px 10px 4px;
 }
 
+.game-tile__art .game-art {
+  width: 100%;
+  max-width: 96px;
+  height: auto;
+}
+
+/* The name on its footer strip: the panel's graphite on dark, solid ink on light (tokens.css). */
 .game-tile__name {
-  font-size: 0.875rem;
+  padding: 7px 4px 8px;
+  border-top: 1.5px solid var(--tile-foot-border);
+  background: var(--tile-foot-bg);
+  color: var(--tile-foot-fg);
+  font-family: var(--font-display);
   font-weight: 600;
+  font-size: 0.8125rem;
   line-height: 1.15;
   overflow-wrap: anywhere;
+}
+
+.game-tile.is-selected .game-tile__name {
+  border-top-color: color-mix(in srgb, var(--game-ink) 35%, transparent);
+  background: var(--color-secondary);
+  color: var(--color-secondary-contrast);
+  font-weight: 700;
+}
+
+.game-tile__check {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--game-ink);
+  color: var(--color-secondary);
+}
+
+/* A phone: a little less room for the picture. */
+@media (max-width: 760px) {
+  .game-tile__art {
+    height: 72px;
+  }
 }
 
 /* The picked game's line and How to play share one row under the tiles: on the narrowest phones the line wraps, so the button stays in the first screen. */
@@ -606,15 +647,14 @@ button.game-tile:active {
   }
 }
 
-/* The narrowest phones: slightly shorter tiles and a tighter picker, so the host's How to play row sits above the footer on a 320x568 screen. */
+/* The narrowest phones: a tighter picker, so the host's How to play row sits above the footer on a 320x568 screen, and a smaller name so "The Spy Game" fits its 91px tile. */
 @media (max-width: 359px) {
   .game-picker {
     gap: var(--space-2);
   }
 
-  .game-tile {
-    min-height: 80px;
-    padding: 8px 4px;
+  .game-tile__name {
+    font-size: 0.75rem;
   }
 }
 
