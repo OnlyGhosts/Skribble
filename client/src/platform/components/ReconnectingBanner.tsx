@@ -1,5 +1,5 @@
 import { usePlatformStore, type ConnectionStatus } from '../store/usePlatformStore';
-import { SLOW_LABEL } from './ConnectionPill';
+import { RESTARTING_LABEL, SLOW_LABEL } from './ConnectionPill';
 
 /** The banner's text for a socket state; null while connected and answering (no banner). */
 export function reconnectLabel(status: ConnectionStatus, slow = false): string | null {
@@ -10,6 +10,8 @@ export function reconnectLabel(status: ConnectionStatus, slow = false): string |
       return 'Connecting…';
     case 'reconnecting':
       return 'Reconnecting…';
+    case 'restarting':
+      return RESTARTING_LABEL;
   }
 }
 

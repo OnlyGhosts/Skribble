@@ -167,6 +167,7 @@ export const blackjackModule: GameServerModule<BlackjackSettings, BlackjackData,
   view: viewFor,
   hostMessages: new Set(['dealNow', 'skip']),
   end: (ctx, data) => withDraft(data, (draft, effects) => endGame({ ctx, data: draft, effects })),
+  milestone: (data) => `${data.round}:${data.phase.kind}${data.phase.kind === 'acting' ? `:${data.phase.playerId}:${data.phase.handIndex}` : ''}`,
 };
 
 export type { BlackjackData };

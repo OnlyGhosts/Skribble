@@ -1,10 +1,11 @@
 import type { Redis } from 'ioredis';
-import { upgradeGameId, type GameId } from '../../../shared/platform/games.js';
+import type { GameId } from '../../../shared/platform/games.js';
 import type { Action, ActionResult, Ctx } from '../engine/actions.js';
 import type { Effect } from '../engine/effects.js';
 import { findPlayer } from '../engine/players.js';
 import { applyAction } from '../engine/reduce.js';
-import { createRoomData, upgradeRoomData, type PlatformRoomData } from '../engine/state.js';
+import { createRoomData, type PlatformRoomData } from '../engine/state.js';
+import { loadStoredRoom } from '../storedRoom.js';
 import { STAMP_FIELD } from '../storage.js';
 import { CasScript, retryCas } from './redisCas.js';
 import { ROOM_KEY_PATTERN, ROOM_TTL_MS, presenceKey, roomChannel, roomKey, sideHashKey, sideListKey, sideSeqKey, type RoomChannelMessage } from './redisKeys.js';
@@ -14,14 +15,14 @@ import type { AsyncLock } from './serial.js';
 const MAX_SCAN_ITERATIONS = 50;
 
 /**
- * The room a key holds, or null when it is missing or holds a game the site no longer runs: such a
- * room reads as gone everywhere (preview, join, rejoin, ticks) until its TTL clears the key. A room
- * stored before a game's rename loads, upgraded, under the game's current id.
+ * The room a key holds, or null when it is missing, holds a game the site no longer runs or a
+ * record that does not load: such a room reads as gone everywhere (preview, join, rejoin, ticks)
+ * until its TTL clears the key. A room stored before a game's rename loads, upgraded, under the
+ * game's current id. Text that is not JSON at all throws (a write caught half-way is retried).
  */
 function parseRoom(raw: string | null): PlatformRoomData | null {
   if (raw === null) return null;
-  const data = JSON.parse(raw) as PlatformRoomData;
-  return upgradeGameId(data.gameId) === null ? null : upgradeRoomData(data);
+  return loadStoredRoom(JSON.parse(raw));
 }
 
 /**

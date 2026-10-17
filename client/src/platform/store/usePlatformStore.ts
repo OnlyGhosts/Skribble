@@ -6,7 +6,8 @@ import { loadPrefs, loadResultsSeen, loadResultsShown, savePrefs, saveResultsSee
 import { registeredGame } from '../registry';
 import { codeFromLocation, navigate } from '../router';
 
-export type ConnectionStatus = 'connecting' | 'connected' | 'reconnecting';
+/** `restarting`: the server is restarting (or lost the room in one) and the game is on its way back. */
+export type ConnectionStatus = 'connecting' | 'connected' | 'reconnecting' | 'restarting';
 export type ToastKind = 'info' | 'success' | 'warning' | 'error';
 
 export interface Toast {
@@ -49,6 +50,11 @@ interface PlatformState {
   joinError: JoinError | null;
   /** serverTime - Date.now(); add it to local time to get server time. */
   clockOffset: number;
+  /**
+   * When the server began restarting, while it is: the game clocks hold still from then on, since
+   * the server moves every deadline on by the downtime and a clock running meanwhile would jump back.
+   */
+  clocksHeldAt: number | null;
   /**
    * True once a pong gave a latency-corrected offset. Until then snapshots seed the offset (they
    * are biased by the one-way latency, so they never override a pong-based value).
@@ -120,12 +126,13 @@ export const usePlatformStore = create<PlatformStore>()((set, get) => ({
   pendingJoin: null,
   joinError: null,
   clockOffset: 0,
+  clocksHeldAt: null,
   clockSynced: false,
   results: null,
   resultsSeen: loadResultsSeen(),
   resultsShown: loadResultsShown(),
 
-  setConnection: (connection) => set({ connection }),
+  setConnection: (connection) => set((s) => ({ connection, clocksHeldAt: connection === 'restarting' ? (s.clocksHeldAt ?? Date.now()) : null })),
   setSlow: (slow) => {
     if (get().slow !== slow) set({ slow });
   },

@@ -1,3 +1,4 @@
+import { checkpointKeyFromEnv } from '../checkpoint/key.js';
 import { MemoryDriver } from './memory.js';
 import { SNAPSHOT_INTERVAL_MS } from './outbound.js';
 import { RedisDriver } from './redis.js';
@@ -28,7 +29,8 @@ export function createDriverFromEnv(options: SelectDriverOptions): GameDriver {
   } else {
     options.log('driver: memory');
   }
-  return new MemoryDriver({ snapshotIntervalMs: SNAPSHOT_INTERVAL_MS });
+  // Rooms in memory end with the process unless the phones bring them back from checkpoints.
+  return new MemoryDriver({ snapshotIntervalMs: SNAPSHOT_INTERVAL_MS, checkpointKey: checkpointKeyFromEnv(options.env ?? process.env, options.log), log: options.log });
 }
 
 /** Host and scheme only; never the credentials. */

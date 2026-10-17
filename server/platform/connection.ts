@@ -30,6 +30,9 @@ export const HEARTBEAT_INTERVAL_MS = 30_000;
  */
 export const ROOM_RATE_LIMIT_COUNT = 5;
 export const ROOM_RATE_LIMIT_WINDOW_MS = 10_000;
+/** Restores per socket: each opens a sealed checkpoint, and a phone needs one per restart. */
+export const RESTORE_RATE_LIMIT_COUNT = 3;
+export const RESTORE_RATE_LIMIT_WINDOW_MS = 30_000;
 /** How often a connection checks whether it has gone silent (see IDLE_AFTER_MS). */
 export const IDLE_CHECK_MS = 10_000;
 
@@ -49,10 +52,10 @@ export interface ConnectionDeps {
   log?: (msg: string) => void;
 }
 
-type SessionMessage = Extract<PlatformClientMessage, { t: 'create' | 'join' | 'rejoin' | 'leave' | 'ping' }>;
+type SessionMessage = Extract<PlatformClientMessage, { t: 'create' | 'join' | 'rejoin' | 'restore' | 'leave' | 'ping' }>;
 
 function isSessionMessage(msg: PlatformClientMessage): msg is SessionMessage {
-  return msg.t === 'create' || msg.t === 'join' || msg.t === 'rejoin' || msg.t === 'leave' || msg.t === 'ping';
+  return msg.t === 'create' || msg.t === 'join' || msg.t === 'rejoin' || msg.t === 'restore' || msg.t === 'leave' || msg.t === 'ping';
 }
 
 /**
@@ -69,6 +72,7 @@ export function handleConnection(ws: SocketLike, deps: ConnectionDeps): string {
   const gameLimiter = new RateLimiter(GAME_MESSAGE_RATE_LIMIT_PER_SECOND, 1000);
   const roomLimiter = new RateLimiter(ROOM_RATE_LIMIT_COUNT, ROOM_RATE_LIMIT_WINDOW_MS);
   const platformLimiter = new RateLimiter(PLATFORM_RATE_LIMIT_COUNT, PLATFORM_RATE_LIMIT_WINDOW_MS);
+  const restoreLimiter = new RateLimiter(RESTORE_RATE_LIMIT_COUNT, RESTORE_RATE_LIMIT_WINDOW_MS);
   const idleAfterMs = deps.idleAfterMs ?? IDLE_AFTER_MS;
   let seat: Seat | null = null;
   let alive = true;
@@ -131,7 +135,7 @@ export function handleConnection(ws: SocketLike, deps: ConnectionDeps): string {
   };
 
   const takeSeat = (result: SeatResult): void => {
-    if (!result.ok) return reply({ t: 'error', code: result.code, message: result.message });
+    if (!result.ok) return reply({ t: 'error', code: result.code, message: result.message, ...(result.roomGone ? { roomGone: true as const } : {}) });
     seat = result.seat;
     idle = false;
   };
@@ -160,9 +164,14 @@ export function handleConnection(ws: SocketLike, deps: ConnectionDeps): string {
       }
       case 'rejoin':
         return after(driver.lookup(msg.code), (found) => {
-          if (!found.ok) return fail('REJOIN_FAILED', found.message);
+          // No live room, but a restart may have lost it: a phone holding a checkpoint can bring it back.
+          if (!found.ok) return reply({ t: 'error', code: 'REJOIN_FAILED', message: found.message, ...(found.restorable ? { roomGone: true as const } : {}) });
           return after(leaveCurrentRoom(), () => after(driver.rejoin(found.code, msg.token, connectionId), takeSeat));
         });
+      case 'restore':
+        if (!restoreLimiter.tryAcquire(clock.now())) return fail('RATE_LIMITED', 'Too many tries. Wait a moment.');
+        // A room that is live already (another phone brought it back) is simply rejoined.
+        return after(leaveCurrentRoom(), () => after(driver.restore(msg.code, msg.token, msg.checkpoint, connectionId), takeSeat));
     }
   };
 

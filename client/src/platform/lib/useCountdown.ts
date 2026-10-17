@@ -12,19 +12,21 @@ export function remainingMs(endsAt: number | null | undefined, clockOffset: numb
 /**
  * Milliseconds left until `endsAt` on the server clock, refreshed a few times a second. The first
  * render already carries the real value: a timer must never flash "0" (in its urgent style) before
- * its effect has run.
+ * its effect has run. While the server restarts the clock holds at what it showed then
+ * (`clocksHeldAt`): the restored room has every deadline moved on by the downtime.
  */
 export function useCountdown(endsAt: number | null | undefined): number {
   const clockOffset = usePlatformStore((s) => s.clockOffset);
-  const [remaining, setRemaining] = useState(() => remainingMs(endsAt, clockOffset));
+  const heldAt = usePlatformStore((s) => s.clocksHeldAt);
+  const [remaining, setRemaining] = useState(() => remainingMs(endsAt, clockOffset, heldAt ?? Date.now()));
 
   useEffect(() => {
-    const compute = () => remainingMs(endsAt, clockOffset);
+    const compute = () => remainingMs(endsAt, clockOffset, heldAt ?? Date.now());
     setRemaining(compute());
-    if (endsAt == null) return;
+    if (endsAt == null || heldAt !== null) return;
     const id = window.setInterval(() => setRemaining(compute()), TICK_MS);
     return () => window.clearInterval(id);
-  }, [endsAt, clockOffset]);
+  }, [endsAt, clockOffset, heldAt]);
 
   return remaining;
 }

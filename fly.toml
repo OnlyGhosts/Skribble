@@ -8,9 +8,15 @@
 #
 # Deploys come from .github/workflows/deploy-fly.yml once the FLY_API_TOKEN repository secret
 # exists (the first run creates the app). By hand: `fly deploy --ha=false`. A deploy restarts the
-# process, which ends the rooms in progress, so the workflow only runs for server-side changes.
+# process; the games in progress carry on afterwards from the checkpoints the phones hold (sealed
+# with the ROOM_CHECKPOINT_KEY secret, which the workflow creates once), and the workflow still only
+# runs for server-side changes.
 app = "boredgames-io"
 primary_region = "lhr"
+# On a deploy the server sends every phone a fresh checkpoint and a "restarting" close, then exits:
+# well under a second, and it exits by itself after 3 s at most.
+kill_signal = "SIGTERM"
+kill_timeout = "10s"
 # Headroom for a spike instead of an out-of-memory kill, which would end every room.
 swap_size_mb = 256
 

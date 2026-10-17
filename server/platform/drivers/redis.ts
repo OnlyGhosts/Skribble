@@ -161,6 +161,17 @@ export class RedisDriver implements GameDriver {
     return result;
   }
 
+  /** Rooms live in Redis and outlive any instance, so there are no checkpoints: a restore is a rejoin. */
+  async restore(code: string, token: string, _checkpoint: string, connectionId: string): Promise<SeatResult> {
+    const found = await this.lookup(code);
+    if (!found.ok) return { ok: false, code: 'REJOIN_FAILED', message: found.message };
+    return this.rejoin(found.code, token, connectionId);
+  }
+
+  checkpointAll(): void {
+    // Nothing to hand out: the rooms are in Redis.
+  }
+
   async leave(seat: Seat): Promise<void> {
     const connectionId = this.locals.get(seat.code)?.seats.get(seat.playerId);
     if (connectionId !== undefined) this.unbind(seat, connectionId);

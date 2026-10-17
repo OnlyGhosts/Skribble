@@ -524,6 +524,9 @@ describe('copy', () => {
     const base = { phase: 'acting' as const, seated: true, waitingForSeat: false, busted: false, connected: true, held: false, inHand: true, myTurn: false, turnName: 'Pia', result: null, won: false };
     expect(panelStatus(base)).toEqual({ state: 'their-turn', text: "Pia's turn", tone: 'other' });
     expect(panelStatus({ ...base, myTurn: true })).toEqual({ state: 'my-turn', text: 'Your turn', tone: 'go' });
+    // Offline: the line says what the notice above says, a restart included.
+    expect(panelStatus({ ...base, connected: false })).toMatchObject({ state: 'offline', text: 'Reconnecting…' });
+    expect(panelStatus({ ...base, connected: false, restarting: true })).toMatchObject({ state: 'offline', text: 'Server restarting…' });
     expect(panelStatus({ ...base, phase: 'results', turnName: null })).toMatchObject({ state: 'showdown' });
     expect(panelStatus({ ...base, phase: 'results', result: 'You win 25', won: true })).toMatchObject({ state: 'result', tone: 'go' });
     expect(panelStatus({ ...base, seated: false }).state).toBe('spectating');

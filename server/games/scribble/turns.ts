@@ -230,3 +230,30 @@ export function rate(gx: Gx, playerId: string, value: 'like' | 'dislike'): void 
   else data.turn.ratings[playerId] = value;
   snapshot(gx);
 }
+
+/** The chat line when a server restart sends a turn back to the start. */
+export const RESTARTED_TURN_TEXT = 'The server restarted, so this turn starts again.';
+/** Added when the turn had already given out points: the scores went down for a reason. */
+export const POINTS_UNDONE_TEXT = 'Its points are taken back.';
+
+/**
+ * A turn caught mid-way by a server restart starts over, since its canvas is gone: the points it
+ * gave are taken back and the turn begins again with fresh words, for the same drawer while they
+ * are connected (the usual skip otherwise). A summary, a hold or the end needs nothing.
+ */
+export function restartTurn(gx: Gx): void {
+  const { data, ctx } = gx;
+  const turn = data.turn;
+  if (!turn || (data.phase.kind !== 'choosing' && data.phase.kind !== 'drawing')) return;
+  let undone = false;
+  for (const [playerId, points] of Object.entries(turn.points)) {
+    if (points === 0 || !findPlayer(ctx, playerId)) continue;
+    gx.effects.push({ type: 'score', playerId, delta: -points });
+    undone = true;
+  }
+  systemMessage(gx, undone ? RESTARTED_TURN_TEXT + ' ' + POINTS_UNDONE_TEXT : RESTARTED_TURN_TEXT);
+  data.turn = null;
+  data.turnIndex -= 1;
+  data.phase = { kind: 'turnEnd', reason: 'noWordChosen', endsAt: ctx.now, points: {}, held: false };
+  beginNextTurn(gx);
+}

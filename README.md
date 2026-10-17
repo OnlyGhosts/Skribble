@@ -172,7 +172,9 @@ open all night: nothing cuts them on a timer and nothing splits a room between i
 `fly.toml` keeps exactly one machine and never stops it: rooms live in that process, so do not
 scale it to two without adding a Redis first. The workflow only deploys when `server/`, `shared/`,
 the dependencies, the Dockerfile, `fly.toml` or the workflow change, because a deploy restarts the
-process and ends the rooms in progress. Avoid pushing server changes in the middle of a party.
+process. The games in progress carry on afterwards (see [Restarts](#restarts)): before deploying,
+the workflow creates the Fly secret `ROOM_CHECKPOINT_KEY` once if the app has none, and never
+changes it after that.
 
 A push to `main` that changes `server/` or `shared/` starts this workflow and the Vercel build at
 the same time, and nothing orders the two; Vercel usually finishes first. So a change to what the
@@ -190,7 +192,7 @@ Some changes only work the other way round: the server must go first. The 50 ava
 host's End game are one. An older server refuses a face past the first 24 (about half of new
 players could not create or join a room) and the `endGame` message. For such a change, run the
 **Deploy to Fly.io** workflow by hand on the branch before merging it to `main` (the new server
-still serves the old client), then merge; the deploy ends every room either way.
+still serves the old client), then merge; the games in progress carry on after either deploy.
 
 ### The site on Vercel
 
@@ -254,7 +256,37 @@ docker build -t bored-games .
 docker run -p 3001:3001 bored-games
 ```
 
-There is no database to set up: `PORT` is the only required setting, `REDIS_URL` the only optional one.
+There is no database to set up: `PORT` is the only required setting. `REDIS_URL` and
+`ROOM_CHECKPOINT_KEY` are optional.
+
+### Restarts
+
+A deploy, a crash or a new machine restarts the server, and without Redis that empties its memory.
+The phones bring the games back:
+
+- Every room's state is sealed into a checkpoint (encrypted and signed with AES-256-GCM, opaque to
+  the phones) and sent to the host and up to 5 other players, at most every 3 s and at once when a
+  round, turn or phase changes. A checkpoint is 1 to 2 KB for a usual party, about 7 KB for 50
+  players.
+- On SIGTERM (a deploy) the server sends those phones a fresh checkpoint and closes their sockets
+  with "restarting" before it exits. After a crash the last checkpoint sent is used.
+- After the restart, the first phone whose rejoin finds no room sends its checkpoint. The server
+  waits a moment (1 to 8 s) for the other phones' copies, rebuilds the room from the newest one
+  with the same code, seats and host, and moves every clock on by the downtime. Everyone else
+  rejoins as usual. Meanwhile the phones show "The server is restarting. Your game will carry on."
+  A phone with no checkpoint keeps retrying quietly for 20 s before it gives up.
+- The key is `ROOM_CHECKPOINT_KEY`: 32 random bytes as base64 (`openssl rand -base64 32`). The Fly
+  workflow creates it once. In production without it, the server logs one warning and rooms end on
+  a restart as before. In dev and tests each process makes up its own key, so a dev restart brings
+  nothing back unless the key is set. Changing the key only makes the checkpoints already out there
+  fail: those games end with "The server restarted, so that game ended."
+
+Limits: a room comes back only if at least one phone that holds a checkpoint has the page open (or
+reopens it) within 30 minutes of that checkpoint. Scribble's drawing in progress is not kept: that
+turn starts again with the same drawer and its points are taken back. Leaving a room deletes the
+phone's copy, and for 30 minutes after the server deletes a room it refuses that room's older
+checkpoints (this memory does not survive a restart). With Redis none of this is needed: rooms live
+in Redis and no checkpoints are sent.
 
 ## Scripts
 
@@ -384,6 +416,6 @@ No game has a timing setting: every clock is a named constant in the game's shar
 
 ## Limits and ideas
 
-- Without Redis, rooms are in memory: restart the server and they are gone. With Redis they survive restarts and instance churn, but there is still no matchmaking, no accounts and no history. Fine for friends, not for a public service.
+- Without Redis, rooms are in memory and come back after a restart from the checkpoints the phones hold (see [Restarts](#restarts)). With Redis they survive restarts and instance churn. Either way there is no matchmaking, no accounts and no history. Fine for friends, not for a public service.
 - Scribble is English only for now; adding a language is a word list in `shared/games/scribble/words/` plus one entry in `LANGUAGES` in `shared/games/scribble/protocol.ts`.
 - No public rooms or matchmaking by design: this is for playing with people you know.

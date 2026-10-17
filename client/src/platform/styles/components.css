@@ -1961,7 +1961,27 @@ button.exit-action--end:hover {
   box-shadow: var(--shadow-lg);
   white-space: nowrap;
   pointer-events: none;
-  animation: toast-in 0.2s ease;
+  animation: banner-in 0.2s ease;
+}
+
+/* The toasts' entry, keeping the banner's centring (toast-in's transform would replace it). */
+@keyframes banner-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -8px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+/* The restart line is a sentence: it wraps on a narrow phone instead of running off the screen. */
+.reconnect-banner[data-status='restarting'] {
+  /* Centred with left: 50%, it would otherwise shrink to half the screen and wrap into three lines. */
+  width: max-content;
+  white-space: normal;
+  text-align: center;
 }
 
 /* The toasts queue below the banner instead of under it. */

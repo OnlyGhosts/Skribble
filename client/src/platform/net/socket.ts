@@ -1,6 +1,7 @@
 import {
   CLOSE_REMOVED,
   CLOSE_REPLACED,
+  CLOSE_RESTARTING,
   isPlatformServerMessage,
   isWireMessage,
   type PlatformClientMessage,
@@ -9,15 +10,27 @@ import {
   type StoredSession,
   type WireMessage,
 } from '@shared/platform/protocol';
-import { RECONNECT_GRACE_MS } from '@shared/platform/constants';
+import { CHECKPOINT_MAX_AGE_MS, RECONNECT_GRACE_MS } from '@shared/platform/constants';
 import { upgradeGameId } from '@shared/platform/games';
-import { SEAT_REFRESH_MS, clearSeat, clearSession, heldSeat, loadSession, saveSeat, saveSession, seatToResume } from '../lib/storage';
+import {
+  SEAT_REFRESH_MS,
+  clearSeat,
+  clearSession,
+  heldSeat,
+  loadCheckpoint,
+  loadSession,
+  saveSeat,
+  saveSession,
+  seatToResume,
+  type SeatCheckpoint,
+} from '../lib/storage';
 import { platformRoomSounds } from '../lib/platformSounds';
 import { registeredGame } from '../registry';
 import { codeFromLocation } from '../router';
 import { usePlatformStore, type JoinRequest } from '../store/usePlatformStore';
 import { Outbox } from './outbox';
 import { SendPacer, laneOf } from './pacer';
+import { RoomRecovery } from './recovery';
 import { wsUrl } from './server';
 
 const BACKOFF_MIN_MS = 500;
@@ -61,7 +74,7 @@ export const QUIET_PLAY_MS = 5_000;
 const LIVENESS_TICK_MS = 1_000;
 
 /** Messages that set up or tear down a seat; everything else is a room message, numbered and kept until confirmed. */
-const SESSION_TYPES: ReadonlySet<string> = new Set(['create', 'join', 'rejoin', 'leave', 'ping']);
+const SESSION_TYPES: ReadonlySet<string> = new Set(['create', 'join', 'rejoin', 'restore', 'leave', 'ping']);
 
 /** Closes that mean the server went away (a restart, a deploy, a crash) rather than refused us. */
 const SERVER_GONE_CODES: ReadonlySet<number> = new Set([1001, 1006, 1011, 1012]);
@@ -76,6 +89,8 @@ interface Seat {
   code: string;
   token: string;
 }
+
+type HeldCheckpoint = Seat & SeatCheckpoint;
 
 /**
  * A snapshot whose game id is current. A server still on the deploy before a game rename sends the
@@ -150,6 +165,13 @@ export class GameSocket {
   private pendingLeave: StoredSession | null = null;
   /** Token of the seat being released through rejoin + leave; its welcome must not enter the room. */
   private leavingToken: string | null = null;
+  /** The newest checkpoint for the seat we hold; localStorage keeps it too (a reload, a closed tab). */
+  private checkpoint: HeldCheckpoint | null = null;
+  /** Bringing back a room a server restart lost: a restore, or quiet rejoins while another phone does. */
+  private readonly recovery = new RoomRecovery();
+  private recoveryTimer: ReturnType<typeof setTimeout> | null = null;
+  /** The server is restarting (its close said so) or lost our room: the notice says so until the seat is back. */
+  private restarting = false;
 
   /** Opens the connection and keeps it alive for the lifetime of the page. Idempotent. */
   start(): void {
@@ -248,9 +270,32 @@ export class GameSocket {
     this.saveSeatNow(session);
   }
 
-  private saveSeatNow(session: StoredSession): void {
+  private saveSeatNow(session: StoredSession, dropCheckpoint = false): void {
     this.seatSavedAt = Date.now();
-    saveSeat({ code: session.code, token: session.token, playerId: session.playerId, savedAt: this.seatSavedAt });
+    const checkpoint = dropCheckpoint ? null : this.heldCheckpoint(session);
+    saveSeat({ code: session.code, token: session.token, playerId: session.playerId, savedAt: this.seatSavedAt, ...(checkpoint ? { checkpoint } : {}) });
+  }
+
+  /**
+   * The newest checkpoint this phone has for the seat, from memory or (after a reload) from
+   * storage. One too old to open any more counts as none: the phone then waits for another to
+   * bring the room back instead of having it refused.
+   */
+  private heldCheckpoint(seat: Seat): SeatCheckpoint | null {
+    const held = this.checkpoint;
+    const found = held && held.code === seat.code && held.token === seat.token ? { text: held.text, at: held.at } : loadCheckpoint(seat.code, seat.token);
+    return found && Date.now() - found.at < CHECKPOINT_MAX_AGE_MS ? found : null;
+  }
+
+  /**
+   * A checkpoint for the room we sit in replaces the one kept with the seat; `null` (this phone no
+   * longer gets them) drops it, so an old copy can never roll the room back.
+   */
+  private keepCheckpoint(text: string | null): void {
+    const session = this.currentSession();
+    if (!session || usePlatformStore.getState().room?.code !== session.code) return;
+    this.checkpoint = text === null ? null : { code: session.code, token: session.token, text, at: Date.now() };
+    this.saveSeatNow(session, text === null);
   }
 
   /** Keeps the localStorage entry's age below the reconnect grace while we sit in the room (snapshots and pongs call it). */
@@ -269,6 +314,8 @@ export class GameSocket {
     if (this.rejoinSeat) codes.add(this.rejoinSeat.code);
     this.session = null;
     this.rejoinSeat = null;
+    this.checkpoint = null;
+    this.endRecovery();
     this.dropBacklog();
     clearSession();
     if (!opts.keepSeat) for (const code of codes) clearSeat(code);
@@ -344,7 +391,7 @@ export class GameSocket {
     this.pacer = new SendPacer();
     this.clearConnectTimer();
     this.clearSlowReconnectTimer();
-    store.setConnection('connected');
+    store.setConnection(this.restarting ? 'restarting' : 'connected');
     this.startPing();
 
     if (this.pendingLeave) {
@@ -364,6 +411,7 @@ export class GameSocket {
       this.send({ t: 'rejoin', code: seat.code, token: seat.token });
       return;
     }
+    this.endRecovery();
     if (store.room) {
       // We were in a room but have no usable seat token: nothing to resume.
       store.resetRoom();
@@ -412,6 +460,7 @@ export class GameSocket {
         this.rejoinSeat = null;
         this.joinFallback = null;
         this.serverGoneAt = null;
+        this.endRecovery();
         if (this.lostToastShown) {
           // Only now is the player really back: the seat answered.
           store.addToast('success', 'Reconnected');
@@ -444,16 +493,28 @@ export class GameSocket {
         registeredGame(room.gameId)?.onChat?.(msg.message);
         return;
       }
+      case 'checkpoint':
+        this.keepCheckpoint(msg.checkpoint);
+        return;
       case 'kicked':
         this.forgetSession();
         break;
       case 'error':
+        if (msg.code === 'RATE_LIMITED' && this.recovery.restoring) {
+          // Only the restore can be refused this way (room messages wait for the seat): no new restore, but quiet rejoins.
+          if (!this.recoverRoom()) this.handle({ t: 'error', code: 'REJOIN_FAILED', message: msg.message });
+          return;
+        }
         if (msg.code === 'REJOIN_FAILED') {
           if (this.leavingToken !== null) {
             // The seat we wanted to release had already expired: nothing left to do.
             this.leavingToken = null;
             return;
           }
+          if (msg.roomGone === true && this.recoverRoom()) return;
+          // The room was lost to a restart (or a restore of it refused): the game ended with it.
+          const lost = msg.roomGone === true || this.recovery.active;
+          this.endRecovery();
           const fallback = this.joinFallback;
           if (fallback) {
             // The seat typed back into is gone: join as a newcomer instead, the join still pending.
@@ -464,7 +525,7 @@ export class GameSocket {
             this.send(fallback);
             return;
           }
-          const restarted = this.serverRestarted(msg.message);
+          const restarted = this.serverRestarted(msg.message, lost);
           this.forgetSession();
           if (restarted) {
             store.resetRoom();
@@ -501,8 +562,12 @@ export class GameSocket {
     // Still in the outbox: the next welcome says which of them the room is missing.
     this.dropBacklog();
     usePlatformStore.getState().setSlow(false);
-    // A room connection the server dropped (or that died under us): a rejoin refused next means the server lost the room.
-    if (usePlatformStore.getState().room && (code === undefined || SERVER_GONE_CODES.has(code))) this.serverGoneAt ??= Date.now();
+    this.clearRecoveryTimer();
+    this.recovery.connectionLost();
+    // A room connection (or a seat being resumed) the server dropped, or that died under us: a rejoin refused next means the server lost the room.
+    const inRoom = usePlatformStore.getState().room !== null || usePlatformStore.getState().rejoining;
+    if (inRoom && (code === undefined || SERVER_GONE_CODES.has(code))) this.serverGoneAt ??= Date.now();
+    if (inRoom && code === CLOSE_RESTARTING) this.restarting = true;
     const lived = this.openedAt > 0 ? Date.now() - this.openedAt : 0;
     this.openedAt = 0;
     if (code === CLOSE_REPLACED) {
@@ -517,7 +582,7 @@ export class GameSocket {
       }
     }
     const store = usePlatformStore.getState();
-    store.setConnection(this.everConnected ? 'reconnecting' : 'connecting');
+    store.setConnection(this.restarting ? 'restarting' : this.everConnected ? 'reconnecting' : 'connecting');
     if (store.room) this.armSlowReconnectToast();
     if (lived >= LONG_LIVED_MS) {
       this.backoff = BACKOFF_MIN_MS;
@@ -558,7 +623,8 @@ export class GameSocket {
     this.slowReconnectTimer = setTimeout(() => {
       this.slowReconnectTimer = null;
       const store = usePlatformStore.getState();
-      if (this.isOpen() || !store.room || this.lostToastShown) return;
+      // A restart has its own notice, which says the game carries on.
+      if (this.isOpen() || !store.room || this.lostToastShown || this.restarting) return;
       store.addToast('warning', 'Connection lost. Reconnecting…');
       this.lostToastShown = true;
     }, SLOW_RECONNECT_MS);
@@ -650,14 +716,55 @@ export class GameSocket {
   }
 
   /**
-   * A refused rejoin right after the server dropped us, for a seat that cannot have expired yet
-   * (the grace is minutes long) and was not taken from us (a kick says so): the server lost its
-   * rooms, which only a restart does.
+   * The rejoin found no room, and the server says a restart may have lost it. A phone holding a
+   * checkpoint for the seat sends it to bring the room back; one without asks again quietly for a
+   * while, in case another phone does. So does a page just opened, and a code typed on the home
+   * screen before it falls back to joining as a newcomer: the seat stays stored until then. False
+   * when there is nothing left to try.
    */
-  private serverRestarted(reason: string): boolean {
+  private recoverRoom(): boolean {
+    const seat = this.rejoinSeat;
+    if (!seat) return false;
+    const step = this.recovery.roomGone(Date.now(), this.heldCheckpoint(seat)?.text ?? null);
+    if (step.kind === 'giveUp') return false;
+    this.restarting = true;
+    usePlatformStore.getState().setConnection('restarting');
+    if (step.kind === 'restore') {
+      this.send({ t: 'restore', code: seat.code, token: seat.token, checkpoint: step.checkpoint });
+      return true;
+    }
+    this.clearRecoveryTimer();
+    this.recoveryTimer = setTimeout(() => {
+      this.recoveryTimer = null;
+      if (this.rejoinSeat === seat) this.send({ t: 'rejoin', code: seat.code, token: seat.token });
+    }, step.inMs);
+    return true;
+  }
+
+  /** The seat is back, or will not be: the restarting notice goes. */
+  private endRecovery(): void {
+    this.recovery.end();
+    this.clearRecoveryTimer();
+    if (!this.restarting) return;
+    this.restarting = false;
+    if (this.isOpen()) usePlatformStore.getState().setConnection('connected');
+  }
+
+  private clearRecoveryTimer(): void {
+    if (this.recoveryTimer !== null) clearTimeout(this.recoveryTimer);
+    this.recoveryTimer = null;
+  }
+
+  /**
+   * A refused rejoin of a seat that was not taken from us (a kick says so), either right after the
+   * server dropped us, for a seat that cannot have expired yet (the grace is minutes long), or
+   * after the server said a restart lost the room (`lost`): the server lost its rooms, which only
+   * a restart does.
+   */
+  private serverRestarted(reason: string, lost: boolean): boolean {
     const goneAt = this.serverGoneAt;
     this.serverGoneAt = null;
-    return goneAt !== null && Date.now() - goneAt < RECONNECT_GRACE_MS && !/removed/i.test(reason);
+    return (lost || (goneAt !== null && Date.now() - goneAt < RECONNECT_GRACE_MS)) && !/removed/i.test(reason);
   }
 
   private startPing(): void {

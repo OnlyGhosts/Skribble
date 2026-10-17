@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { RECONNECT_GRACE_MS } from '@shared/platform/constants';
+import { CHECKPOINT_MAX_AGE_MS, CHECKPOINT_MAX_CHARS, RECONNECT_GRACE_MS } from '@shared/platform/constants';
 import { SESSION_STORAGE_KEY, type StoredSession } from '@shared/platform/protocol';
 import { installBrowserGlobals, installFakeStorage } from '../../test/env';
 
@@ -7,7 +7,7 @@ installBrowserGlobals();
 
 const { local, session } = installFakeStorage();
 
-const { clearSeat, isSeatFresh, loadSeat, loadSession, saveSeat, saveSession, seatToResume, SEAT_KEY_PREFIX } = await import('./storage');
+const { clearSeat, heldSeat, isSeatFresh, loadCheckpoint, loadSeat, loadSession, saveSeat, saveSession, seatToResume, SEAT_KEY_PREFIX } = await import('./storage');
 
 const NOW = 1_700_000_000_000;
 const sessionFor = (code: string, token = `tok-${code}`): StoredSession => ({ code, gameId: 'scribble', token, playerId: 'p1' });
@@ -41,6 +41,35 @@ describe('seat storage', () => {
     expect(isSeatFresh(seat, NOW + RECONNECT_GRACE_MS - 1)).toBe(true);
     expect(isSeatFresh(seat, NOW + RECONNECT_GRACE_MS)).toBe(false);
     expect(isSeatFresh(seat, NOW - 5000)).toBe(true);
+  });
+});
+
+describe('room checkpoints kept with the seat', () => {
+  const checkpoint = { text: 'sealed-text', at: NOW };
+
+  it('reads the checkpoint back for the seat that holds it only', () => {
+    saveSeat({ code: 'ABCD', token: 'tok-1', playerId: 'p1', savedAt: NOW, checkpoint });
+    expect(loadSeat('ABCD')?.checkpoint).toEqual(checkpoint);
+    expect(loadCheckpoint('ABCD', 'tok-1')).toEqual(checkpoint);
+    expect(loadCheckpoint('ABCD', 'tok-other')).toBeNull();
+    expect(loadCheckpoint('WXYZ', 'tok-1')).toBeNull();
+    clearSeat('ABCD');
+    expect(loadCheckpoint('ABCD', 'tok-1')).toBeNull();
+  });
+
+  it('keeps the seat but drops a malformed or oversized checkpoint', () => {
+    for (const bad of [{ text: '', at: NOW }, { text: 'x', at: 'later' }, { text: 'x'.repeat(CHECKPOINT_MAX_CHARS + 1), at: NOW }, 'text']) {
+      local.setItem(`${SEAT_KEY_PREFIX}ABCD`, JSON.stringify({ token: 'tok-1', playerId: 'p1', savedAt: NOW, checkpoint: bad }));
+      expect(loadSeat('ABCD')).toEqual({ code: 'ABCD', token: 'tok-1', playerId: 'p1', savedAt: NOW });
+    }
+  });
+
+  it('keeps a seat with a young checkpoint resumable past the reconnect grace, for the checkpoint’s age', () => {
+    const savedAt = NOW - RECONNECT_GRACE_MS - 60_000;
+    saveSeat({ code: 'ABCD', token: 'tok-1', playerId: 'p1', savedAt, checkpoint });
+    expect(seatToResume('ABCD', null, NOW + CHECKPOINT_MAX_AGE_MS - 1)).toEqual({ code: 'ABCD', token: 'tok-1' });
+    expect(heldSeat('abcd', NOW)).toEqual({ code: 'ABCD', token: 'tok-1' });
+    expect(seatToResume('ABCD', null, NOW + CHECKPOINT_MAX_AGE_MS)).toBeNull();
   });
 });
 

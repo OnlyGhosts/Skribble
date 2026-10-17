@@ -19,7 +19,7 @@ import { defineSettings, withDraft, type GameEvent, type GameResult, type GameSe
 import { createScribbleCanvasStore } from './canvas.js';
 import { chat } from './chat.js';
 import { everyoneGuessed, findPlayer, isDrawer, type Ctx, type ScribbleData } from './state.js';
-import { beginNextTurn, chooseTimedOut, chooseWord, endTurn, rate, resumeHeldTurn, revealHint, snapshot, systemMessageForDrawerGone, type Gx } from './turns.js';
+import { beginNextTurn, chooseTimedOut, chooseWord, endTurn, rate, restartTurn, resumeHeldTurn, revealHint, snapshot, systemMessageForDrawerGone, type Gx } from './turns.js';
 import { viewFor } from './view.js';
 
 type Result = GameResult<ScribbleData, ScribbleServerMessage>;
@@ -204,6 +204,9 @@ export const scribbleModule: GameServerModule<ScribbleSettings, ScribbleData, Sc
   view: viewFor,
   sideMessages: SCRIBBLE_SIDE_MESSAGE_TYPES,
   createSideStore: createScribbleCanvasStore,
+  milestone: (data) => `${data.round}:${data.turnIndex}:${data.phase.kind}`,
+  // The canvas is not in the checkpoint: a turn caught mid-way starts over.
+  restored: (ctx, data) => withDraft(data, (draft, effects) => restartTurn({ ctx, data: draft, effects })),
 };
 
 export { findPlayer };

@@ -19,3 +19,33 @@ export class RateLimiter {
     return true;
   }
 }
+
+/**
+ * A RateLimiter per key (a room code, say). Keys quiet for a whole window are forgotten; beyond
+ * `maxKeys` live keys a new key is refused, so the map cannot be grown without end.
+ */
+export class KeyedRateLimiter {
+  private readonly limiters = new Map<string, { limiter: RateLimiter; lastAt: number }>();
+
+  constructor(
+    private readonly limit: number,
+    private readonly windowMs: number,
+    private readonly maxKeys: number,
+  ) {}
+
+  tryAcquire(key: string, now: number): boolean {
+    let entry = this.limiters.get(key);
+    if (!entry) {
+      if (this.limiters.size >= this.maxKeys) this.prune(now);
+      if (this.limiters.size >= this.maxKeys) return false;
+      entry = { limiter: new RateLimiter(this.limit, this.windowMs), lastAt: now };
+      this.limiters.set(key, entry);
+    }
+    entry.lastAt = now;
+    return entry.limiter.tryAcquire(now);
+  }
+
+  private prune(now: number): void {
+    for (const [key, entry] of this.limiters) if (now - entry.lastAt >= this.windowMs) this.limiters.delete(key);
+  }
+}

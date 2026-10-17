@@ -2,9 +2,12 @@ import type { Avatar } from '../../../shared/platform/avatar.js';
 import type { GameId } from '../../../shared/platform/games.js';
 import type { ErrorCode } from '../../../shared/platform/protocol.js';
 import { generateRoomCode, isValidRoomCode, normalizeRoomCode, roomCodeHint } from '../../../shared/platform/roomCode.js';
+import { Checkpointer } from '../checkpoint/checkpointer.js';
+import { restoreRoomData } from '../engine/restore.js';
+import type { PlatformRoomData } from '../engine/state.js';
 import { MemoryStorage, type GameStorage } from '../storage.js';
-import { systemClock, type Clock, type Rng, type Transport } from '../transport.js';
-import { Room } from './room.js';
+import { productionCtx, systemClock, type Clock, type Rng, type Transport } from '../transport.js';
+import { Room, type RoomDeps } from './room.js';
 
 export interface RoomManagerDeps {
   transport: Transport;
@@ -15,6 +18,10 @@ export interface RoomManagerDeps {
   /** Rooms alive at once, empty ones awaiting deletion included (defaults to MAX_ROOMS). */
   maxRooms?: number;
   log?: (msg: string) => void;
+  /** Seals room checkpoints for the phones (see checkpoint/); none are sent without it. */
+  checkpointKey?: Buffer | null;
+  /** Fired when a room deleted itself (empty for its TTL), with the time it happened. */
+  onRoomDeleted?: (code: string, at: number) => void;
 }
 
 export type CreateResult =
@@ -46,6 +53,8 @@ export class RoomManager {
   private readonly rng: Rng;
   private readonly maxRooms: number;
   private readonly log: ((msg: string) => void) | undefined;
+  private readonly checkpoints: Checkpointer | null;
+  private readonly onRoomDeleted: ((code: string, at: number) => void) | undefined;
 
   constructor(deps: RoomManagerDeps) {
     this.transport = deps.transport;
@@ -54,6 +63,10 @@ export class RoomManager {
     this.rng = deps.rng ?? Math.random;
     this.maxRooms = deps.maxRooms ?? MAX_ROOMS;
     this.log = deps.log;
+    this.onRoomDeleted = deps.onRoomDeleted;
+    this.checkpoints = deps.checkpointKey
+      ? new Checkpointer({ key: deps.checkpointKey, transport: this.transport, clock: this.clock, log: this.log })
+      : null;
   }
 
   get isAtCapacity(): boolean {
@@ -66,17 +79,7 @@ export class RoomManager {
       return { ok: false, code: 'RATE_LIMITED', message: 'The server is hosting too many rooms right now. Please try again in a minute.' };
     }
     const code = this.uniqueCode();
-    const room = new Room(code, gameId, {
-      transport: this.transport,
-      storage: this.storage,
-      clock: this.clock,
-      rng: this.rng,
-      log: this.log,
-      // Rooms delete themselves once they have been empty for EMPTY_ROOM_TTL_MS.
-      onDestroy: (r) => {
-        if (this.rooms.get(r.code) === r) this.rooms.delete(r.code);
-      },
-    });
+    const room = new Room(code, gameId, this.roomDeps());
     this.rooms.set(code, room);
     const joined = room.create(name, avatar, connectionId);
     if (!joined.ok) {
@@ -86,6 +89,23 @@ export class RoomManager {
       throw new Error(`failed to seat host in new room: ${joined.code}`);
     }
     return { ok: true, room, playerId: joined.playerId };
+  }
+
+  /**
+   * Rebuilds a room lost to a restart from a checkpoint issued at `issuedAt` (already opened and
+   * validated). Null when its code is live again or the server is at its room cap.
+   */
+  restoreRoom(stored: PlatformRoomData, issuedAt: number): Room | null {
+    if (this.rooms.has(stored.code) || this.isAtCapacity) return null;
+    const { data, effects } = restoreRoomData(stored, issuedAt, productionCtx(this.clock, this.rng));
+    const room = Room.restored(data, effects, this.roomDeps());
+    this.rooms.set(room.code, room);
+    return room;
+  }
+
+  /** Before a restart: the phones holding checkpoints get fresh ones. */
+  flushCheckpoints(): void {
+    this.checkpoints?.flushAll();
   }
 
   /** Resolves user input (any case, with noise) to a room. */
@@ -113,8 +133,28 @@ export class RoomManager {
 
   /** Tears down every room and timer (server shutdown). */
   destroy(): void {
+    this.checkpoints?.stop();
     for (const room of this.rooms.values()) room.destroy();
     this.rooms.clear();
+  }
+
+  private roomDeps(): RoomDeps {
+    const checkpoints = this.checkpoints;
+    return {
+      transport: this.transport,
+      storage: this.storage,
+      clock: this.clock,
+      rng: this.rng,
+      log: this.log,
+      // Rooms delete themselves once they have been empty for EMPTY_ROOM_TTL_MS.
+      onDestroy: (r) => {
+        if (this.rooms.get(r.code) !== r) return;
+        this.rooms.delete(r.code);
+        checkpoints?.forget(r.code);
+        this.onRoomDeleted?.(r.code, this.clock.now());
+      },
+      onChange: checkpoints ? (r, before) => checkpoints.changed(r, before) : undefined,
+    };
   }
 
   private uniqueCode(): string {

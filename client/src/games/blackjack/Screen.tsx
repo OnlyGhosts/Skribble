@@ -8,7 +8,7 @@ import { useActiveGame } from '../../platform/store/selectors';
 import { TableShell } from '../../platform/table/TableShell';
 import { ControlPanel } from './components/ControlPanel';
 import { Table } from './components/Table';
-import { isActing, nameOf, pendingBettors, playerOf, useConnected, useRejoining, useTableNow } from './hooks';
+import { isActing, nameOf, pendingBettors, playerOf, useConnected, useRejoining, useRestarting, useTableNow } from './hooks';
 import { focusOf } from './lib/focus';
 import { tableOf, type TableModel } from './lib/table';
 import { animating, frameAt, myHandLanded, outcomesShown, snapTimeline, type Timeline } from './lib/timeline';
@@ -37,6 +37,7 @@ export function BlackjackScreen({ room, meId, isHost }: GameScreenProps<Blackjac
   useAppMode(isPhone);
   const connected = useConnected();
   const rejoining = useRejoining();
+  const restarting = useRestarting();
   const pending = useBlackjack((s) => s.pending);
   const queued = useBlackjack((s) => s.queuedBet !== null);
   const sheet = useBlackjack((s) => s.sheet);
@@ -66,6 +67,7 @@ export function BlackjackScreen({ room, meId, isHost }: GameScreenProps<Blackjac
     seated: seat !== undefined,
     bustedOut: seat?.bustedOut ?? false,
     connected,
+    restarting,
     inRound: view.order.includes(meId),
     hasChips: (seat?.chips ?? 0) + (seat?.bet ?? 0) > 0,
     betPlaced: (seat?.bet ?? 0) > 0 || pending?.kind === 'bet' || queued,

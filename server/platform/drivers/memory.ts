@@ -1,32 +1,48 @@
 import type { Avatar } from '../../../shared/platform/avatar.js';
 import type { GameId } from '../../../shared/platform/games.js';
 import type { RoomPreview } from '../../../shared/platform/protocol.js';
-import { normalizeRoomCode } from '../../../shared/platform/roomCode.js';
+import { isValidRoomCode, normalizeRoomCode, roomCodeHint } from '../../../shared/platform/roomCode.js';
+import { Restorer } from '../checkpoint/restorer.js';
 import { previewOf } from '../engine/view.js';
+import { systemClock } from '../transport.js';
 import { Outbound } from './outbound.js';
 import { RoomManager, type RoomManagerDeps } from './roomManager.js';
 import { SocketHub } from './socketHub.js';
-import type { DriverHealth, GameDriver, LookupResult, RoomInbound, Seat, SeatResult, SocketLike } from './types.js';
+import { after, type DriverHealth, type GameDriver, type LookupResult, type MaybePromise, type RoomInbound, type Seat, type SeatResult, type SocketLike } from './types.js';
 
-export type MemoryDriverOptions = Omit<RoomManagerDeps, 'transport'> & {
+export type MemoryDriverOptions = Omit<RoomManagerDeps, 'transport' | 'onRoomDeleted'> & {
   /** Room snapshots to one socket at most this often (SNAPSHOT_INTERVAL_MS in production); 0, the default, sends each at once. */
   snapshotIntervalMs?: number;
+  /** Override RESTORE_WINDOW_MS and RESTORE_WINDOW_MAX_MS (tests). */
+  restoreWindowMs?: number;
+  restoreWindowMaxMs?: number;
 };
 
 /**
  * Everything in one process: rooms live in a RoomManager, sockets in a SocketHub. This is the
  * standalone server (`npm start`, the Dockerfile, local development) and the fallback when no
- * Redis is configured. Every method answers synchronously.
+ * Redis is configured. Every method answers synchronously, except a restore, which waits for the
+ * other phones' checkpoints for a moment.
  */
 export class MemoryDriver implements GameDriver {
   readonly name = 'memory';
   readonly hub: SocketHub;
   readonly rooms: RoomManager;
+  private readonly restorer: Restorer;
 
-  constructor({ snapshotIntervalMs = 0, ...options }: MemoryDriverOptions = {}) {
-    const clock = options.clock;
-    this.hub = new SocketHub(new Outbound(snapshotIntervalMs, clock ? () => clock.now() : Date.now));
-    this.rooms = new RoomManager({ transport: this.hub, ...options });
+  constructor({ snapshotIntervalMs = 0, restoreWindowMs, restoreWindowMaxMs, ...options }: MemoryDriverOptions = {}) {
+    const clock = options.clock ?? systemClock;
+    this.hub = new SocketHub(new Outbound(snapshotIntervalMs, () => clock.now()));
+    this.rooms = new RoomManager({ transport: this.hub, ...options, onRoomDeleted: (code, at) => this.restorer.remember(code, at) });
+    this.restorer = new Restorer({
+      key: options.checkpointKey ?? null,
+      clock,
+      log: options.log,
+      windowMs: restoreWindowMs,
+      maxWindowMs: restoreWindowMaxMs,
+      rebuild: (data, issuedAt) => this.rooms.restoreRoom(data, issuedAt) !== null,
+      isLive: (code) => this.rooms.get(code) !== undefined,
+    });
   }
 
   register(connectionId: string, ws: SocketLike): void {
@@ -39,7 +55,8 @@ export class MemoryDriver implements GameDriver {
 
   lookup(code: string): LookupResult {
     const found = this.rooms.lookup(code);
-    return found.ok ? { ok: true, code: found.room.code } : found;
+    if (found.ok) return { ok: true, code: found.room.code };
+    return found.code === 'ROOM_NOT_FOUND' && this.restorer.mayRestore(normalizeRoomCode(code)) ? { ...found, restorable: true } : found;
   }
 
   create(gameId: GameId, name: string, avatar: Avatar, connectionId: string): SeatResult {
@@ -62,6 +79,20 @@ export class MemoryDriver implements GameDriver {
     const joined = found.room.rejoin(token, connectionId);
     if (!joined.ok) return joined;
     return { ok: true, seat: { code: found.room.code, playerId: joined.playerId } };
+  }
+
+  restore(input: string, token: string, checkpoint: string, connectionId: string): MaybePromise<SeatResult> {
+    const code = normalizeRoomCode(input);
+    if (!isValidRoomCode(code)) return { ok: false, code: 'REJOIN_FAILED', message: roomCodeHint() };
+    if (this.rooms.get(code)) return this.rejoin(code, token, connectionId);
+    return after(this.restorer.offer(code, token, checkpoint), (offered): SeatResult => {
+      if (!offered.ok) return { ok: false, code: 'REJOIN_FAILED', message: offered.message, ...(offered.retry ? { roomGone: true as const } : {}) };
+      return this.rejoin(code, token, connectionId);
+    });
+  }
+
+  checkpointAll(): void {
+    this.rooms.flushCheckpoints();
   }
 
   leave(seat: Seat): void {
@@ -102,6 +133,7 @@ export class MemoryDriver implements GameDriver {
   }
 
   async shutdown(): Promise<void> {
+    this.restorer.stop();
     this.rooms.destroy();
   }
 }

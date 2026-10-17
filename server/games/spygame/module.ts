@@ -156,6 +156,7 @@ export const spygameModule: GameServerModule<SpygameSettings, SpygameData, Spyga
   nextDeadline,
   view: viewFor,
   hostMessages: new Set(['nextRound']),
+  milestone: (data) => `${data.round}:${data.phase}`,
 };
 
 export type { SpygameData };

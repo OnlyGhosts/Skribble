@@ -67,6 +67,7 @@ export function resetStore(): void {
     pendingJoin: null,
     joinError: null,
     clockOffset: 0,
+    clocksHeldAt: null,
     clockSynced: false,
     results: null,
     resultsSeen: null,

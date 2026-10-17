@@ -192,6 +192,15 @@ names the missing players and lets the host remove them).
 driver arms one timer at the earliest platform-or-game deadline and calls your `handle` with
 `{ type: 'tick' }` when it is due. No timers in game code, ever.
 
+**Restarts.** A deploy or a crash restarts the server, and a few phones of every room hold a sealed
+copy of it (a checkpoint) to bring it back. Your `D` travels in it as it is, so a game survives a
+restart for free as long as its times are epoch ms: on the way back every number in `D` within 30
+days of the checkpoint moves on by the downtime, so no clock loses time to it, while durations
+(a paused clock's remaining ms), chips and counts stay put. Two optional hooks: `milestone(data)`
+names where the game stands (phase, round, turn) so a change sends a fresh checkpoint at once,
+and `restored(ctx, data)` lets a game whose side store held part of the state restart that part
+(the store comes back empty; Scribble restarts the turn in progress).
+
 **Multi-instance Redis.** Rooms, presence and side stores live in Redis when `REDIS_URL` is set;
 actions are applied with compare-and-set Lua scripts and effects fan out over pub/sub. Because
 your module is a pure function of JSON-safe data, it works on the memory driver and on Redis
@@ -529,6 +538,10 @@ export interface GameServerModule<S = unknown, D = unknown, V = unknown, CMsg = 
    * on the scores as they stand.
    */
   end?(ctx: GameCtx<S>, data: D): GameResult<D, SMsg>;
+  /** Where the game stands (phase, round, turn): a change sends the phones a fresh room checkpoint at once. */
+  milestone?(data: D): string;
+  /** The room came back from a checkpoint after a restart (times already moved on, side store empty): restart what the store held. */
+  restored?(ctx: GameCtx<S>, data: D): GameResult<D, SMsg>;
 }
 
 /** Builds a settings spec from a zod object schema. */
@@ -1134,6 +1147,7 @@ export const templateModule: GameServerModule<TemplateSettings, TemplateData, Te
   view,
   // The host's End game scores the clicks so far, as the clock running out would.
   end: (ctx, data) => (data.over ? { data, effects: [] } : finish(ctx, data, null)),
+  milestone: (data) => (data.over ? 'over' : 'racing'),
 };
 ```
 

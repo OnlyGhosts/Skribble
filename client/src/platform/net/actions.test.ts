@@ -5,7 +5,8 @@ installBrowserGlobals();
 installFakeStorage();
 
 const { socket } = await import('./socket');
-const { countMeIn, sendJoin } = await import('./actions');
+const { countMeIn, joinRoom, sendJoin } = await import('./actions');
+const { usePlatformStore } = await import('../store/usePlatformStore');
 const { saveSeat } = await import('../lib/storage');
 
 afterEach(() => vi.restoreAllMocks());
@@ -45,5 +46,24 @@ describe('joining by code', () => {
     sendJoin({ ...join, code: 'WXYZ' });
     expect(resume).not.toHaveBeenCalled();
     expect(send).toHaveBeenCalledWith({ ...join, code: 'WXYZ' });
+  });
+});
+
+describe('a typed code while the server restarts', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('does not time the join out while its seat may be on its way back, and does once that is settled', () => {
+    vi.useFakeTimers();
+    saveSeat({ code: 'ABCD', token: 'tok-1', playerId: 'p1', savedAt: Date.now() });
+    vi.spyOn(socket, 'isOpen').mockReturnValue(true);
+    vi.spyOn(socket, 'resumeOrJoin').mockReturnValue(true);
+    joinRoom('ABCD', 'Bob', { color: 0, emoji: 0 });
+    // The server said a restart may have lost the room: the phone asks again quietly for a while.
+    usePlatformStore.getState().setConnection('restarting');
+    vi.advanceTimersByTime(60_000);
+    expect(usePlatformStore.getState()).toMatchObject({ joinPending: true, joinError: null });
+    usePlatformStore.getState().setConnection('connected');
+    vi.advanceTimersByTime(10_000);
+    expect(usePlatformStore.getState()).toMatchObject({ joinPending: false, joinError: { code: 'TIMEOUT' } });
   });
 });

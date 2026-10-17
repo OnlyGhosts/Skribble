@@ -4,7 +4,7 @@ import path from 'node:path';
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
 import { WebSocketServer } from 'ws';
 import { MAX_WS_MESSAGE_BYTES } from '../../shared/platform/constants.js';
-import { ROOM_PREVIEW_PATH, WS_PATH } from '../../shared/platform/protocol.js';
+import { CLOSE_RESTARTING, ROOM_PREVIEW_PATH, WS_PATH } from '../../shared/platform/protocol.js';
 import { asSocketLike, handleConnection } from './connection.js';
 import { after, type GameDriver } from './drivers/types.js';
 
@@ -23,9 +23,15 @@ export interface App {
   app: Express;
   server: Server;
   wss: WebSocketServer;
-  /** Closes every socket, the driver and the listener. */
+  /**
+   * Before a restart: hands every phone holding a room checkpoint a fresh one, closes every socket
+   * as restarting, then the driver and the listener. Done within about a second.
+   */
   shutdown: () => Promise<void>;
 }
+
+/** How long a shutdown waits for the sockets to finish closing before it cuts the rest off. */
+export const SHUTDOWN_CLOSE_WAIT_MS = 1000;
 
 /** Routing, static files, health, room previews and the WebSocket upgrade shared by every entry point. */
 export function createApp(options: AppOptions): App {
@@ -88,8 +94,17 @@ export function createApp(options: AppOptions): App {
   const server = createServer(app);
   const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_WS_MESSAGE_BYTES });
 
+  // Set once a shutdown begins: a phone reconnecting after its restarting close must reach the next
+  // process, not this one, whose rooms are already gone.
+  let closing = false;
+
   server.on('upgrade', (req, socket, head) => {
     const pathname = new URL(req.url ?? '/', 'http://localhost').pathname;
+    if (closing) {
+      socket.write('HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n');
+      socket.destroy();
+      return;
+    }
     if (!wsPaths.includes(pathname)) {
       socket.write('HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n');
       socket.destroy();
@@ -101,14 +116,42 @@ export function createApp(options: AppOptions): App {
   });
 
   const shutdown = async (): Promise<void> => {
-    await driver.shutdown();
-    for (const client of wss.clients) client.close(1001, 'Server shutting down');
-    wss.close();
-    await new Promise<void>((resolve) => {
+    closing = true;
+    // No new connections from here on; the open ones get their checkpoints and the close first.
+    const listenerClosed = new Promise<void>((resolve) => {
       if (!server.listening) return resolve();
       server.close(() => resolve());
     });
+    try {
+      await driver.checkpointAll();
+    } catch (err) {
+      log(`checkpoints before shutdown: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    // Queued behind the checkpoints on each socket, so the phones get those first.
+    for (const client of wss.clients) client.close(CLOSE_RESTARTING, 'Server restarting');
+    await driver.shutdown();
+    await closedOrTimedOut(wss, SHUTDOWN_CLOSE_WAIT_MS);
+    for (const client of wss.clients) client.terminate();
+    wss.close();
+    server.closeAllConnections();
+    await listenerClosed;
   };
 
   return { app, server, wss, shutdown };
+}
+
+/** Resolves once every socket of `wss` has closed, or after `ms`. */
+function closedOrTimedOut(wss: WebSocketServer, ms: number): Promise<void> {
+  return new Promise<void>((resolve) => {
+    const timer = setTimeout(done, ms);
+    const poll = setInterval(() => {
+      if (wss.clients.size === 0) done();
+    }, 20);
+    function done(): void {
+      clearTimeout(timer);
+      clearInterval(poll);
+      resolve();
+    }
+    if (wss.clients.size === 0) done();
+  });
 }

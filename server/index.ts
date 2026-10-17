@@ -31,8 +31,8 @@ function stop(signal: string): void {
       log(`shutdown failed: ${err instanceof Error ? err.message : String(err)}`);
       process.exit(1);
     });
-  // Force exit if lingering connections keep the server alive.
-  setTimeout(() => process.exit(0), 5000).unref();
+  // Force exit if lingering connections keep the server alive; well inside fly.toml's kill_timeout.
+  setTimeout(() => process.exit(0), 3000).unref();
 }
 
 process.on('SIGINT', () => stop('SIGINT'));

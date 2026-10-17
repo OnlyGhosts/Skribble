@@ -10,7 +10,8 @@ let joinTimer: ReturnType<typeof setTimeout> | null = null;
 
 /**
  * Sends a create/join now, or parks it until the socket opens. Either way the home screen gets
- * a definitive answer within JOIN_TIMEOUT_MS.
+ * a definitive answer within JOIN_TIMEOUT_MS, or, while a server restart is being recovered from
+ * (the typed code's seat may be on its way back), once that is settled.
  */
 function submitJoin(request: JoinRequest): void {
   const store = usePlatformStore.getState();
@@ -19,11 +20,16 @@ function submitJoin(request: JoinRequest): void {
     store.setPendingJoin(null);
     sendJoin(request);
   }
+  armJoinTimer();
+}
+
+function armJoinTimer(): void {
   if (joinTimer !== null) clearTimeout(joinTimer);
   joinTimer = setTimeout(() => {
     joinTimer = null;
     const s = usePlatformStore.getState();
     if (!s.joinPending) return;
+    if (s.connection === 'restarting') return armJoinTimer();
     const code = socket.isOpen() ? 'TIMEOUT' : 'OFFLINE';
     s.failJoin({ code, message: friendlyError(code) });
   }, JOIN_TIMEOUT_MS);

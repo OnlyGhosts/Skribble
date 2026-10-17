@@ -441,6 +441,9 @@ describe('copy', () => {
     expect(panelStatus({ ...base, phase: 'betting', dealerPlaying: true }).text).toBe("Dealer's turn");
     expect(panelStatus({ ...base, bustedOut: true }).state).toBe('out');
     expect(panelStatus({ ...base, seated: false }).state).toBe('spectating');
+    // Offline: the line says what the notice above says, a restart included.
+    expect(panelStatus({ ...base, connected: false })).toMatchObject({ state: 'offline', text: 'Reconnecting…' });
+    expect(panelStatus({ ...base, connected: false, restarting: true })).toMatchObject({ state: 'offline', text: 'Server restarting…' });
     expect(joinNames(['A', 'B', 'C'])).toBe('A, B and C');
   });
 

@@ -28,6 +28,16 @@ export const EMPTY_ROOM_TTL_MS = 60_000;
 
 export const MAX_WS_MESSAGE_BYTES = 64 * 1024;
 
+/** The longest checkpoint text the server accepts back in `restore` (it stays well under one frame). */
+export const CHECKPOINT_MAX_CHARS = 48 * 1024;
+/** A checkpoint older than this no longer restores its room. */
+export const CHECKPOINT_MAX_AGE_MS = 30 * 60_000;
+/**
+ * A phone whose rejoin found no room after a restart and holds no checkpoint keeps retrying the
+ * rejoin quietly for this long (another phone may be bringing the room back) before it gives up.
+ */
+export const RESTORE_RETRY_MS = 20_000;
+
 /** Chat rate limit: at most CHAT_RATE_LIMIT_COUNT messages per CHAT_RATE_LIMIT_WINDOW_MS. */
 export const CHAT_RATE_LIMIT_COUNT = 6;
 export const CHAT_RATE_LIMIT_WINDOW_MS = 4000;

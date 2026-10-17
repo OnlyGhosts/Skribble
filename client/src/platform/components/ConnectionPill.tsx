@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { noOrphan } from '../lib/format';
 import { usePlatformStore } from '../store/usePlatformStore';
 
 import type { ConnectionStatus } from '../store/usePlatformStore';
@@ -9,9 +10,15 @@ export const FIRST_CONNECT_GRACE_MS = 1200;
 /** What the pill says while connected but the server has gone quiet on what was sent. */
 export const SLOW_LABEL = 'Slow connection';
 
+/** What the connection notice says while a server restart is under way (the pill has less room). */
+export const RESTARTING_LABEL = noOrphan('The server is restarting. Your game will carry on.');
+/** The short form, for the pill and the table games' status line. */
+export const RESTARTING_PILL_LABEL = 'Server restarting…';
+
 /** What the pill says for a socket state; null while connected and answering (no pill at all). */
 export function connectionLabel(status: ConnectionStatus, slow = false): string | null {
   if (status === 'connected') return slow ? SLOW_LABEL : null;
+  if (status === 'restarting') return RESTARTING_PILL_LABEL;
   return status === 'connecting' ? 'Connecting…' : 'Reconnecting…';
 }
 

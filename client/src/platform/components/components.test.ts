@@ -270,6 +270,15 @@ describe('reconnecting banner', () => {
     expect(reconnectLabel('reconnecting')).toBe('Reconnecting…');
     expect(reconnectLabel('connecting')).toBe('Connecting…');
     expect(reconnectLabel('connected')).toBeNull();
+    // A restart says the game carries on, kept from leaving one word alone on its last line.
+    expect(reconnectLabel('restarting')).toBe('The server is restarting. Your game will carry\u00a0on.');
+    expect(stylesheet('components.css')).toMatch(/\.reconnect-banner\[data-status='restarting'\]\s*\{[^}]*white-space:\s*normal/);
+    // Centred from the middle of the screen, it takes its own width, or it would wrap into three lines on a phone.
+    expect(stylesheet('components.css')).toMatch(/\.reconnect-banner\[data-status='restarting'\]\s*\{[^}]*width:\s*max-content/);
+    // Its entry keeps the centring: an animated transform without translateX(-50%) slides it in off to the right.
+    const banner = stylesheet('components.css').match(/\.reconnect-banner\s*\{[^}]*animation:\s*([\w-]+)/);
+    const frames = stylesheet('components.css').match(new RegExp(`@keyframes ${banner?.[1] ?? '-'}\\s*\\{([\\s\\S]*?)\\n\\}`));
+    expect(frames?.[1].match(/transform:[^;]*/g)).toEqual(['transform: translate(-50%, -8px)', 'transform: translate(-50%, 0)']);
     // The store starts out connecting (react-dom/server reads the store's initial state).
     const html = renderToString(createElement(ReconnectingBanner));
     const tag = tagWith(html, 'reconnecting-banner');
@@ -459,6 +468,7 @@ describe('wordmark and mascots', () => {
     expect(connectionLabel('connected')).toBeNull();
     expect(connectionLabel('reconnecting')).toBe('Reconnecting…');
     expect(connectionLabel('connecting')).toBe('Connecting…');
+    expect(connectionLabel('restarting')).toBe('Server restarting…');
     // A first connect waits out its grace in JS, so reduced motion (which cuts CSS animations short) cannot flash it.
     expect(shownConnectionLabel('connecting', false)).toBeNull();
     expect(shownConnectionLabel('connecting', true)).toBe('Connecting…');

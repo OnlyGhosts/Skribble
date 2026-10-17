@@ -149,6 +149,7 @@ export const quipgameModule: GameServerModule<QuipgameSettings, QuipgameData, Qu
   nextDeadline,
   view: viewFor,
   hostMessages: new Set(['next']),
+  milestone: (data) => `${data.round}:${data.phase}:${data.matchupIndex}`,
 };
 
 export type { QuipgameData };

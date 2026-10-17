@@ -1,5 +1,5 @@
 import { avatarSchema, type Avatar } from '@shared/platform/avatar';
-import { NAME_MAX_LENGTH, RECONNECT_GRACE_MS } from '@shared/platform/constants';
+import { CHECKPOINT_MAX_AGE_MS, CHECKPOINT_MAX_CHARS, NAME_MAX_LENGTH, RECONNECT_GRACE_MS } from '@shared/platform/constants';
 import { upgradeGameId } from '@shared/platform/games';
 import { SESSION_STORAGE_KEY, type StoredSession } from '@shared/platform/protocol';
 import { normalizeRoomCode } from '@shared/platform/roomCode';
@@ -129,6 +129,21 @@ export interface StoredSeat {
   playerId: string;
   /** Epoch ms of the last write; the server forgets the seat RECONNECT_GRACE_MS after a disconnect. */
   savedAt: number;
+  /** The newest checkpoint the server sent for the room, kept so a phone can bring it back after a restart. */
+  checkpoint?: SeatCheckpoint;
+}
+
+/** A room checkpoint as the server sent it (sealed, opaque here) and when it came. */
+export interface SeatCheckpoint {
+  text: string;
+  /** Epoch ms of arrival: the server stops accepting it CHECKPOINT_MAX_AGE_MS after it was issued. */
+  at: number;
+}
+
+function readCheckpoint(v: unknown): SeatCheckpoint | null {
+  if (!isRecord(v) || typeof v.text !== 'string' || typeof v.at !== 'number' || !Number.isFinite(v.at)) return null;
+  if (v.text.length === 0 || v.text.length > CHECKPOINT_MAX_CHARS) return null;
+  return { text: v.text, at: v.at };
 }
 
 function seatKey(code: string): string {
@@ -139,7 +154,14 @@ export function loadSeat(code: string): StoredSeat | null {
   const v = readJson('local', seatKey(code));
   if (!isRecord(v)) return null;
   if (typeof v.token !== 'string' || typeof v.playerId !== 'string' || typeof v.savedAt !== 'number' || !Number.isFinite(v.savedAt)) return null;
-  return { code, token: v.token, playerId: v.playerId, savedAt: v.savedAt };
+  const checkpoint = readCheckpoint(v.checkpoint);
+  return { code, token: v.token, playerId: v.playerId, savedAt: v.savedAt, ...(checkpoint ? { checkpoint } : {}) };
+}
+
+/** The checkpoint stored with the seat `token` holds in `code`; null when there is none for that seat. */
+export function loadCheckpoint(code: string, token: string): SeatCheckpoint | null {
+  const seat = loadSeat(code);
+  return seat?.token === token ? (seat.checkpoint ?? null) : null;
 }
 
 export function saveSeat(seat: StoredSeat): void {
@@ -150,9 +172,13 @@ export function clearSeat(code: string): void {
   writeRaw('local', seatKey(code), null);
 }
 
-/** Whether a stored seat may still be held by the server; a clock set back in time counts as fresh too. */
+/**
+ * Whether a stored seat may still be held by the server; a clock set back in time counts as fresh
+ * too. A seat with a checkpoint young enough to bring its room back after a restart counts as well.
+ */
 export function isSeatFresh(seat: StoredSeat, now: number): boolean {
-  return now - seat.savedAt < RECONNECT_GRACE_MS;
+  if (now - seat.savedAt < RECONNECT_GRACE_MS) return true;
+  return seat.checkpoint !== undefined && now - seat.checkpoint.at < CHECKPOINT_MAX_AGE_MS;
 }
 
 /**

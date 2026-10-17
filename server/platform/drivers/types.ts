@@ -17,7 +17,7 @@ export function after<T, R>(value: MaybePromise<T>, fn: (v: T) => MaybePromise<R
 export type OutboundMessage = PlatformServerMessage | WireMessage;
 
 /** Platform messages handled inside a room (session-level ones are handled by the connection layer). */
-export type PlatformRoomMessage = Exclude<PlatformClientMessage, { t: 'create' | 'join' | 'rejoin' | 'leave' | 'ping' }>;
+export type PlatformRoomMessage = Exclude<PlatformClientMessage, { t: 'create' | 'join' | 'rejoin' | 'restore' | 'leave' | 'ping' }>;
 
 /**
  * What the connection layer hands to a room: a validated platform message, or a raw game message
@@ -68,10 +68,14 @@ export interface Seat {
   playerId: string;
 }
 
-export type SeatResult = { ok: true; seat: Seat } | { ok: false; code: ErrorCode; message: string };
+/** `roomGone` on a refused restore: the room may still come back from another phone's checkpoint, so the phone keeps asking. */
+export type SeatResult = { ok: true; seat: Seat } | { ok: false; code: ErrorCode; message: string; roomGone?: true };
 
-/** `code` is the normalised room code on success and the error code otherwise. */
-export type LookupResult = { ok: true; code: string } | { ok: false; code: 'INVALID_CODE' | 'ROOM_NOT_FOUND'; message: string };
+/**
+ * `code` is the normalised room code on success and the error code otherwise. `restorable`: no
+ * room has the code, but one a restart lost may still come back from a phone's checkpoint.
+ */
+export type LookupResult = { ok: true; code: string } | { ok: false; code: 'INVALID_CODE' | 'ROOM_NOT_FOUND'; message: string; restorable?: true };
 
 export interface DriverHealth {
   driver: string;
@@ -96,6 +100,13 @@ export interface GameDriver {
   create(gameId: GameId, name: string, avatar: Avatar, connectionId: string): MaybePromise<SeatResult>;
   join(code: string, name: string, avatar: Avatar, connectionId: string): MaybePromise<SeatResult>;
   rejoin(code: string, token: string, connectionId: string): MaybePromise<SeatResult>;
+  /**
+   * The room `code` is not live (a restart lost it): bring it back from the checkpoint a phone
+   * holding seat `token` sent, then rejoin that seat. A room that is live by then is just rejoined.
+   */
+  restore(code: string, token: string, checkpoint: string, connectionId: string): MaybePromise<SeatResult>;
+  /** Before a restart: every phone holding a room checkpoint gets a fresh one. */
+  checkpointAll(): MaybePromise<void>;
   leave(seat: Seat): MaybePromise<void>;
   /** The seat's socket went away; ignored when `connectionId` no longer holds the seat. */
   disconnected(seat: Seat, connectionId: string): MaybePromise<void>;

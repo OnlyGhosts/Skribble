@@ -10,7 +10,7 @@
 import { z } from 'zod';
 import { avatarSchema, type Avatar } from './avatar.js';
 import { upgradeGameId, type GameId } from './games.js';
-import { CHAT_MAX_LENGTH, NAME_MAX_LENGTH, NAME_MIN_LENGTH } from './constants.js';
+import { CHAT_MAX_LENGTH, CHECKPOINT_MAX_CHARS, NAME_MAX_LENGTH, NAME_MIN_LENGTH } from './constants.js';
 import type { PlatformSettings } from './settings.js';
 
 export const nameSchema = z
@@ -152,6 +152,11 @@ export const platformClientMessageSchema = z.discriminatedUnion('t', [
   z.object({ t: z.literal('join'), code: z.string().max(16), name: nameSchema, avatar: avatarSchema }),
   /** Resume a previous seat after a reload/disconnect using the token from `welcome`. */
   z.object({ t: z.literal('rejoin'), code: z.string().max(16), token: z.string().min(8).max(128) }),
+  /**
+   * After a rejoin failed with `roomGone` (a server restart lost the room): bring the room back
+   * from the newest checkpoint this phone holds, then rejoin its seat. Answered like a rejoin.
+   */
+  z.object({ t: z.literal('restore'), code: z.string().max(16), token: z.string().min(8).max(128), checkpoint: z.string().min(1).max(CHECKPOINT_MAX_CHARS) }),
   z.object({ t: z.literal('leave') }),
   z.object({ t: z.literal('ping') }),
   /**
@@ -249,14 +254,26 @@ export type PlatformServerMessage<V = unknown, S = Record<string, unknown>> =
   /** Full per-recipient snapshot; replaces the client's room state wholesale. */
   | { t: 'room'; room: RoomState<V, S> }
   | { t: 'chat'; message: ChatMessage }
-  | { t: 'error'; code: ErrorCode; message: string }
+  /**
+   * `roomGone` is set on a REJOIN_FAILED when no live room has the code (a server restart lost
+   * it): a phone holding a checkpoint for the room sends `restore`, one without retries quietly
+   * for RESTORE_RETRY_MS, since another phone may be bringing the room back.
+   */
+  | { t: 'error'; code: ErrorCode; message: string; roomGone?: true }
+  /**
+   * The room as the server can rebuild it after a restart: sealed and opaque to the client, which
+   * keeps the newest one with its seat and sends it back in `restore`. Sent to a few phones per room.
+   * `null`: this phone no longer gets them, so it drops the one it holds (an old copy must not
+   * bring back a room that has moved on).
+   */
+  | { t: 'checkpoint'; checkpoint: string | null }
   /** The recipient was removed from the room; the socket is closed afterwards. */
   | { t: 'kicked'; reason: string }
   | { t: 'pong'; serverTime: number };
 
 export type PlatformServerMessageOf<T extends PlatformServerMessage['t']> = Extract<PlatformServerMessage, { t: T }>;
 
-export const PLATFORM_SERVER_MESSAGE_TYPES: ReadonlySet<string> = new Set(['welcome', 'room', 'chat', 'error', 'kicked', 'pong']);
+export const PLATFORM_SERVER_MESSAGE_TYPES: ReadonlySet<string> = new Set(['welcome', 'room', 'chat', 'error', 'checkpoint', 'kicked', 'pong']);
 
 export function isPlatformServerMessage(x: unknown): x is PlatformServerMessage {
   return isWireMessage(x) && PLATFORM_SERVER_MESSAGE_TYPES.has(x.t);
@@ -267,6 +284,12 @@ export const WS_PATH = '/ws';
 /** Close codes the server uses; 4xxx is the application range. */
 export const CLOSE_REPLACED = 4001;
 export const CLOSE_REMOVED = 4002;
+/**
+ * The server is restarting (a deploy): it sent fresh checkpoints first, and the game carries on once
+ * it is back. The standard Service Restart code, which pages from before checkpoints already read
+ * as the server going away.
+ */
+export const CLOSE_RESTARTING = 1012;
 
 /** GET /api/rooms/:code — previews a code before joining and resolves which game it belongs to. Always HTTP 200. */
 export const ROOM_PREVIEW_PATH = '/api/rooms';

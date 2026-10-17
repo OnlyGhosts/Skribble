@@ -25,6 +25,8 @@ export interface RoomDeps {
   onEmpty?: (room: Room) => void;
   /** Fired when the room has been empty for its TTL and deleted itself. */
   onDestroy?: (room: Room) => void;
+  /** Fired after an action changed the room's data (`before` is the data it had). */
+  onChange?: (room: Room, before: PlatformRoomData) => void;
   log?: (msg: string) => void;
 }
 
@@ -48,13 +50,15 @@ export class Room {
   private readonly rng: Rng;
   private readonly onEmpty: ((room: Room) => void) | undefined;
   private readonly onDestroy: ((room: Room) => void) | undefined;
+  private readonly onChange: ((room: Room, before: PlatformRoomData) => void) | undefined;
   private readonly log: (msg: string) => void;
   private timer: Timer | null = null;
   /** Pending side-store resync for a player whose input the caps truncated. */
   private resyncTimer: Timer | null = null;
   private destroyed = false;
 
-  constructor(code: string, gameId: GameId, deps: RoomDeps) {
+  /** A room starts from `initial` when one is given (a room brought back from a checkpoint), as a fresh lobby otherwise. */
+  constructor(code: string, gameId: GameId, deps: RoomDeps, initial?: PlatformRoomData) {
     this.code = code;
     this.transport = deps.transport;
     this.storage = deps.storage;
@@ -62,9 +66,18 @@ export class Room {
     this.rng = deps.rng ?? Math.random;
     this.onEmpty = deps.onEmpty;
     this.onDestroy = deps.onDestroy;
+    this.onChange = deps.onChange;
     this.log = deps.log ?? (() => undefined);
-    this.createdAt = this.clock.now();
-    this.data = createRoomData(code, gameId, this.createdAt);
+    this.createdAt = initial?.createdAt ?? this.clock.now();
+    this.data = initial ?? createRoomData(code, gameId, this.createdAt);
+  }
+
+  /** A room rebuilt from a checkpoint (engine/restore.ts): runs what the rebuild left to do and arms its timer. */
+  static restored(data: PlatformRoomData, effects: Effect[], deps: RoomDeps): Room {
+    const room = new Room(data.code, data.gameId, deps, data);
+    room.execute(effects);
+    room.arm();
+    return room;
   }
 
   /** The game the party currently plays (the host may switch it in the lobby). */
@@ -214,6 +227,7 @@ export class Room {
       this.onDestroy?.(this);
     } else {
       this.arm();
+      if (data !== before) this.onChange?.(this, before);
     }
     return result;
   }

@@ -10,7 +10,7 @@ import { TableShell } from '../../platform/table/TableShell';
 import { useTableNow } from '../../platform/table/useTableNow';
 import { ControlPanel } from './components/ControlPanel';
 import { Table } from './components/Table';
-import { isInHand, isMyTurn, nameOf, playerOf, useConnected, useRejoining } from './hooks';
+import { isInHand, isMyTurn, nameOf, playerOf, useConnected, useRejoining, useRestarting } from './hooks';
 import { focusOf } from './lib/focus';
 import { tableOf } from './lib/table';
 import { wonOnScreen } from './lib/screen';
@@ -34,6 +34,7 @@ export function PokerScreen({ room, meId, isHost }: GameScreenProps<PokerView, P
   useAppMode(isPhone);
   const connected = useConnected();
   const rejoining = useRejoining();
+  const restarting = useRestarting();
   const sheet = usePoker((s) => s.sheet);
   const openSheet = usePoker((s) => s.openSheet);
   const stored = usePoker((s) => s.timeline);
@@ -58,6 +59,7 @@ export function PokerScreen({ room, meId, isHost }: GameScreenProps<PokerView, P
     waitingForSeat: seat?.waitingForSeat ?? false,
     busted: seat?.busted ?? false,
     connected,
+    restarting,
     held,
     inHand: isInHand(view, meId),
     myTurn,

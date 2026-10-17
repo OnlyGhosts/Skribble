@@ -192,6 +192,18 @@ export interface GameServerModule<S = unknown, D = unknown, V = unknown, CMsg = 
    * it the platform ends the game at once on the scores as they stand.
    */
   end?(ctx: GameCtx<S>, data: D): GameResult<D, SMsg>;
+  /**
+   * Where the game stands, as a short key (its phase, round, turn or hand). The platform sends
+   * the phones a fresh room checkpoint at once when it changes, rather than within a few seconds.
+   */
+  milestone?(data: D): string;
+  /**
+   * The room was rebuilt from a checkpoint after a server restart. Every epoch-ms time in `data`
+   * (any number within 30 days of the checkpoint) has already moved on by the downtime, and the
+   * side store is empty: a game whose side store held part of the state restarts that part here
+   * (Scribble restarts the turn in progress). Without it the game carries on as it was.
+   */
+  restored?(ctx: GameCtx<S>, data: D): GameResult<D, SMsg>;
 }
 
 /** The erased module type the registry and the engine work with. */

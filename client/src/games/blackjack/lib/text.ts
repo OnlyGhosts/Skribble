@@ -1,4 +1,5 @@
 import type { BlackjackPhase, BlackjackView, HandOutcome } from '@shared/games/blackjack/protocol';
+import { RESTARTING_PILL_LABEL } from '../../../platform/components/ConnectionPill';
 import { formatChips } from '../../../platform/lib/format';
 import { WATCHING_TEXT } from '../../../platform/lib/watching';
 import type { PanelStatus, StatusTone } from '../../../platform/table/ControlPanel';
@@ -92,6 +93,8 @@ export interface PanelStatusInput {
   seated: boolean;
   bustedOut: boolean;
   connected: boolean;
+  /** Not connected because the server is restarting: the line says so rather than "Reconnecting…". */
+  restarting?: boolean;
   inRound: boolean;
   /** A seat with chips: one not dealt in sat the hand out rather than waiting for a seat. */
   hasChips: boolean;
@@ -124,7 +127,7 @@ export function panelStatus(s: PanelStatusInput): PanelStatus {
   if (!s.seated) return line('spectating', WATCHING_TEXT);
   if (s.phase === 'ending' || s.phase === 'gameOver') return line('over', 'Game over');
   if (s.bustedOut) return line('out', "You're out of chips");
-  if (!s.connected) return line('offline', 'Reconnecting…');
+  if (!s.connected) return line('offline', s.restarting ? RESTARTING_PILL_LABEL : 'Reconnecting…');
   if (s.phase === 'held') return line('held', 'Waiting for players');
   if (s.dealerPlaying) return line('dealer', "Dealer's turn");
   if (s.phase === 'results') return line('results', s.betQueued ? 'Bet placed. Next round soon' : 'Next round soon');

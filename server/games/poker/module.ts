@@ -134,6 +134,7 @@ export const pokerModule: GameServerModule<PokerSettings, PokerData, PokerView, 
   queuesSeats: true,
   // A player who never got a seat never played: they stay out of the results.
   ranks: (data, playerId) => data.seats[playerId] !== undefined,
+  milestone: (data) => `${data.hand}:${data.street ?? ''}:${data.phase.kind}:${data.toAct[0] ?? ''}`,
 };
 
 export type { PokerData };

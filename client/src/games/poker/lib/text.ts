@@ -1,5 +1,6 @@
 import { evaluateBest, handName, rankValue, type HandCategory, type HandRank } from '@shared/games/poker/hands';
 import type { Card, PokerLastAction, PokerPhase, PokerResults, PokerStreet, PokerView } from '@shared/games/poker/protocol';
+import { RESTARTING_PILL_LABEL } from '../../../platform/components/ConnectionPill';
 import { formatChips } from '../../../platform/lib/format';
 import { WATCHING_TEXT } from '../../../platform/lib/watching';
 import type { PanelStatus, StatusTone } from '../../../platform/table/ControlPanel';
@@ -155,6 +156,8 @@ export interface PanelStatusInput {
   waitingForSeat: boolean;
   busted: boolean;
   connected: boolean;
+  /** Not connected because the server is restarting: the line says so rather than "Reconnecting…". */
+  restarting?: boolean;
   /** The next hand waits for players. */
   held: boolean;
   /** Dealt into the hand on the table. */
@@ -178,7 +181,7 @@ export function panelStatus(s: PanelStatusInput): PanelStatus {
   if (s.phase === 'gameOver') return line('over', 'Game over');
   if (s.waitingForSeat) return line('no-seat', 'Table full. You get the next free seat');
   if (s.busted) return line('out', "You're out of chips");
-  if (!s.connected) return line('offline', 'Reconnecting…');
+  if (!s.connected) return line('offline', s.restarting ? RESTARTING_PILL_LABEL : 'Reconnecting…');
   if (s.phase === 'results') {
     if (s.result) return { ...line('result', s.result), tone: s.won ? 'go' : 'other' };
     if (s.held) return line('held', 'Waiting for players');

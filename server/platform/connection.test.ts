@@ -407,6 +407,12 @@ class SlowDriver implements GameDriver {
   rejoin(): never {
     throw new Error('not used');
   }
+  restore(): never {
+    throw new Error('not used');
+  }
+  checkpointAll(): void {
+    // Nothing to hand out.
+  }
   leave(): Promise<void> {
     return Promise.resolve();
   }

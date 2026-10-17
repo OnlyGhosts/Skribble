@@ -44,6 +44,12 @@ export function useConnected(): boolean {
   return useSyncExternalStore(usePlatformStore.subscribe, read, read);
 }
 
+/** The server is restarting (or bringing the room back after one): the status line says so, as the notice does. */
+export function useRestarting(): boolean {
+  const read = () => usePlatformStore.getState().connection === 'restarting';
+  return useSyncExternalStore(usePlatformStore.subscribe, read, read);
+}
+
 /** A rejoin is in flight (the socket is back, the seat not yet): the controls wait for it. */
 export function useRejoining(): boolean {
   const read = () => usePlatformStore.getState().rejoining;

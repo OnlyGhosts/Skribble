@@ -2,8 +2,9 @@
 #
 # Runs once the FLY_API_TOKEN repository secret exists: an org token from the Fly dashboard
 # (your organization, then Tokens). The first run creates the app named in fly.toml. Only pushes
-# that change the server deploy: a deploy restarts the process and ends the rooms in progress,
-# and client-only changes ship through Vercel without touching it.
+# that change the server deploy: a deploy restarts the process (the games in progress carry on
+# from the checkpoints the phones hold), and client-only changes ship through Vercel without
+# touching it.
 name: Deploy to Fly.io
 
 on:
@@ -44,6 +45,24 @@ jobs:
             echo "$app exists"
           else
             flyctl apps create "$app" --org personal
+          fi
+      # The key that seals the room checkpoints the phones hold, so games carry on after a restart.
+      # Made once and never changed (a new key only makes the checkpoints out there fail, and those
+      # games end as they did before). The value is masked and never printed.
+      - name: Room checkpoint key
+        if: env.FLY_API_TOKEN != ''
+        run: |
+          # A failed or unexpected listing stops the deploy rather than replacing a key that exists.
+          secrets=$(flyctl secrets list --json)
+          printf '%s' "$secrets" | jq -e 'type == "array" or . == null' > /dev/null
+          found=$(printf '%s' "$secrets" | jq '[.[]? | (.Name // .name // "") | ascii_upcase | select(. == "ROOM_CHECKPOINT_KEY")] | length')
+          if [ "$found" != "0" ]; then
+            echo "ROOM_CHECKPOINT_KEY is set"
+          else
+            key=$(openssl rand -base64 32)
+            echo "::add-mask::$key"
+            flyctl secrets set "ROOM_CHECKPOINT_KEY=$key" --stage > /dev/null
+            echo "ROOM_CHECKPOINT_KEY created"
           fi
       - name: Deploy one machine
         if: env.FLY_API_TOKEN != ''

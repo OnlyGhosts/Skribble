@@ -84,4 +84,5 @@ export const templateModule: GameServerModule<TemplateSettings, TemplateData, Te
   view,
   // The host's End game scores the clicks so far, as the clock running out would.
   end: (ctx, data) => (data.over ? { data, effects: [] } : finish(ctx, data, null)),
+  milestone: (data) => (data.over ? 'over' : 'racing'),
 };

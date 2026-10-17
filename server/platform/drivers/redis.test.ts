@@ -155,6 +155,20 @@ describe.skipIf(!hasRedisServer)('RedisDriver across two instances', () => {
 
   const stroke = (id: number, x = 1): DrawOp => ({ k: 'start', id, tool: 'brush', color: '#000000', size: 6, x, y: 2 });
 
+  it('needs no checkpoints: the room outlives an instance and a restore on another one is a rejoin', async () => {
+    const a = instance();
+    const b = instance();
+    const { host, guest, code } = await pair(a, b);
+    await a.checkpointAll();
+    expect([...host.ws.ofType('checkpoint'), ...guest.ws.ofType('checkpoint')]).toEqual([]);
+    await a.shutdown();
+    const ws = new FakeSocket();
+    b.register('conn-back', ws);
+    const back = await b.restore(code.toLowerCase(), host.token, 'not a checkpoint', 'conn-back');
+    expect(back).toEqual({ ok: true, seat: host.seat });
+    expect(await b.restore('ZZZZ', host.token, 'not a checkpoint', 'conn-back')).toMatchObject({ ok: false, code: 'REJOIN_FAILED' });
+  });
+
   it('seats players through different instances and fans out snapshots and chat', async () => {
     const a = instance();
     const b = instance();

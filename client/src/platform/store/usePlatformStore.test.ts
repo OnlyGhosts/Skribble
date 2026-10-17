@@ -203,3 +203,26 @@ describe('clock offset', () => {
     expect(state().clockOffset).toBe(1200);
   });
 });
+
+describe('game clocks during a server restart', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('hold at the moment the restart began and run again once the server is back', async () => {
+    const { remainingMs } = await import('../lib/useCountdown');
+    vi.useFakeTimers();
+    const endsAt = Date.now() + 30_000;
+    vi.advanceTimersByTime(5000);
+    state().setConnection('restarting');
+    const heldAt = state().clocksHeldAt;
+    expect(heldAt).toBe(Date.now());
+    // The outage drags on: the clock still shows what it showed when the restart began.
+    vi.advanceTimersByTime(20_000);
+    state().setConnection('restarting');
+    expect(state().clocksHeldAt).toBe(heldAt);
+    expect(remainingMs(endsAt, 0, state().clocksHeldAt ?? Date.now())).toBe(25_000);
+    state().setConnection('connected');
+    expect(state().clocksHeldAt).toBeNull();
+    state().setConnection('reconnecting');
+    expect(state().clocksHeldAt).toBeNull();
+  });
+});
