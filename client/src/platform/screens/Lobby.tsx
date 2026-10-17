@@ -80,9 +80,6 @@ export function Lobby({ room, game }: Props) {
 
           <section className="room-card" aria-label="Room code" data-testid="room-bar">
             <div className="room-card__code">
-              <span className="room-card__label" aria-hidden="true">
-                Room code
-              </span>
               <span className="room-card__value" data-testid="room-code" aria-label={`Room code ${room.code.split('').join(' ')}`}>
                 {room.code.split('').map((ch, i) => (
                   <span key={i} className="room-card__char">
@@ -199,11 +196,10 @@ function StartControls({ room }: { room: RoomState }) {
           Start · {ready} ready
         </button>
       )}
-      {!startable && (
-        <p className="field__hint" data-testid="start-hint">
-          {meta.name} needs at least {meta.minPlayers} ready {meta.minPlayers === 1 ? 'player' : 'players'}.{notReady.length > 0 && ` Not ready yet: ${listNames(notReady.map((p) => p.name))}.`}
-        </p>
-      )}
+      {/* The line keeps its place when there is nothing to say, so Start never jumps as it comes and goes. */}
+      <p className="field__hint lobby__start-hint" data-testid="start-hint" data-empty={startable ? 'true' : undefined}>
+        {!startable && `${meta.name} needs at least ${meta.minPlayers} ready ${meta.minPlayers === 1 ? 'player' : 'players'}.${notReady.length > 0 ? ` Not ready yet: ${listNames(notReady.map((p) => p.name))}.` : ''}`}
+      </p>
     </>
   );
 }

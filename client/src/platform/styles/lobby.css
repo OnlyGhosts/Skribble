@@ -19,9 +19,10 @@
 /*
  * ---------- The room's header: one bar with the logo, the room code and its buttons ----------
  * On a tablet or a desktop it is one surface, as the game top bar is: the logo (with its gear) at
- * the left, "Room code" and the lime tiles together in the middle, Copy and Share at the right end,
- * everything 44px tall on one line. A phone splits it (below): the logo bare and centred, then the
- * code card, which keeps the same surface, label, tiles and buttons.
+ * the left, the lime code tiles in the middle (they need no label: the tiles say what they are, and
+ * the group is named for screen readers), Copy and Share at the right end, everything 44px tall on
+ * one line. A phone splits it (below): the logo bare and centred, then the code card, which keeps
+ * the same surface, tiles and buttons.
  */
 .lobby__top {
   display: flex;
@@ -65,14 +66,6 @@
   justify-content: center;
   gap: 10px;
   min-width: 0;
-}
-
-.room-card__label {
-  flex: none;
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--color-text-muted);
-  white-space: nowrap;
 }
 
 /* The code itself, each character on its own lime block, so it is the first thing anyone sees and easy to read out. */
@@ -286,6 +279,12 @@
   color: var(--color-text-muted);
   font-size: 0.875rem;
   font-weight: 500;
+}
+
+/* The host's line under Start keeps one line of room even while empty, so the buttons never move when it appears or goes. */
+.lobby__start-hint {
+  line-height: 1.4;
+  min-height: 1.4em;
 }
 
 /* ---------- Game picker: square-ish tiles, three to a row; a short last row stretches to fill it ---------- */

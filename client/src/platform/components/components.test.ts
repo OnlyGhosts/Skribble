@@ -621,6 +621,8 @@ describe('platform settings', () => {
     expect(css).toMatch(/\n\.settings \{[^}]*gap: var\(--space-6\)/);
     expect(css).toMatch(/\n\.setting \{[^}]*gap: 10px/);
     expect(ruleOf(css, '.setting__hint')).toContain('margin-top: -6px');
+    // A slider's hint comes up under the track: the range input is 44px tall with the track in its middle.
+    expect(ruleOf(css, '.range-field + .setting__hint')).toContain('margin-top: -14px');
     // A word list's count and Upload sit right under the box.
     expect(ruleOf(css, '.word-list__foot')).toContain('margin-top: -4px');
     // The small upload button is still a 44px target on a phone.
@@ -836,14 +838,16 @@ describe('avatar', () => {
 });
 
 describe('lobby', () => {
-  it('opens with the room code (label, code, Copy and Share) above the game picker; the old invite card is gone', () => {
+  it('opens with the room code (the tiles, Copy and Share, no label) above the game picker; the old invite card is gone', () => {
     // The code section is outside every host-only branch, so host and guests get the same one.
     const markup = renderToString(createElement(Lobby, { room: room(), game: null }));
     const bar = markup.indexOf('data-testid="room-bar"');
     expect(bar).toBeGreaterThan(-1);
     expect(bar).toBeLessThan(markup.indexOf('data-testid="game-picker"'));
     expect(markup).toContain('aria-label="Room code A B C D"><span class="room-card__char">A</span><span class="room-card__char">B</span>');
-    expect(markup.indexOf('>Room code</span>')).toBeLessThan(markup.indexOf('aria-label="Room code A B C D"'));
+    // No visible "Room code" label: the lime tiles say it, and the group keeps the name for screen readers.
+    expect(markup).not.toContain('>Room code</span>');
+    expect(markup).not.toContain('room-card__label');
     for (const id of ['copy-code', 'share-invite']) expect(tagWith(markup, id)).toContain('room-card__btn');
     expect(markup).toContain('<span>Copy</span>');
     expect(markup).toContain('<span>Share</span>');
@@ -987,6 +991,16 @@ describe('lobby', () => {
     expect(tagWith(markup, 'settings-panel')).toBeTruthy();
     expect(tagsWith(markup, 'game-tile').length).toBeGreaterThan(1);
     expect(tagWith(markup, 'start-game')).toBeTruthy();
+  });
+
+  it('keeps the line under Start in place while it has nothing to say, so Start never jumps', () => {
+    const short = enter('host', room({ players: [player('host', { ready: true }), player('bob', { joinOrder: 1 })] }));
+    expect(tagWith(short, 'start-hint')).not.toContain('data-empty');
+    expect(short).toContain('needs at least 2 ready players. Not ready yet: bob.');
+    const ready = enter('host', room({ players: [player('host', { ready: true }), player('bob', { joinOrder: 1, ready: true })] }));
+    expect(tagWith(ready, 'start-hint')).toContain('data-empty="true"');
+    expect(ready).toMatch(/data-testid="start-hint"[^>]*><\/p>/);
+    expect(ruleOf(stylesheet('lobby.css'), '.lobby__start-hint')).toContain('min-height: 1.4em');
   });
 
   it('has no chat: no chat box, log or input for the host or a guest', () => {

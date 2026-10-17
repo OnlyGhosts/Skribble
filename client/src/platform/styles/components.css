@@ -1663,6 +1663,12 @@ button.exit-action--end:hover {
   margin-top: -6px;
 }
 
+/* Under a slider the 44px input carries 20px of nothing below its track: the hint comes up to sit
+   just under the thumb and the value well instead. */
+.range-field + .setting__hint {
+  margin-top: -14px;
+}
+
 /* A slider and its value, which follows the thumb: the number reads in a quiet well, not in the brand colour.
    The well's width is set inline from the widest readout in the panel, so every track has the same length. */
 .range-field {
