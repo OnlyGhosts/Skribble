@@ -192,3 +192,15 @@ export const applause: Render = (sampleRate, random) => {
   for (let i = 0; i < out.length; i++) out[i] += bed.run(noise(random)) * density(i / sampleRate) * 0.06;
   return normalize(out);
 };
+
+/** The soft fall's notes: G4, E flat 4, then C4 over a low C, under a second in all. */
+export const SOFT_FALL_NOTES: readonly Note[] = [
+  { freq: 392, at: 0, dur: 0.2, type: 'triangle', gain: 0.3 },
+  { freq: 311.13, at: 0.17, dur: 0.2, type: 'triangle', gain: 0.3 },
+  { freq: 261.63, at: 0.34, dur: 0.5, type: 'triangle', gain: 0.32 },
+  { freq: 130.81, at: 0.34, dur: 0.5, type: 'sine', gain: 0.16 },
+];
+export const SOFT_FALL_SECONDS = 0.87;
+
+/** A soft three-note fall down a minor chord, the last note resting on a low octave: a gentle "oh". */
+export const softFall: Render = (sampleRate, random) => normalize(renderNotes(SOFT_FALL_NOTES)(sampleRate, random));

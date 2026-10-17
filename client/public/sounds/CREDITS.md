@@ -58,7 +58,8 @@ ffmpeg's amix (the knock, the gavel and the blackjack sting). `scripts/sounds/bu
 No CC0 recording fitted these, so they are synthesised with Web Audio buffers in
 `client/src/platform/lib/audio/synth.ts`: the whoosh (band-passed noise sweeping up and down),
 the drumroll (noise bursts speeding up, with an accent and a low drum), the applause (many short
-band-passed noise claps over a soft bed), and the short note cues kept from before (your turn,
+band-passed noise claps over a soft bed), the soft fall for a dealer blackjack (three notes down
+a minor chord, the last over a low octave), and the short note cues kept from before (your turn,
 the last-seconds tick, the old correct, turn end and fanfare cues).
 
 ## What plays when
@@ -81,6 +82,7 @@ the last-seconds tick, the old correct, turn end and fanfare cues).
 | Blackjack | Your push | `ui/click.mp3` | UI Audio |
 | Blackjack | Your hand busts | `table/thud.mp3` | Impact Sounds |
 | Blackjack | A natural blackjack (full on yours, softer on someone else's) | `stings/blackjack.mp3` | Music Jingles, Casino Audio |
+| Blackjack | The dealer turns over a blackjack (full for a seat in the round, softer for a watcher) | soft fall | made in code |
 | Poker | Hole cards dealt | `table/deal-1/2/3.mp3` | Casino Audio |
 | Poker | Flop, turn and river | `table/place-1/2.mp3` | Casino Audio |
 | Poker | Hands turn over at a showdown | `table/flip.mp3` | Casino Audio |

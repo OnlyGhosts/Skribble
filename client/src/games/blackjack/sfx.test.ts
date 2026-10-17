@@ -157,6 +157,8 @@ describe('Blackjack sounds follow the cards', () => {
       ['deal', tl.arrivals.d2, 0.8],
     ]);
     expect(tl.arrivals.d2).toBeGreaterThan(T.holeFlipAt(tl) ?? Infinity);
+    // A dealer 21 in three cards is no natural: no falling cue.
+    expect(names()).not.toContain('dealerBlackjack');
 
     played = [];
     seed(deal);
@@ -221,6 +223,57 @@ describe('the blackjack sting', () => {
     step(deal, settled);
     vi.advanceTimersByTime(5000);
     expect(names()).not.toContain('blackjack');
+  });
+});
+
+describe('the dealer’s blackjack', () => {
+  /** Round one went at the peek: the dealer’s ace up, a king under, every seat beaten. */
+  const peeked: LastRoundView = {
+    round: 1,
+    order: ['me', 'bob'],
+    dealer: { cards: [c('AH'), c('KC')], holeHidden: false, total: 21, soft: true, blackjack: true },
+    hands: { me: [{ ...hand(['10S', '9D']), outcome: 'loss', payout: 0 }], bob: [{ ...hand(['10C', '6H']), outcome: 'loss', payout: 0 }] },
+    peeked: true,
+    revealEndsAt: START + 3000,
+  };
+  const settled = (): BlackjackView => view({ round: 2, lastRound: peeked, players: { me: seat([], 0), bob: seat([], 0) } });
+
+  it('plays the soft fall in full once the hole card lies face up, after the flip, and not again for the same table', () => {
+    const betting = view();
+    seed(betting);
+    const tl = step(betting, settled());
+    vi.advanceTimersByTime(10_000);
+    const flipAt = T.holeFlipAt(tl) ?? NaN;
+    expect(at('flip')).toEqual([flipAt]);
+    expect(played.filter(([name]) => name === 'dealerBlackjack')).toEqual([['dealerBlackjack', flipAt + T.FLIP_MS, 1]]);
+    // Nothing of mine comes back, so no chips sound either.
+    expect(names()).not.toContain('collect');
+    expect(names()).not.toContain('push');
+
+    played = [];
+    const bobBets = { ...settled(), players: { me: seat([], 0), bob: seat([], 10) } };
+    step(settled(), bobBets);
+    vi.advanceTimersByTime(10_000);
+    expect(names()).toEqual(['bet']);
+  });
+
+  it('plays it softer for someone watching, and my own natural still gets its sting first', () => {
+    const betting = view({ order: ['bob'], players: { bob: seat([]) } });
+    seed(betting);
+    const watcherTl = step(betting, { ...settled(), order: ['bob'], players: { bob: seat([], 0) }, lastRound: { ...peeked, order: ['bob'], hands: { bob: peeked.hands.bob } } }, 'me');
+    vi.advanceTimersByTime(10_000);
+    expect(played.filter(([name]) => name === 'dealerBlackjack')).toEqual([['dealerBlackjack', (T.holeFlipAt(watcherTl) ?? NaN) + T.FLIP_MS, ONLOOKER_VOLUME]]);
+
+    played = [];
+    seed(view());
+    const pushed = { ...settled(), lastRound: { ...peeked, hands: { ...peeked.hands, me: [{ ...hand(['AS', 'QD'], { status: 'blackjack' }), outcome: 'push' as const, payout: 10 }] } } };
+    const tl = step(view(), pushed);
+    vi.advanceTimersByTime(10_000);
+    const flipAt = T.holeFlipAt(tl) ?? NaN;
+    expect(at('blackjack')).toEqual([tl.arrivals['me/0/1/QD'] + T.DEAL_MS]);
+    expect(at('dealerBlackjack')).toEqual([flipAt + T.FLIP_MS]);
+    expect(at('push')).toEqual([T.outcomesAt(tl)]);
+    expect(tl.arrivals['me/0/1/QD'] + T.DEAL_MS).toBeLessThan(flipAt);
   });
 });
 

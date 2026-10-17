@@ -1,5 +1,5 @@
-/** Blackjack's sounds: the shared table files at the levels this table wants, and its own blackjack sting. */
-import { defineSounds, whoosh } from '../../platform/lib/sound';
+/** Blackjack's sounds: the shared table files at the levels this table wants, its own blackjack sting and the dealer's soft fall. */
+import { defineSounds, softFall, whoosh } from '../../platform/lib/sound';
 import { TABLE_FILES } from '../../platform/table/sounds';
 
 export const blackjackSounds = defineSounds('blackjack', {
@@ -15,4 +15,6 @@ export const blackjackSounds = defineSounds('blackjack', {
   bust: { file: TABLE_FILES.thud, volume: 0.5 },
   /** A bright jingle with a cascade of chips, about 1.4 s. */
   blackjack: { file: 'stings/blackjack', volume: 0.7, steady: true },
+  /** The dealer turns over a natural: a soft three-note fall, under a second. */
+  dealerBlackjack: { render: softFall, volume: 0.5, steady: true },
 });

@@ -3,13 +3,15 @@
  * card dealt, hit or doubled as it slides in, the half of a split as it slides to its new hand, the
  * dealer's draws, the hole card turning over, and a soft swoosh as the last round goes to the
  * discards. Chips as bets go down, the viewer's own bust and settle, and the blackjack
- * sting: full on the viewer's own natural, quieter on someone else's, at most one per deal.
+ * sting: full on the viewer's own natural, quieter on someone else's, at most one per deal. The
+ * dealer's natural gets a soft falling cue once the hole card lies face up.
  */
-import type { BlackjackView } from '@shared/games/blackjack/protocol';
+import { isNatural } from '@shared/games/blackjack/cards';
+import type { BlackjackView, Card } from '@shared/games/blackjack/protocol';
 import { ONLOOKER_VOLUME, createSoundSchedule } from '../../platform/lib/sound';
 import { scheduleTimelineSounds } from '../../platform/table/sounds';
 import { cardKey, type TableHand, type TableModel } from './lib/table';
-import { DEAL_MS, outcomesAt, type Timeline } from './lib/timeline';
+import { DEAL_MS, FLIP_MS, holeFlipAt, outcomesAt, type Timeline } from './lib/timeline';
 import { blackjackSounds as sfx } from './sounds';
 
 const schedule = createSoundSchedule();
@@ -51,6 +53,12 @@ function cardVolume(key: string, me: string | null): number {
   return key.includes('/') ? ONLOOKER_VOLUME : 0.8;
 }
 
+/** The dealer's two cards, both face up, make a natural: the round went at the peek. */
+function dealerNatural(table: TableModel): boolean {
+  const cards = table.dealer.filter((c): c is Card => c !== null);
+  return cards.length === table.dealer.length && isNatural(cards);
+}
+
 /** Hands whose status just became `status`, seat by seat in play order. */
 function newlyStatus(table: TableModel, prevTable: TableModel | null, status: TableHand['status']): { playerId: string; index: number; hand: TableHand }[] {
   const sameTable = prevTable !== null && prevTable.round === table.round;
@@ -85,6 +93,14 @@ export function playBlackjackSounds({ view, prevView, table, prevTable, before, 
   const naturals = newlyStatus(table, prevTable, 'blackjack');
   const natural = naturals.find((n) => n.playerId === me) ?? naturals[0];
   if (natural) schedule.at(landedAt(timeline, natural.playerId, natural.index, natural.hand), () => sfx.play('blackjack', { volume: natural.playerId === me ? 1 : ONLOOKER_VOLUME }));
+
+  // The dealer's natural: the hole card turns over and the round is gone. A soft fall once the
+  // card lies flat, in full for a seat in the round and softer for anyone watching.
+  const flipAt = holeFlipAt(timeline);
+  if (flipAt !== null && flipAt !== holeFlipAt(before) && dealerNatural(table)) {
+    const seated = me !== null && (table.hands[me]?.length ?? 0) > 0;
+    schedule.at(flipAt + FLIP_MS, () => sfx.play('dealerBlackjack', { volume: seated ? 1 : ONLOOKER_VOLUME }));
+  }
 
   if (me === null) return;
   for (const bust of newlyStatus(table, prevTable, 'bust')) {
